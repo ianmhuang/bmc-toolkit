@@ -98,7 +98,13 @@ class ExtractResult:
 
 
 def _page_chars(textpage) -> list[tuple[float, float, float, float, str]]:
-    """(x0, y0, x1, y1, char) for every non-blank character on the page."""
+    """(x0, y0, x1, y1, char) for every printable character on the page.
+
+    A space that pdfium reports between two glyphs is kept as a marker
+    (``" "``) attached to the following glyph: some fonts' advance boxes
+    overlap the space (an ``f`` after ``s``), so the geometric gap alone
+    would glue the words.
+    """
     text = textpage.get_text_range()
     count = textpage.count_chars()
     if len(text) != count:
@@ -106,15 +112,21 @@ def _page_chars(textpage) -> list[tuple[float, float, float, float, str]]:
         # page readable without layout rather than misplacing every glyph.
         return []
     out = []
+    pending_space = False
     for i, ch in enumerate(text):
+        if ch in "\r\n":
+            pending_space = False
+            continue
         if ch.isspace():
+            pending_space = True
             continue
         # loose = the glyph's advance box, not its ink: consistent baselines
         # for descenders and no fake gaps after narrow letters.
         x0, y0, x1, y1 = textpage.get_charbox(i, loose=True)
         if x1 <= x0 or y1 <= y0:
             continue
-        out.append((x0, y0, x1, y1, ch))
+        out.append((x0, y0, x1, y1, (" " + ch) if pending_space else ch))
+        pending_space = False
     return out
 
 
@@ -149,11 +161,12 @@ def _group_lines(chars, unit: float) -> list[Line]:
 
 
 def _segment(chars, unit: float) -> Segment:
-    parts = [chars[0][4]]
+    parts = [chars[0][4].lstrip(" ")]
     for prev, c in zip(chars, chars[1:], strict=False):
-        if c[0] - prev[2] > WORD_GAP * unit:
+        marked = c[4].startswith(" ")
+        if marked or c[0] - prev[2] > WORD_GAP * unit:
             parts.append(" ")
-        parts.append(c[4])
+        parts.append(c[4].lstrip(" "))
     return Segment(chars[0][0], chars[-1][2], "".join(parts))
 
 

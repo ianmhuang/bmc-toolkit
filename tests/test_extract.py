@@ -304,3 +304,23 @@ def test_linemap_file_removed_when_rerun_finds_no_numbers(tmp_path):
     pdf = pdfgen.write_pdf(vdir / "original.pdf", [pdfgen.plain_page(["plain"])])
     ex.write_result(vdir, ex.extract_pdf(pdf))
     assert not (vdir / "linemap.json").exists()
+
+
+def test_space_marker_splits_words_whose_boxes_overlap():
+    # 's' at 428.6-432.6, then an 'f' whose advance box starts at 433.3: the
+    # geometric gap is below the word threshold, but pdfium saw a space.
+    chars = [
+        (415.4, 700, 421.9, 710, "T"),
+        (420.9, 700, 425.9, 710, "h"),
+        (425.9, 700, 428.7, 710, "i"),
+        (428.6, 700, 432.6, 710, "s"),
+        (433.3, 700, 439.7, 710, " f"),
+        (437.8, 700, 440.6, 710, "i"),
+        (440.6, 700, 445.0, 710, "e"),
+        (445.0, 700, 448.0, 710, "l"),
+        (447.8, 700, 453.2, 710, "d"),
+    ]
+    assert ex._segment(chars, 4.4).text == "This field"
+    # without the marker the same boxes glue, which is what the marker fixes
+    unmarked = [c[:4] + (c[4].strip(),) for c in chars]
+    assert ex._segment(unmarked, 4.4).text == "Thisfield"
