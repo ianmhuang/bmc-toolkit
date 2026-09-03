@@ -160,8 +160,16 @@ ESCAPES = {
 
 KEPT = ["Resource.json", "Widget.json", NEWEST, "WidgetCollection.json", "odata-v4.json"]
 
+# A second json-schema folder later in the archive with a base name the first
+# folder already has; the first member must win and the second be counted.
+MIRROR = {
+    "DSP8010_2026.1/mirror/json-schema/Resource.json": {
+        "definitions": {"Id": {"type": "integer"}}
+    },
+}
 
-def bundle_bytes() -> bytes:
+
+def bundle_bytes(*, mirror: bool = False) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
         for name, data in SCHEMAS.items():
@@ -170,6 +178,9 @@ def bundle_bytes() -> bytes:
             zf.writestr(name, data)
         for name, data in ESCAPES.items():
             zf.writestr(name, data)
+        if mirror:
+            for name, data in MIRROR.items():
+                zf.writestr(name, json.dumps(data))
     return buf.getvalue()
 
 
@@ -361,7 +372,12 @@ def test_schema_resource_prints_one_property_per_line_with_resolved_types(
 ):
     code, out = schema(capsys, catalog_file, "Widget")
     assert code == 0, out
+    lines = out.splitlines()
+    assert lines[1] == (
+        "schema: Widget v1.10.0 | 11 properties | definitions: Reset, Widget, WidgetType"
+    )
     props = property_lines(out)
+    assert len(props) == 11
     assert props["@odata.id"][1] == "odata id"
     assert props["Id"][1:3] == ["string", "readonly"]
     assert props["Id"][3].startswith("-")  # no versionAdded, no description
@@ -427,6 +443,12 @@ def test_schema_property_with_an_enum_in_the_same_file_and_a_deprecation(
     assert "  Small: A small one." in lines
     assert "  Large: A large one." in lines
     assert "Resource.json" not in out
+    # AC-6: the enum lives in another definition of the same file, so a
+    # second cite: line names that definition before the values
+    second = cite(held, "Widget v1.10.0", NEWEST, "#/definitions/WidgetType")
+    assert second in lines
+    assert lines[lines.index(second) + 1] == "values:"
+    assert out.count("cite: ") == 2
     code, out = schema(capsys, catalog_file, "Widget", "--property", "Retired")
     assert code == 0, out
     assert "description: Old id." in out
@@ -458,6 +480,34 @@ def test_schema_definition_prints_an_enum_or_an_action_with_parameters(
         "  Small: A small one.",
         "  Large: A large one.",
     ]
+
+
+def test_definitions_of_an_index_file_without_a_main_definition(
+    held, catalog_file, capsys
+):
+    # Resource.json defines Id, Description, PowerState and Status but no
+    # "Resource": the resource listing is an exit-2 message naming them,
+    # and --definition still reads one of them (round 1, F4).
+    code, out = schema(capsys, catalog_file, "Resource")
+    assert code == 2, out
+    assert "Traceback" not in out
+    for name in ("Id", "Description", "PowerState", "Status"):
+        assert name in out
+    assert "--definition" in out
+    code, out = schema(capsys, catalog_file, "resource", "--definition", "powerstate")
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0] == cite(held, "Resource", "Resource.json", "#/definitions/PowerState")
+    assert out.count("cite: ") == 1  # the enum is the definition itself
+    assert "values:" in lines
+    assert "  On: Powered on." in lines
+    assert "  Paused: Paused. (added v1.13.0)" in lines
+    code, out = schema(capsys, catalog_file, "odata-v4", "--definition", "id")
+    assert code == 0, out
+    assert out.splitlines()[0] == cite(held, "odata-v4", "odata-v4.json", "#/definitions/id")
+    code, out = schema(capsys, catalog_file, "Resource", "--definition", "Nope")
+    assert code == 2, out
+    assert "Nope" in out and "schema BUNDLE Resource" in out
 
 
 # ------------------------------------------------------------------- AC-5
@@ -590,16 +640,63 @@ def test_a_corrupt_zip_is_a_message_not_a_traceback(
     bad.write_bytes(b"PK\x03\x04" + b"\x00" * 100)
     add(capsys, catalog_file, bad, "BUNDLE", "2026.1")
     code, out = run(capsys, catalog_file, "extract", "BUNDLE")
-    assert code != 0
-    assert "failed" in out.lower()
+    assert code == 2, out  # AC-8: a failed line and exit 2, as for a PDF
+    assert out.startswith("failed BUNDLE 2026.1")
     assert "Traceback" not in out
     vdir = library.specs / "mctp" / "BUNDLE" / "2026.1"
     assert not (vdir / "extract.json").exists()
     row = status_row(capsys, catalog_file, "BUNDLE", "2026.1")
     assert "extracted" not in row
     code, out = run(capsys, catalog_file, "extract", "--all")
-    assert code != 0
+    assert code == 2, out
     assert out.strip().splitlines()[-1].endswith("failed 1")
+
+
+def test_a_write_the_platform_refuses_is_a_failed_line_not_a_traceback(
+    fetched, catalog_file, capsys
+):
+    # A plain file where the schemas/ directory must go: creating the
+    # directory fails on every platform without patching anything.
+    (fetched / "schemas").write_text("in the way", encoding="utf-8")
+    code, out = run(capsys, catalog_file, "extract", "BUNDLE")
+    assert code == 2, out
+    assert out.startswith("failed BUNDLE 2026.1")
+    assert "Traceback" not in out
+    assert not (fetched / "extract.json").exists()
+    row = status_row(capsys, catalog_file, "BUNDLE", "2026.1")
+    assert "extracted" not in row
+    code, out = run(capsys, catalog_file, "extract", "--all")
+    assert code == 2, out
+    assert "failed BUNDLE 2026.1" in out
+    assert out.strip().splitlines()[-1] == "summary: extracted 0, skipped 0, failed 1"
+    # a later schema call says to extract, not something misleading
+    code, out = schema(capsys, catalog_file, "Widget")
+    assert code == 2, out
+    assert "extract BUNDLE" in out
+
+
+def test_a_base_name_seen_twice_is_written_once_and_counted(
+    catalog_file, library, tmp_path, capsys
+):
+    z = tmp_path / "twice.zip"
+    z.write_bytes(bundle_bytes(mirror=True))
+    add(capsys, catalog_file, z, "BUNDLE", "2026.1")
+    code, out = run(capsys, catalog_file, "extract", "BUNDLE")
+    assert code == 0, out
+    assert out.startswith("extracted BUNDLE 2026.1")
+    assert "1 duplicate" in out
+    vdir = library.specs / "mctp" / "BUNDLE" / "2026.1"
+    schemas_dir = vdir / "schemas"
+    assert sorted(p.name for p in schemas_dir.iterdir()) == KEPT
+    # the first member of that name is the one written
+    written = json.loads((schemas_dir / "Resource.json").read_text("utf-8"))
+    assert written == SCHEMAS["Resource.json"]
+    meta = json.loads((vdir / "extract.json").read_text("utf-8"))
+    assert meta["files"] == len(KEPT)
+    # the kept copy still answers the enum question
+    code, out = schema(capsys, catalog_file, "Widget", "--property", "PowerState")
+    assert code == 0, out
+    assert "  On: Powered on." in out
 
 
 def test_a_corrupt_schema_file_is_an_exit_1_message(held, catalog_file, capsys):
