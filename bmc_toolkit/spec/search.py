@@ -14,8 +14,10 @@ fields are fixed and separated by `` | ``::
 ``section`` is the Outline entry that owns the page's first line (``-`` when
 the Outline is empty, ``~`` in front when the entry's page is approximate);
 ``lines`` are the first and last printed line numbers on the page, ``-``
-without a Line Map, ``rendered page`` for an image; ``origin`` is the
-recorded download URL or ``user-provided`` for a Drop-in.
+without a Line Map, ``rendered page`` for an image, ``table K`` for a
+Logical Table (whose page field reads ``PDF pages <a>-<b>`` when it spans
+pages); ``origin`` is the recorded download URL or ``user-provided`` for a
+Drop-in.
 """
 
 import json
@@ -219,8 +221,33 @@ class Version:
 
     # ---------------------------------------------------------- citation
 
-    def cite(self, page: int, lines: str | None = None) -> str:
-        section = self.owning_section(page, 0)
+    def find_line(self, page: int, text: str) -> int:
+        """Index of the first line on the page containing ``text``
+        (whitespace and case aside); 0 when none does."""
+        wanted = _norm(text)
+        if wanted:
+            for i, ln in enumerate(self.lines(page)):
+                if wanted in _norm(ln):
+                    return i
+        return 0
+
+    def cite(
+        self,
+        page: int,
+        lines: str | None = None,
+        *,
+        last: int | None = None,
+        section: "Section | str | None" = None,
+    ) -> str:
+        """The Citation line for a page, or for pages ``page``-``last``;
+        ``section`` (an entry or its label) overrides the entry owning the
+        page's first line."""
+        if section is None:
+            section = self.owning_section(page, 0)
+        if isinstance(section, str):
+            label = section
+        else:
+            label = section.label if section else "-"
         if lines is None:
             rng = self.line_range(page)
             lines = f"{rng[0]}-{rng[1]}" if rng else "-"
@@ -228,8 +255,10 @@ class Version:
             [
                 f"cite: {self.family}",
                 self.label,
-                section.label if section else "-",
-                f"PDF page {page}",
+                label,
+                f"PDF page {page}"
+                if not last or last == page
+                else f"PDF pages {page}-{last}",
                 f"lines {lines}",
                 self.origin,
                 str(self.path),

@@ -41,6 +41,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from bmc_toolkit.spec.tables import remove_store
+
 EXTRACTOR_VERSION = 3  # 3: figure regions
 PAGE_MARKER = "=== page {n} ==="
 EXTRACT_NAME = "extract.txt"
@@ -625,6 +627,13 @@ def extract_pdf(path: Path) -> ExtractResult:
 
     started = time.perf_counter()
     pdf = pdfium.PdfDocument(str(path))
+    try:
+        return _extract_open(pdf, raw, started)
+    finally:
+        pdf.close()  # or Windows keeps the original locked
+
+
+def _extract_open(pdf, raw, started: float) -> ExtractResult:
     count = len(pdf)
     chunks: list[str] = []
     pages_lines: list[list[str]] = []
@@ -719,6 +728,7 @@ def write_result(vdir: Path, result: ExtractResult) -> None:
         dump(FIGURES_NAME, result.figures)
     elif figures_path.exists():
         figures_path.unlink()
+    remove_store(vdir)  # tables carry section labels: read them anew
     dump(META_NAME, result.to_meta())
 
 
@@ -746,6 +756,7 @@ def remove_derived(vdir: Path) -> None:
         p = vdir / name
         if p.exists():
             p.unlink()
+    remove_store(vdir)
     renders = vdir / RENDERS_DIRNAME
     if renders.is_dir():
         shutil.rmtree(renders)

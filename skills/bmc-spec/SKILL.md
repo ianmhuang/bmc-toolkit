@@ -8,8 +8,9 @@ allowed-tools: Bash(python *)
 
 Answer spec questions from the documents themselves: bring the document into
 the Library, find the section or the phrase, read only the pages involved,
-and cite what the tool printed. OpenBMC source questions and tables that
-span pages arrive in later milestones; say so when asked for them.
+and cite what the tool printed. A table is read whole with `table`, even
+when the PDF splits it over pages. OpenBMC source questions arrive in a
+later milestone; say so when asked for them.
 
 ## Vocabulary
 
@@ -37,10 +38,16 @@ span pages arrive in later milestones; say so when asked for them.
   inside a figure is often fragmentary; `find` and `page` mark such lines
   `[figure]`. Box-only diagrams (rectangles and text, nothing diagonal or
   curved) are not detected and read like tables.
-- **Citation**: a `cite:` line printed by `page` or `render`. Its fields,
-  separated by ` | `: family, document and version, section, `PDF page N`,
-  `lines A-B` (or `lines -`, or `rendered page`), origin (download URL or
-  `user-provided`), Library path.
+- **Logical Table**: one ruled table of the document as its author meant
+  it, reassembled from every page it spans: the header once, then the
+  rows. `table` prints it and stores it in `tables.json` next to the
+  Extract. Only tables drawn with ruling lines are found; a table laid out
+  with spaces alone stays readable in the Extract.
+- **Citation**: a `cite:` line printed by `page`, `render` or `table`. Its
+  fields, separated by ` | `: family, document and version, section,
+  `PDF page N` (or `PDF pages A-B` for a Logical Table), `lines A-B` (or
+  `lines -`, `rendered page`, or `table K` for the K-th table on the first
+  page), origin (download URL or `user-provided`), Library path.
 
 ## Helper CLI
 
@@ -65,6 +72,7 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `find DOC PATTERN [--version V] [--regex] [--case] [--context N] [--max N] [--only]` | search the Extract; one line per hit: `DOC p.N [line L] \| section \| [figure] text`. Case-insensitive literal unless `--regex` / `--case`; `--context N` adds the surrounding lines (`line L:` or `row I:`) and a `--` separator; at most 50 hits unless `--max N` (`--max 0` prints all), then a `... more hits` line. Documents the catalog lists in `searched_with` (IPMI-UPDATE for IPMI) are searched too, their hits first; a missing one gets a `note:` line with the command to run; `--only` skips them. `no hits` when nothing matches |
 | `page DOC N [--to M]` or `page DOC --section QUERY [--version V] [--max-pages K]` | print pages of the Extract, each starting with a `cite:` line, every line behind its printed line number when there is one, `[figure]` appended to lines inside a figure. Refuses more than 10 pages per call unless `--max-pages` |
 | `render DOC --page N [--version V] [--scale S] [--force]` | write `renders/page-N.png` (S times 72 dpi, default 2) under the version directory; prints `rendered <path>` and a `cite:` line with `rendered page`. Reuses an existing file unless `--force` |
+| `table DOC --page N [--version V] [--index K] [--force]` | print every Logical Table touching page N, whole: a `cite:` line (`PDF pages A-B`, `table K`), a `table:` line (caption or `-`, page range, columns, rows including the header), then the rows as a grid, columns separated by ` \| `, one physical line per cell line, a rule after the header and after every row with a multi-line cell. `--index K` keeps only the K-th table on the page. Read from `tables.json` when the page was read before, unless `--force`. Exit 2 with `no ruled table on page N` when the page has none |
 
 Exit codes: 0 done, 1 error (malformed catalog, unreadable file), 2 the
 user must act (unknown document or version, download impossible, document
@@ -86,11 +94,17 @@ not in the Library or not extracted, too many pages asked for).
    `page DOC --section QUERY` for a short section. Never read a whole
    Extract into the conversation; a section longer than ten pages is read a
    few pages at a time.
-5. When a hit is marked `[figure]`, or the text of a page looks fragmentary
+5. When the answer sits in a table (a `Table` caption near the hit, or
+   `page` shows columns), run `table DOC --page N` and read the row from
+   the grid instead of from the page text: the grid has the header once and
+   every row of the table, including those the PDF put on other pages.
+   `no ruled table` means the table has no ruling lines; read the page
+   text or render the page instead.
+6. When a hit is marked `[figure]`, or the text of a page looks fragmentary
    (single words on their own lines, columns that do not line up), run
    `render DOC --page N` and open the PNG with the Read tool to look at the
    page.
-6. Answer, quoting at paragraph granularity and in the document's own
+7. Answer, quoting at paragraph granularity and in the document's own
    language, with a Citation for every claim.
 
 ## Citation rules
@@ -107,6 +121,9 @@ not in the Library or not extracted, too many pages asked for).
   confirmed: open the page and check the heading before citing it.
 - An answer read from a rendered PNG says "read from a rendered page" in
   its Citation.
+- A value read from a Logical Table is cited with the `cite:` line `table`
+  printed (all the pages the table spans, `table K`), naming the caption
+  and the row; it carries no line numbers.
 - Drop-in sources say "user-provided" in the origin field; keep it.
   Confidential documents are cited by path, never by a URL.
 - A statement without a Citation is labelled inference.
