@@ -72,6 +72,45 @@ def library(tmp_path, monkeypatch):
     return root
 
 
+@pytest.fixture
+def vendor_layer_release(tmp_path):
+    """A release whose only recipe for the component lives outside
+    meta-phosphor, in meta-vendor, with a file outside every layer and a
+    non-recipe file beside the recipe. Returns (catalog path, pinned sha).
+    """
+    work, bare, url = make_repo(tmp_path, "thing", {"src/state.hpp": "int power();\n"})
+    first = git("rev-parse", "HEAD", cwd=work)
+    ob_files = {
+        "meta-vendor/recipes-vendor/thing_git.bb": RECIPE.format(
+            url=url.removeprefix("file://"), sha=first
+        ),
+        "meta-vendor/recipes-vendor/thing.patch": "not a recipe\n",
+        "docs/handbook.txt": "outside every layer\n",
+    }
+    ob_work, ob_bare, ob_url = make_repo(tmp_path, "openbmc", ob_files, branch="master")
+    git("tag", "2.0.0", cwd=ob_work)
+    push(ob_work, "2.0.0")
+    path = tmp_path / "layer-catalog.toml"
+    path.write_text(
+        MINI_CATALOG
+        + f"""
+[[repos]]
+id = "openbmc"
+url = "{ob_url}"
+topics = ["release"]
+sparse = ["/meta-*/**/*.bb", "/meta-*/**/*.inc"]
+
+[[repos]]
+id = "thing"
+url = "{url}"
+topics = ["power"]
+""",
+        encoding="utf-8",
+        newline="",
+    )
+    return path, first
+
+
 # --------------------------------------------------------------- AC-4
 
 
@@ -96,7 +135,76 @@ def test_user_checkout_outranks_the_library_and_is_cited(
     assert cite[2] == "user checkout"
 
 
+def test_a_relative_user_checkout_is_taken_from_the_library_root(
+    library, catalog_file, remotes, capsys
+):
+    """AC-4: 'a relative path is taken from the Library root'. The checkout
+    sits next to the Library root, so "../thing-work" in config.toml must
+    reach it whatever the process's working directory is.
+    """
+    work, url, first = remotes["thing"]
+    assert work.parent == library.parent  # the fixture layout this relies on
+    library.mkdir(exist_ok=True)
+    (library / "config.toml").write_text(
+        f'[code.checkouts]\nthing = "../{work.name}"\n', encoding="utf-8"
+    )
+    code, out = run(capsys, "code", "thing", "src/state.hpp", catalog_file=catalog_file)
+    assert code == 0, out
+    cite = out.splitlines()[0].split(" | ")
+    assert cite[1] == f"thing {git('rev-parse', 'HEAD', cwd=work)[:7]}"
+    assert cite[2] == "user checkout"
+
+
 # --------------------------------------------------------------- AC-3
+
+
+def test_the_openbmc_repository_at_a_release_is_that_tag(
+    library, catalog_file, remotes, capsys
+):
+    """AC-3: 'For the openbmc repository itself a Release is its own tag or
+    branch: clone openbmc --release L holds it at L and grep/code openbmc
+    --release L read it.' With the default Release in config.toml, cloning
+    and grepping openbmc must work rather than trying to resolve a pin for
+    openbmc out of its own recipes.
+    """
+    library.mkdir(exist_ok=True)
+    (library / "config.toml").write_text(
+        '[code]\nrelease = "1.0.0"\n', encoding="utf-8"
+    )
+    code, out = run(capsys, "clone", "openbmc", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.splitlines()[0] == "release: 1.0.0 (from config.toml)"
+    assert "cloned openbmc " in out
+    code, out = run(
+        capsys, "grep", "openbmc", "SRCREV", "--release", "1.0.0",
+        catalog_file=catalog_file,
+    )
+    assert code == 0, out
+    assert any("thing_git.bb:3 | SRCREV" in ln for ln in out.splitlines()), out
+    # and through the default Release, without naming it
+    code, out = run(capsys, "grep", "openbmc", "SRCREV", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.splitlines()[0] == "note: release 1.0.0 from config.toml"
+
+
+def test_a_release_pin_is_found_in_any_meta_layer(
+    library, vendor_layer_release, capsys
+):
+    """AC-3: the pin comes from the recipe 'in whichever layer', and the
+    openbmc Code Tree holds 'the .bb and .inc recipe files of every meta-*
+    layer'. A component pinned only by meta-vendor must resolve, and files
+    that are neither recipes nor inside a layer must not be checked out.
+    """
+    catalog_file, first = vendor_layer_release
+    code, out = run(
+        capsys, "clone", "thing", "--release", "2.0.0", catalog_file=catalog_file
+    )
+    assert code == 0, out
+    assert f"cloned thing {first[:7]} (release 2.0.0)" in out
+    ob_dir = next(p for p in (library / "code" / "openbmc").iterdir() if p.is_dir())
+    assert (ob_dir / "meta-vendor" / "recipes-vendor" / "thing_git.bb").is_file()
+    assert not (ob_dir / "meta-vendor" / "recipes-vendor" / "thing.patch").exists()
+    assert not (ob_dir / "docs").exists()
 
 
 def test_release_pin_and_unknown_release_and_missing_recipe(
@@ -201,7 +309,15 @@ def test_code_two_hundred_line_boundary(library, catalog_file, remotes, capsys):
 def test_code_refuses_paths_outside_the_tree(library, catalog_file, remotes, capsys):
     work, url, first = remotes["thing"]
     run(capsys, "clone", "thing", catalog_file=catalog_file)
-    for outside in ("../outside.txt", "/etc/passwd"):
+    # AC-6 names '..', an absolute path, a drive letter, and a path that
+    # resolves elsewhere; all are exit 2 on every platform.
+    for outside in (
+        "../outside.txt",
+        "/etc/passwd",
+        "C:/Windows/win.ini",
+        "C:x",
+        "src/../../outside.txt",
+    ):
         code, out = run(
             capsys, "code", "thing", outside, catalog_file=catalog_file
         )
