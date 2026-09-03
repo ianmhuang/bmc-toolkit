@@ -324,3 +324,59 @@ def test_space_marker_splits_words_whose_boxes_overlap():
     # without the marker the same boxes glue, which is what the marker fixes
     unmarked = [c[:4] + (c[4].strip(),) for c in chars]
     assert ex._segment(unmarked, 4.4).text == "Thisfield"
+
+
+class FakeTextPage:
+    """Enough of pypdfium2's text page for _page_chars: text plus boxes."""
+
+    def __init__(self, items):
+        # items: (char, box) with box None for whitespace
+        self.text = "".join(ch for ch, _ in items)
+        self.boxes = [box for _, box in items]
+
+    def get_text_range(self):
+        return self.text
+
+    def count_chars(self):
+        return len(self.text)
+
+    def get_charbox(self, i, loose=False):
+        return self.boxes[i] or (0, 0, 0, 0)
+
+
+def test_synthetic_space_after_stream_jump_is_not_a_word_break():
+    # "SMBus/I" ends a line; the content stream then draws the next line's
+    # margin number "243" and only afterwards "2C." pdfium reports a space
+    # around the jump, but 'I' and '2' touch on the page.
+    items = [
+        ("I", (160.2, 536, 163.0, 549.6)),
+        (" ", None),
+        ("2", (37.4, 536, 43.0, 549.6)),
+        ("4", (43.0, 536, 48.5, 549.6)),
+        ("3", (48.5, 536, 54.0, 549.6)),
+        (" ", None),
+        ("2", (163.0, 536, 168.6, 549.6)),
+        ("C", (168.6, 536, 175.8, 549.6)),
+    ]
+    chars = ex._page_chars(FakeTextPage(items))
+    texts = [c[4] for c in chars]
+    assert texts == ["I", "2", "4", "3", "2", "C"]  # neither jump earns a marker
+    unit = 4.4
+    lines = ex._group_lines(chars, unit)
+    # the line holds "243" then "I2C" as two segments; I2C is whole
+    assert [seg.text for seg in lines[0].segments] == ["243", "I2C"]
+
+
+def test_synthetic_space_between_adjacent_glyphs_is_a_word_break():
+    # "SMS_ATN for": no space glyph in the PDF, pdfium inserts one, and the
+    # 'f' advance box overhangs the 'N' by 0.06pt.
+    items = [
+        ("T", (277.94, 700, 284.41, 713.6)),
+        ("N", (283.21, 700, 291.07, 713.6)),
+        (" ", None),
+        ("f", (291.01, 700, 297.42, 713.6)),
+        ("o", (295.50, 700, 300.48, 713.6)),
+        ("r", (300.48, 700, 303.80, 713.6)),
+    ]
+    chars = ex._page_chars(FakeTextPage(items))
+    assert ex._segment(chars, 4.4).text == "TN for"

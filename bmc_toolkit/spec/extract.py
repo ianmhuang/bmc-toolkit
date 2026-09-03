@@ -33,7 +33,9 @@ META_NAME = "extract.json"
 # Geometry thresholds, in multiples of the page's unit (median glyph width).
 SEGMENT_GAP = 1.0  # a wider gap starts a new segment (table cell, column)
 WORD_GAP = 0.22  # a wider gap inside a segment is a word space
-BASELINE_TOL = 0.45  # of the median glyph height: same line if closer
+STREAM_NEIGHBOUR = 0.6  # of glyph height: how close a stream predecessor must be
+BASELINE_TOL = 0.45  # of the glyph height: stream neighbours share a baseline
+LINE_OVERLAP = 0.5  # of the smaller glyph height: vertical overlap that joins a line
 NUMBER_BAND_PT = 3.0  # line numbers share an edge within this many points
 MIN_NUMBERED_LINES = 5
 NUMBER_MARGIN = 0.15  # the number column lies within this fraction of the width
@@ -103,7 +105,10 @@ def _page_chars(textpage) -> list[tuple[float, float, float, float, str]]:
     A space that pdfium reports between two glyphs is kept as a marker
     (``" "``) attached to the following glyph: some fonts' advance boxes
     overlap the space (an ``f`` after ``s``), so the geometric gap alone
-    would glue the words.
+    would glue the words. pdfium also invents a space wherever the content
+    stream jumps (to draw a margin line number between the two halves of
+    "I2C"), so the marker is kept only when the glyph before the space in
+    stream order is also the glyph's left neighbour on the page.
     """
     text = textpage.get_text_range()
     count = textpage.count_chars()
@@ -113,6 +118,7 @@ def _page_chars(textpage) -> list[tuple[float, float, float, float, str]]:
         return []
     out = []
     pending_space = False
+    prev = None  # box of the previous printable glyph in stream order
     for i, ch in enumerate(text):
         if ch in "\r\n":
             pending_space = False
@@ -125,23 +131,38 @@ def _page_chars(textpage) -> list[tuple[float, float, float, float, str]]:
         x0, y0, x1, y1 = textpage.get_charbox(i, loose=True)
         if x1 <= x0 or y1 <= y0:
             continue
-        out.append((x0, y0, x1, y1, (" " + ch) if pending_space else ch))
+        marked = (
+            pending_space
+            and prev is not None
+            and _stream_neighbours(prev, (x0, y0, x1, y1))
+        )
+        out.append((x0, y0, x1, y1, (" " + ch) if marked else ch))
         pending_space = False
+        prev = (x0, y0, x1, y1)
     return out
+
+
+def _stream_neighbours(prev, box) -> bool:
+    """True when ``box`` sits right after ``prev`` on the same baseline."""
+    height = max(box[3] - box[1], prev[3] - prev[1], 1.0)
+    same_line = abs(box[1] - prev[1]) < BASELINE_TOL * height
+    return same_line and abs(box[0] - prev[2]) < STREAM_NEIGHBOUR * height
 
 
 def _group_lines(chars, unit: float) -> list[Line]:
     if not chars:
         return []
-    heights = [c[3] - c[1] for c in chars]
-    tol = BASELINE_TOL * statistics.median(heights)
     ordered = sorted(chars, key=lambda c: (-c[1], c[0]))
     groups: list[list] = []
+    refs: list[tuple] = []  # the tallest box of each group: its line extent
     for c in ordered:
-        if groups and abs(groups[-1][0][1] - c[1]) <= tol:
+        if groups and _same_line(refs[-1], c):
             groups[-1].append(c)
+            if c[3] - c[1] > refs[-1][3] - refs[-1][1]:
+                refs[-1] = c
         else:
             groups.append([c])
+            refs.append(c)
     lines = []
     for g in groups:
         g.sort(key=lambda c: c[0])
@@ -160,11 +181,21 @@ def _group_lines(chars, unit: float) -> list[Line]:
     return lines
 
 
+def _same_line(ref, c) -> bool:
+    """Same line when the boxes overlap vertically by half the smaller height.
+
+    Catches superscripts and subscripts (a small "2" riding high in "I2C")
+    without merging adjacent lines of body text.
+    """
+    overlap = min(ref[3], c[3]) - max(ref[1], c[1])
+    smaller = min(ref[3] - ref[1], c[3] - c[1])
+    return overlap >= LINE_OVERLAP * smaller
+
+
 def _segment(chars, unit: float) -> Segment:
     parts = [chars[0][4].lstrip(" ")]
     for prev, c in zip(chars, chars[1:], strict=False):
-        marked = c[4].startswith(" ")
-        if marked or c[0] - prev[2] > WORD_GAP * unit:
+        if c[4].startswith(" ") or c[0] - prev[2] > WORD_GAP * unit:
             parts.append(" ")
         parts.append(c[4].lstrip(" "))
     return Segment(chars[0][0], chars[-1][2], "".join(parts))
