@@ -41,6 +41,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from bmc_toolkit.spec.tables import remove_store
+
 EXTRACTOR_VERSION = 3  # 3: figure regions
 PAGE_MARKER = "=== page {n} ==="
 EXTRACT_NAME = "extract.txt"
@@ -49,7 +51,6 @@ LINEMAP_NAME = "linemap.json"
 FIGURES_NAME = "figures.json"
 META_NAME = "extract.json"
 RENDERS_DIRNAME = "renders"
-TABLES_NAME = "tables.json"  # written by tables.py; removed with the rest
 
 # Figure detection, in PDF points.
 DIAGONAL_PT = 2.0  # a segment moving more than this in both x and y is diagonal
@@ -727,9 +728,7 @@ def write_result(vdir: Path, result: ExtractResult) -> None:
         dump(FIGURES_NAME, result.figures)
     elif figures_path.exists():
         figures_path.unlink()
-    tables_path = vdir / TABLES_NAME  # tables carry section labels: read anew
-    if tables_path.exists():
-        tables_path.unlink()
+    remove_store(vdir)  # tables carry section labels: read them anew
     dump(META_NAME, result.to_meta())
 
 
@@ -753,17 +752,11 @@ def is_current(vdir: Path) -> bool:
 
 
 def remove_derived(vdir: Path) -> None:
-    for name in (
-        EXTRACT_NAME,
-        OUTLINE_NAME,
-        LINEMAP_NAME,
-        FIGURES_NAME,
-        TABLES_NAME,
-        META_NAME,
-    ):
+    for name in (EXTRACT_NAME, OUTLINE_NAME, LINEMAP_NAME, FIGURES_NAME, META_NAME):
         p = vdir / name
         if p.exists():
             p.unlink()
+    remove_store(vdir)
     renders = vdir / RENDERS_DIRNAME
     if renders.is_dir():
         shutil.rmtree(renders)

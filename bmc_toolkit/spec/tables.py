@@ -456,6 +456,7 @@ class Reader:
         previous = first
         for part in parts[1:]:
             more = drop_repeated_header(rows, part.rows)
+            more = drop_repeated_header(rows, more)  # a "(continued)" sub-header too
             if more and rows and previous.open_bottom and _is_cut_row(more[0]):
                 rows[-1] = join_cells(rows[-1], more[0])
                 more = more[1:]

@@ -265,6 +265,19 @@ def test_a_body_row_equal_to_an_earlier_one_is_kept(tmp_path):
     assert t.rows == [HEADER, placeholder, ROWS_1[0], placeholder, ROWS_2[0]]
 
 
+def test_a_repeated_header_and_a_continued_sub_header_are_both_dropped(tmp_path):
+    widths = [100, 160, 120]
+    sub = ["Type", "Response data", ""]
+    page1 = furniture(1) + ruled_table(
+        72, 200, widths, [16] * 3, [HEADER, sub, ROWS_1[0]]
+    )
+    rows2 = [HEADER, ["Type", "Response data (continued)", ""], ROWS_2[0]]
+    page2 = furniture(2) + ruled_table(72, 740, widths, [16] * 3, rows2)
+    with reader(tmp_path, [page1, page2]) as r:
+        t = r.logical_tables(1)[0]
+    assert t.rows == [HEADER, sub, ROWS_1[0], ROWS_2[0]]
+
+
 def test_read_page_assembles_every_table_on_the_pages_it_visits(tmp_path):
     page1 = furniture(1) + ruled_table(72, 200, WIDTHS, [16] * 2, [HEADER, ROWS_1[0]])
     page2 = furniture(2) + ruled_table(72, 740, WIDTHS, [16] * 2, [HEADER, ROWS_1[1]])

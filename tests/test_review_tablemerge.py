@@ -218,11 +218,12 @@ def test_a_continued_sub_header_that_repeats_an_earlier_row_is_dropped(tmp_path)
     next page repeats a row already seen and is dropped; without the mark
     the same row would stay."""
     sub = ["Type", "Response data", ""]
-    page1 = furniture(1) + grid(72, 200, WIDTHS, [16] * 3, [HEADER, sub, ROWS_A[0]])
+    widths = [100, 160, 120]  # "(continued)" must fit inside its cell
+    page1 = furniture(1) + grid(72, 200, widths, [16] * 3, [HEADER, sub, ROWS_A[0]])
     page2 = furniture(2) + grid(
         72,
         740,
-        WIDTHS,
+        widths,
         [16] * 2,
         [["Type", "Response data (continued)", ""], ROWS_B[0]],
     )
