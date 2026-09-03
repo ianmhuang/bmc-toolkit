@@ -129,3 +129,32 @@ def test_file_matches_type(tmp_path):
     assert not file_matches_type(html, "pdf")
     assert not file_matches_type(pdf, "zip")
     assert not file_matches_type(tmp_path / "missing.pdf", "pdf")
+
+
+def test_replacing_an_original_clears_other_originals_and_derived(library, tmp_path):
+    vdir = library.store(
+        "mctp", "DSP0236", "1.3.3", b"%PDF", "pdf", url="u", method="direct"
+    )
+    for name in ("extract.txt", "extract.json", "outline.json", "linemap.json"):
+        (vdir / name).write_text("x", "utf-8")
+    src = tmp_path / "bundle.zip"
+    src.write_bytes(b"PK\x03\x04 zip")
+    library.add_dropin(src, "mctp", "DSP0236", "1.3.3", "zip")
+    assert sorted(p.name for p in vdir.iterdir()) == ["meta.json", "original.zip"]
+    # and the other direction, via store
+    library.store(
+        "mctp", "DSP0236", "1.3.3", b"%PDF again", "pdf", url="u", method="direct"
+    )
+    assert sorted(p.name for p in vdir.iterdir()) == ["meta.json", "original.pdf"]
+
+
+def test_extract_meta_property(library, tmp_path):
+    vdir = library.store(
+        "mctp", "DSP0236", "1.3.3", b"%PDF", "pdf", url="u", method="direct"
+    )
+    holding = library.find("DSP0236", "1.3.3")
+    assert holding.extract_meta is None
+    (vdir / "extract.json").write_text('{"outline_source": "bookmarks"}', "utf-8")
+    assert holding.extract_meta is None  # no extract.txt yet
+    (vdir / "extract.txt").write_text("=== page 1 ===\n", "utf-8")
+    assert holding.extract_meta == {"outline_source": "bookmarks"}

@@ -6,10 +6,10 @@ allowed-tools: Bash(python *)
 
 # bmc-spec
 
-Status: the Library and the Source Catalog work; text extraction and the
-answering workflow arrive in later milestones. Until then this skill can
-tell the user which documents and versions exist and bring the files onto
-the machine.
+Status: the Library, the Source Catalog and text extraction work; the
+answering workflow (search, section lookup, citations) arrives in the next
+milestone. Until then this skill can tell the user which documents and
+versions exist, bring the files onto the machine, and turn them into text.
 
 ## Vocabulary
 
@@ -24,6 +24,14 @@ the machine.
 - **Drop-in**: a file the user placed into the Library by hand because the
   tool cannot download it (registration, membership, NDA, or a blocked
   download).
+- **Extract**: `extract.txt` next to the original, every page introduced by
+  `=== page N ===` (physical page, 1-based), layout preserved so tables read
+  column by column. DMTF printed line numbers are removed from the text and
+  kept in `linemap.json` (per page: first, last, and the number of each
+  line), so a citation can say "p.20, lines 680-700".
+- **Outline**: `outline.json`, a flat list of `{level, title, page}` from the
+  PDF bookmarks, or parsed from the contents pages when there are none
+  (`extract.json` says which: `bookmarks`, `contents`, `none`).
 
 ## Helper CLI
 
@@ -37,11 +45,13 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 |---|---|
 | `library` | print the Library path |
 | `catalog [DOC] [--family F]` | list documents (one per line, tab-separated: family, id, access, fetch, latest, title, known versions joined by `;`) or show one document with every version, newest first |
-| `fetch DOC [--version V] [--wip] [--force]` | download one version into the Library; latest by default; skips silently if already present |
+| `fetch DOC [--version V] [--wip] [--force]` | download one version into the Library; latest by default; prints a `skipped` line and stays off the network if already present |
 | `fetch --all [--wip] [--force]` | latest of every downloadable document; ends with a `summary:` line |
 | `add FILE --document DOC --version V [--force]` | register a file the user obtained themselves (Drop-in); refuses to replace a version already present unless `--force`; the file must really be a PDF or ZIP |
 | `scan` | register files placed by hand under `specs/<family>/<document>/<version>/original.pdf` |
-| `status` | what the Library holds |
+| `status` | what the Library holds; columns: family, id, version, origin, size, `extracted` or `-`, outline source |
+| `extract DOC [--version V] [--force]` | write the Extract, Outline and Line Map for a version already in the Library (latest held version by default); skips if current |
+| `extract --all [--force]` | every PDF in the Library; ends with a `summary:` line; ZIP bundles are skipped for now |
 
 Exit codes: 0 done, 1 error (malformed catalog, unreadable file), 2 the
 user must act (unknown document or version, download impossible).
@@ -58,4 +68,8 @@ user must act (unknown document or version, download impossible).
 - IPMI questions need both `IPMI` (the base document) and `IPMI-UPDATE`
   (errata and clarifications); fetch both.
 - `fetch --all` downloads several hundred megabytes; only run it when the
-  user asks for everything.
+  user asks for everything. `extract --all` on a full Library takes a couple
+  of minutes.
+- Read a page from the Extract by locating its `=== page N ===` marker; the
+  Outline gives the physical page of a section. Do not read whole Extracts
+  into the conversation.

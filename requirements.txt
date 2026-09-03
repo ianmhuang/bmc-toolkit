@@ -1,5 +1,8 @@
 # Runtime packages, installed by hooks/install_deps.py into the plugin data dir.
 # curl_cffi: downloads that need a browser TLS fingerprint (Intel, OCP CDNs).
-# pdfplumber: PDF text with word coordinates, and table extraction (MIT).
+# pypdfium2: PDF text with character boxes and bookmarks (BSD-3 / Apache-2.0);
+#   the text layer, about ten times faster than pdfplumber on 600-page documents.
+# pdfplumber: table extraction (MIT), used from M4 on.
 curl_cffi>=0.10
+pypdfium2>=4.30
 pdfplumber>=0.11

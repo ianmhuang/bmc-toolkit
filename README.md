@@ -10,8 +10,8 @@ asked about, defaults to the latest published version of each document,
 serves any specific version on request, and cites document, version, section
 and page in every answer.
 
-**Status: pre-release.** The Source Catalog and document fetching work;
-text extraction and the answering workflow are being added milestone by
+**Status: pre-release.** The Source Catalog, document fetching and text
+extraction work; the answering workflow is being added milestone by
 milestone.
 
 ## Install
@@ -27,10 +27,12 @@ into the plugin's data directory by a `SessionStart` hook; in a development
 checkout run `pip install -r requirements.txt` yourself.
 
 - `curl_cffi` (MIT): HTTP client that presents a browser TLS fingerprint.
-  Without it the tool falls back to `urllib`, and Intel and OCP documents
-  then come from the Internet Archive instead of the publisher.
-- `pdfplumber` (MIT): PDF text and table extraction (used from the next
-  milestone on).
+  Without it the tool falls back to `urllib`; Intel documents then come from
+  the Internet Archive instead of the publisher, OCP documents still
+  download directly (both verified).
+- `pypdfium2` (BSD-3-Clause or Apache-2.0): PDF text with character
+  positions and bookmarks; the text layer.
+- `pdfplumber` (MIT): table extraction (used from a later milestone on).
 
 ## Library location
 
@@ -38,7 +40,12 @@ Documents and code checkouts live under `~/.bmc-specs/` by default. Set
 `BMC_SPEC_LIBRARY` to move it. The path is shared by every project on the
 machine. Each document version sits at
 `specs/<family>/<document>/<version>/original.<pdf|zip>` next to a
-`meta.json` that records where it came from and its SHA-256.
+`meta.json` that records where it came from and its SHA-256. After
+`extract` the same directory holds `extract.txt` (one `=== page N ===`
+marker per physical page, layout preserved), `outline.json` (section
+titles with pages, from PDF bookmarks or from the contents pages),
+`linemap.json` (DMTF printed line numbers, per page) and `extract.json`
+(extractor version, timing, what was found).
 
 ## Command line
 
@@ -54,6 +61,8 @@ python skills/bmc-spec/scripts/bmcspec.py fetch --all          # several hundred
 python skills/bmc-spec/scripts/bmcspec.py add vendor.pdf --document DSP0236 --version 1.1.0   # --force to replace
 python skills/bmc-spec/scripts/bmcspec.py scan                 # register hand-placed files
 python skills/bmc-spec/scripts/bmcspec.py status
+python skills/bmc-spec/scripts/bmcspec.py extract DSP0236      # text, outline, line map
+python skills/bmc-spec/scripts/bmcspec.py extract --all
 ```
 
 Exit codes: 0 done, 1 error, 2 you need to act (the message says what).
@@ -73,6 +82,8 @@ Exit codes: 0 done, 1 error, 2 you need to act (the message says what).
   `scan` also records whether the document id is in the catalog
   (`catalog_known`). Nothing already in the Library is replaced without
   `--force`.
+- Replacing an original (`add --force`, `fetch --force`) removes the
+  previous original and everything extracted from it.
 - Never runs a subprocess and never re-uploads or redistributes anything.
 
 ## The Source Catalog

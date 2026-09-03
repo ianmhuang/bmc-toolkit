@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from bmc_toolkit import __version__
+from bmc_toolkit.spec import extract as extract_mod
 from bmc_toolkit.spec import fetch as fetch_mod
 from bmc_toolkit.spec.catalog import Catalog, CatalogError, Document, load_catalog
 from bmc_toolkit.spec.library import (
@@ -79,6 +80,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("scan", help="register files placed into the Library by hand")
     sub.add_parser("status", help="what the Library holds")
+
+    p = sub.add_parser("extract", help="turn a PDF in the Library into text")
+    p.add_argument("document", nargs="?", help="document id")
+    p.add_argument("--version", dest="doc_version", help="exact version string")
+    p.add_argument("--force", action="store_true", help="re-extract if present")
+    p.add_argument("--all", action="store_true", help="every PDF in the Library")
     return parser
 
 
@@ -329,10 +336,87 @@ def cmd_status(args: argparse.Namespace) -> int:
         return EXIT_OK
     for h in holdings:
         flag = "dropin" if h.dropin else h.meta.get("fetch_method", "")
+        em = h.extract_meta
+        extracted = "extracted" if em else "-"
+        outline = em.get("outline_source", "-") if em else "-"
+        size = h.meta.get("size", "?")
         print(
-            f"{h.family}\t{h.document}\t{h.version}\t{flag}\t{h.meta.get('size', '?')}"
+            f"{h.family}\t{h.document}\t{h.version}\t{flag}\t{size}"
+            f"\t{extracted}\t{outline}"
         )
     return EXIT_OK
+
+
+def _extract_one(holding, force: bool) -> str:
+    """Extract one holding; returns extracted | skipped | failed."""
+    original = holding.original
+    label = f"{holding.document} {holding.version}"
+    if original.suffix.lower() != ".pdf":
+        print(f"skipped {label}: {original.name} is not a PDF (bundles come later)")
+        return "skipped"
+    if not original.is_file():
+        print(f"failed {label}: {original} is missing")
+        return "failed"
+    if not force and extract_mod.is_current(holding.path):
+        print(f"skipped {label}: already extracted")
+        return "skipped"
+    try:
+        result = extract_mod.extract_pdf(original)
+    except ImportError as exc:
+        print(f"failed {label}: {exc}; run: pip install -r requirements.txt")
+        return "failed"
+    except Exception as exc:  # noqa: BLE001 - a broken PDF must not stop --all
+        print(f"failed {label}: {type(exc).__name__}: {exc}")
+        return "failed"
+    extract_mod.write_result(holding.path, result)
+    meta = result.to_meta()
+    numbers = ""
+    if meta["line_numbers"]:
+        numbers = f", line numbers on {meta['line_numbered_pages']} pages"
+    print(
+        f"extracted {label}: {meta['pages']} pages in {meta['seconds']}s, "
+        f"outline {meta['outline_source']} ({meta['outline_entries']} entries){numbers}"
+    )
+    return "extracted"
+
+
+def cmd_extract(args: argparse.Namespace) -> int:
+    library = Library(resolve_library())
+    if args.all == bool(args.document):
+        print("give a document id or --all (not both)")
+        return EXIT_ACTION
+    if args.all and args.doc_version:
+        print("--version applies to one document; drop it with --all")
+        return EXIT_ACTION
+    if args.all:
+        counts = {"extracted": 0, "skipped": 0, "failed": 0}
+        for h in library.holdings():
+            counts[_extract_one(h, args.force)] += 1
+        print(
+            f"summary: extracted {counts['extracted']}, skipped {counts['skipped']}, "
+            f"failed {counts['failed']}"
+        )
+        return EXIT_OK if counts["failed"] == 0 else EXIT_ACTION
+    catalog = _load(args)
+    doc = catalog.get(args.document)
+    doc_id = doc.id if doc else args.document
+    held = [h for h in library.holdings() if h.document.lower() == doc_id.lower()]
+    if args.doc_version:
+        holding = next((h for h in held if h.version == args.doc_version), None)
+        wanted = args.doc_version
+    else:
+        latest = doc.latest() if doc is not None else None
+        holding = None
+        if latest is not None:
+            holding = next((h for h in held if h.version == latest.version), None)
+        if holding is None and held:
+            holding = held[-1]
+        wanted = "latest"
+    if holding is None:
+        print(f"{doc_id} {wanted} is not in the Library; run: bmcspec fetch {doc_id}")
+        return EXIT_ACTION
+    outcome = _extract_one(holding, args.force)
+    return EXIT_OK if outcome != "failed" else EXIT_ACTION
 
 
 COMMANDS = {
@@ -342,6 +426,7 @@ COMMANDS = {
     "add": cmd_add,
     "scan": cmd_scan,
     "status": cmd_status,
+    "extract": cmd_extract,
 }
 
 
