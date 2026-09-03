@@ -493,7 +493,7 @@ def test_extract_all_skips_zip_and_summarises(
     run(capsys, "fetch", "BUNDLE", catalog_file=catalog_file)
     code, out = run(capsys, "extract", "--all", catalog_file=catalog_file)
     assert code == 0, out
-    assert "skipped BUNDLE 2026.1: original.zip is not a PDF" in out
+    assert "skipped BUNDLE 2026.1: no json-schema/ folder in the archive" in out
     assert out.strip().splitlines()[-1] == "summary: extracted 1, skipped 1, failed 0"
     code, out = run(
         capsys, "extract", "--all", "--version", "1", catalog_file=catalog_file

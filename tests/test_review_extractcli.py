@@ -17,10 +17,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from bmc_toolkit.spec import cli  # noqa: E402
-from tests.conftest import ok  # noqa: E402
+from tests.conftest import ZIP_BYTES, ok  # noqa: E402
 
 URL_133 = "https://example.test/DSP0236_1.3.3.pdf"
-ZIP = b"PK\x03\x04" + b"\x00" * 64
+ZIP = ZIP_BYTES  # a real archive without a json-schema folder
 FAKE_PDF = b"%PDF-1.4\n%not really\n" + b"x" * 64
 DERIVED = ("extract.txt", "extract.json", "outline.json", "linemap.json")
 

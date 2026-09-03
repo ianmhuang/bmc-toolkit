@@ -38,6 +38,12 @@ later milestone; say so when asked for them.
   inside a figure is often fragmentary; `find` and `page` mark such lines
   `[figure]`. Box-only diagrams (rectangles and text, nothing diagonal or
   curved) are not detected and read like tables.
+- **Schema bundle**: a ZIP document (DSP8010) holding the Redfish JSON
+  Schema. `extract` keeps, under `schemas/` next to the original, every
+  unversioned `<Name>.json` (the index and the common definitions such as
+  `Resource.json`) and the newest `<Name>.vX_Y_Z.json` per resource;
+  nothing else leaves the archive. `schema` reads them; the text commands
+  (`find`, `page`, `table`, ...) refuse bundles and say so.
 - **Logical Table**: one ruled table of the document as its author meant
   it, reassembled from every page it spans: the header once, then the
   rows. `table` prints it and stores it in `tables.json` next to the
@@ -47,7 +53,10 @@ later milestone; say so when asked for them.
   fields, separated by ` | `: family, document and version, section,
   `PDF page N` (or `PDF pages A-B` for a Logical Table), `lines A-B` (or
   `lines -`, `rendered page`, or `table K` for the K-th table on the first
-  page), origin (download URL or `user-provided`), Library path.
+  page), origin (download URL or `user-provided`), Library path. A `schema`
+  Citation has, in the section, page and lines positions: `<Resource>
+  vX.Y.Z` (or the index name), `file <name>.json`, and the JSON pointer of
+  what was printed.
 
 ## Helper CLI
 
@@ -66,12 +75,13 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `add FILE --document DOC --version V [--force]` | register a file the user obtained themselves (Drop-in); refuses to replace a version already present unless `--force`; the file must really be a PDF or ZIP |
 | `scan` | register files placed by hand under `specs/<family>/<document>/<version>/original.pdf` |
 | `status` | what the Library holds; columns: family, id, version, origin, size, `extracted` / `stale` (extracted by an older extractor: run `extract` again) / `-`, outline source |
-| `extract DOC [--version V] [--force]` | write the Extract, Outline, Line Map and figure regions for a version already in the Library (latest held version by default); skips if current |
-| `extract --all [--force]` | every PDF in the Library; ends with a `summary:` line; ZIP bundles are skipped for now |
+| `extract DOC [--version V] [--force]` | write the Extract, Outline, Line Map and figure regions for a PDF version already in the Library (latest held version by default), or unpack a schema bundle's JSON Schema into `schemas/`; skips if current. A ZIP without a `json-schema/` folder (registries, profiles) is skipped with a message |
+| `extract --all [--force]` | every PDF and bundle in the Library; ends with a `summary:` line |
 | `section DOC QUERY [--version V]` | Outline entries matching a section number prefix (`20.1` also matches `20.1.2`) or every word of QUERY; one per line: `LEVEL \| title \| pages FIRST-LAST` (LEVEL 0 is a top-level heading), where LAST is where the next entry of the same or a higher level begins (`~` in front of an approximate page). `no matching section` when nothing matches |
 | `find DOC PATTERN [--version V] [--regex] [--case] [--context N] [--max N] [--only]` | search the Extract; one line per hit: `DOC p.N [line L] \| section \| [figure] text`. Case-insensitive literal unless `--regex` / `--case`; `--context N` adds the surrounding lines (`line L:` or `row I:`) and a `--` separator; at most 50 hits unless `--max N` (`--max 0` prints all), then a `... more hits` line. Documents the catalog lists in `searched_with` (IPMI-UPDATE for IPMI) are searched too, their hits first; a missing one gets a `note:` line with the command to run; `--only` skips them. `no hits` when nothing matches |
 | `page DOC N [--to M]` or `page DOC --section QUERY [--version V] [--max-pages K]` | print pages of the Extract, each starting with a `cite:` line, every line behind its printed line number when there is one, `[figure]` appended to lines inside a figure. Refuses more than 10 pages per call unless `--max-pages` |
 | `render DOC --page N [--version V] [--scale S] [--force]` | write `renders/page-N.png` (S times 72 dpi, default 2) under the version directory; prints `rendered <path>` and a `cite:` line with `rendered page`. Reuses an existing file unless `--force` |
+| `schema DOC [RESOURCE] [--property P \| --definition D] [--version V]` | read a schema bundle. No RESOURCE: every resource, one per line, `Name\tvX.Y.Z` (`-` for an index-only name such as a collection). RESOURCE: a `cite:` line, a `schema:` line (name, version, property count, the file's definitions), then one property per line: `name \| type \| readonly or writable \| added vX.Y.Z or - \| description`; types read `string`, `enum Def`, `object Def`, `array of T`, `odata name`, or the raw `$ref` when its file is not in `schemas/`. `--property P`: its description, longDescription, deprecation and other notes, and when it is an enum, a second `cite:` for the file that defines it (for instance `Resource.json`) followed by `values:` with every value, its description and when it was added. `--definition D`: the same for a named definition of the file (an enum, or an action with its `parameters:`). Names are case-insensitive; an unknown resource lists the names containing the query (exit 2) |
 | `table DOC --page N [--version V] [--index K] [--force]` | print every Logical Table touching page N, whole: a `cite:` line (`PDF pages A-B`, `table K`), a `table:` line (caption or `-`, page range, columns, rows including the header), then the rows as a grid, columns separated by ` \| `, one physical line per cell line, a rule after the header and after every row with a multi-line cell. `--index K` keeps only the K-th table on the page. Read from `tables.json` when the page was read before, unless `--force`. Exit 2 with `no ruled table on page N` when the page has none |
 
 Exit codes: 0 done, 1 error (malformed catalog, unreadable file), 2 the
@@ -80,6 +90,12 @@ not in the Library or not extracted, too many pages asked for).
 
 ## Answering workflow
 
+0. A Redfish data-model question (which properties a resource has, what a
+   property means, which values an enum allows, what an action takes) is
+   answered from the schema bundle: `fetch DSP8010`, `extract DSP8010`,
+   then `schema DSP8010 <Resource> --property <P>` and cite the two
+   `cite:` lines it prints. Questions about the protocol itself (HTTP,
+   sessions, eventing) stay with the PDF, DSP0266.
 1. Identify the Family and the Document. Without a named family prefer the
    one the project context suggests (CLAUDE.md, the conversation), else
    answer for the most likely family and say that another family has a
@@ -121,6 +137,10 @@ not in the Library or not extracted, too many pages asked for).
   confirmed: open the page and check the heading before citing it.
 - An answer read from a rendered PNG says "read from a rendered page" in
   its Citation.
+- A schema answer cites the `cite:` line(s) `schema` printed: the resource
+  file and pointer, and for an enum the file that defines it. Say the
+  bundle version and the schema version (`Chassis v1.28.0`); the enum's
+  `added vX.Y.Z` notes say when a value appeared.
 - A value read from a Logical Table is cited with the `cite:` line `table`
   printed (all the pages the table spans, `table K`), naming the caption
   and the row; it carries no line numbers.

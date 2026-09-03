@@ -41,6 +41,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from bmc_toolkit.spec.library import SCHEMAS_DIRNAME
 from bmc_toolkit.spec.tables import remove_store
 
 EXTRACTOR_VERSION = 3  # 3: figure regions
@@ -757,6 +758,7 @@ def remove_derived(vdir: Path) -> None:
         if p.exists():
             p.unlink()
     remove_store(vdir)
-    renders = vdir / RENDERS_DIRNAME
-    if renders.is_dir():
-        shutil.rmtree(renders)
+    for dirname in (RENDERS_DIRNAME, SCHEMAS_DIRNAME):
+        tree = vdir / dirname
+        if tree.is_dir():
+            shutil.rmtree(tree)

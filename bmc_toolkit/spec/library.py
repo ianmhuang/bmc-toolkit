@@ -44,6 +44,7 @@ DERIVED_NAMES = (
     "tables.json",
 )
 RENDERS_DIRNAME = "renders"  # page images rendered from the original
+SCHEMAS_DIRNAME = "schemas"  # JSON Schema files unpacked from a bundle
 MAGIC = {"pdf": (b"%PDF",), "zip": (b"PK\x03\x04",)}
 
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
@@ -113,9 +114,15 @@ class Holding:
 
     @property
     def extract_meta(self) -> dict | None:
-        """Contents of extract.json when the version has been extracted."""
+        """Contents of extract.json when the version has been extracted
+        (a PDF's Extract, or a bundle's schemas directory)."""
         path = self.path / "extract.json"
-        if not path.is_file() or not (self.path / "extract.txt").is_file():
+        if not path.is_file():
+            return None
+        if (
+            not (self.path / "extract.txt").is_file()
+            and not (self.path / SCHEMAS_DIRNAME).is_dir()
+        ):
             return None
         try:
             return json.loads(path.read_text(encoding="utf-8"))
@@ -196,9 +203,10 @@ class Library:
             p = vdir / name
             if p.exists():
                 p.unlink()
-        renders = vdir / RENDERS_DIRNAME
-        if renders.is_dir():
-            shutil.rmtree(renders)
+        for dirname in (RENDERS_DIRNAME, SCHEMAS_DIRNAME):
+            tree = vdir / dirname
+            if tree.is_dir():
+                shutil.rmtree(tree)
 
     def write_meta(self, vdir: Path, meta: dict) -> Path:
         vdir.mkdir(parents=True, exist_ok=True)

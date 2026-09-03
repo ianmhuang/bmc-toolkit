@@ -1,6 +1,8 @@
 """Shared fixtures: a tiny catalog, an isolated Library, a scripted HTTP client."""
 
+import io
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -94,7 +96,17 @@ published = "2020-01-01"
 """
 
 PDF_BYTES = b"%PDF-1.7\n%fake\n" + b"x" * 200
-ZIP_BYTES = b"PK\x03\x04" + b"\x00" * 100
+
+
+def _zip_without_schemas() -> bytes:
+    """A real archive with no json-schema folder (a registries bundle)."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("Base.1.0.0.json", "{}")
+    return buf.getvalue()
+
+
+ZIP_BYTES = _zip_without_schemas()
 HTML_BYTES = b"<html><body>Access Denied</body></html>"
 
 
