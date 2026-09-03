@@ -359,3 +359,80 @@ def test_no_bookmarks_and_no_contents_gives_empty_outline_and_still_succeeds(
     assert meta["pages"] == 1
     assert (vdir / "extract.txt").read_text("utf-8").startswith("=== page 1 ===\n")
     assert r.outline == []
+
+
+def test_contents_entries_without_a_confirmed_offset_are_flagged(tmp_path):
+    # Contents page present, but no body page prints its page number, so the
+    # printed-to-physical offset cannot be found. Entries must not look
+    # authoritative: each carries "approximate": true and extract.json says
+    # the offset is unknown.
+    contents = [(72, 740, "Contents")]
+    y = 720.0
+    for num, title, printed in ENTRIES:
+        contents.append((72, y, f"{num} {title} .......... {printed}"))
+        y -= 14
+    pages = [contents] + [[(72, 700, "body text with no number")] for _ in range(6)]
+    r, vdir = extract_to(tmp_path, pages)
+    meta = read_json(vdir / "extract.json")
+    assert meta["outline_source"] == "contents"
+    assert meta.get("page_offset") is None
+    outline = read_json(vdir / "outline.json")
+    assert len(outline) == len(ENTRIES)
+    for entry, (num, title, printed) in zip(outline, ENTRIES, strict=True):
+        assert entry.get("approximate") is True, entry
+        assert entry["page"] == printed, entry
+        assert num in entry["title"] and title in entry["title"]
+    assert r.page_offset is None
+
+
+def test_contents_entries_with_a_confirmed_offset_are_not_flagged(tmp_path):
+    _, vdir = extract_to(tmp_path, contents_document(3))
+    outline = read_json(vdir / "outline.json")
+    assert outline and all("approximate" not in e for e in outline), outline
+    assert read_json(vdir / "extract.json")["page_offset"] == 3
+
+
+# ------------------------------------------------------- AC-1, AC-2 files
+
+
+def test_linemap_index_is_zero_based_within_the_page_block(tmp_path):
+    # README and SKILL.md document the Line Map key as the 0-based index of
+    # the line within the page's block, counting from the first line after
+    # the marker; a header line without a number shifts the keys by one.
+    text = ["alpha", "beta", "gamma", "delta", "epsilon"]
+    page = pdfgen.numbered_page(10, text)
+    page.insert(0, (72, 760, "Header without a number"))
+    _, vdir = extract_to(tmp_path, [page])
+    got = pages_of((vdir / "extract.txt").read_text("utf-8"))[1]
+    assert got[0] == "Header without a number"
+    lines = read_json(vdir / "linemap.json")["pages"]["1"]["lines"]
+    assert sorted(int(k) for k in lines) == [1, 2, 3, 4, 5]
+    for key, number in lines.items():
+        assert got[int(key)] == text[number - 10]
+
+
+def test_failed_rewrite_leaves_no_extraction_that_counts_as_current(
+    tmp_path, monkeypatch
+):
+    # A previous extraction is current; a re-extract whose outline write
+    # fails must not leave the old extract.json next to new files.
+    vdir = tmp_path / "v"
+    vdir.mkdir()
+    pdf = pdfgen.write_pdf(vdir / "original.pdf", [pdfgen.plain_page(["a"])])
+    result = ex.extract_pdf(pdf)
+    ex.write_result(vdir, result)
+    assert ex.is_current(vdir)
+
+    real_open = open
+
+    def failing_open(path, *args, **kwargs):
+        if str(path).endswith("outline.json") and args and "w" in args[0]:
+            raise OSError("disk full")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", failing_open)
+    with pytest.raises(OSError):
+        ex.write_result(vdir, result)
+    monkeypatch.undo()
+    assert not ex.is_current(vdir)
+    assert not (vdir / "extract.json").exists()

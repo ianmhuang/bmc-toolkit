@@ -256,6 +256,111 @@ def test_status_shows_extract_presence_and_outline_source(
     assert row.index("bookmarks") > row.index("extracted")
 
 
+# ------------------------------------------------ AC-1 latest held version
+
+
+def test_extract_prefers_the_catalog_latest_when_held(
+    catalog_file, library, tmp_path, capsys, pdfgen
+):
+    pdf = pdfgen.write_pdf(tmp_path / "p.pdf", [pdfgen.plain_page(["text"])])
+    add(capsys, catalog_file, pdf, "DSP0236", "1.4.0")  # WIP, dated newest
+    add(capsys, catalog_file, pdf, "DSP0236", "1.3.3")  # latest published
+    code, out = run(capsys, catalog_file, "extract", "DSP0236")
+    assert code == 0, out
+    assert "1.3.3" in out
+    assert (vdir_of(library, version="1.3.3") / "extract.txt").is_file()
+    assert not (vdir_of(library, version="1.4.0") / "extract.txt").exists()
+
+
+def test_extract_picks_the_newest_held_version_by_catalog_date_not_by_name(
+    catalog_file, library, tmp_path, capsys, pdfgen
+):
+    # 1.3.3 (the catalog's latest published) is not held. Of the held
+    # versions the catalog dates 1.4.0 (2025) after 1.3.2 (2024); directory
+    # order would agree here, so the reverse case below is the real check.
+    pdf = pdfgen.write_pdf(tmp_path / "p.pdf", [pdfgen.plain_page(["text"])])
+    add(capsys, catalog_file, pdf, "DSP0236", "1.3.2")
+    add(capsys, catalog_file, pdf, "DSP0236", "1.4.0")
+    code, out = run(capsys, catalog_file, "extract", "DSP0236")
+    assert code == 0, out
+    assert "1.4.0" in out
+    assert (vdir_of(library, version="1.4.0") / "extract.txt").is_file()
+    assert not (vdir_of(library, version="1.3.2") / "extract.txt").exists()
+
+
+def test_extract_for_a_document_unknown_to_the_catalog_uses_fetch_time(
+    catalog_file, library, tmp_path, capsys, pdfgen
+):
+    # Two hand-placed versions of a document the catalog does not know:
+    # "1.10.0" sorts before "1.9.0" as a string but was fetched earlier, so
+    # the latest held version is 1.9.0.
+    earlier = library.specs / "vendor" / "OEM" / "1.10.0"
+    later = library.specs / "vendor" / "OEM" / "1.9.0"
+    for vdir, stamp in (
+        (earlier, "2025-01-01T00:00:00+00:00"),
+        (later, "2025-06-01T00:00:00+00:00"),
+    ):
+        vdir.mkdir(parents=True)
+        pdfgen.write_pdf(vdir / "original.pdf", [pdfgen.plain_page(["x"])])
+        library.write_meta(
+            vdir,
+            {
+                "family": "vendor",
+                "document": "OEM",
+                "version": vdir.name,
+                "file": "original.pdf",
+                "url": None,
+                "fetch_method": "dropin",
+                "sha256": "0" * 64,
+                "size": 1,
+                "fetched_at": stamp,
+                "dropin": True,
+            },
+        )
+    code, out = run(capsys, catalog_file, "extract", "OEM")
+    assert code == 0, out
+    assert "1.9.0" in out
+    assert (later / "extract.txt").is_file()
+    assert not (earlier / "extract.txt").exists()
+
+
+# ------------------------------------------------- pypdfium2 requirement
+
+
+def test_extract_refuses_pypdfium2_older_than_5_before_writing_anything(
+    catalog_file, library, tmp_path, capsys, pdfgen, monkeypatch
+):
+    import types
+
+    pdf = pdfgen.write_pdf(tmp_path / "p.pdf", [pdfgen.plain_page(["text"])])
+    add(capsys, catalog_file, pdf, "DSP0236", "1.3.3")
+    fake = types.ModuleType("pypdfium2")
+    fake.PYPDFIUM_INFO = types.SimpleNamespace(major=4, minor=30, patch=0)
+    fake.V_PYPDFIUM2 = "4.30.0"
+    monkeypatch.setitem(sys.modules, "pypdfium2", fake)
+    code, out = run(capsys, catalog_file, "extract", "DSP0236")
+    assert code == 2, out
+    assert "failed" in out.lower()
+    assert "pypdfium2" in out and "5" in out
+    vdir = vdir_of(library)
+    for name in DERIVED:
+        assert not (vdir / name).exists(), name
+    # --all reports the same holding as failed and exits 2
+    code, out = run(capsys, catalog_file, "extract", "--all")
+    assert code == 2, out
+    assert out.strip().splitlines()[-1].endswith("failed 1")
+
+
+def test_requirements_pin_pypdfium2_to_5_or_newer():
+    import re
+
+    for name in ("requirements.txt", "pyproject.toml"):
+        text = (ROOT / name).read_text("utf-8")
+        m = re.search(r"pypdfium2\s*>=\s*(\d+)", text)
+        assert m, f"{name} does not require pypdfium2"
+        assert int(m.group(1)) >= 5, name
+
+
 # ------------------------------------------------------------------ AC-10
 
 
