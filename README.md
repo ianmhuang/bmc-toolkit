@@ -16,42 +16,6 @@ the catalog (uefi.org serves no scripted client) and enter only as
 Drop-ins. The acceptance set the release was checked against is in
 `docs/golden-questions.md`.
 
-## How it works
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant S as bmc-spec Skill (Claude)
-    participant C as bmcspec CLI
-    participant L as Library (~/.bmc-specs)
-    participant P as Publisher / GitHub
-
-    U->>S: "What does DSP0236 say about Msg tag?"
-    S->>C: fetch DSP0236
-    C->>L: held?
-    alt not held
-        C->>P: GET catalog URL (then Wayback)
-        P-->>C: original.pdf
-        C->>L: store original + meta.json
-    end
-    C-->>S: fetched / skipped [+ note: freshness]
-    opt note printed
-        S->>C: check DSP0236
-        C->>P: GET listing page
-        C-->>S: current / newer (nothing downloaded)
-    end
-    S->>C: extract DSP0236
-    C->>L: extract.txt, outline.json, linemap.json, figures.json
-    S->>C: find DSP0236 "Msg tag" / section / page / table / render
-    C->>L: read the Extract (tables.json, renders/ on demand)
-    C-->>S: hits, pages, each with a cite: line
-    S-->>U: answer with Citations copied from cite: lines
-```
-
-OpenBMC questions take the same shape with `repos`, `clone` (a shallow
-checkout at one commit, or at the commit an OpenBMC release pins), `grep`
-and `code`; the Citation names repository, commit and lines.
-
 ## Supported specifications
 
 The Source Catalog lists 67 documents in 14
