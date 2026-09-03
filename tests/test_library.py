@@ -98,3 +98,34 @@ def test_holdings_skip_unreadable_meta(library):
     (bad / "meta.json").write_text("not json", encoding="utf-8")
     library.store("mctp", "DSP0236", "1.3.3", b"%PDF", "pdf", url="u", method="direct")
     assert [h.version for h in library.holdings()] == ["1.3.3"]
+
+
+def test_store_refuses_directory_collision(library):
+    import pytest
+
+    from bmc_toolkit.spec.library import LibraryError
+
+    library.store("mctp", "DSP0236", "1.0 a", b"%PDF", "pdf", url="u", method="direct")
+    with pytest.raises(LibraryError) as exc:
+        library.store(
+            "mctp", "DSP0236", "1.0_a", b"%PDF", "pdf", url="u", method="direct"
+        )
+    assert "already holds version '1.0 a'" in str(exc.value)
+    # the same version string is fine (that is what --force relies on)
+    library.store("mctp", "DSP0236", "1.0 a", b"%PDF2", "pdf", url="u", method="direct")
+
+
+def test_file_matches_type(tmp_path):
+    from bmc_toolkit.spec.library import file_matches_type
+
+    pdf = tmp_path / "a.pdf"
+    pdf.write_bytes(b"%PDF-1.7 x")
+    zipf = tmp_path / "a.zip"
+    zipf.write_bytes(b"PK\x03\x04rest")
+    html = tmp_path / "b.pdf"
+    html.write_bytes(b"<html>")
+    assert file_matches_type(pdf, "pdf")
+    assert file_matches_type(zipf, "zip")
+    assert not file_matches_type(html, "pdf")
+    assert not file_matches_type(pdf, "zip")
+    assert not file_matches_type(tmp_path / "missing.pdf", "pdf")

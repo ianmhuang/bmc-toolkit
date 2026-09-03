@@ -234,3 +234,49 @@ def test_default_client_falls_back_to_urllib(monkeypatch):
 
     monkeypatch.setattr(builtins, "__import__", no_curl)
     assert fetch_mod.default_client() is fetch_mod._urllib_client
+
+
+def test_curl_cffi_errors_become_oserror(monkeypatch):
+    import sys
+    import types
+
+    class FakeCurlError(Exception):
+        """Not an OSError, like CurlError in older curl_cffi releases."""
+
+    def get(url, **kwargs):
+        raise FakeCurlError("Failed to connect")
+
+    fake_requests = types.SimpleNamespace(get=get)
+    fake = types.ModuleType("curl_cffi")
+    fake.requests = fake_requests
+    monkeypatch.setitem(sys.modules, "curl_cffi", fake)
+    monkeypatch.setitem(sys.modules, "curl_cffi.requests", fake_requests)
+    with pytest.raises(OSError) as exc:
+        fetch_mod._curl_cffi_client("https://example.test/x.pdf")
+    assert "Failed to connect" in str(exc.value)
+
+
+def test_curl_cffi_failure_falls_through_to_wayback(catalog, library, monkeypatch):
+    import sys
+    import types
+
+    def get(url, **kwargs):
+        raise RuntimeError("TLS handshake failed")
+
+    fake_requests = types.SimpleNamespace(get=get)
+    fake = types.ModuleType("curl_cffi")
+    fake.requests = fake_requests
+    monkeypatch.setitem(sys.modules, "curl_cffi", fake)
+    monkeypatch.setitem(sys.modules, "curl_cffi.requests", fake_requests)
+    scripted = ScriptedClient({WB_QUERY: wayback_hit(URL), WB_RAW: ok(PDF_BYTES)})
+
+    def client(url):
+        if url == URL:
+            return fetch_mod._curl_cffi_client(url)
+        return scripted(url)
+
+    doc = catalog.get("DSP0236")
+    out = fetch_version(library, doc, doc.latest(), client=client)
+    assert out.status == "fetched"
+    assert out.method == "wayback"
+    assert out.attempts[0].startswith("direct: curl_cffi: TLS handshake failed")

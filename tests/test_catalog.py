@@ -133,3 +133,10 @@ def test_missing_file_is_a_catalog_error(tmp_path):
     with pytest.raises(CatalogError) as exc:
         load_catalog(tmp_path / "absent.toml")
     assert "not found" in str(exc.value)
+
+
+def test_impossible_date_is_rejected():
+    text = MINI_CATALOG.replace('published = "2024-01-02"', 'published = "2024-13-45"')
+    with pytest.raises(CatalogError) as exc:
+        _parse(text)
+    assert "documents[0].versions[0].published" in str(exc.value)

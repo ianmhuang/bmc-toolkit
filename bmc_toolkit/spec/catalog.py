@@ -27,6 +27,7 @@ Schema (``schema_version = 1``)::
     notes = "..."              optional
 """
 
+import datetime
 import re
 import tomllib
 from dataclasses import dataclass, field
@@ -133,8 +134,14 @@ def _parse_version(raw: dict, where: str) -> Version:
     if ftype not in FILE_TYPES:
         raise CatalogError(f"{where}.type: '{ftype}' not one of {FILE_TYPES}")
     published = _expect(raw, "published", str, where)
-    if not _DATE_RE.match(published):
-        raise CatalogError(f"{where}.published: '{published}' is not YYYY-MM-DD")
+    try:
+        if not _DATE_RE.match(published):
+            raise ValueError
+        datetime.date.fromisoformat(published)
+    except ValueError:
+        raise CatalogError(
+            f"{where}.published: '{published}' is not a valid YYYY-MM-DD date"
+        ) from None
     wip = _expect(raw, "wip", bool, where, default=False, required=False)
     notes = _expect(raw, "notes", str, where, default="", required=False)
     return Version(version, url, ftype, published, wip, notes)

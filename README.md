@@ -51,7 +51,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog DSP0236      # one document, a
 python skills/bmc-spec/scripts/bmcspec.py fetch DSP0236        # latest published version
 python skills/bmc-spec/scripts/bmcspec.py fetch IPMI --version "2.0 rev 1.1"
 python skills/bmc-spec/scripts/bmcspec.py fetch --all          # several hundred MB
-python skills/bmc-spec/scripts/bmcspec.py add vendor.pdf --document DSP0236 --version 1.1.0
+python skills/bmc-spec/scripts/bmcspec.py add vendor.pdf --document DSP0236 --version 1.1.0   # --force to replace
 python skills/bmc-spec/scripts/bmcspec.py scan                 # register hand-placed files
 python skills/bmc-spec/scripts/bmcspec.py status
 ```
@@ -66,9 +66,13 @@ Exit codes: 0 done, 1 error, 2 you need to act (the message says what).
   Archive's Wayback Machine snapshot of that URL, then it stops and prints
   the URL and the path to save the file to.
 - A response that is not the expected PDF or ZIP (an HTML block page, a
-  cut-off download) is discarded and never written to the Library.
+  cut-off download) is discarded and never written to the Library. The same
+  leading-bytes check applies to files given to `add` or found by `scan`.
 - Writes only under the Library. Files placed there by hand are registered
-  as Drop-ins and their origin is recorded as user-provided, never as a URL.
+  as Drop-ins and their origin is recorded as user-provided, never as a URL;
+  `scan` also records whether the document id is in the catalog
+  (`catalog_known`). Nothing already in the Library is replaced without
+  `--force`.
 - Never runs a subprocess and never re-uploads or redistributes anything.
 
 ## The Source Catalog

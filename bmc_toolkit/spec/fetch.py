@@ -16,7 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from bmc_toolkit.spec.catalog import Document, Version
-from bmc_toolkit.spec.library import Library
+from bmc_toolkit.spec.library import MAGIC, Library
 
 WAYBACK_AVAILABLE = "https://archive.org/wayback/available?url="
 BROWSER_UA = (
@@ -24,7 +24,6 @@ BROWSER_UA = (
     "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 )
 TIMEOUT_S = 120
-MAGIC = {"pdf": (b"%PDF",), "zip": (b"PK\x03\x04",)}
 
 
 @dataclass(frozen=True)
@@ -55,7 +54,15 @@ def _urllib_client(url: str) -> Response:
 def _curl_cffi_client(url: str) -> Response:
     from curl_cffi import requests  # lazy: optional at runtime
 
-    resp = requests.get(url, impersonate="chrome", timeout=TIMEOUT_S)
+    # curl_cffi's error hierarchy has moved between releases (CurlError was
+    # not always an OSError); the HttpClient contract is OSError, so map
+    # every transport failure onto it here.
+    try:
+        resp = requests.get(url, impersonate="chrome", timeout=TIMEOUT_S)
+    except OSError:
+        raise
+    except Exception as exc:
+        raise OSError(f"curl_cffi: {exc}") from exc
     headers = {k.lower(): v for k, v in resp.headers.items()}
     return Response(resp.status_code, headers, resp.content)
 

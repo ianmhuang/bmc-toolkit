@@ -36,10 +36,10 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | Command | What it does |
 |---|---|
 | `library` | print the Library path |
-| `catalog [DOC] [--family F]` | list documents (one per line: family, id, access, fetch, latest, title) or show one document with every version, newest first |
+| `catalog [DOC] [--family F]` | list documents (one per line, tab-separated: family, id, access, fetch, latest, title, known versions joined by `;`) or show one document with every version, newest first |
 | `fetch DOC [--version V] [--wip] [--force]` | download one version into the Library; latest by default; skips silently if already present |
 | `fetch --all [--wip] [--force]` | latest of every downloadable document; ends with a `summary:` line |
-| `add FILE --document DOC --version V` | register a file the user obtained themselves (Drop-in) |
+| `add FILE --document DOC --version V [--force]` | register a file the user obtained themselves (Drop-in); refuses to replace a version already present unless `--force`; the file must really be a PDF or ZIP |
 | `scan` | register files placed by hand under `specs/<family>/<document>/<version>/original.pdf` |
 | `status` | what the Library holds |
 

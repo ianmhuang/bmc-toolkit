@@ -22,6 +22,8 @@ line-length = 88
 
 [tool.ruff]
 line-length = 88
+# Acceptance tests are written by the revali reviewer and left as written.
+extend-exclude = ["tests/test_review_*.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]

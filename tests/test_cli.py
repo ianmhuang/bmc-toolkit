@@ -26,6 +26,7 @@ def test_catalog_lists_one_record_per_document(catalog_file, capsys):
         "direct",
         "1.3.3",
         "MCTP Base Specification",
+        "1.3.2;1.3.3;1.4.0",
     ]
     assert [ln.split("\t")[1] for ln in lines] == [
         "DSP0236",
@@ -292,3 +293,107 @@ def test_output_survives_a_narrow_console_encoding(catalog_file, monkeypatch):
     narrow.flush()
     assert code == 0
     assert "PCIe® VDM Binding" in narrow.buffer.getvalue().decode("utf-8")
+
+
+def test_fetch_rejects_all_with_version(catalog_file, library, scripted, capsys):
+    code, out = run(
+        capsys, "fetch", "--all", "--version", "1.3.2", catalog_file=catalog_file
+    )
+    assert code == 2
+    assert "--version" in out
+    assert scripted.calls == []
+
+
+def test_fetch_unknown_document_creates_no_library(
+    catalog_file, library, scripted, capsys
+):
+    code, out = run(capsys, "fetch", "DSP9999", catalog_file=catalog_file)
+    assert code == 2
+    assert not library.root.exists()
+    code, out = run(
+        capsys, "fetch", "IPMI", "--version", "1.5", catalog_file=catalog_file
+    )
+    assert code == 2
+    assert not library.root.exists()
+    assert "Library created" not in out
+
+
+def test_add_refuses_to_overwrite_without_force(
+    catalog_file, library, scripted, tmp_path, capsys
+):
+    scripted.responses[URL] = ok(PDF_BYTES)
+    run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    vdir = library.specs / "mctp" / "DSP0236" / "1.3.3"
+    fetched_meta = json.loads((vdir / "meta.json").read_text("utf-8"))
+    mine = tmp_path / "mine.pdf"
+    mine.write_bytes(b"%PDF-1.4 my own copy")
+    code, out = run(
+        capsys,
+        "add",
+        str(mine),
+        "--document",
+        "DSP0236",
+        "--version",
+        "1.3.3",
+        catalog_file=catalog_file,
+    )
+    assert code == 2
+    assert "already in the Library" in out and "--force" in out
+    assert (vdir / "original.pdf").read_bytes() == PDF_BYTES
+    assert json.loads((vdir / "meta.json").read_text("utf-8")) == fetched_meta
+    code, out = run(
+        capsys,
+        "add",
+        str(mine),
+        "--document",
+        "DSP0236",
+        "--version",
+        "1.3.3",
+        "--force",
+        catalog_file=catalog_file,
+    )
+    assert code == 0
+    assert "replaced DSP0236 1.3.3" in out
+    assert (vdir / "original.pdf").read_bytes() == b"%PDF-1.4 my own copy"
+    meta = json.loads((vdir / "meta.json").read_text("utf-8"))
+    assert meta["dropin"] is True and meta["url"] is None
+
+
+def test_add_rejects_file_with_wrong_magic(catalog_file, library, tmp_path, capsys):
+    fake = tmp_path / "blocked.pdf"
+    fake.write_bytes(HTML_BYTES)
+    code, out = run(
+        capsys,
+        "add",
+        str(fake),
+        "--document",
+        "SECRET",
+        "--version",
+        "0.9",
+        catalog_file=catalog_file,
+    )
+    assert code == 2
+    assert "not a pdf" in out
+    assert not library.root.exists()
+
+
+def test_scan_skips_file_with_wrong_magic(catalog_file, library, capsys):
+    bad = library.specs / "mctp" / "DSP0236" / "1.3.2"
+    bad.mkdir(parents=True)
+    (bad / "original.pdf").write_bytes(HTML_BYTES)
+    code, out = run(capsys, "scan", catalog_file=catalog_file)
+    assert code == 0
+    assert "is not a pdf" in out
+    assert not (bad / "meta.json").exists()
+    assert "scan: registered 0, skipped 1" in out
+
+
+def test_add_reports_directory_collision(catalog_file, library, tmp_path, capsys):
+    src = tmp_path / "a.pdf"
+    src.write_bytes(PDF_BYTES)
+    args = ["add", str(src), "--document", "SECRET"]
+    code, _ = run(capsys, *args, "--version", "1.0 a", catalog_file=catalog_file)
+    assert code == 0
+    code, out = run(capsys, *args, "--version", "1.0_a", catalog_file=catalog_file)
+    assert code == 2
+    assert "already holds version '1.0 a'" in out

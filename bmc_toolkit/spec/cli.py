@@ -16,6 +16,8 @@ from bmc_toolkit.spec.library import (
     DEFAULT_LIBRARY_DIRNAME,
     ENV_LIBRARY,
     Library,
+    LibraryError,
+    file_matches_type,
     now_iso,
     resolve_library,
     safe_name,
@@ -71,6 +73,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("file", type=Path)
     p.add_argument("--document", required=True, help="document id")
     p.add_argument("--version", dest="doc_version", required=True)
+    p.add_argument(
+        "--force", action="store_true", help="replace a version already present"
+    )
 
     sub.add_parser("scan", help="register files placed into the Library by hand")
     sub.add_parser("status", help="what the Library holds")
@@ -101,6 +106,7 @@ def _doc_line(catalog: Catalog, doc: Document) -> str:
             doc.fetch,
             latest.version if latest else "-",
             doc.title,
+            ";".join(v.version for v in doc.versions),
         ]
     )
 
@@ -172,8 +178,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     if args.all == bool(args.document):
         print("give a document id or --all (not both)")
         return EXIT_ACTION
-    _announce_library(library)
-    client = CLIENT_FACTORY()
+    if args.all and args.doc_version:
+        print("--version applies to one document; drop it with --all")
+        return EXIT_ACTION
 
     if not args.all:
         doc = catalog.get(args.document)
@@ -184,19 +191,26 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         if ver is None:
             print(problem)
             return EXIT_ACTION
+        _announce_library(library)
+        client = CLIENT_FACTORY()
         outcome = fetch_mod.fetch_version(
             library, doc, ver, force=args.force, client=client
         )
         _report(outcome)
         return EXIT_OK if outcome.status != "failed" else EXIT_ACTION
 
-    counts = {"fetched": 0, "skipped": 0, "failed": 0}
+    todo = []
     for doc in catalog.documents:
         if doc.fetch == "manual":
             continue
         ver = doc.latest(include_wip=args.wip)
-        if ver is None:
-            continue
+        if ver is not None:
+            todo.append((doc, ver))
+    counts = {"fetched": 0, "skipped": 0, "failed": 0}
+    if todo:
+        _announce_library(library)
+        client = CLIENT_FACTORY()
+    for doc, ver in todo:
         outcome = fetch_mod.fetch_version(
             library, doc, ver, force=args.force, client=client
         )
@@ -219,14 +233,26 @@ def cmd_add(args: argparse.Namespace) -> int:
     if ext not in ("pdf", "zip"):
         print(f"unsupported file type '.{ext}': expected .pdf or .zip")
         return EXIT_ACTION
+    if not file_matches_type(source, ext):
+        print(f"{source} is not a {ext} (wrong leading bytes); not added")
+        return EXIT_ACTION
     doc = catalog.get(args.document)
     if doc is None:
         print(f"unknown document '{args.document}'; run: bmcspec catalog")
         return EXIT_ACTION
     library = Library(resolve_library())
+    existing = library.find(doc.id, args.doc_version)
+    if existing is not None and not args.force:
+        origin = "Drop-in" if existing.dropin else existing.meta.get("url", "?")
+        print(
+            f"{doc.id} {args.doc_version} is already in the Library at "
+            f"{existing.path} (from {origin}); use --force to replace it"
+        )
+        return EXIT_ACTION
     _announce_library(library)
     vdir = library.add_dropin(source, doc.family, doc.id, args.doc_version, ext)
-    print(f"added {doc.id} {args.doc_version} as Drop-in at {vdir}")
+    verb = "replaced" if existing is not None else "added"
+    print(f"{verb} {doc.id} {args.doc_version} as Drop-in at {vdir}")
     return EXIT_OK
 
 
@@ -245,6 +271,13 @@ def cmd_scan(args: argparse.Namespace) -> int:
         doc = catalog.get(doc_dir)
         if ext not in ("pdf", "zip"):
             print(f"skipped {vdir}: unsupported file type '{original.name}'")
+            problems += 1
+            continue
+        if not file_matches_type(original, ext):
+            print(
+                f"skipped {vdir}: '{original.name}' is not a {ext} "
+                "(wrong leading bytes)"
+            )
             problems += 1
             continue
         if doc is not None and doc.family != family_dir:
@@ -327,6 +360,9 @@ def main(argv: list[str] | None = None) -> int:
     except CatalogError as exc:
         print(f"catalog error: {exc}")
         return EXIT_ERROR
+    except LibraryError as exc:
+        print(f"library: {exc}")
+        return EXIT_ACTION
     except OSError as exc:
         print(f"error: {exc}")
         return EXIT_ERROR
