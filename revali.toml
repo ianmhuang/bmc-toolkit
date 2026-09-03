@@ -8,10 +8,10 @@ test_dir = "tests"
 test_file_pattern = "test_review_{topic}.py"
 
 [review]
-budget_usd = 4.0
+budget_usd = 6.0                  # M1 diff is about 2100 reviewable lines
 checklist = "CONVENTIONS.md"
-max_diff_lines = 1000
-exclude = ["*.lock"]
+max_diff_lines = 2500             # a milestone is code plus its tests
+exclude = ["*.lock", "bmc_toolkit/spec/catalog.toml"]  # catalog is data, covered by tests and a real fetch --all
 
 [validate]
 budget_usd = 1.0
