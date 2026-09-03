@@ -1,9 +1,16 @@
 """Write small PDFs for tests with the standard library only.
 
-Each page is a list of ``(x, y, text)`` or ``(x, y, text, size)`` items in
-PDF points, origin bottom-left, single font Helvetica (a base-14 font, so no
-embedding). Optional bookmarks become a PDF outline. Enough for the
-extractor's geometry rules; not a general PDF writer.
+Each page is a list of items in PDF points, origin bottom-left:
+
+    (x, y, text) or (x, y, text, size)    text in Helvetica (base-14, so no
+                                          embedding)
+    ("line", x0, y0, x1, y1)              a stroked line
+    ("rect", x, y, w, h)                  a stroked rectangle
+    ("curve", x0, y0, x1, y1, x2, y2, x3, y3)   a stroked Bezier curve
+    ("image", x, y, w, h)                 a 2x2 grey raster image scaled to w x h
+
+Optional bookmarks become a PDF outline. Enough for the extractor's geometry
+rules and figure detection; not a general PDF writer.
 """
 
 from pathlib import Path
@@ -19,15 +26,32 @@ def _escape(text: str) -> bytes:
 
 
 def _content(items) -> bytes:
-    ops = [b"BT"]
+    draw = []
+    text_ops = [b"BT"]
     for item in items:
+        if isinstance(item[0], str):
+            kind = item[0]
+            if kind == "line":
+                draw.append(b"%.2f %.2f m %.2f %.2f l S" % tuple(item[1:5]))
+            elif kind == "rect":
+                draw.append(b"%.2f %.2f %.2f %.2f re S" % tuple(item[1:5]))
+            elif kind == "curve":
+                draw.append(
+                    b"%.2f %.2f m %.2f %.2f %.2f %.2f %.2f %.2f c S" % tuple(item[1:9])
+                )
+            elif kind == "image":
+                x, y, w, h = item[1:5]
+                draw.append(b"q %.2f 0 0 %.2f %.2f %.2f cm /Im1 Do Q" % (w, h, x, y))
+            else:
+                raise ValueError(f"unknown item kind {kind!r}")
+            continue
         x, y, text = item[:3]
         size = item[3] if len(item) > 3 else DEFAULT_SIZE
-        ops.append(
+        text_ops.append(
             b"/F1 %d Tf 1 0 0 1 %.2f %.2f Tm (%s) Tj" % (size, x, y, _escape(text))
         )
-    ops.append(b"ET")
-    return b"\n".join(ops)
+    text_ops.append(b"ET")
+    return b"\n".join(draw + text_ops)
 
 
 def write_pdf(path: Path, pages, bookmarks=None) -> Path:
@@ -48,6 +72,11 @@ def write_pdf(path: Path, pages, bookmarks=None) -> Path:
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
         b"/Encoding /WinAnsiEncoding >>"
     )
+    image_no = add(
+        b"<< /Type /XObject /Subtype /Image /Width 2 /Height 2 "
+        b"/ColorSpace /DeviceGray /BitsPerComponent 8 /Length 4 >>\nstream\n"
+        b"\x40\x80\x80\x40\nendstream"
+    )
     page_nos = []
     for items in pages:
         stream = _content(items)
@@ -56,8 +85,9 @@ def write_pdf(path: Path, pages, bookmarks=None) -> Path:
         )
         page_no = add(
             b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %d %d] "
-            b"/Resources << /Font << /F1 %d 0 R >> >> /Contents %d 0 R >>"
-            % (pages_no, PAGE_W, PAGE_H, font_no, content_no)
+            b"/Resources << /Font << /F1 %d 0 R >> /XObject << /Im1 %d 0 R >> >> "
+            b"/Contents %d 0 R >>"
+            % (pages_no, PAGE_W, PAGE_H, font_no, image_no, content_no)
         )
         page_nos.append(page_no)
     kids = b" ".join(b"%d 0 R" % n for n in page_nos)

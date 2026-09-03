@@ -6,12 +6,15 @@ Standard library only; the HTTP client is created lazily by ``fetch``.
 """
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
 from bmc_toolkit import __version__
 from bmc_toolkit.spec import extract as extract_mod
 from bmc_toolkit.spec import fetch as fetch_mod
+from bmc_toolkit.spec import render as render_mod
+from bmc_toolkit.spec import search as search_mod
 from bmc_toolkit.spec.catalog import Catalog, CatalogError, Document, load_catalog
 from bmc_toolkit.spec.library import (
     DEFAULT_LIBRARY_DIRNAME,
@@ -36,6 +39,9 @@ __all__ = [
 EXIT_OK = 0
 EXIT_ERROR = 1
 EXIT_ACTION = 2
+
+MAX_HITS = 50  # find: hits printed per call unless --max says otherwise
+MAX_PAGES = 10  # page: pages printed per call unless --max-pages says otherwise
 
 # Tests replace this to keep the network out.
 CLIENT_FACTORY = fetch_mod.default_client
@@ -86,6 +92,46 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", dest="doc_version", help="exact version string")
     p.add_argument("--force", action="store_true", help="re-extract if present")
     p.add_argument("--all", action="store_true", help="every PDF in the Library")
+
+    p = sub.add_parser("find", help="search the Extract of a document")
+    p.add_argument("document", help="document id")
+    p.add_argument("pattern", help="text to look for (a literal unless --regex)")
+    p.add_argument("--version", dest="doc_version", help="exact version string")
+    p.add_argument(
+        "--regex", action="store_true", help="pattern is a regular expression"
+    )
+    p.add_argument("--case", action="store_true", help="match case")
+    p.add_argument("--context", type=int, default=0, help="lines around each hit")
+    p.add_argument(
+        "--max",
+        dest="max_hits",
+        type=int,
+        default=MAX_HITS,
+        help="hits to print; 0 = all",
+    )
+    p.add_argument(
+        "--only", action="store_true", help="skip the documents searched with this one"
+    )
+
+    p = sub.add_parser("section", help="find sections in a document's Outline")
+    p.add_argument("document", help="document id")
+    p.add_argument("query", help="a section number prefix or words of the title")
+    p.add_argument("--version", dest="doc_version", help="exact version string")
+
+    p = sub.add_parser("page", help="print pages of a document's Extract")
+    p.add_argument("document", help="document id")
+    p.add_argument("page", nargs="?", type=int, help="physical page (1-based)")
+    p.add_argument("--to", type=int, help="last page of a range")
+    p.add_argument("--section", help="the pages of the first section matching this")
+    p.add_argument("--version", dest="doc_version", help="exact version string")
+    p.add_argument("--max-pages", type=int, default=MAX_PAGES, help="pages per call")
+
+    p = sub.add_parser("render", help="render a page of the original to PNG")
+    p.add_argument("document", help="document id")
+    p.add_argument("--page", type=int, required=True, help="physical page (1-based)")
+    p.add_argument("--version", dest="doc_version", help="exact version string")
+    p.add_argument("--scale", type=float, default=render_mod.DEFAULT_SCALE)
+    p.add_argument("--force", action="store_true", help="re-render if present")
     return parser
 
 
@@ -432,6 +478,221 @@ def cmd_extract(args: argparse.Namespace) -> int:
     return EXIT_OK if outcome != "failed" else EXIT_ACTION
 
 
+# ------------------------------------------------------------ reading
+
+
+def _held_version(catalog: Catalog, library: Library, doc_id: str, requested):
+    """(holding, document, problem): the held version to read, or why not.
+
+    ``holding`` is None when ``problem`` (an exit-2 message) is set.
+    """
+    doc = catalog.get(doc_id)
+    name = doc.id if doc else doc_id
+    held = [h for h in library.holdings() if h.document.lower() == name.lower()]
+    if not held:
+        return None, doc, f"{name} is not in the Library; run: bmcspec fetch {name}"
+    if requested:
+        holding = next((h for h in held if h.version == requested), None)
+        if holding is None:
+            versions = ", ".join(h.version for h in held)
+            return (
+                None,
+                doc,
+                f"{name} {requested} is not in the Library; held: {versions}",
+            )
+        return holding, doc, ""
+    return _latest_held(doc, held), doc, ""
+
+
+def _unreadable(holding) -> str:
+    """Why the holding cannot be searched ('' when it can)."""
+    label = f"{holding.document} {holding.version}"
+    ext = holding.original.suffix.lower().lstrip(".")
+    if ext != "pdf":
+        return f"{label} is a {ext} bundle; bundles are not searchable yet"
+    if not extract_mod.is_current(holding.path):
+        return (
+            f"{label} is not extracted, or was extracted by an older version of "
+            f'the extractor; run: bmcspec extract {holding.document} --version "'
+            f'{holding.version}"'
+        )
+    return ""
+
+
+def _open_version(args: argparse.Namespace):
+    """(Version, document, exit code): a loaded version or the code to return."""
+    catalog = _load(args)
+    library = Library(resolve_library())
+    holding, doc, problem = _held_version(
+        catalog, library, args.document, args.doc_version
+    )
+    if holding is None:
+        print(problem)
+        return None, doc, EXIT_ACTION
+    problem = _unreadable(holding)
+    if problem:
+        print(problem)
+        return None, doc, EXIT_ACTION
+    try:
+        return search_mod.load_version(holding), doc, EXIT_OK
+    except search_mod.SearchError as exc:
+        print(f"cannot read {holding.document} {holding.version}: {exc}")
+        return None, doc, EXIT_ERROR
+
+
+def _hit_line(hit: search_mod.Hit, document: str) -> str:
+    where = f"{document} p.{hit.page}"
+    if hit.number is not None:
+        where += f" line {hit.number}"
+    section = hit.section.label if hit.section else "-"
+    mark = "[figure] " if hit.figure else ""
+    return f"{where} | {section} | {mark}{hit.text.strip()}"
+
+
+def _context_lines(version: search_mod.Version, hit: search_mod.Hit, n: int):
+    lines = version.lines(hit.page)
+    for index in range(max(0, hit.index - n), min(len(lines), hit.index + n + 1)):
+        if index == hit.index:
+            continue
+        number = version.line_number(hit.page, index)
+        tag = f"line {number}" if number is not None else f"row {index}"
+        yield f"    {tag}: {lines[index]}"
+
+
+def cmd_find(args: argparse.Namespace) -> int:
+    version, doc, code = _open_version(args)
+    if version is None:
+        return code
+    targets: list[search_mod.Version] = []
+    if doc is not None and doc.searched_with and not args.only:
+        catalog = _load(args)
+        library = Library(resolve_library())
+        for other in doc.searched_with:
+            holding, _, problem = _held_version(catalog, library, other, None)
+            problem = problem or _unreadable(holding)
+            if problem:
+                print(f"note: {problem}")
+                continue
+            try:
+                targets.append(search_mod.load_version(holding))
+            except search_mod.SearchError as exc:
+                print(f"note: cannot read {other}: {exc}")
+    targets.append(version)
+    try:
+        hits = [
+            (v, h)
+            for v in targets
+            for h in v.find(args.pattern, regex=args.regex, case=args.case)
+        ]
+    except re.error as exc:
+        print(f"bad regular expression: {exc}")
+        return EXIT_ACTION
+    if not hits:
+        print("no hits")
+        return EXIT_OK
+    limit = len(hits) if args.max_hits <= 0 else args.max_hits  # 0: no cap
+    for v, hit in hits[:limit]:
+        print(_hit_line(hit, v.document))
+        if args.context > 0:
+            for ln in _context_lines(v, hit, args.context):
+                print(ln)
+            print("--")
+    if len(hits) > limit:
+        print(
+            f"{len(hits) - limit} more hits not shown; narrow the pattern or "
+            "raise --max"
+        )
+    return EXIT_OK
+
+
+def _section_line(sec: search_mod.Section, end: int) -> str:
+    first = f"~{sec.page}" if sec.approximate else str(sec.page)
+    return f"{sec.title} | pages {first}-{end}"
+
+
+def cmd_section(args: argparse.Namespace) -> int:
+    version, _, code = _open_version(args)
+    if version is None:
+        return code
+    matches = version.match_sections(args.query)
+    if not matches:
+        print("no matching section")
+        return EXIT_OK
+    for sec, end in matches:
+        print(_section_line(sec, end))
+    return EXIT_OK
+
+
+def cmd_page(args: argparse.Namespace) -> int:
+    if (args.page is None) == (args.section is None):
+        print("give a page number or --section (not both)")
+        return EXIT_ACTION
+    if args.section is not None and args.to is not None:
+        print("--to goes with a page number, not with --section")
+        return EXIT_ACTION
+    version, _, code = _open_version(args)
+    if version is None:
+        return code
+    if args.section is not None:
+        matches = version.match_sections(args.section)
+        if not matches:
+            print("no matching section")
+            return EXIT_ACTION
+        sec, end = matches[0]
+        first, last = sec.page, end
+    else:
+        first = args.page
+        last = args.to if args.to is not None else args.page
+    count = version.page_count
+    for n in (first, last):
+        if not 1 <= n <= count:
+            print(f"page {n} is outside {version.label} (pages 1-{count})")
+            return EXIT_ACTION
+    if last < first:
+        print("--to must not be before the first page")
+        return EXIT_ACTION
+    span = last - first + 1
+    if span > args.max_pages:
+        print(
+            f"pages {first}-{last} are {span} pages; the limit is {args.max_pages} "
+            "per call (--max-pages raises it, or read a narrower range)"
+        )
+        return EXIT_ACTION
+    for n in range(first, last + 1):
+        if n > first:
+            print()
+        print(version.cite(n))
+        for ln in search_mod.format_page(version, n):
+            print(ln)
+    return EXIT_OK
+
+
+def cmd_render(args: argparse.Namespace) -> int:
+    version, _, code = _open_version(args)
+    if version is None:
+        return code
+    n = args.page
+    if not 1 <= n <= version.page_count:
+        print(f"page {n} is outside {version.label} (pages 1-{version.page_count})")
+        return EXIT_ACTION
+    out = version.path / extract_mod.RENDERS_DIRNAME / f"page-{n}.png"
+    if out.is_file() and not args.force:
+        print(f"rendered {out} (existing; --force to redo)")
+    else:
+        original = version.path / "original.pdf"
+        try:
+            render_mod.render_page(original, n, out, scale=args.scale)
+        except ImportError as exc:
+            print(f"cannot render: {exc}; run: pip install -r requirements.txt")
+            return EXIT_ACTION
+        except (OSError, ValueError) as exc:
+            print(f"cannot render page {n} of {version.label}: {exc}")
+            return EXIT_ERROR
+        print(f"rendered {out}")
+    print(version.cite(n, lines="rendered page"))
+    return EXIT_OK
+
+
 COMMANDS = {
     "library": cmd_library,
     "catalog": cmd_catalog,
@@ -440,6 +701,10 @@ COMMANDS = {
     "scan": cmd_scan,
     "status": cmd_status,
     "extract": cmd_extract,
+    "find": cmd_find,
+    "section": cmd_section,
+    "page": cmd_page,
+    "render": cmd_render,
 }
 
 

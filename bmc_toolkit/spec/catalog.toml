@@ -86,6 +86,7 @@ title = "Intelligent Platform Management Interface Specification, Second Generat
 access = "open"
 fetch = "direct"
 notes = "Latest means this document plus IPMI-UPDATE read together."
+searched_with = ["IPMI-UPDATE"]
 
 [[documents.versions]]
 version = "2.0 rev 1.1"

@@ -18,6 +18,14 @@ Files written next to the original::
                    where N is the physical page and i is the 0-based index of
                    the line within that page's block of the Extract, counting
                    from the first line after the "=== page N ===" marker
+    figures.json   {"pages": {"N": {"regions": [[x0, y0, x1, y1], ...],
+                   "lines": [i, ...]}}} for every page that holds a figure:
+                   raster images and vector drawings (paths with a diagonal
+                   or curved segment) clustered with the paths that overlap
+                   them, in PDF points with the origin bottom-left, plus the
+                   indices (as in linemap.json) of the Extract lines lying
+                   inside a region. Box-only diagrams (axis-aligned rules and
+                   rectangles, like a table) are not figures here.
     extract.json   run metadata, see ExtractResult.to_meta()
 
 Requires pypdfium2 5.x (its bookmark API: ``get_toc`` items with
@@ -26,18 +34,30 @@ Requires pypdfium2 5.x (its bookmark API: ``get_toc`` items with
 
 import json
 import re
+import shutil
 import statistics
 import time
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-EXTRACTOR_VERSION = 2  # 2: space markers and line joining by overlap
+EXTRACTOR_VERSION = 3  # 3: figure regions
 PAGE_MARKER = "=== page {n} ==="
 EXTRACT_NAME = "extract.txt"
 OUTLINE_NAME = "outline.json"
 LINEMAP_NAME = "linemap.json"
+FIGURES_NAME = "figures.json"
 META_NAME = "extract.json"
+RENDERS_DIRNAME = "renders"
+
+# Figure detection, in PDF points.
+DIAGONAL_PT = 2.0  # a segment moving more than this in both x and y is diagonal
+CORNER_PT = 8.0  # a curve spanning no more than this is a rounded corner, not a shape
+FIGURE_GAP_PT = 12.0  # drawings closer than this belong to one figure
+MIN_FIGURE_PT = 36.0  # a figure is at least this long ...
+MIN_FIGURE_SIDE_PT = 18.0  # ... and this wide: bullets, braces and arrows are not
+MIN_IMAGE_PT = 36.0  # a raster image smaller than this either way is a logo or icon
+MAX_RULE_FRACTION = 0.5  # an axis-aligned path covering more of the page is a backdrop
 
 # Geometry thresholds, in multiples of the page's unit (median glyph width).
 SEGMENT_GAP = 1.0  # a wider gap starts a new segment (table cell, column)
@@ -90,7 +110,12 @@ class ExtractResult:
     linemap: dict
     numbered_pages: int
     page_offset: int | None = None
+    figures: dict = field(default_factory=lambda: {"pages": {}})
     text: str = field(default="", repr=False)
+
+    @property
+    def figure_pages(self) -> int:
+        return len(self.figures.get("pages", {}))
 
     def to_meta(self) -> dict:
         return {
@@ -102,6 +127,7 @@ class ExtractResult:
             "outline_source": self.outline_source,
             "outline_entries": len(self.outline),
             "page_offset": self.page_offset,
+            "figure_pages": self.figure_pages,
         }
 
 
@@ -371,6 +397,204 @@ def find_page_offset(pages_text: list[list[str]]) -> int | None:
     return offset
 
 
+# ----------------------------------------------------------------- figures
+
+Box = tuple[float, float, float, float]  # x0, y0, x1, y1; origin bottom-left
+
+
+def _apply(matrix, x: float, y: float) -> tuple[float, float]:
+    return (
+        matrix.a * x + matrix.c * y + matrix.e,
+        matrix.b * x + matrix.d * y + matrix.f,
+    )
+
+
+def _containers(obj) -> list:
+    """Form objects enclosing ``obj``, innermost first."""
+    chain = []
+    c = getattr(obj, "container", None)
+    while c is not None:
+        chain.append(c)
+        c = getattr(c, "container", None)
+    return chain
+
+
+def _to_page(points, containers) -> list[tuple[float, float]]:
+    """Points in an object's space mapped through its enclosing forms."""
+    for form in containers:
+        m = form.get_matrix()
+        points = [_apply(m, x, y) for x, y in points]
+    return points
+
+
+def _bounding(points) -> Box:
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+def _object_box(obj, containers) -> Box:
+    """The object's bounds in page coordinates.
+
+    pdfium reports the bounds of an object nested in a form XObject in the
+    form's own space, so the corners go through the form matrices.
+    """
+    x0, y0, x1, y1 = obj.get_bounds()
+    if not containers:
+        return (x0, y0, x1, y1)
+    corners = [(x0, y0), (x1, y0), (x0, y1), (x1, y1)]
+    return _bounding(_to_page(corners, containers))
+
+
+def _path_is_drawing(obj, raw, containers) -> bool:
+    """True when the path has a diagonal line or a curve larger than a corner.
+
+    Segment points are in the path's own space; the object matrix and the
+    enclosing form matrices are applied so a rotated rule stays a rule. A
+    Bezier segment comes as three points; the curve counts by the distance
+    from its start to its end, so the rounded corners of a code-span
+    background or a table cell do not make a drawing, while arcs, circles
+    and callouts do.
+    """
+    import ctypes  # local: only the figure pass needs it
+
+    count = raw.FPDFPath_CountSegments(obj.raw)
+    if count <= 0:
+        return False
+    matrix = obj.get_matrix()
+    x = ctypes.c_float()
+    y = ctypes.c_float()
+    prev = None  # last point of the previous segment, page space
+    bezier = 0  # control points seen in the current curve
+    anchor = None  # where the current curve started
+    for i in range(count):
+        seg = raw.FPDFPath_GetPathSegment(obj.raw, i)
+        kind = raw.FPDFPathSegment_GetType(seg)
+        if not raw.FPDFPathSegment_GetPoint(seg, ctypes.byref(x), ctypes.byref(y)):
+            continue
+        pt = _to_page([_apply(matrix, x.value, y.value)], containers)[0]
+        if kind == raw.FPDF_SEGMENT_BEZIERTO:
+            if bezier == 0:
+                anchor = prev
+            bezier += 1
+            if bezier == 3:
+                bezier = 0
+                if anchor is None:
+                    return True
+                if max(abs(pt[0] - anchor[0]), abs(pt[1] - anchor[1])) > CORNER_PT:
+                    return True
+                prev = pt
+            continue
+        bezier = 0
+        if kind == raw.FPDF_SEGMENT_LINETO and prev is not None:
+            dx = abs(pt[0] - prev[0])
+            dy = abs(pt[1] - prev[1])
+            if dx > DIAGONAL_PT and dy > DIAGONAL_PT:
+                return True
+        prev = pt
+    return False
+
+
+def _near(a: Box, b: Box, gap: float) -> bool:
+    return (
+        a[0] <= b[2] + gap
+        and b[0] <= a[2] + gap
+        and a[1] <= b[3] + gap
+        and b[1] <= a[3] + gap
+    )
+
+
+def _union(a: Box, b: Box) -> Box:
+    return (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
+
+
+def _merge(boxes: list[Box], gap: float) -> list[Box]:
+    """Join boxes transitively while any two lie within ``gap`` of each other."""
+    regions = list(boxes)
+    changed = True
+    while changed:
+        changed = False
+        out: list[Box] = []
+        for box in regions:
+            for i, r in enumerate(out):
+                if _near(r, box, gap):
+                    out[i] = _union(r, box)
+                    changed = True
+                    break
+            else:
+                out.append(box)
+        regions = out
+    return regions
+
+
+def figure_regions(seeds: list[Box], rules: list[Box], page_area: float) -> list[Box]:
+    """Figure boxes from drawing seeds and the axis-aligned paths around them.
+
+    Seeds within FIGURE_GAP_PT of each other form one region; every
+    axis-aligned path that overlaps a region joins it, repeatedly, so the
+    boxes and connectors of a diagram end up in the region even when only
+    its arrowheads are diagonal. Backdrops (a rectangle covering more than
+    MAX_RULE_FRACTION of the page) never join. Regions shorter than
+    MIN_FIGURE_PT or narrower than MIN_FIGURE_SIDE_PT are icons, bullets or
+    braces and are dropped.
+    """
+    regions = _merge(seeds, FIGURE_GAP_PT)
+    if not regions:
+        return []
+    limit = MAX_RULE_FRACTION * page_area
+    rules = [r for r in rules if (r[2] - r[0]) * (r[3] - r[1]) <= limit]
+    changed = True
+    while changed:
+        changed = False
+        for rule in rules:
+            for i, region in enumerate(regions):
+                if _near(region, rule, 0.0) and _union(region, rule) != region:
+                    regions[i] = _union(region, rule)
+                    changed = True
+        regions = _merge(regions, 0.0)
+    return [
+        r
+        for r in regions
+        if max(r[2] - r[0], r[3] - r[1]) >= MIN_FIGURE_PT
+        and min(r[2] - r[0], r[3] - r[1]) >= MIN_FIGURE_SIDE_PT
+    ]
+
+
+def page_figures(pdf_page, raw) -> list[Box]:
+    """Figure regions of one pypdfium2 page, in page coordinates."""
+    seeds: list[Box] = []
+    rules: list[Box] = []
+    for obj in pdf_page.get_objects():
+        if obj.type == raw.FPDF_PAGEOBJ_IMAGE:
+            box = _object_box(obj, _containers(obj))
+            if min(box[2] - box[0], box[3] - box[1]) >= MIN_IMAGE_PT:
+                seeds.append(box)  # a header logo or an inline icon is not one
+        elif obj.type == raw.FPDF_PAGEOBJ_PATH:
+            containers = _containers(obj)
+            box = _object_box(obj, containers)
+            if _path_is_drawing(obj, raw, containers):
+                seeds.append(box)
+            else:
+                rules.append(box)
+    width, height = pdf_page.get_size()
+    return figure_regions(seeds, rules, width * height)
+
+
+def lines_in_regions(page: PageText, regions: list[Box]) -> list[int]:
+    """Indices of the page's lines whose baseline lies inside a region."""
+    out = []
+    for i, ln in enumerate(page.lines):
+        if not ln.segments:
+            continue
+        x0 = ln.segments[0].x0
+        x1 = ln.segments[-1].x1
+        for r in regions:
+            if r[1] <= ln.y0 <= r[3] and x0 < r[2] and x1 > r[0]:
+                out.append(i)
+                break
+    return out
+
+
 # ------------------------------------------------------------------- driver
 
 
@@ -395,6 +619,7 @@ def _require_pypdfium2():
 
 def extract_pdf(path: Path) -> ExtractResult:
     pdfium = _require_pypdfium2()
+    import pypdfium2.raw as raw  # lazy, with the package above
 
     started = time.perf_counter()
     pdf = pdfium.PdfDocument(str(path))
@@ -402,11 +627,21 @@ def extract_pdf(path: Path) -> ExtractResult:
     chunks: list[str] = []
     pages_lines: list[list[str]] = []
     linemap: dict = {}
+    figures: dict = {}
     numbered = 0
     previous_last: int | None = None
     for i in range(count):
         pdf_page = pdf[i]
         page = page_text(pdf_page.get_textpage(), i, pdf_page.get_size()[0])
+        try:
+            regions = page_figures(pdf_page, raw)
+        except Exception:  # noqa: BLE001 - a page object pdfium chokes on
+            regions = []  # loses figure marks on this page, never the text
+        if regions:
+            figures[str(i + 1)] = {
+                "regions": [[round(v, 1) for v in r] for r in regions],
+                "lines": lines_in_regions(page, regions),
+            }
         if detect_line_numbers(page, previous_last):
             numbered += 1
             nums = {}
@@ -449,6 +684,7 @@ def extract_pdf(path: Path) -> ExtractResult:
         linemap={"pages": linemap},
         numbered_pages=numbered,
         page_offset=offset,
+        figures={"pages": figures},
         text=text,
     )
 
@@ -473,6 +709,11 @@ def write_result(vdir: Path, result: ExtractResult) -> None:
         dump(LINEMAP_NAME, result.linemap)
     elif linemap_path.exists():
         linemap_path.unlink()
+    figures_path = vdir / FIGURES_NAME
+    if result.figure_pages:
+        dump(FIGURES_NAME, result.figures)
+    elif figures_path.exists():
+        figures_path.unlink()
     dump(META_NAME, result.to_meta())
 
 
@@ -496,7 +737,10 @@ def is_current(vdir: Path) -> bool:
 
 
 def remove_derived(vdir: Path) -> None:
-    for name in (EXTRACT_NAME, OUTLINE_NAME, LINEMAP_NAME, META_NAME):
+    for name in (EXTRACT_NAME, OUTLINE_NAME, LINEMAP_NAME, FIGURES_NAME, META_NAME):
         p = vdir / name
         if p.exists():
             p.unlink()
+    renders = vdir / RENDERS_DIRNAME
+    if renders.is_dir():
+        shutil.rmtree(renders)

@@ -10,9 +10,10 @@ asked about, defaults to the latest published version of each document,
 serves any specific version on request, and cites document, version, section
 and page in every answer.
 
-**Status: pre-release.** The Source Catalog, document fetching and text
-extraction work; the answering workflow is being added milestone by
-milestone.
+**Status: pre-release.** The Source Catalog, document fetching, text
+extraction, section lookup, search, page reading with Citations and page
+rendering work. Tables that span pages and OpenBMC source questions are
+being added milestone by milestone.
 
 ## Install
 
@@ -50,6 +51,10 @@ and last number and a map from each line's 0-based index within the page
 block to its printed number) and `extract.json` (extractor version,
 timing, what was found). Outline entries parsed from a contents page whose
 page offset could not be confirmed carry `"approximate": true`.
+`figures.json` lists, per page that has one, the figure regions (raster
+images and vector drawings with the paths that overlap them, in PDF points)
+and the indices of the text lines lying inside them; `renders/page-N.png`
+holds pages rendered on request.
 
 ## Command line
 
@@ -65,11 +70,27 @@ python skills/bmc-spec/scripts/bmcspec.py fetch --all          # several hundred
 python skills/bmc-spec/scripts/bmcspec.py add vendor.pdf --document DSP0236 --version 1.1.0   # --force to replace
 python skills/bmc-spec/scripts/bmcspec.py scan                 # register hand-placed files
 python skills/bmc-spec/scripts/bmcspec.py status
-python skills/bmc-spec/scripts/bmcspec.py extract DSP0236      # text, outline, line map
+python skills/bmc-spec/scripts/bmcspec.py extract DSP0236      # text, outline, line map, figures
 python skills/bmc-spec/scripts/bmcspec.py extract --all
+python skills/bmc-spec/scripts/bmcspec.py section DSP0236 8.1  # outline entries and their pages
+python skills/bmc-spec/scripts/bmcspec.py find DSP0236 "Msg tag" --context 1   # hits with page, line, section
+python skills/bmc-spec/scripts/bmcspec.py page DSP0236 24 --to 25              # the pages, with a cite: line each
+python skills/bmc-spec/scripts/bmcspec.py page DSP0236 --section 8.2
+python skills/bmc-spec/scripts/bmcspec.py render DSP0236 --page 24             # renders/page-24.png
 ```
 
 Exit codes: 0 done, 1 error, 2 you need to act (the message says what).
+
+`find` searches the latest held version (or `--version`), case-insensitively
+unless `--case`, as a literal unless `--regex`; `--max` (default 50) caps the
+hits. A document whose catalog entry lists `searched_with` (IPMI lists its
+Specification Update) is searched together with those, their hits first;
+`--only` skips them. `page` prints at most 10 pages per call
+(`--max-pages`). Each printed page and each rendered page comes with a
+`cite:` line: family, document and version, section, PDF page, printed
+line range (or `rendered page`), origin URL or `user-provided`, and the
+Library path. The Skill copies Citations from those lines and never
+composes them.
 
 ## What the tool does on the network and on disk
 
@@ -93,7 +114,9 @@ Exit codes: 0 done, 1 error, 2 you need to act (the message says what).
 ## The Source Catalog
 
 `bmc_toolkit/spec/catalog.toml` lists every family, document, version and
-URL; comments in the file record when a URL was last confirmed. Publishers
+URL; comments in the file record when a URL was last confirmed. A document
+may name companions in `searched_with` (errata, specification updates)
+that `find` searches together with it. Publishers
 add versions faster than any one maintainer notices: if `catalog DOC` shows
 an older latest than the publisher's site, please open a pull request
 adding the version entry.

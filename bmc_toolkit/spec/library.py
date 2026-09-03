@@ -32,7 +32,14 @@ ENV_LIBRARY = "BMC_SPEC_LIBRARY"
 DEFAULT_LIBRARY_DIRNAME = ".bmc-specs"
 META_NAME = "meta.json"
 ORIGINAL_STEM = "original"
-DERIVED_NAMES = ("extract.txt", "extract.json", "outline.json", "linemap.json")
+DERIVED_NAMES = (
+    "extract.txt",
+    "extract.json",
+    "outline.json",
+    "linemap.json",
+    "figures.json",
+)
+RENDERS_DIRNAME = "renders"  # page images rendered from the original
 MAGIC = {"pdf": (b"%PDF",), "zip": (b"PK\x03\x04",)}
 
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
@@ -185,6 +192,9 @@ class Library:
             p = vdir / name
             if p.exists():
                 p.unlink()
+        renders = vdir / RENDERS_DIRNAME
+        if renders.is_dir():
+            shutil.rmtree(renders)
 
     def write_meta(self, vdir: Path, meta: dict) -> Path:
         vdir.mkdir(parents=True, exist_ok=True)

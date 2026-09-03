@@ -6,10 +6,10 @@ allowed-tools: Bash(python *)
 
 # bmc-spec
 
-Status: the Library, the Source Catalog and text extraction work; the
-answering workflow (search, section lookup, citations) arrives in the next
-milestone. Until then this skill can tell the user which documents and
-versions exist, bring the files onto the machine, and turn them into text.
+Answer spec questions from the documents themselves: bring the document into
+the Library, find the section or the phrase, read only the pages involved,
+and cite what the tool printed. OpenBMC source questions and tables that
+span pages arrive in later milestones; say so when asked for them.
 
 ## Vocabulary
 
@@ -27,16 +27,20 @@ versions exist, bring the files onto the machine, and turn them into text.
 - **Extract**: `extract.txt` next to the original, every page introduced by
   `=== page N ===` (physical page, 1-based), layout preserved so tables read
   column by column. DMTF printed line numbers are removed from the text and
-  kept in `linemap.json`: per physical page, `first`, `last`, and `lines`,
-  a map from the 0-based index of a line within that page's block of the
-  Extract (counting from the first line after the marker) to its printed
-  number, so a citation can say "p.20, lines 680-700".
-- **Outline**: `outline.json`, a flat list of `{level, title, page}` from the
-  PDF bookmarks, or parsed from the contents pages when there are none
-  (`extract.json` says which: `bookmarks`, `contents`, `none`). A contents
-  entry marked `"approximate": true` used the printed page number as the
-  physical page because the offset could not be confirmed; open the page
-  and check before citing it.
+  kept in `linemap.json` (the Line Map), so a citation can say "lines
+  680-700".
+- **Outline**: `outline.json`, the section titles with their physical pages,
+  from the PDF bookmarks or parsed from the contents pages. An entry whose
+  page could not be confirmed is *approximate* and is printed with `~`.
+- **Figure region**: `figures.json` records, per page, where raster images
+  and vector drawings sit and which Extract lines lie inside them. Text
+  inside a figure is often fragmentary; `find` and `page` mark such lines
+  `[figure]`. Box-only diagrams (rectangles and text, nothing diagonal or
+  curved) are not detected and read like tables.
+- **Citation**: a `cite:` line printed by `page` or `render`. Its fields,
+  separated by ` | `: family, document and version, section, `PDF page N`,
+  `lines A-B` (or `lines -`, or `rendered page`), origin (download URL or
+  `user-provided`), Library path.
 
 ## Helper CLI
 
@@ -55,11 +59,60 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `add FILE --document DOC --version V [--force]` | register a file the user obtained themselves (Drop-in); refuses to replace a version already present unless `--force`; the file must really be a PDF or ZIP |
 | `scan` | register files placed by hand under `specs/<family>/<document>/<version>/original.pdf` |
 | `status` | what the Library holds; columns: family, id, version, origin, size, `extracted` or `-`, outline source |
-| `extract DOC [--version V] [--force]` | write the Extract, Outline and Line Map for a version already in the Library (latest held version by default); skips if current |
+| `extract DOC [--version V] [--force]` | write the Extract, Outline, Line Map and figure regions for a version already in the Library (latest held version by default); skips if current |
 | `extract --all [--force]` | every PDF in the Library; ends with a `summary:` line; ZIP bundles are skipped for now |
+| `section DOC QUERY [--version V]` | Outline entries matching a section number prefix (`20.1` also matches `20.1.2`) or every word of QUERY; one per line: `title \| pages FIRST-LAST`, where LAST is where the next entry of the same or a higher level begins (`~` in front of an approximate page). `no matching section` when nothing matches |
+| `find DOC PATTERN [--version V] [--regex] [--case] [--context N] [--max N] [--only]` | search the Extract; one line per hit: `DOC p.N [line L] \| section \| [figure] text`. Case-insensitive literal unless `--regex` / `--case`; `--context N` adds the surrounding lines (`line L:` or `row I:`) and a `--` separator; at most 50 hits unless `--max N` (`--max 0` prints all), then a `... more hits` line. Documents the catalog lists in `searched_with` (IPMI-UPDATE for IPMI) are searched too, their hits first; a missing one gets a `note:` line with the command to run; `--only` skips them. `no hits` when nothing matches |
+| `page DOC N [--to M]` or `page DOC --section QUERY [--version V] [--max-pages K]` | print pages of the Extract, each starting with a `cite:` line, every line behind its printed line number when there is one, `[figure]` appended to lines inside a figure. Refuses more than 10 pages per call unless `--max-pages` |
+| `render DOC --page N [--version V] [--scale S] [--force]` | write `renders/page-N.png` (S times 72 dpi, default 2) under the version directory; prints `rendered <path>` and a `cite:` line with `rendered page`. Reuses an existing file unless `--force` |
 
 Exit codes: 0 done, 1 error (malformed catalog, unreadable file), 2 the
-user must act (unknown document or version, download impossible).
+user must act (unknown document or version, download impossible, document
+not in the Library or not extracted, too many pages asked for).
+
+## Answering workflow
+
+1. Identify the Family and the Document. Without a named family prefer the
+   one the project context suggests (CLAUDE.md, the conversation), else
+   answer for the most likely family and say that another family has a
+   same-named item. `catalog --family F` lists the candidates.
+2. Make sure the version is there: `fetch DOC` (`skipped` if already held),
+   then `extract DOC` (`skipped` if current). Pass the user's version
+   verbatim with `--version`; on exit 2 relay the message and stop.
+3. Locate: `section DOC QUERY` when the user names a section or a topic
+   that is a heading; `find DOC PATTERN` for a command name, a field, a
+   code, a phrase. Read the section field of each hit to see where it lies.
+4. Read only what you need: `page DOC N` for the hit pages, or
+   `page DOC --section QUERY` for a short section. Never read a whole
+   Extract into the conversation; a section longer than ten pages is read a
+   few pages at a time.
+5. When a hit is marked `[figure]`, or the text of a page looks fragmentary
+   (single words on their own lines, columns that do not line up), run
+   `render DOC --page N` and open the PNG with the Read tool to look at the
+   page.
+6. Answer, quoting at paragraph granularity and in the document's own
+   language, with a Citation for every claim.
+
+## Citation rules
+
+- Every Citation is copied from a `cite:` line the tool printed in this
+  session. Do not compose one from memory, and do not cite a page you did
+  not read.
+- Line numbers appear only when the `page` output printed them for those
+  lines; give the range you actually used, not the page's whole range.
+- The `cite:` section is the entry in force at the top of the page; for a
+  claim further down use the section printed by `find` for that hit, or
+  the heading you saw in the page text.
+- A `~` page comes from a contents page whose offset could not be
+  confirmed: open the page and check the heading before citing it.
+- An answer read from a rendered PNG says "read from a rendered page" in
+  its Citation.
+- Drop-in sources say "user-provided" in the origin field; keep it.
+  Confidential documents are cited by path, never by a URL.
+- A statement without a Citation is labelled inference.
+- IPMI questions: `find IPMI ...` searches the base document together with
+  IPMI-UPDATE (errata and clarifications) and prints the Update's hits
+  first. When both hit, cite the Update first, then the base document.
 
 ## Rules
 
@@ -70,11 +123,6 @@ user must act (unknown document or version, download impossible).
 - When a download fails, relay the printed browser URL and the exact save
   path, then ask the user to run `scan` after saving. Never invent an
   alternative URL.
-- IPMI questions need both `IPMI` (the base document) and `IPMI-UPDATE`
-  (errata and clarifications); fetch both.
 - `fetch --all` downloads several hundred megabytes; only run it when the
   user asks for everything. `extract --all` on a full Library takes a couple
   of minutes.
-- Read a page from the Extract by locating its `=== page N ===` marker; the
-  Outline gives the physical page of a section. Do not read whole Extracts
-  into the conversation.
