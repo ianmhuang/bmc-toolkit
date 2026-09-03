@@ -382,11 +382,6 @@ def test_schema_resource_prints_one_property_per_line_with_resolved_types(
     assert "Old" not in props  # that property exists only in older versions
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="finding F1: a $ref to a definition that is anyOf[string, null] "
-    "reads 'object Description' instead of 'string'",
-)
 def test_schema_resolves_a_ref_to_a_nullable_primitive_as_the_primitive(
     held, catalog_file, capsys
 ):

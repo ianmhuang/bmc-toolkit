@@ -61,10 +61,11 @@ def cite(held, label, file, pointer):
 def test_extract_unpacks_and_status_shows_schemas(fetched, catalog_file, capsys):
     code, out = run(capsys, "extract", "BUNDLE", catalog_file=catalog_file)
     assert code == 0
-    assert out.startswith("extracted BUNDLE 2026.1: 5 schema files, 4 resources in ")
-    assert out.rstrip().endswith("s, 1 unsafe paths refused")
+    assert out.startswith("extracted BUNDLE 2026.1: 6 schema files, 5 resources in ")
+    assert out.rstrip().endswith("s, 1 unsafe paths refused, 1 duplicate names dropped")
     assert sorted(p.name for p in (fetched / "schemas").iterdir()) == [
         "Common.json",
+        "Nullable.json",
         "Thing.json",
         THING,
         "ThingCollection.json",
@@ -76,7 +77,7 @@ def test_extract_unpacks_and_status_shows_schemas(fetched, catalog_file, capsys)
     code, out = run(capsys, "extract", "BUNDLE", catalog_file=catalog_file)
     assert code == 0 and out.strip() == "skipped BUNDLE 2026.1: already extracted"
     code, out = run(capsys, "extract", "BUNDLE", "--force", catalog_file=catalog_file)
-    assert code == 0 and out.startswith("extracted BUNDLE 2026.1: 5 schema files")
+    assert code == 0 and out.startswith("extracted BUNDLE 2026.1: 6 schema files")
 
 
 def test_extract_all_skips_a_zip_without_schemas(held, catalog_file, tmp_path, capsys):
@@ -112,6 +113,7 @@ def test_schema_lists_resources(held, catalog_file, capsys):
     assert code == 0
     assert out.splitlines() == [
         "Common\t-",
+        "Nullable\t-",
         "odata-v4\t-",
         "Thing\tv1.10.0",
         "ThingCollection\t-",
@@ -124,13 +126,13 @@ def test_schema_resource_prints_cite_and_properties(held, catalog_file, capsys):
     lines = out.splitlines()
     assert lines[0] == cite(held, "Thing v1.10.0", THING, "#/definitions/Thing")
     assert lines[1] == (
-        "schema: Thing v1.10.0 | 10 properties | "
+        "schema: Thing v1.10.0 | 11 properties | "
         "definitions: Actions, Level, Reset, Thing"
     )
     assert lines[2] == "@odata.id | odata id | writable | - |"
     assert lines[4] == "Mode | enum Mode | readonly | added v1.2.0 | The mode."
     assert lines[9] == f"Missing | {MISSING_REF} | writable | - | Gone."
-    assert len(lines) == 12
+    assert len(lines) == 13
 
 
 def test_schema_property_follows_an_enum_into_another_file(held, catalog_file, capsys):
@@ -249,6 +251,36 @@ def test_reading_commands_point_bundles_to_schema(held, catalog_file, capsys):
         code, out = run(capsys, *argv, catalog_file=catalog_file)
         assert code == 2, argv
         assert out.strip() == REFUSAL, argv
+
+
+def test_definitions_of_an_index_file_can_be_read(held, catalog_file, capsys):
+    # odata-v4.json has no definition named after itself
+    code, out = schema(capsys, catalog_file, "odata-v4")
+    assert code == 2
+    assert out.strip() == (
+        "odata-v4.json has no definition named odata-v4; it defines: id; "
+        "read one with: bmcspec schema BUNDLE odata-v4 --definition NAME"
+    )
+    code, out = schema(capsys, catalog_file, "odata-v4", "--definition", "id")
+    assert code == 0
+    assert out.splitlines()[1] == "definition: id | string"
+
+
+def test_unwritable_schemas_directory_is_a_failed_extract(
+    fetched, catalog_file, capsys, monkeypatch
+):
+    from bmc_toolkit.spec import bundle as bundle_mod
+
+    def refuse(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(bundle_mod.Path, "write_bytes", refuse)
+    code, out = run(capsys, "extract", "BUNDLE", catalog_file=catalog_file)
+    assert code == 2
+    assert out.strip() == "failed BUNDLE 2026.1: cannot write schemas: disk full"
+    code, out = run(capsys, "extract", "--all", catalog_file=catalog_file)
+    assert "failed BUNDLE 2026.1: cannot write schemas: disk full" in out
+    assert out.strip().splitlines()[-1].endswith("failed 1")
 
 
 def test_corrupt_schema_file_is_an_error_not_a_traceback(held, catalog_file, capsys):

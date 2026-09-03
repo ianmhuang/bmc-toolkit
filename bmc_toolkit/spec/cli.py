@@ -473,7 +473,12 @@ def _unpack_one(holding, force: bool, label: str) -> str:
     except bundle_mod.BundleError as exc:
         print(f"failed {label}: {exc}")
         return "failed"
+    except OSError as exc:  # a write the platform refused must not stop --all
+        print(f"failed {label}: cannot write schemas: {exc}")
+        return "failed"
     refused = f", {result.refused} unsafe paths refused" if result.refused else ""
+    if result.duplicates:
+        refused += f", {result.duplicates} duplicate names dropped"
     print(
         f"extracted {label}: {result.files} schema files, {result.resources} "
         f"resources in {result.seconds:.2f}s{refused}"
@@ -819,10 +824,8 @@ def _schema_output(args, holding, schemas: bundle_mod.Schemas) -> int:
                 f"bmcspec schema {holding.document} lists them"
             )
         return EXIT_ACTION
-    main = schemas.main_definition(res)
-    if main is None:
-        print(f"{res.file} has no definition named {res.name}")
-        return EXIT_ERROR
+    defs = schemas.load(res.file).get("definitions", {})
+    names = ", ".join(sorted(defs)) if isinstance(defs, dict) and defs else "-"
     if args.definition:
         where = schemas.definition(res.file, args.definition)
         if where is None:
@@ -833,6 +836,14 @@ def _schema_output(args, holding, schemas: bundle_mod.Schemas) -> int:
             return EXIT_ACTION
         _print_node(holding, schemas, where, where.pointer.rsplit("/", 1)[-1])
         return EXIT_OK
+    main = schemas.main_definition(res)
+    if main is None:
+        print(
+            f"{res.file} has no definition named {res.name}; it defines: {names}; "
+            f"read one with: bmcspec schema {holding.document} {res.name} "
+            f"--definition NAME"
+        )
+        return EXIT_ACTION
     if args.property:
         where = schemas.property(main, args.property)
         if where is None:
@@ -846,8 +857,6 @@ def _schema_output(args, holding, schemas: bundle_mod.Schemas) -> int:
         return EXIT_OK
     print(_bundle_cite(holding, main.file, main.pointer))
     lines = bundle_mod.property_lines(schemas, main)
-    defs = schemas.load(main.file).get("definitions", {})
-    names = ", ".join(sorted(defs)) if isinstance(defs, dict) else "-"
     print(f"schema: {res.label} | {len(lines)} properties | definitions: {names}")
     for ln in lines:
         print(ln)

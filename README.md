@@ -139,9 +139,11 @@ version, the schema file and the JSON pointer.
   `schemas/` and rendered pages included; so does `extract --force`.
 - From a schema bundle only the JSON Schema files an answer needs leave the
   archive: every unversioned `<Name>.json` and the newest
-  `<Name>.vX_Y_Z.json` per resource (about 450 files, 7 MB, of DSP8010's
-  6900 files and 234 MB); CSDL, OpenAPI, dictionaries and the PDFs stay in
-  the ZIP. Member paths that would escape `schemas/` are refused.
+  `<Name>.vX_Y_Z.json` per resource (452 files, 7.4 MB on disk, out of
+  DSP8010 2026.1's 6890 JSON Schema files and 234 MB); CSDL, OpenAPI,
+  dictionaries and the PDFs stay in the ZIP. Member paths that would
+  escape `schemas/` are refused, and a base name that appears twice is
+  written once.
 - Never runs a subprocess and never re-uploads or redistributes anything.
 
 ## The Source Catalog

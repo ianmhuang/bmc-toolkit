@@ -68,6 +68,10 @@ THING_NEWEST = {
                     "description": "Old name.",
                 },
                 "Actions": {"$ref": "#/definitions/Actions", "description": "Actions."},
+                "Note": {
+                    **ref("Nullable.json#/definitions/Description"),
+                    "description": "A note.",
+                },
             },
         },
         "Level": {
@@ -128,6 +132,11 @@ FILES = {
         }
     },
     "odata-v4.json": {"definitions": {"id": {"type": "string"}}},
+    "Nullable.json": {
+        "definitions": {
+            "Description": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        }
+    },
     "odata.4.0.0.json": {"definitions": {}},  # an odd name: not kept
 }
 
@@ -141,6 +150,7 @@ JUNK = {
 
 KEPT = [
     "Common.json",
+    "Nullable.json",
     "Thing.json",
     "Thing.v1_10_0.json",
     "ThingCollection.json",
@@ -160,6 +170,7 @@ def bundle_bytes(*, folder=FOLDER, escape=True, junk=True) -> bytes:
                 zf.writestr(name, data)
         if escape:
             zf.writestr(f"{folder}/../evil.json", "{}")
+        zf.writestr(f"mirror/{folder}/Common.json", "{}")  # a duplicate name
     return buf.getvalue()
 
 
@@ -189,16 +200,20 @@ def test_versions_order_numerically():
 
 def test_select_members_keeps_the_index_and_the_newest_version_only():
     with zipfile.ZipFile(io.BytesIO(bundle_bytes())) as zf:
-        kept, refused = B.select_members(zf.namelist())
+        kept, refused, duplicates = B.select_members(zf.namelist())
     assert sorted(k.split("/")[-1] for k in kept) == KEPT
-    assert refused == 1
+    assert (refused, duplicates) == (1, 1)
+    assert not any(k.startswith("mirror/") for k in kept)  # the first one wins
     with pytest.raises(B.NoSchemas):
         B.select_members(list(JUNK))
 
 
 def test_unpack_writes_only_the_selected_files_and_the_meta(tmp_path):
     schemas, result = unpacked(tmp_path)
-    assert (result.files, result.resources, result.refused) == (5, 4, 1)
+    assert (result.files, result.resources) == (6, 5)
+    assert (result.refused, result.duplicates) == (1, 1)
+    meta = json.loads((tmp_path / "extract.json").read_text("utf-8"))
+    assert (meta["refused"], meta["duplicates"]) == (1, 1)
     assert sorted(p.name for p in (tmp_path / "schemas").iterdir()) == KEPT
     assert not list(tmp_path.glob("**/*.xml"))
     assert not list(tmp_path.glob("**/*.pdf"))
@@ -245,6 +260,7 @@ def test_resources_lookup_and_similar_names(tmp_path):
     schemas, _ = unpacked(tmp_path)
     assert [(r.name, r.version, r.file) for r in schemas.resources()] == [
         ("Common", None, "Common.json"),
+        ("Nullable", None, "Nullable.json"),
         ("odata-v4", None, "odata-v4.json"),
         ("Thing", "v1.10.0", "Thing.v1_10_0.json"),
         ("ThingCollection", None, "ThingCollection.json"),
@@ -270,6 +286,7 @@ def test_types_resolve_through_anyof_and_refs(tmp_path):
         f"Missing | {MISSING_REF} | writable | - | Gone.",
         "Old | string | writable | - | Old name.",
         "Actions | object Actions | writable | - | Actions.",
+        "Note | string | writable | - | A note.",
     ]
 
 

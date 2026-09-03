@@ -25,8 +25,9 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+from bmc_toolkit.spec.library import SCHEMAS_DIRNAME
+
 BUNDLE_VERSION = 1
-SCHEMAS_DIRNAME = "schemas"
 SCHEMA_FOLDER = "json-schema"
 META_NAME = "extract.json"  # shared with the PDF extractor; "kind" tells them apart
 
@@ -56,6 +57,7 @@ class BundleResult:
     resources: int
     seconds: float
     refused: int = 0  # members whose path would have escaped schemas/
+    duplicates: int = 0  # members whose base name another kept member has
 
     def to_meta(self) -> dict:
         return {
@@ -64,6 +66,7 @@ class BundleResult:
             "files": self.files,
             "resources": self.resources,
             "refused": self.refused,
+            "duplicates": self.duplicates,
             "seconds": round(self.seconds, 2),
             "outline_source": "schemas",
         }
@@ -96,14 +99,17 @@ def _is_safe(member: str) -> bool:
     return not path.is_absolute() and ".." not in path.parts and "\\" not in member
 
 
-def select_members(members: list[str]) -> tuple[list[str], int]:
-    """(archive members to keep, members refused for their path).
+def select_members(members: list[str]) -> tuple[list[str], int, int]:
+    """(archive members to keep, members refused for their path, members
+    dropped because an earlier one has the same base name).
 
     Kept: every unversioned ``<Name>.json`` under a ``json-schema`` folder
     and the newest ``<Name>.vX_Y_Z.json`` per name. Raises NoSchemas when
     no member lies under such a folder.
     """
     refused = 0
+    duplicates = 0
+    seen_base: set[str] = set()
     unversioned: list[str] = []
     newest: dict[str, tuple[tuple[int, int, int], str]] = {}
     seen_folder = False
@@ -116,6 +122,10 @@ def select_members(members: list[str]) -> tuple[list[str], int]:
             refused += 1
             continue
         base = parts[-1]
+        if base in seen_base:
+            duplicates += 1
+            continue
+        seen_base.add(base)
         key = version_key(base)
         if key is not None:
             name = resource_name(base)
@@ -126,7 +136,7 @@ def select_members(members: list[str]) -> tuple[list[str], int]:
     if not seen_folder:
         raise NoSchemas(f"no {SCHEMA_FOLDER}/ folder in the archive")
     kept = sorted(unversioned) + sorted(m for _, m in newest.values())
-    return kept, refused
+    return kept, refused, duplicates
 
 
 def unpack(zip_path: Path, vdir: Path) -> BundleResult:
@@ -138,7 +148,7 @@ def unpack(zip_path: Path, vdir: Path) -> BundleResult:
     except (OSError, zipfile.BadZipFile) as exc:
         raise BundleError(f"cannot open {zip_path}: {exc}") from exc
     with archive:
-        kept, refused = select_members(archive.namelist())
+        kept, refused, duplicates = select_members(archive.namelist())
         meta_path = vdir / META_NAME
         if meta_path.exists():
             meta_path.unlink()  # nothing is_current() believes until the end
@@ -160,6 +170,7 @@ def unpack(zip_path: Path, vdir: Path) -> BundleResult:
         resources=len(names),
         seconds=time.perf_counter() - started,
         refused=refused,
+        duplicates=duplicates,
     )
     with open(vdir / META_NAME, "w", encoding="utf-8", newline="") as fh:
         json.dump(result.to_meta(), fh, indent=1)
@@ -369,8 +380,11 @@ class Schemas:
         node = target.node
         if "enum" in node:
             return f"enum {def_name}"
-        if "properties" in node or node.get("type") == "object" or "anyOf" in node:
+        if "properties" in node or node.get("type") == "object":
             return f"object {def_name}"
+        options = _non_null(node.get("anyOf"))
+        if options and all(_is_object_like(o) for o in options):
+            return f"object {def_name}"  # an index entry: refs to the versions
         inner = self.type_of(node, target.file)
         return inner if inner != "-" else def_name
 
@@ -394,6 +408,10 @@ class Schemas:
         if "enum" in node:
             return Located(file, pointer, node)
         return None
+
+
+def _is_object_like(node: dict) -> bool:
+    return "$ref" in node or "properties" in node or node.get("type") == "object"
 
 
 def _non_null(options) -> list[dict] | None:
