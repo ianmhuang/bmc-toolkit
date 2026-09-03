@@ -1,6 +1,6 @@
 [project]
 name = "bmc-toolkit"
-version = "0.1.0"
+version = "1.0.0"
 description = "Claude Code skills for BMC firmware developers."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -28,6 +28,11 @@ extend-exclude = ["tests/test_review_*.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Listing fixtures carry publisher URLs and HTML rows that do not wrap.
+"tests/test_listing.py" = ["E501"]
+"tests/test_freshness.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

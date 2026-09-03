@@ -400,3 +400,63 @@ def test_git_missing_is_an_exit_2_message(library, catalog_file, capsys, monkeyp
     monkeypatch.setattr(code_mod.shutil, "which", lambda name: None)
     code, out = run(capsys, "clone", "thing", catalog_file=catalog_file)
     assert code == 2 and out.strip().startswith("git is not on PATH")
+
+
+# --------------------------------------------------------------- prune
+
+
+def test_prune_lists_then_removes_superseded_trees_and_leftovers(
+    library, catalog_file, remotes, capsys
+):
+    work, url, first, second = remotes["thing"]
+    code, out = run(capsys, "prune", catalog_file=catalog_file)
+    assert (
+        code == 0
+        and out.strip() == "nothing to prune: no superseded Code Tree, no leftover"
+    )
+    run(capsys, "clone", "thing", catalog_file=catalog_file)
+    third = commit(work, {"README.md": "thing 3\n"}, "third")
+    push(work)
+    run(capsys, "clone", "thing", "--force", catalog_file=catalog_file)
+    leftover = library / "code" / "thing" / ".tmp-123"
+    leftover.mkdir()
+    (leftover / "x").write_text("x", encoding="utf-8")
+    old = library / "code" / "thing" / second
+    new = library / "code" / "thing" / third
+    code, out = run(capsys, "prune", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith(f"would remove {old} (thing {second[:7]}, main ")
+    assert lines[0].endswith(f"superseded by {third[:7]})")
+    assert lines[1] == f"would remove {leftover} (leftover)"
+    assert (
+        lines[2]
+        == "prune: 1 superseded tree(s), 1 leftover(s) (dry run; --yes removes them)"
+    )
+    assert old.is_dir() and leftover.is_dir()  # a dry run
+    code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith(f"removed {old} (thing {second[:7]}")
+    assert lines[1] == f"removed {leftover} (leftover)"
+    assert lines[2] == "prune: 1 superseded tree(s), 1 leftover(s)"
+    assert not old.exists() and not leftover.exists()
+    assert (new / "README.md").is_file()  # the current tree stays
+    code, out = run(capsys, "repos", "--topic", "state", catalog_file=catalog_file)
+    assert f"{third[:7]} main " in out and second[:7] not in out
+    code, out = run(capsys, "prune", catalog_file=catalog_file)
+    assert out.strip().startswith("nothing to prune")
+
+
+def test_clone_release_prints_the_recipe_that_pinned_it(
+    library, catalog_file, remotes, capsys
+):
+    work, url, first, second = remotes["thing"]
+    code, out = run(
+        capsys, "clone", "thing", "--release", "1.0.0", catalog_file=catalog_file
+    )
+    assert code == 0, out
+    assert out.splitlines()[-1].startswith(
+        f"pin: {first[:7]} from meta-phosphor/recipes-phosphor/things/thing_git.bb "
+        "of openbmc "
+    )

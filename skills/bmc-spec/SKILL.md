@@ -69,6 +69,13 @@ names (or the default branch), searched with `grep` and read with `code`.
 - **User checkout**: a local checkout the user names in `config.toml`
   (`[code.checkouts] bmcweb = "/path"`); it wins over every Library Code
   Tree of that repository, whatever it has checked out.
+- **Freshness Check**: `check` asks the publisher (DMTF, nvmexpress.org,
+  the OCP wiki) what versions it lists and reports one the catalog lacks
+  (`newer DOC: ...`). It never downloads or switches versions; the catalog
+  stays the authority for Latest until a maintainer updates it. `fetch`
+  and `status` print a `note:` when a document has not been checked
+  within `freshness_days` (`[library]` in `config.toml`, default 30),
+  once per document until the next `check`.
 - **Citation**: a `cite:` line printed by `page`, `render` or `table`. Its
   fields, separated by ` | `: family, document and version, section,
   `PDF page N` (or `PDF pages A-B` for a Logical Table), `lines A-B` (or
@@ -97,7 +104,9 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `fetch --all [--wip] [--force]` | latest of every downloadable document; ends with a `summary:` line |
 | `add FILE --document DOC --version V [--force]` | register a file the user obtained themselves (Drop-in); refuses to replace a version already present unless `--force`; the file must really be a PDF or ZIP |
 | `scan` | register files placed by hand under `specs/<family>/<document>/<version>/original.pdf` |
-| `status` | what the Library holds; columns: family, id, version, origin, size, `extracted` / `stale` (extracted by an older extractor: run `extract` again) / `-`, outline source |
+| `status` | what the Library holds; columns: family, id, version, origin, size, `extracted` / `stale` (extracted by an older extractor: run `extract` again) / `-`, outline source; a final `note:` when held documents are due for a Freshness Check |
+| `check [DOC]` | ask the publisher whether the catalog is behind: `current DOC V`, `newer DOC: catalog latest V, <publisher> lists W (date) URL` (OCP: `(URL to confirm by hand)`), or `unreachable DOC: reason`; without DOC every document with a listing, an `unchecked:` line for the hand-maintained ones, a `release:` line comparing `config.toml`'s release with the newest `openbmc/openbmc` tag (`-> newer` or `-> L is the newest`), and a `summary:`. Nothing is downloaded. Exit 2 for an unknown document or one without a listing |
+| `refresh [DOC] [--write]` | maintainer command: what `check` found, per version (`add`, `changed`, `confirm`); `--write` appends the `add` entries to the catalog file. Not for answering questions |
 | `extract DOC [--version V] [--force]` | write the Extract, Outline, Line Map and figure regions for a PDF version already in the Library (latest held version by default), or unpack a schema bundle's JSON Schema into `schemas/`; skips if current. A ZIP without a `json-schema/` folder (registries, profiles) is skipped with a message |
 | `extract --all [--force]` | every PDF and bundle in the Library; ends with a `summary:` line |
 | `section DOC QUERY [--version V]` | Outline entries matching a section number prefix (`20.1` also matches `20.1.2`) or every word of QUERY; one per line: `LEVEL \| title \| pages FIRST-LAST` (LEVEL 0 is a top-level heading), where LAST is where the next entry of the same or a higher level begins (`~` in front of an approximate page). `no matching section` when nothing matches |
@@ -110,6 +119,7 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `clone REPO [--ref R \| --release L] [--force]` | bring the repository into the Library as a Code Tree (REPO not in the catalog: `https://github.com/openbmc/REPO.git` is tried, with a `note:` saying so, and `repos` lists it as `(not in catalog)` afterwards): at branch/tag/full commit R, at the Pin of OpenBMC release L (the `openbmc` repository is fetched at L first, recipes only), or at the default branch. Prints `cloned <repo> <commit7> (<provenance>) -> <path>` or `held ...` when already there (no network); `--force` resolves a moving name again and prints `superseded` for the older tree. Uses the `config.toml` default Release when no flag is given, and says `release: L (from config.toml)` |
 | `grep REPO PATTERN [--ref R \| --release L] [--regex] [--glob G] [--context N] [--max N]` | `git grep` over the selected Code Tree (user checkout first, then the named Ref or Release, then the config Release, then the default-branch tree): one hit per line `REPO@commit7 path:line \| text`, context lines as `line N:` with `--` between groups, at most 50 hits unless `--max` (0 = all); `no hits`; exit 2 with the `clone` command when the tree is not held. Case-sensitive, a fixed string unless `--regex` |
 | `code REPO PATH [--lines A-B] [--ref R \| --release L]` | a `cite:` line then the file's lines behind their numbers; a file over 200 lines needs `--lines`. Same tree selection as `grep`; a `note:` line says when a user checkout or the config Release was used |
+| `prune [--yes]` | `would remove <path> (...)` for every superseded Code Tree and `.tmp-*` leftover, then a `prune:` summary; only with `--yes` are they removed (`removed <path>`). Run `--yes` only when the user asked to free space |
 | `table DOC --page N [--version V] [--index K] [--force]` | print every Logical Table touching page N, whole: a `cite:` line (`PDF pages A-B`, `table K`), a `table:` line (caption or `-`, page range, columns, rows including the header), then the rows as a grid, columns separated by ` \| `, one physical line per cell line, a rule after the header and after every row with a multi-line cell. `--index K` keeps only the K-th table on the page. Read from `tables.json` when the page was read before, unless `--force`. Exit 2 with `no ruled table on page N` when the page has none |
 
 Exit codes: 0 done, 1 error (malformed catalog, unreadable file), 2 the
@@ -131,6 +141,12 @@ not in the Library or not extracted, too many pages asked for).
 2. Make sure the version is there: `fetch DOC` (`skipped` if already held),
    then `extract DOC` (`skipped` if current). Pass the user's version
    verbatim with `--version`; on exit 2 relay the message and stop.
+   When `fetch` ends with `note: DOC has not been checked against ...`,
+   run `check DOC` once, then go on answering from the held version. If
+   it printed `newer`, tell the user in one sentence which version the
+   publisher lists and that the answer comes from the catalog's latest;
+   never fetch or add the newer version unless the user asks, and never
+   edit the catalog during a question (`refresh` is for maintainers).
 3. Locate: `section DOC QUERY` when the user names a section or a topic
    that is a heading; `find DOC PATTERN` for a command name, a field, a
    code, a phrase. Read the section field of each hit to see where it lies.
@@ -164,7 +180,9 @@ not in the Library or not extracted, too many pages asked for).
    repository itself: `clone REPO --ref R`. Nothing named: `clone REPO`
    (default branch), unless `config.toml` sets a default Release, which
    `clone` and the reading commands then use and announce. Never edit
-   `config.toml` yourself; a newer release is the user's move.
+   `config.toml` yourself; a newer release is the user's move. `check`
+   (no document) says when `openbmc/openbmc` has a tag newer than the
+   configured release; mention it, do not act on it.
 3. `grep REPO PATTERN` for the identifier, D-Bus interface, command name
    or Redfish property; `--context 2` to see the surrounding lines;
    `--glob 'src/*.cpp'` to narrow.
@@ -229,6 +247,10 @@ and the user's release may differ, and `grep` at both is cheap.
 - `fetch --all` downloads several hundred megabytes; only run it when the
   user asks for everything. `extract --all` on a full Library takes a couple
   of minutes.
+- `check` goes to the publishers' sites (a few requests) and is the only
+  command that says whether the catalog is behind; run it when a `note:`
+  asks for it or when the user asks whether a newer version exists. It
+  never downloads. `prune --yes` deletes directories: only on request.
 - `clone` is one repository at a time (2 to 32 MB each); a Release needs the
   the `openbmc` repository too (the recipe files of every layer, about 20
   MB), so `--release` resolves any repository a layer's recipe pins; a

@@ -10,10 +10,128 @@ asked about, defaults to the latest published version of each document,
 serves any specific version on request, and cites document, version, section
 and page in every answer.
 
-**Status: pre-release.** The Source Catalog, document fetching, text
-extraction, section lookup, search, page reading with Citations and page
-rendering work. Tables that span pages and OpenBMC source questions are
-being added milestone by milestone.
+Version 1.0.0. The Source Catalog covers Intel IPMI, DMTF, Redfish,
+NVMe, OCP DC-SCM and DC-MHS, I2C, SMBus and CMIS; UEFI and ACPI are not in
+the catalog (uefi.org serves no scripted client) and enter only as
+Drop-ins. The acceptance set the release was checked against is in
+`docs/golden-questions.md`.
+
+## How it works
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant S as bmc-spec Skill (Claude)
+    participant C as bmcspec CLI
+    participant L as Library (~/.bmc-specs)
+    participant P as Publisher / GitHub
+
+    U->>S: "What does DSP0236 say about Msg tag?"
+    S->>C: fetch DSP0236
+    C->>L: held?
+    alt not held
+        C->>P: GET catalog URL (then Wayback)
+        P-->>C: original.pdf
+        C->>L: store original + meta.json
+    end
+    C-->>S: fetched / skipped [+ note: freshness]
+    opt note printed
+        S->>C: check DSP0236
+        C->>P: GET listing page
+        C-->>S: current / newer (nothing downloaded)
+    end
+    S->>C: extract DSP0236
+    C->>L: extract.txt, outline.json, linemap.json, figures.json
+    S->>C: find DSP0236 "Msg tag" / section / page / table / render
+    C->>L: read the Extract (tables.json, renders/ on demand)
+    C-->>S: hits, pages, each with a cite: line
+    S-->>U: answer with Citations copied from cite: lines
+```
+
+OpenBMC questions take the same shape with `repos`, `clone` (a shallow
+checkout at one commit, or at the commit an OpenBMC release pins), `grep`
+and `code`; the Citation names repository, commit and lines.
+
+## Supported specifications
+
+The Source Catalog lists 67 documents in 14
+families, every one an open download, plus 97 OpenBMC repositories
+(`bmcspec repos`). Any document version can also enter the Library as a
+Drop-in (`add`), including documents the catalog does not list.
+
+| Family | Document | Title | Latest in the catalog |
+|---|---|---|---|
+| IPMI, IPMB, FRU and DCMI | `IPMI` | Intelligent Platform Management Interface Specification, Second Generation, v2.0 | 2.0 rev 1.1 |
+| IPMI, IPMB, FRU and DCMI | `IPMI-UPDATE` | IPMI Specification, Second Generation, v2.0 Specification Update (Errata/Addenda/Clarifications) | 2.0 rev 1.1 Errata 7 |
+| IPMI, IPMB, FRU and DCMI | `IPMB` | Intelligent Platform Management Bus Communications Protocol Specification | 1.0 |
+| IPMI, IPMB, FRU and DCMI | `IPMI-FRU` | Platform Management FRU Information Storage Definition | 1.0 rev 1.3 |
+| IPMI, IPMB, FRU and DCMI | `DCMI` | Data Center Manageability Interface Specification | 1.5 |
+| Enhanced Serial Peripheral Interface | `ESPI` | Enhanced Serial Peripheral Interface (eSPI) Base Specification | 1.6 |
+| Management Component Transport Protocol | `DSP0236` | Management Component Transport Protocol (MCTP) Base Specification | 1.3.3 |
+| Management Component Transport Protocol | `DSP0237` | Management Component Transport Protocol (MCTP) SMBus/I2C Transport Binding Specification | 1.2.0 |
+| Management Component Transport Protocol | `DSP0238` | Management Component Transport Protocol (MCTP) PCIe® VDM Transport Binding Specification | 1.4.0 |
+| Management Component Transport Protocol | `DSP0239` | Management Component Transport Protocol (MCTP) IDs and Codes Specification | 1.12.0 |
+| Management Component Transport Protocol | `DSP0233` | Management Component Transport Protocol (MCTP) I3C Transport Binding Specification | 1.0.1 |
+| Management Component Transport Protocol | `DSP0253` | MCTP Serial Transport Binding Specification | 1.0.0 |
+| Management Component Transport Protocol | `DSP0254` | MCTP KCS Transport Binding Specification | 1.0.0 |
+| Management Component Transport Protocol | `DSP0256` | Management Component Transport Protocol (MCTP) Host Interface Specification | 2.0.0 |
+| Management Component Transport Protocol | `DSP0283` | Management Component Transport Protocol (MCTP) Universal Serial Bus (USB) Transport Binding Specification | 1.1.0 |
+| Management Component Transport Protocol | `DSP0284` | Management Component Transport Protocol (MCTP) Memory-Mapped Buffer Interface (MMBI) Transport Binding Specification | 1.0.1 |
+| Management Component Transport Protocol | `DSP0292` | Management Component Transport Protocol (MCTP) PCC Transport Binding Specification | 1.0.0 |
+| Management Component Transport Protocol | `DSP0235` | NVMe™ (NVMe Express™) Management Messages over MCTP Binding Specification | 1.0.1 |
+| Management Component Transport Protocol | `DSP0234` | CXL™ Fabric Manager API over MCTP Binding Specification | 1.0.0 |
+| Management Component Transport Protocol | `DSP0281` | CXL™ Type 3 Device Component Command Interface over MCTP Binding Specification | 1.0.0 |
+| Management Component Transport Protocol | `DSP0291` | PCIe® Management Interface (PCIe-MI®) over MCTP Binding Specification | 1.0.0 |
+| Platform Level Data Model | `DSP0240` | Platform Level Data Model (PLDM) Base Specification | 1.1.1 |
+| Platform Level Data Model | `DSP0241` | Platform Level Data Model (PLDM) Over MCTP Binding Specification | 1.0.0 |
+| Platform Level Data Model | `DSP0242` | Platform Level Data Model (PLDM) for File Transfer Specification | 1.0.1 |
+| Platform Level Data Model | `DSP0245` | Platform Level Data Model (PLDM) IDs and Codes Specification | 1.4.0 |
+| Platform Level Data Model | `DSP0246` | Platform Level Data Model (PLDM) for SMBIOS Transfer Specification | 1.0.1 |
+| Platform Level Data Model | `DSP0247` | Platform Level Data Model (PLDM) for BIOS Control and Configuration Specification | 1.0.0 |
+| Platform Level Data Model | `DSP0248` | PLDM Platform Monitoring and Control Specification | 1.3.1 |
+| Platform Level Data Model | `DSP0249` | Platform Level Data Model (PLDM) State Set Specification | 1.4.0 |
+| Platform Level Data Model | `DSP0257` | Platform Level Data Model (PLDM) for FRU Data Specification | 2.0.0 |
+| Platform Level Data Model | `DSP0267` | Platform Level Data Model (PLDM) for Firmware Update Specification | 1.3.0 |
+| Platform Level Data Model | `DSP0218` | Platform Level Data Model (PLDM) for Redfish Device Enablement | 1.2.0 |
+| Security Protocol and Data Model | `DSP0274` | Security Protocol and Data Model (SPDM) Specification | 1.4.1 |
+| Security Protocol and Data Model | `DSP0275` | Security Protocol and Data Model (SPDM) over MCTP Binding Specification | 1.0.2 |
+| Security Protocol and Data Model | `DSP0276` | Secured Messages using SPDM over MCTP Binding Specification | 1.3.0 |
+| Security Protocol and Data Model | `DSP0277` | Secured Messages Using SPDM Specification | 1.3.0 |
+| Security Protocol and Data Model | `DSP0286` | Security Protocol and Data Model (SPDM) to Storage Binding Specification | 1.0.0 |
+| Security Protocol and Data Model | `DSP0287` | SPDM over TCP Binding Specification | 1.0.0 |
+| Security Protocol and Data Model | `DSP0289` | Security Protocol and Data Model (SPDM) Authorization Specification | 1.0.0 |
+| Network Controller Sideband Interface | `DSP0222` | Network Controller Sideband Interface (NC-SI) Specification | 1.2.1 |
+| Network Controller Sideband Interface | `DSP0261` | NC-SI over MCTP Binding Specification | 1.3.1 |
+| Network Controller Sideband Interface | `DSP0296` | Network Controller Sideband Interface (NC‐SI) over Ethernet over USB Binding Specification | 1.0.0 |
+| System Management BIOS | `DSP0134` | SMBIOS Specification | 3.9.0 |
+| Redfish | `DSP0266` | Redfish Specification | 1.23.2 |
+| Redfish | `DSP8010` | Redfish Schema Bundle | 2026.1 |
+| Redfish | `DSP0268` | Redfish Data Model Specification | 2026.1 |
+| Redfish | `DSP2046` | Redfish Resource and Schema Guide | 2026.1 |
+| Redfish | `DSP0270` | Redfish Host Interface Specification | 1.3.1 |
+| Redfish | `DSP0272` | Redfish Interoperability Profiles Specification | 1.10.0 |
+| Redfish | `DSP8011` | Redfish Standard Registries Bundle | 2026.1 |
+| Redfish | `DSP8013` | Redfish Interoperability Profiles Bundle | 2026.1 |
+| Redfish | `DSP2053` | Redfish Property Guide | 2026.1 |
+| Redfish | `DSP2065` | Redfish Message Registry Guide | 2026.1 |
+| NVM Express | `NVME-BASE` | NVM Express Base Specification | 2.4 |
+| NVM Express | `NVME-MI` | NVM Express Management Interface Specification | 2.2 |
+| NVM Express | `NVME-PCIE` | NVM Express over PCIe Transport Specification | 1.4 |
+| OCP Datacenter-ready Secure Control Module | `DC-SCM` | Datacenter-ready Secure Control Module (DC-SCM) Specification | Rev 2.1 Ver 1.1 |
+| OCP Datacenter Modular Hardware System | `M-CRPS` | DC-MHS Modular Hardware System Common Redundant Power Supply (M-CRPS) Base Specification | R1 v1.0 RC4 |
+| OCP Datacenter Modular Hardware System | `M-PIC` | DC-MHS Platform Infrastructure Connectivity (M-PIC) Specification | R1 v1.11 |
+| OCP Datacenter Modular Hardware System | `M-XIO` | DC-MHS Extensible I/O (M-XIO) Specification | R1 v1.04 RC1 |
+| OCP Datacenter Modular Hardware System | `M-DNO` | DC-MHS Densified Node Operation (M-DNO) Specification | R1 v1.1 RC2 |
+| OCP Datacenter Modular Hardware System | `M-FLW` | DC-MHS Full Width HPM (M-FLW) Specification | R1 v1.2 RC3 |
+| OCP Datacenter Modular Hardware System | `M-PESTI` | DC-MHS Peripheral Sideband Tunneling Interface (M-PESTI) Specification | R1 v1.2 RC2 |
+| OCP Datacenter Modular Hardware System | `M-SDNO` | DC-MHS Shared-Infrastructure Densified Node Operation (M-SDNO) Specification | v1.1 RC2 |
+| I2C bus | `UM10204` | I2C-bus specification and user manual (UM10204) | Rev. 7.0 |
+| System Management Bus | `SMBUS` | System Management Bus (SMBus) Specification | 3.3.1 |
+| Common Management Interface Specification (optical modules) | `CMIS` | Common Management Interface Specification (OIF-CMIS) | 5.4 |
+
+Not in the catalog: UEFI, ACPI and PI (uefi.org serves no scripted client;
+Drop-in only), EDK2, TCG, CXL, JEDEC, MIPI I3C, PMBus, SNIA SFF, ARM SBMR,
+PCI-SIG, IEEE, T10/T13 and vendor datasheets.
 
 ## Install
 
@@ -77,6 +195,9 @@ python skills/bmc-spec/scripts/bmcspec.py fetch --all          # several hundred
 python skills/bmc-spec/scripts/bmcspec.py add vendor.pdf --document DSP0236 --version 1.1.0   # --force to replace
 python skills/bmc-spec/scripts/bmcspec.py scan                 # register hand-placed files
 python skills/bmc-spec/scripts/bmcspec.py status
+python skills/bmc-spec/scripts/bmcspec.py check DSP0236        # is the catalog behind DMTF? (no download)
+python skills/bmc-spec/scripts/bmcspec.py check                # every document with a listing, plus the OpenBMC release
+python skills/bmc-spec/scripts/bmcspec.py refresh --write      # maintainer: add the versions the publishers list
 python skills/bmc-spec/scripts/bmcspec.py extract DSP0236      # text, outline, line map, figures
 python skills/bmc-spec/scripts/bmcspec.py extract --all
 python skills/bmc-spec/scripts/bmcspec.py section DSP0236 8.1  # level | title | pages, per matching entry
@@ -92,6 +213,7 @@ python skills/bmc-spec/scripts/bmcspec.py clone bmcweb                         #
 python skills/bmc-spec/scripts/bmcspec.py clone pldm --release 2.18.0          # the commit OpenBMC 2.18.0 ships
 python skills/bmc-spec/scripts/bmcspec.py grep bmcweb CurrentPowerState --context 2
 python skills/bmc-spec/scripts/bmcspec.py code bmcweb redfish-core/lib/chassis.hpp --lines 160-175
+python skills/bmc-spec/scripts/bmcspec.py prune                # list superseded Code Trees; --yes removes them
 ```
 
 Exit codes: 0 done, 1 error, 2 you need to act (the message says what).
@@ -144,9 +266,18 @@ tree: a user checkout named in `config.toml` first, then the `--ref` or
 default-branch tree. Every `code` output starts with a `cite:` line naming
 repository, commit, provenance, path and lines.
 
+`prune` lists every Code Tree marked superseded (an older commit of a
+moving name re-fetched with `--force`) and every `.tmp-*` directory a
+failed clone left behind, and removes nothing; `prune --yes` removes
+them. The current tree of each name, trees reached by a commit, user
+checkouts and `specs/` are never touched.
+
 `config.toml` at the Library root (optional):
 
 ```toml
+[library]
+freshness_days = 30           # how old a Freshness Check may be before a note
+
 [code]
 release = "2.18.0"            # default Release for clone, grep and code
 
@@ -154,6 +285,27 @@ release = "2.18.0"            # default Release for clone, grep and code
 bmcweb = "/home/me/src/bmcweb" # a checkout of your own wins over the Library
                                # (a relative path is taken from the Library root)
 ```
+
+## Freshness Check
+
+Publishers add versions faster than a catalog is maintained. `check DOC`
+asks the publisher what it lists now and compares with the catalog:
+`current DOC V`, or `newer DOC: catalog latest V, <publisher> lists W
+(date) URL`. `check` alone does every document that has a listing (the
+DMTF published-documents page, the nvmexpress.org specifications API, the
+OCP wiki specification tables; Intel, NXP, SMBus and OIF have no
+parseable index and are printed as `unchecked`), then, when `config.toml`
+pins a release, compares it with the newest `X.Y.Z` tag of
+`openbmc/openbmc` (`release: 2.18.0 (config.toml); newest openbmc tag
+3.0.0 -> newer`). Nothing is downloaded and no version is switched: a
+newer version enters the Library only after the catalog lists it (see
+The Source Catalog below) or as a Drop-in. The outcome and the time go to
+`freshness.json` at the Library root; `fetch` and `status` print a
+`note:` when a document served has not been checked within
+`freshness_days` (default 30), once per document until the next `check`,
+and that note never touches the network.
+OCP versions are mostly Google Drive links on the wiki, so `check`
+reports them with `(URL to confirm by hand)`.
 
 ## What the tool does on the network and on disk
 
@@ -180,18 +332,28 @@ bmcweb = "/home/me/src/bmcweb" # a checkout of your own wins over the Library
   dictionaries and the PDFs stay in the ZIP. Member paths that would
   escape `schemas/` are refused, and a base name that appears twice is
   written once.
-- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository), `grep` and `code` (reading `HEAD` of a user checkout); `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed.
-- `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>` directory that is removed on failure. A user checkout named in `config.toml` is only read.
+- `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/w/index.php?title=<page>` for the pages named in the catalog's `listing` keys. They download no document.
+- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed.
+- `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>` directory that is removed on failure. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees and `.tmp-*` leftovers under `code/`, nothing else.
+- `check` writes `freshness.json` at the Library root. `refresh --write` is the one command that writes outside the Library: it appends version entries to the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).
 
 ## The Source Catalog
 
 `bmc_toolkit/spec/catalog.toml` lists every family, document, version and
 URL; comments in the file record when a URL was last confirmed. A document
 may name companions in `searched_with` (errata, specification updates)
-that `find` searches together with it. Publishers
-add versions faster than any one maintainer notices: if `catalog DOC` shows
-an older latest than the publisher's site, please open a pull request
-adding the version entry.
+that `find` searches together with it, and a `listing`
+(`dmtf:<DSP>`, implied for DMTF documents; `nvme:<slug>` of the
+nvmexpress.org API; `ocp:<wiki page>|<description prefix>`) that `check`
+and `refresh` consult. `refresh` prints the versions the publishers list
+that the catalog lacks (`add`), catalog URLs that moved (`changed`) and
+OCP versions whose download URL a human has to find (`confirm`);
+`refresh --write` appends the `add` entries of DMTF and NVMe documents as
+`[[documents.versions]]` blocks at the end of the document's block,
+leaving every other line and comment as it was, and refuses an edit the
+parser would not accept. If `check` reports a newer version, please open a
+pull request with the `refresh --write` result (and the confirmed OCP
+URL).
 
 ## Development
 

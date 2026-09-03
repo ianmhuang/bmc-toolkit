@@ -18,10 +18,10 @@ Layout::
         [code.checkouts]
         bmcweb = "/path/to/bmcweb"  a user checkout, wins over the Library
 
-A Release is a tag or branch of ``openbmc/openbmc``; its meta-phosphor
-recipes pin every component with ``SRCREV``. ``openbmc/openbmc`` is held as
-a sparse Code Tree of its own (recipes only) so a Release resolves without
-the network once fetched.
+A Release is a tag or branch of ``openbmc/openbmc``; the recipes of its
+``meta-*`` layers pin every component with ``SRCREV``. ``openbmc/openbmc``
+is held as a sparse Code Tree of its own (the recipe files of every layer)
+so a Release resolves without the network once fetched.
 
 Standard library only; ``git`` and ``gh`` run as subprocesses with UTF-8.
 """
@@ -32,6 +32,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -388,12 +389,10 @@ def _rmtree(path: Path) -> None:
         func(target)
 
     try:
-        if hasattr(shutil.rmtree, "avoids_symlink_attacks") and "onexc" in str(
-            shutil.rmtree.__doc__
-        ):
+        if sys.version_info >= (3, 12):
             shutil.rmtree(path, onexc=retry)
         else:
-            shutil.rmtree(path, onerror=retry)  # older Pythons
+            shutil.rmtree(path, onerror=retry)  # onexc arrived in 3.12
     except OSError as exc:
         raise CodeError(f"cannot remove {path}: {exc}") from exc
     if path.exists():
@@ -426,7 +425,8 @@ def _clone_ref(url: str, ref: str | None, tmp: Path, sparse: tuple[str, ...]) ->
     proc = run_git([*args, url, str(tmp)], check=False)
     if proc.returncode != 0:
         if ref and _SHA.match(ref):
-            shutil.rmtree(tmp, ignore_errors=True)
+            if tmp.exists():
+                _rmtree(tmp)
             _fetch_commit(url, ref, tmp, sparse)
             return
         raise CodeError(f"git clone failed: {_last_line(proc.stderr, proc.stdout)}")
@@ -454,13 +454,21 @@ def _fetch_commit(url: str, commit: str, tmp: Path, sparse: tuple[str, ...]) -> 
 
 
 def find_pin(openbmc_tree: Path, repo: str) -> str:
-    """The SRCREV a Release's recipes give for the repository.
+    """The SRCREV a Release's recipes give for the repository."""
+    return find_pin_recipe(openbmc_tree, repo)[0]
 
-    The recipe is the ``.bb`` or ``.inc`` under meta-phosphor whose SRC_URI
-    names the repository (``.../<repo>.git`` or ``.../<repo>;``).
+
+def find_pin_recipe(openbmc_tree: Path, repo: str) -> tuple[str, str]:
+    """(SRCREV, recipe path relative to the tree) for the repository.
+
+    The recipe is a ``.bb`` or ``.inc`` of any ``meta-*`` layer whose SRC_URI
+    names the repository (``.../<repo>.git`` or ``.../<repo>;``). Several
+    recipes may name it (a layer overriding another); they must agree on
+    the commit, otherwise the CodeError lists them all.
     """
     wanted = re.compile(rf"/{re.escape(repo)}(?:\.git)?(?:;|\"|\s|$)")
     candidates = []
+    pins: dict[str, list[str]] = {}
     recipes = list(openbmc_tree.rglob("*.bb")) + list(openbmc_tree.rglob("*.inc"))
     for path in sorted(recipes):
         if ".git" in path.parts or not path.is_file():
@@ -472,14 +480,26 @@ def find_pin(openbmc_tree: Path, repo: str) -> str:
         uris = _SRC_URI.findall(text)
         if not any(wanted.search(u) for u in uris):
             continue
+        rel = path.relative_to(openbmc_tree).as_posix()
         m = _SRCREV.search(text)
         if m:
             rev = m.group(1).strip()
             if rev and "${" not in rev:
-                return rev
-            candidates.append(f"{path.name} pins {rev or 'nothing'}")
+                pins.setdefault(rev, []).append(rel)
+                continue
+            candidates.append(f"{rel} pins {rev or 'nothing'}")
         else:
-            candidates.append(f"{path.name} has no SRCREV")
+            candidates.append(f"{rel} has no SRCREV")
+    if len(pins) > 1:
+        listed = "; ".join(
+            f"{', '.join(paths)} pins {rev[:12]}" for rev, paths in pins.items()
+        )
+        raise CodeError(
+            f"the recipes of this release pin {repo} at different commits: {listed}"
+        )
+    if pins:
+        rev, paths = next(iter(pins.items()))
+        return rev, paths[0]
     if candidates:
         raise CodeError(
             f"no fixed SRCREV for {repo} in this release: {'; '.join(candidates)}"
@@ -665,6 +685,7 @@ __all__ = [
     "cite",
     "default_branch",
     "find_pin",
+    "find_pin_recipe",
     "gh_search",
     "grep",
     "guess_url",

@@ -168,6 +168,7 @@ published = "2025-03-12"
 [[documents]]
 id = "NVME-BASE"
 family = "nvme"
+listing = "nvme:nvm-express-base-specification"
 title = "NVM Express Base Specification"
 access = "open"
 fetch = "direct"
@@ -247,6 +248,7 @@ published = "2026-07-31"
 [[documents]]
 id = "NVME-MI"
 family = "nvme"
+listing = "nvme:nvme-mi-specification"
 title = "NVM Express Management Interface Specification"
 access = "open"
 fetch = "direct"
@@ -335,9 +337,16 @@ url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interfac
 type = "pdf"
 published = "2025-08-01"
 
+[[documents.versions]]
+version = "2.2"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interface-Specification-Revision-2.2-Ratified-2026.07.31.pdf"
+type = "pdf"
+published = "2026-07-31"
+
 [[documents]]
 id = "NVME-PCIE"
 family = "nvme"
+listing = "nvme:nvme-over-pcie-transport-specification"
 title = "NVM Express over PCIe Transport Specification"
 access = "open"
 fetch = "direct"
@@ -354,20 +363,30 @@ url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-NVMe-over-PCIe-Tran
 type = "pdf"
 published = "2025-08-01"
 
+[[documents.versions]]
+version = "1.4"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-NVMe-over-PCIe-Transport-Specification-Revision-1.4-Ratified-2026.07.31.pdf"
+type = "pdf"
+published = "2026-07-31"
+
 # ---------------------------------------------------------------- OCP
 # opencompute.org/documents/<slug> serves the PDF directly but the slug is
 # human-written and a re-upload may add a numeric suffix; every URL here was
 # confirmed by hand on 2026-09-03. The site rejects non-browser TLS
 # fingerprints. DC-MHS has no umbrella document; it is the set of M-* specs.
-# Publication dates come from the OCP wiki specification tables.
+# Publication dates come from the OCP wiki specification tables, which is also
+# what "listing" points at ("ocp:<wiki page>|<description prefix>"); the wiki
+# links newer versions to Google Drive, so `check` reports them and a human
+# finds the opencompute.org/documents slug.
 
 [[documents]]
 id = "DC-SCM"
 family = "ocp-dcscm"
+listing = "ocp:Server/MHS/DC-SCM-Specs-and-Designs|OCP DC-SCM"
 title = "Datacenter-ready Secure Control Module (DC-SCM) Specification"
 access = "open"
 fetch = "direct"
-notes = "Rev 2.0 Ver 1.0 exists only as a Google Drive link on the OCP wiki and is not listed."
+notes = "Rev 2.0 Ver 1.0 and Rev 2.2 Ver 1.0 (2025-10-16) exist only as Google Drive links on the OCP wiki and are not listed; check reports them."
 
 [[documents.versions]]
 version = "Rev 1.0"
@@ -385,6 +404,7 @@ notes = "Errata release of rev 2.1. Publication date approximate."
 [[documents]]
 id = "M-CRPS"
 family = "ocp-dcmhs"
+listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-CRPS Base"
 title = "DC-MHS Modular Hardware System Common Redundant Power Supply (M-CRPS) Base Specification"
 access = "open"
 fetch = "direct"
@@ -400,6 +420,7 @@ notes = "Publication date approximate."
 [[documents]]
 id = "M-PIC"
 family = "ocp-dcmhs"
+listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-PIC Base"
 title = "DC-MHS Platform Infrastructure Connectivity (M-PIC) Specification"
 access = "open"
 fetch = "direct"
@@ -413,6 +434,7 @@ published = "2025-03-25"
 [[documents]]
 id = "M-XIO"
 family = "ocp-dcmhs"
+listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-XIO Base"
 title = "DC-MHS Extensible I/O (M-XIO) Specification"
 access = "open"
 fetch = "direct"
@@ -433,6 +455,7 @@ published = "2024-02-28"
 [[documents]]
 id = "M-DNO"
 family = "ocp-dcmhs"
+listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-DNO Base"
 title = "DC-MHS Densified Node Operation (M-DNO) Specification"
 access = "open"
 fetch = "direct"
@@ -452,6 +475,7 @@ published = "2024-03-21"
 [[documents]]
 id = "M-FLW"
 family = "ocp-dcmhs"
+listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-FLW Base"
 title = "DC-MHS Full Width HPM (M-FLW) Specification"
 access = "open"
 fetch = "direct"
@@ -465,6 +489,7 @@ published = "2024-10-10"
 [[documents]]
 id = "M-PESTI"
 family = "ocp-dcmhs"
+listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-PESTI Base"
 title = "DC-MHS Peripheral Sideband Tunneling Interface (M-PESTI) Specification"
 access = "open"
 fetch = "direct"
@@ -484,6 +509,7 @@ published = "2024-03-14"
 [[documents]]
 id = "M-SDNO"
 family = "ocp-dcmhs"
+listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-SDNO Base"
 title = "DC-MHS Shared-Infrastructure Densified Node Operation (M-SDNO) Specification"
 access = "open"
 fetch = "direct"
@@ -584,7 +610,8 @@ notes = "Publication month approximate."
 # Generated from the per-document version pages at https://www.dmtf.org/dsp/DSP<num>
 # on 2026-09-03. URL pattern: https://www.dmtf.org/sites/default/files/standards/documents/DSP<num>_<version>.<ext>
 # Work-in-Progress releases live at https://www.dmtf.org/standards/wip and are not listed here.
-# A '_0' suffix in a file name is a re-upload of the same version; the newer upload is kept.
+# A '_0' or '_1' suffix in a file name is a re-upload of the same version; the newer upload is kept.
+# DMTF documents need no "listing" key: `check` reads the published-documents page by DSP id.
 
 # mctp
 
