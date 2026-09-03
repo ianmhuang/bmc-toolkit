@@ -16,12 +16,24 @@ ROWS_A = [["Temperature", "01h", "degrees"], ["Voltage", "02h", "volts"]]
 ROWS_B = [["Current", "03h", "amps"], ["Fan", "04h", "rpm"]]
 
 
-def grid(x, top, widths, heights, cells, *, style="fill", per_cell=False, shade=False):
+def grid(
+    x,
+    top,
+    widths,
+    heights,
+    cells,
+    *,
+    style="fill",
+    per_cell=False,
+    shade=False,
+    bottom_rule=True,
+):
     """A ruled table with its top edge at ``top`` (PDF points, origin
     bottom-left). ``fill`` draws thin filled rectangles, ``line`` strokes.
     ``per_cell`` draws every cell's own four borders, neighbours 1 pt
     apart, the way Word emits adjacent border rectangles. ``shade`` paints
-    the header row's background in two light blocks."""
+    the header row's background in two light blocks. ``bottom_rule=False``
+    leaves the last row open at the bottom, as a page break cuts it."""
     items = []
     total_w = sum(widths)
     total_h = sum(heights)
@@ -45,7 +57,7 @@ def grid(x, top, widths, heights, cells, *, style="fill", per_cell=False, shade=
                 items.append(("fill", x0 - 0.3, y0, 0.6, y1 - y0))
                 items.append(("fill", x1 - 0.3, y0, 0.6, y1 - y0))
     else:
-        for y in ys:
+        for y in ys[:-1] if not bottom_rule else ys:
             if style == "fill":
                 items.append(("fill", x, y - 0.3, total_w, 0.6))
             else:
@@ -157,6 +169,67 @@ def test_running_header_and_page_number_are_not_body_content(tmp_path):
         assert spans(r.logical_tables(1)) == [(1, 2)]
     with reader(tmp_path, split(between="Spec Title")) as r:
         assert spans(r.logical_tables(1)) == [(1, 1)]
+
+
+def test_a_row_cut_by_the_page_break_is_joined_after_an_open_bottom(tmp_path):
+    """AC-3: the part before the break has no rule under its last row, and
+    the continuation's first row has an empty first cell: it is the rest of
+    the cut row and its cells are joined to it."""
+    rows1 = [HEADER, ["Processor", "07h", ["IERR", "Thermal Trip"]]]
+    page1 = furniture(1) + grid(72, 200, WIDTHS, [16, 28], rows1, bottom_rule=False)
+    rows2 = [HEADER, ["", "", ["FRB1", "FRB2"]], ["Power", "08h", "watts"]]
+    page2 = furniture(2) + grid(72, 740, WIDTHS, [16, 28, 16], rows2)
+    with reader(tmp_path, [page1, page2]) as r:
+        (t,) = r.logical_tables(2)
+    assert (t.first, t.last) == (1, 2)
+    assert t.rows == [
+        HEADER,
+        ["Processor", "07h", "IERR\nThermal Trip\nFRB1\nFRB2"],
+        ["Power", "08h", "watts"],
+    ]
+
+
+def test_a_grouped_row_after_a_closed_bottom_stays_a_row(tmp_path):
+    """AC-3: an empty first cell after a closed bottom rule is a grouped
+    row (a sensor type followed by its offsets), not a cut row."""
+    rows1 = [HEADER, ["Processor", "07h", "IERR"]]
+    page1 = furniture(1) + grid(72, 200, WIDTHS, [16] * 2, rows1)
+    rows2 = [HEADER, ["", "08h", "Thermal Trip"], ["Power", "09h", "watts"]]
+    page2 = furniture(2) + grid(72, 740, WIDTHS, [16] * 3, rows2)
+    with reader(tmp_path, [page1, page2]) as r:
+        (t,) = r.logical_tables(1)
+    assert (t.first, t.last) == (1, 2)
+    assert t.rows == [HEADER, rows1[1], rows2[1], rows2[2]]
+
+
+def test_a_body_row_equal_to_an_earlier_row_is_kept(tmp_path):
+    """AC-3: only the header (or a "(continued)" sub-header) is deduped; a
+    placeholder row that repeats stays."""
+    reserved = ["reserved", "-", "-"]
+    page1 = furniture(1) + grid(72, 200, WIDTHS, [16] * 3, [HEADER, reserved, ROWS_A[0]])
+    page2 = furniture(2) + grid(72, 740, WIDTHS, [16] * 3, [HEADER, reserved, ROWS_B[0]])
+    with reader(tmp_path, [page1, page2]) as r:
+        (t,) = r.logical_tables(2)
+    assert t.rows == [HEADER, reserved, ROWS_A[0], reserved, ROWS_B[0]]
+
+
+def test_a_continued_sub_header_that_repeats_an_earlier_row_is_dropped(tmp_path):
+    """AC-3: the DMTF layout: a sub-header row marked "(continued)" on the
+    next page repeats a row already seen and is dropped; without the mark
+    the same row would stay."""
+    sub = ["Type", "Response data", ""]
+    page1 = furniture(1) + grid(72, 200, WIDTHS, [16] * 3, [HEADER, sub, ROWS_A[0]])
+    page2 = furniture(2) + grid(
+        72,
+        740,
+        WIDTHS,
+        [16] * 2,
+        [["Type", "Response data (continued)", ""], ROWS_B[0]],
+    )
+    with reader(tmp_path, [page1, page2]) as r:
+        (t,) = r.logical_tables(1)
+    assert (t.first, t.last) == (1, 2)
+    assert t.rows == [HEADER, sub, ROWS_A[0], ROWS_B[0]]
 
 
 def test_walk_both_ways_from_the_middle_page(tmp_path):

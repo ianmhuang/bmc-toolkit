@@ -250,16 +250,42 @@ def test_second_call_for_the_same_page_does_not_open_the_pdf(
 ):
     """AC-6: once stored, the page is answered from tables.json; with the
     original gone the answer is unchanged, and ``--force`` goes back to
-    the PDF (and therefore fails)."""
+    the PDF (and therefore fails). Any page of the stored table counts:
+    the table read from page 2 spans 2-3, so page 3 is answered from the
+    store as well; page 4 was never visited and is not."""
     code, first = run(capsys, "table", "DSP0236", "--page", "2", catalog_file=catalog_file)
     assert code == 0, first
+    data = json.loads((held / "tables.json").read_text("utf-8"))
+    assert 2 in data["pages_done"] and 3 in data["pages_done"]
+    assert 4 not in data["pages_done"]
     (held / "original.pdf").unlink()
     code, again = run(capsys, "table", "DSP0236", "--page", "2", catalog_file=catalog_file)
     assert code == 0 and again == first
+    code, other = run(capsys, "table", "DSP0236", "--page", "3", catalog_file=catalog_file)
+    assert code == 0 and other == first
+    code, out = run(capsys, "table", "DSP0236", "--page", "4", catalog_file=catalog_file)
+    assert code != 0 and "cite:" not in out
     code, out = run(
         capsys, "table", "DSP0236", "--page", "2", "--force", catalog_file=catalog_file
     )
     assert code != 0 and "cite:" not in out
+
+
+def test_the_stored_section_is_what_the_cite_line_prints(held, catalog_file, capsys):
+    """AC-6: the section is stored with the table and the cite: line is
+    read back from the store; a store edited by hand shows in the output,
+    so the field is not dead data."""
+    code, out = run(capsys, "table", "DSP0236", "--page", "1", catalog_file=catalog_file)
+    assert code == 0, out
+    path = held / "tables.json"
+    data = json.loads(path.read_text("utf-8"))
+    for entry in data["tables"]:
+        if entry["first"] == 1:
+            entry["section"] = "edited by hand"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    code, out = run(capsys, "table", "DSP0236", "--page", "1", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.splitlines()[0].split(" | ")[2] == "edited by hand"
 
 
 def test_no_table_result_is_stored_too(held, catalog_file, capsys):
