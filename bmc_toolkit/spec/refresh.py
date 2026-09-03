@@ -104,7 +104,8 @@ def append_versions(path: Path, doc_id: str, seen: list[Seen]) -> None:
     and re-parse the file; on a parse failure the file is restored."""
     if not seen:
         return
-    original = path.read_text(encoding="utf-8", newline="")
+    with open(path, encoding="utf-8", newline="") as fh:  # read_text(newline=) is 3.13+
+        original = fh.read()
     lines = original.split("\n")
     _, end = _document_span(lines, doc_id)
     while end > 0 and lines[end - 1].strip() == "":
