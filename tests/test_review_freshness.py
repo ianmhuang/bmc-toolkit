@@ -570,20 +570,76 @@ def test_shipped_catalog_carries_listings_for_nvme_and_ocp():
 
 
 def test_release_metadata_and_documentation():
+    """AC-10 (round 2): pre-release 0.9.0 everywhere, README keeps the
+    pre-release note, and both documents name the new commands, the config
+    key, the listing key and freshness.json."""
     import tomllib
 
     import bmc_toolkit
 
-    assert bmc_toolkit.__version__ == "1.0.0"
+    assert bmc_toolkit.__version__ == "0.9.0"
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text("utf-8"))
-    assert pyproject["project"]["version"] == "1.0.0"
+    assert pyproject["project"]["version"] == "0.9.0"
     plugin = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text("utf-8"))
-    assert plugin["version"] == "1.0.0"
+    assert plugin["version"] == "0.9.0"
     readme = (ROOT / "README.md").read_text("utf-8")
-    assert "pre-release" not in readme.lower()
+    assert "pre-release" in readme.lower()
+    assert "0.9.0" in readme
     skill = (ROOT / "skills" / "bmc-spec" / "SKILL.md").read_text("utf-8")
     for text in (readme, skill):
-        for word in ("check", "refresh", "prune", "freshness_days", "listing"):
+        for word in (
+            "check",
+            "refresh",
+            "prune",
+            "freshness_days",
+            "listing",
+            "freshness.json",
+        ):
             assert word in text, word
-    assert "freshness.json" in readme  # SKILL.md names only the note (see findings)
+    # the disk list says who writes freshness.json: check, and the reminder
+    # stamp of fetch and status
+    assert "reminded_at" in readme
     assert (ROOT / "docs" / "golden-questions.md").is_file()
+
+
+# --------------------------------------------------------- round 1 fixes
+
+
+def test_check_ends_with_the_summary_line_even_when_newer(
+    catalog_file, lib_root, client, capsys
+):
+    """F3 / AC-2: the summary is the last line; the 'nothing was
+    downloaded' notice, when printed, comes before it."""
+    code, out = run(capsys, "check", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert any(ln.startswith("newer ") for ln in lines)
+    assert lines[-1].startswith("summary: ")
+    assert "newer 2" in lines[-1]  # NVME-MI and M-CRPS
+    assert any(ln.startswith("nothing was downloaded") for ln in lines[:-1])
+    code, out = run(capsys, "check", "NVME-MI", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith("newer NVME-MI: ")
+    assert lines[-1] == "summary: current 0, newer 1, unreachable 0"
+
+
+def test_status_prints_the_holdings_when_the_catalog_does_not_load(
+    catalog_file, lib_root, client, capsys, tmp_path
+):
+    """F6: status never needed the catalog; with the freshness note it
+    must still print the table and exit 0 when the catalog is malformed."""
+    url = "https://example.test/DSP0236_1.3.3.pdf"
+    client.responses[url] = ok(PDF_BYTES, length=len(PDF_BYTES))
+    code, out = run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    assert code == 0, out
+    bad = tmp_path / "bad.toml"
+    bad.write_text("schema_version = 1\n[families\n", encoding="utf-8")
+    code, out = run(capsys, "status", catalog_file=bad)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert any(ln.startswith("mctp\tDSP0236\t1.3.3") for ln in lines)
+    assert lines[-1].startswith("note:")
+    assert "catalog" in lines[-1]
+    # nothing went online for it
+    assert DMTF_PUBLISHED not in client.calls

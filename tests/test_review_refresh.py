@@ -325,6 +325,163 @@ def test_refresh_ocp_is_never_written_even_alone(
     assert catalog_file.read_bytes() == before
 
 
+# --------------------------------------------------------- round 1 fixes
+
+
+def _drop_version(catalog_file, version: str) -> None:
+    text = catalog_file.read_text("utf-8")
+    start = text.index(f'[[documents.versions]]\nversion = "{version}"')
+    end = text.index("[[documents", start + 1)
+    catalog_file.write_text(text[:start] + text[end:], encoding="utf-8", newline="")
+
+
+def test_refresh_never_writes_a_dmtf_work_in_progress_row(
+    catalog_file, lib_root, client, capsys
+):
+    """F1 / AC-6: a WIP row the catalog lacks is a `confirm` with a reason,
+    never an `add`; --write leaves it out and the latest stays published."""
+    _drop_version(catalog_file, "1.4.0")
+    assert load_catalog(catalog_file).get("DSP0236").find_version("1.4.0") is None
+    code, out = run(capsys, "refresh", "DSP0236", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    wip = [ln for ln in lines if "DSP0236 1.4.0" in ln]
+    assert len(wip) == 1
+    assert wip[0].startswith("confirm DSP0236 1.4.0 (2025-06-01) ")
+    assert "wip = true" in wip[0]
+    assert not any(ln.startswith("add DSP0236 1.4.0") for ln in lines)
+    summary = [ln for ln in lines if ln.startswith("summary: ")][0]
+    assert "add 1" in summary and "confirm 1" in summary
+    code, out = run(capsys, "refresh", "DSP0236", "--write", catalog_file=catalog_file)
+    assert code == 0, out
+    assert "written 1" in out
+    doc = load_catalog(catalog_file).get("DSP0236")
+    assert doc.find_version("1.3.4") is not None
+    assert doc.find_version("1.4.0") is None
+    assert doc.latest().version == "1.3.4"
+    assert doc.latest(include_wip=True).version == "1.3.4"
+    text = catalog_file.read_text("utf-8")
+    assert URL_140 not in text and "Work in Progress" not in text
+
+
+def test_refresh_treats_a_wip_file_name_as_work_in_progress(
+    catalog_file, lib_root, client, capsys
+):
+    """A row whose Comments say Standard but whose file is `_WIP` is not
+    written either (DMTF names WIP files that way)."""
+    _drop_version(catalog_file, "1.4.0")
+    row = (
+        '<tr><td>1.5.0</td><td><a href="https://example.test/DSP0236_1.5.0_WIP50.pdf">'
+        "MCTP Base</a></td><td>1 Sep 2026</td><td>Standard</td></tr>"
+    )
+    client.responses[DMTF_DSP0236] = html(dsp_page(row))
+    code, out = run(capsys, "refresh", "DSP0236", "--write", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert any(ln.startswith("confirm DSP0236 1.5.0 ") for ln in lines)
+    assert not any(ln.startswith("add DSP0236 1.5.0") for ln in lines)
+    doc = load_catalog(catalog_file).get("DSP0236")
+    assert doc.find_version("1.5.0") is None
+    assert doc.latest().version == "1.3.4"
+
+
+def test_refresh_write_escapes_quotes_and_backslashes(
+    catalog_file, lib_root, client, capsys
+):
+    """F2: publisher strings with a quote or a backslash are written as a
+    TOML the parser reads back verbatim."""
+    row = (
+        '<tr><td>1.3.5"beta\\x</td>'
+        '<td><a href="https://example.test/DSP0236_1.3.5.pdf">MCTP Base</a></td>'
+        "<td>4 Sep 2026</td><td>Errata \"quoted\"</td></tr>"
+    )
+    client.responses[DMTF_DSP0236] = html(dsp_page(row))
+    code, out = run(capsys, "refresh", "DSP0236", "--write", catalog_file=catalog_file)
+    assert code == 0, out
+    assert "cannot write" not in out
+    doc = load_catalog(catalog_file).get("DSP0236")
+    odd = doc.find_version('1.3.5"beta\\x')
+    assert odd is not None
+    assert odd.url == "https://example.test/DSP0236_1.3.5.pdf"
+    assert odd.notes == 'Errata "quoted"'
+    assert odd.published == "2026-09-04"
+
+
+def test_refresh_reports_a_moved_nvme_file_as_changed(
+    catalog_file, lib_root, client, capsys
+):
+    """F5 / AC-6: `changed` covers NVMe: the API names another file for a
+    version the catalog has, and nothing is written."""
+    moved = (
+        "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interface-"
+        "Specification-Revision-2.1-Ratified-2025.08.09.pdf"
+    )
+    body = json.dumps(
+        {
+            "posts": [
+                {
+                    "slug": "nvme-mi-specification",
+                    "post_title": "x",
+                    "file": {"url": moved},
+                }
+            ]
+        }
+    )
+    client.responses[NVME_API] = ok(body.encode("utf-8"), "application/json")
+    before = catalog_file.read_bytes()
+    code, out = run(capsys, "refresh", "NVME-MI", "--write", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert f"changed NVME-MI 2.1 (2025-08-09) {moved}" in lines
+    assert not any(ln.startswith("add ") for ln in lines)
+    assert "changed 1" in lines[-1] and "written 0" in lines[-1]
+    assert catalog_file.read_bytes() == before
+    # the same file as the catalog: nothing to report
+    same = "https://example.test/NVM-Express-Management-Interface-Specification-Revision-2.1-2025.08.01-Ratified.pdf"
+    body = json.dumps(
+        {"posts": [{"slug": "nvme-mi-specification", "file": {"url": same}}]}
+    )
+    client.responses[NVME_API] = ok(body.encode("utf-8"), "application/json")
+    code, out = run(capsys, "refresh", "NVME-MI", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.splitlines() == [
+        "summary: add 0, confirm 0, changed 0, unreachable 0 "
+        "(dry run; --write adds them)"
+    ]
+
+
+def test_refresh_write_lands_in_the_document_block_not_a_repo_sharing_its_id(
+    catalog_file, lib_root, client, capsys
+):
+    """F7: a [[repos]] entry with id NVME-MI, placed between two document
+    blocks and before the NVME-MI document, does not receive the version
+    blocks; they land in the document's own block."""
+    repo = (
+        '[[repos]]\nid = "NVME-MI"\nurl = "https://example.test/nvme-mi.git"\n'
+        'topics = ["nvme"]\n\n'
+    )
+    text = catalog_file.read_text("utf-8")
+    marker = '[[documents]]\nid = "NVME-MI"\n'
+    assert text.count(marker) == 1
+    text = text.replace(marker, repo + marker, 1)
+    catalog_file.write_text(text, encoding="utf-8", newline="")
+    assert load_catalog(catalog_file).get_repo("NVME-MI") is not None
+    code, out = run(capsys, "refresh", "NVME-MI", "--write", catalog_file=catalog_file)
+    assert code == 0, out
+    assert "written 1" in out
+    after = catalog_file.read_text("utf-8")
+    repo_start = after.index("[[repos]]")
+    doc_start = after.index(marker)
+    assert repo_start < doc_start
+    assert "[[documents.versions]]" not in after[repo_start:doc_start]
+    doc_end = after.index("[[documents]]", doc_start + 1)
+    assert f'url = "{NVME_MI_22_URL}"' in after[doc_start:doc_end]
+    catalog = load_catalog(catalog_file)
+    assert catalog.get("NVME-MI").latest().version == "2.2"
+    assert catalog.get("SECRET").find_version("2.2") is None
+    assert catalog.get_repo("NVME-MI").url == "https://example.test/nvme-mi.git"
+
+
 # ----------------------------------------------------------------- AC-7
 
 
