@@ -123,6 +123,60 @@ def test_a_raster_image_is_a_region(catalog_file, library, scripted, tmp_path, c
     assert [texts[i].strip() for i in entry["lines"]] == ["caption in image"]
 
 
+def test_a_drawing_nested_in_a_form_xobject_is_placed_on_the_page(
+    catalog_file, library, scripted, tmp_path, capsys
+):
+    """AC-7: the region of a drawing inside a form XObject is in page
+    coordinates (the form is placed at 300,400 and scaled to 100x100), and
+    the text over it is inside the region (round-1 F7)."""
+    hold(
+        catalog_file,
+        scripted,
+        tmp_path,
+        capsys,
+        [[("form", 300, 400, 100, 100), (320, 450, "in the form"), (72, 700, "body")]],
+        name="form.pdf",
+    )
+    vdir = library.specs / "mctp" / "DSP0236" / "1.3.3"
+    figures = json.loads((vdir / "figures.json").read_text("utf-8"))
+    entry = figures["pages"]["1"]
+    (box,) = entry["regions"]
+    x0, y0, x1, y1 = box
+    assert 295 <= x0 <= 305 and 395 <= y0 <= 405
+    assert 395 <= x1 <= 405 and 495 <= y1 <= 505
+    texts = page_texts(vdir, 1)
+    assert [texts[i].strip() for i in entry["lines"]] == ["in the form"]
+    code, out = run(capsys, "find", "DSP0236", "in the form", catalog_file=catalog_file)
+    assert out.strip() == "DSP0236 p.1 | - | [figure] in the form"
+    code, out = run(capsys, "find", "DSP0236", "body", catalog_file=catalog_file)
+    assert "[figure]" not in out
+
+
+def test_a_failing_figure_pass_is_reported_and_keeps_the_text(
+    catalog_file, library, scripted, tmp_path, capsys, monkeypatch
+):
+    """Round-1 F4: a page whose figure pass fails loses only its marks; the
+    extract line and extract.json say how many pages that happened on."""
+    from bmc_toolkit.spec import extract as extract_mod
+
+    def boom(page, raw):
+        raise RuntimeError("pdfium hiccup")
+
+    monkeypatch.setattr(extract_mod, "page_figures", boom)
+    pdf = pdfgen.write_pdf(tmp_path / "fail.pdf", [DIAGRAM, [(72, 700, "plain")]])
+    scripted.responses[URL] = ok(pdf.read_bytes())
+    run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
+    assert code == 0, out
+    assert "figure pass failed on 2 pages" in out
+    vdir = library.specs / "mctp" / "DSP0236" / "1.3.3"
+    meta = json.loads((vdir / "extract.json").read_text("utf-8"))
+    assert meta["figure_errors"] == 2 and meta["figure_pages"] == 0
+    assert not (vdir / "figures.json").exists()
+    code, out = run(capsys, "find", "DSP0236", "bus owner", catalog_file=catalog_file)
+    assert code == 0 and out.strip() == "DSP0236 p.1 | - | Bus owner"
+
+
 def test_an_extract_from_the_previous_extractor_is_redone(
     catalog_file, library, scripted, tmp_path, capsys
 ):

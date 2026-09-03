@@ -194,6 +194,38 @@ def test_owning_section_carries_over_from_the_previous_page(held, catalog_file, 
     assert out.strip() == "DSP0236 p.3 line 112 | 3.2 Reset | Reset clears the FROB bit."
 
 
+def test_body_text_above_a_heading_does_not_claim_it(
+    catalog_file, library, scripted, tmp_path, capsys
+):
+    """AC-2: on the same page the owner changes where the entry's title
+    appears as a heading; a body line that merely mentions the title of a
+    later section (round-1 F3) must not move the boundary up."""
+    lines = [
+        "Intro",
+        "see Overview below for the details",
+        "intro body text",
+        "Overview",
+        "overview body text",
+    ]
+    pdf = pdfgen.write_pdf(
+        tmp_path / "steal.pdf",
+        [pdfgen.plain_page(lines)],
+        bookmarks=[(0, "Intro", 0), (0, "Overview", 0)],
+    )
+    scripted.responses[URL] = ok(pdf.read_bytes())
+    run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
+    assert code == 0, out
+    code, out = run(capsys, "find", "DSP0236", "body text", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.strip().splitlines() == [
+        "DSP0236 p.1 | Intro | intro body text",
+        "DSP0236 p.1 | Overview | overview body text",
+    ]
+    code, out = run(capsys, "find", "DSP0236", "see overview", catalog_file=catalog_file)
+    assert out.strip() == "DSP0236 p.1 | Intro | see Overview below for the details"
+
+
 def test_empty_outline_prints_dash_everywhere(
     catalog_file, library, scripted, tmp_path, capsys
 ):
@@ -391,6 +423,20 @@ def test_error_paths_are_shared_by_the_reading_commands(
     meta_path.write_text(json.dumps(meta), "utf-8")
     code, out = run(capsys, *argv, catalog_file=catalog_file)
     assert code == 2 and "extract DSP0236" in out
+    # AC-7: status shows the old Extract as not current (round-1 F1)
+    code, out = run(capsys, "status", catalog_file=catalog_file)
+    assert code == 0, out
+    row = next(ln for ln in out.splitlines() if "DSP0236" in ln)
+    cells = [c.strip() for c in row.split("\t")]
+    assert "stale" in cells and "extracted" not in cells
+
+
+def test_status_shows_a_current_extract_as_extracted(held, catalog_file, capsys):
+    code, out = run(capsys, "status", catalog_file=catalog_file)
+    assert code == 0, out
+    row = next(ln for ln in out.splitlines() if "DSP0236" in ln)
+    cells = [c.strip() for c in row.split("\t")]
+    assert "extracted" in cells and "stale" not in cells
 
 
 def test_zip_bundle_is_refused_with_exit_2(catalog_file, library, scripted, capsys):
