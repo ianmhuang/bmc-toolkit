@@ -27,11 +27,16 @@ versions exist, bring the files onto the machine, and turn them into text.
 - **Extract**: `extract.txt` next to the original, every page introduced by
   `=== page N ===` (physical page, 1-based), layout preserved so tables read
   column by column. DMTF printed line numbers are removed from the text and
-  kept in `linemap.json` (per page: first, last, and the number of each
-  line), so a citation can say "p.20, lines 680-700".
+  kept in `linemap.json`: per physical page, `first`, `last`, and `lines`,
+  a map from the 0-based index of a line within that page's block of the
+  Extract (counting from the first line after the marker) to its printed
+  number, so a citation can say "p.20, lines 680-700".
 - **Outline**: `outline.json`, a flat list of `{level, title, page}` from the
   PDF bookmarks, or parsed from the contents pages when there are none
-  (`extract.json` says which: `bookmarks`, `contents`, `none`).
+  (`extract.json` says which: `bookmarks`, `contents`, `none`). A contents
+  entry marked `"approximate": true` used the printed page number as the
+  physical page because the offset could not be confirmed; open the page
+  and check before citing it.
 
 ## Helper CLI
 

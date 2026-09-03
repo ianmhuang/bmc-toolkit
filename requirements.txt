@@ -4,5 +4,5 @@
 #   the text layer, about ten times faster than pdfplumber on 600-page documents.
 # pdfplumber: table extraction (MIT), used from M4 on.
 curl_cffi>=0.10
-pypdfium2>=4.30
+pypdfium2>=5
 pdfplumber>=0.11

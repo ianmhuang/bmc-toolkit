@@ -380,3 +380,61 @@ def test_synthetic_space_between_adjacent_glyphs_is_a_word_break():
     ]
     chars = ex._page_chars(FakeTextPage(items))
     assert ex._segment(chars, 4.4).text == "TN for"
+
+
+def test_refuses_old_pypdfium2(monkeypatch):
+    import types
+
+    fake = types.ModuleType("pypdfium2")
+    fake.V_PYPDFIUM2 = "4.30.0"
+    monkeypatch.setitem(__import__("sys").modules, "pypdfium2", fake)
+    with pytest.raises(ImportError) as exc:
+        ex._require_pypdfium2()
+    assert "version 5 or newer" in str(exc.value)
+
+
+def test_contents_without_offset_marks_entries_approximate(tmp_path):
+    # contents page but no page numbers anywhere in the body pages
+    contents = [(72, 740, "Contents")]
+    y = 720.0
+    for num, title, page in [
+        ("1", "Intro", 1),
+        ("1.1", "Scope", 1),
+        ("2", "Overview", 2),
+        ("2.1", "Arch", 2),
+        ("3", "Commands", 3),
+        ("3.1", "Get", 3),
+        ("3.2", "Set", 3),
+        ("4", "Errors", 4),
+    ]:
+        contents.append((72, y, f"{num} {title} ............ {page}"))
+        y -= 14
+    pages = [contents] + [[(72, 700, "body text without any number")] for _ in range(5)]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "u.pdf", pages))
+    assert r.outline_source == "contents"
+    assert r.page_offset is None
+    assert all(e.get("approximate") is True for e in r.outline)
+    assert r.outline[0]["page"] == 1
+
+
+def test_write_result_leaves_no_current_meta_if_text_write_fails(tmp_path, monkeypatch):
+    vdir = tmp_path / "v"
+    vdir.mkdir()
+    pdf = pdfgen.write_pdf(vdir / "original.pdf", [pdfgen.plain_page(["a"])])
+    result = ex.extract_pdf(pdf)
+    ex.write_result(vdir, result)
+    assert ex.is_current(vdir)
+
+    real_open = open
+
+    def failing_open(path, *args, **kwargs):
+        if str(path).endswith(ex.EXTRACT_NAME) and "w" in args[0:1]:
+            raise OSError("disk full")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", failing_open)
+    with pytest.raises(OSError):
+        ex.write_result(vdir, result)
+    monkeypatch.setattr("builtins.open", real_open)
+    assert not ex.is_current(vdir)
+    assert not (vdir / ex.META_NAME).exists()

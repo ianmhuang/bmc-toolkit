@@ -10,9 +10,18 @@ PDF bookmarks, or from the contents pages when a document has none.
 Files written next to the original::
 
     extract.txt    "=== page N ===" then the page's lines, for every page
-    outline.json   [{"level": int, "title": str, "page": int}, ...]
+    outline.json   [{"level": int, "title": str, "page": int}, ...]; an entry
+                   carries "approximate": true when it came from a contents
+                   page whose printed-to-physical page offset could not be
+                   confirmed (extract.json then has page_offset null)
     linemap.json   {"pages": {"N": {"first": a, "last": b, "lines": {"i": n}}}}
+                   where N is the physical page and i is the 0-based index of
+                   the line within that page's block of the Extract, counting
+                   from the first line after the "=== page N ===" marker
     extract.json   run metadata, see ExtractResult.to_meta()
+
+Requires pypdfium2 5.x (its bookmark API: ``get_toc`` items with
+``get_dest()``/``get_title()``); 4.x is refused with a clear ImportError.
 """
 
 import json
@@ -23,7 +32,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-EXTRACTOR_VERSION = 1
+EXTRACTOR_VERSION = 2  # 2: space markers and line joining by overlap
 PAGE_MARKER = "=== page {n} ==="
 EXTRACT_NAME = "extract.txt"
 OUTLINE_NAME = "outline.json"
@@ -365,8 +374,27 @@ def find_page_offset(pages_text: list[list[str]]) -> int | None:
 # ------------------------------------------------------------------- driver
 
 
-def extract_pdf(path: Path) -> ExtractResult:
+def _require_pypdfium2():
     import pypdfium2 as pdfium  # lazy: optional at runtime
+
+    version = getattr(pdfium, "PYPDFIUM_INFO", None)
+    major = getattr(version, "major", None)
+    if major is None:
+        raw = getattr(pdfium, "V_PYPDFIUM2", None) or getattr(pdfium, "__version__", "")
+        try:
+            major = int(str(raw).split(".")[0])
+        except ValueError:
+            major = None
+    if major is not None and major < 5:
+        raise ImportError(
+            f"pypdfium2 {major}.x found; version 5 or newer is required "
+            "(pip install --upgrade pypdfium2)"
+        )
+    return pdfium
+
+
+def extract_pdf(path: Path) -> ExtractResult:
+    pdfium = _require_pypdfium2()
 
     started = time.perf_counter()
     pdf = pdfium.PdfDocument(str(path))
@@ -407,9 +435,10 @@ def extract_pdf(path: Path) -> ExtractResult:
             for e in parsed:
                 page_no = e["printed"] + shift
                 if 1 <= page_no <= count:
-                    outline.append(
-                        {"level": e["level"], "title": e["title"], "page": page_no}
-                    )
+                    entry = {"level": e["level"], "title": e["title"], "page": page_no}
+                    if offset is None:
+                        entry["approximate"] = True  # printed page taken as physical
+                    outline.append(entry)
             source = "contents" if outline else "none"
     text = "\n".join(chunks) + "\n"
     return ExtractResult(
@@ -430,6 +459,12 @@ def write_result(vdir: Path, result: ExtractResult) -> None:
             json.dump(data, fh, indent=1, ensure_ascii=False)
             fh.write("\n")
 
+    # The meta file is what marks an extraction as current, so it goes away
+    # first and comes back last: a failure in between leaves nothing that
+    # is_current() would believe.
+    meta_path = vdir / META_NAME
+    if meta_path.exists():
+        meta_path.unlink()
     with open(vdir / EXTRACT_NAME, "w", encoding="utf-8", newline="") as fh:
         fh.write(result.text)
     dump(OUTLINE_NAME, result.outline)

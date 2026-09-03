@@ -512,3 +512,55 @@ def test_extract_broken_pdf_fails_without_traceback(
     code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
     assert code == 2
     assert "failed DSP0236 1.3.3" in out
+
+
+def test_extract_picks_the_newest_held_version_by_catalog_date(
+    catalog_file, library, scripted, tmp_path, capsys
+):
+    pytest.importorskip("pypdfium2")
+    # catalog: 1.3.2 (2024-01-02) < 1.3.3 (2024-03-25) < 1.4.0 wip; hold the
+    # two published ones only after renaming so directory order misleads.
+    scripted.responses["https://example.test/DSP0236_1.3.2.pdf"] = ok(
+        _pdf_bytes(tmp_path)
+    )
+    scripted.responses["https://example.test/DSP0236_1.4.0.pdf"] = ok(
+        _pdf_bytes(tmp_path)
+    )
+    run(capsys, "fetch", "DSP0236", "--version", "1.3.2", catalog_file=catalog_file)
+    run(capsys, "fetch", "DSP0236", "--wip", catalog_file=catalog_file)
+    # latest published (1.3.3) is not held: newest held by date is 1.4.0
+    code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
+    assert code == 0 and "extracted DSP0236 1.4.0" in out
+
+
+def test_extract_unknown_document_uses_fetch_time(
+    catalog_file, library, tmp_path, capsys
+):
+    pytest.importorskip("pypdfium2")
+    from tests import pdfgen
+
+    older = library.specs / "vendor" / "OEM" / "1.10.0"
+    newer = library.specs / "vendor" / "OEM" / "1.9.0"
+    for vdir, stamp in (
+        (older, "2025-01-01T00:00:00+00:00"),
+        (newer, "2025-06-01T00:00:00+00:00"),
+    ):
+        vdir.mkdir(parents=True)
+        pdfgen.write_pdf(vdir / "original.pdf", [pdfgen.plain_page(["x"])])
+        library.write_meta(
+            vdir,
+            {
+                "family": "vendor",
+                "document": "OEM",
+                "version": vdir.name,
+                "file": "original.pdf",
+                "url": None,
+                "fetch_method": "dropin",
+                "sha256": "0" * 64,
+                "size": 1,
+                "fetched_at": stamp,
+                "dropin": True,
+            },
+        )
+    code, out = run(capsys, "extract", "OEM", catalog_file=catalog_file)
+    assert code == 0 and "extracted OEM 1.9.0" in out

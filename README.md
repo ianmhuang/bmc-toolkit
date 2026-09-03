@@ -30,8 +30,9 @@ checkout run `pip install -r requirements.txt` yourself.
   Without it the tool falls back to `urllib`; Intel documents then come from
   the Internet Archive instead of the publisher, OCP documents still
   download directly (both verified).
-- `pypdfium2` (BSD-3-Clause or Apache-2.0): PDF text with character
-  positions and bookmarks; the text layer.
+- `pypdfium2` 5.x (BSD-3-Clause or Apache-2.0): PDF text with character
+  positions and bookmarks; the text layer. Version 5 or newer is required
+  (its bookmark API changed in 5.0); `extract` refuses an older install.
 - `pdfplumber` (MIT): table extraction (used from a later milestone on).
 
 ## Library location
@@ -44,8 +45,11 @@ machine. Each document version sits at
 `extract` the same directory holds `extract.txt` (one `=== page N ===`
 marker per physical page, layout preserved), `outline.json` (section
 titles with pages, from PDF bookmarks or from the contents pages),
-`linemap.json` (DMTF printed line numbers, per page) and `extract.json`
-(extractor version, timing, what was found).
+`linemap.json` (DMTF printed line numbers: per physical page, the first
+and last number and a map from each line's 0-based index within the page
+block to its printed number) and `extract.json` (extractor version,
+timing, what was found). Outline entries parsed from a contents page whose
+page offset could not be confirmed carry `"approximate": true`.
 
 ## Command line
 

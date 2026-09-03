@@ -380,6 +380,24 @@ def _extract_one(holding, force: bool) -> str:
     return "extracted"
 
 
+def _latest_held(doc, held):
+    """The newest held version: the catalog's latest if held, else the held
+    version the catalog dates newest, else the most recently fetched."""
+    if not held:
+        return None
+    if doc is not None:
+        latest = doc.latest()
+        if latest is not None:
+            for h in held:
+                if h.version == latest.version:
+                    return h
+        dated = {v.version: v.published for v in doc.versions}
+        known = [h for h in held if h.version in dated]
+        if known:
+            return max(known, key=lambda h: dated[h.version])
+    return max(held, key=lambda h: h.meta.get("fetched_at", ""))
+
+
 def cmd_extract(args: argparse.Namespace) -> int:
     library = Library(resolve_library())
     if args.all == bool(args.document):
@@ -405,12 +423,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
         holding = next((h for h in held if h.version == args.doc_version), None)
         wanted = args.doc_version
     else:
-        latest = doc.latest() if doc is not None else None
-        holding = None
-        if latest is not None:
-            holding = next((h for h in held if h.version == latest.version), None)
-        if holding is None and held:
-            holding = held[-1]
+        holding = _latest_held(doc, held)
         wanted = "latest"
     if holding is None:
         print(f"{doc_id} {wanted} is not in the Library; run: bmcspec fetch {doc_id}")
