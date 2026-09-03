@@ -2,9 +2,18 @@
 
 import json
 
+import pytest
+
 from bmc_toolkit.spec import fetch as fetch_mod
 from bmc_toolkit.spec.cli import main
-from tests.conftest import HTML_BYTES, PDF_BYTES, ok, wayback_hit, wayback_miss
+from tests.conftest import (
+    HTML_BYTES,
+    PDF_BYTES,
+    ZIP_BYTES,
+    ok,
+    wayback_hit,
+    wayback_miss,
+)
 
 URL = "https://example.test/DSP0236_1.3.3.pdf"
 
@@ -397,3 +406,161 @@ def test_add_reports_directory_collision(catalog_file, library, tmp_path, capsys
     code, out = run(capsys, *args, "--version", "1.0_a", catalog_file=catalog_file)
     assert code == 2
     assert "already holds version '1.0 a'" in out
+
+
+def _pdf_bytes(tmp_path, name="gen.pdf", numbered=False):
+    from tests import pdfgen
+
+    page = (
+        pdfgen.numbered_page(1, ["alpha", "beta", "gamma", "delta", "epsilon"])
+        if numbered
+        else pdfgen.plain_page(["alpha", "beta"])
+    )
+    return pdfgen.write_pdf(tmp_path / name, [page]).read_bytes()
+
+
+def test_extract_writes_files_then_skips_then_forces(
+    catalog_file, library, scripted, tmp_path, capsys
+):
+    pytest.importorskip("pypdfium2")
+    scripted.responses[URL] = ok(_pdf_bytes(tmp_path, numbered=True))
+    run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
+    assert code == 0, out
+    assert "extracted DSP0236 1.3.3: 1 pages" in out
+    assert "line numbers on 1 pages" in out
+    vdir = library.specs / "mctp" / "DSP0236" / "1.3.3"
+    assert (vdir / "extract.txt").read_text("utf-8").startswith("=== page 1 ===\nalpha")
+    assert (vdir / "linemap.json").exists()
+    meta = json.loads((vdir / "extract.json").read_text("utf-8"))
+    assert meta["outline_source"] == "none"
+    code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
+    assert code == 0 and "skipped DSP0236 1.3.3: already extracted" in out
+    code, out = run(capsys, "extract", "DSP0236", "--force", catalog_file=catalog_file)
+    assert code == 0 and "extracted DSP0236 1.3.3" in out
+    code, out = run(capsys, "status", catalog_file=catalog_file)
+    row = next(ln for ln in out.splitlines() if "DSP0236" in ln).split("\t")
+    assert row[5:] == ["extracted", "none"]
+
+
+def test_extract_reextracts_when_extractor_version_is_older(
+    catalog_file, library, scripted, tmp_path, capsys
+):
+    pytest.importorskip("pypdfium2")
+    scripted.responses[URL] = ok(_pdf_bytes(tmp_path))
+    run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
+    vdir = library.specs / "mctp" / "DSP0236" / "1.3.3"
+    meta = json.loads((vdir / "extract.json").read_text("utf-8"))
+    meta["extractor_version"] = 0
+    (vdir / "extract.json").write_text(json.dumps(meta), "utf-8")
+    code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
+    assert code == 0 and "extracted DSP0236" in out
+
+
+def test_extract_specific_version_and_missing(
+    catalog_file, library, scripted, tmp_path, capsys
+):
+    pytest.importorskip("pypdfium2")
+    scripted.responses["https://example.test/DSP0236_1.3.2.pdf"] = ok(
+        _pdf_bytes(tmp_path)
+    )
+    run(capsys, "fetch", "DSP0236", "--version", "1.3.2", catalog_file=catalog_file)
+    code, out = run(
+        capsys, "extract", "DSP0236", "--version", "1.3.2", catalog_file=catalog_file
+    )
+    assert code == 0 and "extracted DSP0236 1.3.2" in out
+    # latest (1.3.3) is not held: fall back to the held version
+    code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
+    assert code == 0 and "skipped DSP0236 1.3.2: already extracted" in out
+    code, out = run(capsys, "extract", "IPMI", catalog_file=catalog_file)
+    assert code == 2 and "not in the Library" in out
+    code, out = run(
+        capsys, "extract", "DSP0236", "--version", "9.9", catalog_file=catalog_file
+    )
+    assert code == 2
+
+
+def test_extract_all_skips_zip_and_summarises(
+    catalog_file, library, scripted, tmp_path, capsys
+):
+    pytest.importorskip("pypdfium2")
+    scripted.responses[URL] = ok(_pdf_bytes(tmp_path))
+    scripted.responses["https://example.test/bundle_2026.1.zip"] = ok(
+        ZIP_BYTES, "application/zip"
+    )
+    run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    run(capsys, "fetch", "BUNDLE", catalog_file=catalog_file)
+    code, out = run(capsys, "extract", "--all", catalog_file=catalog_file)
+    assert code == 0, out
+    assert "skipped BUNDLE 2026.1: original.zip is not a PDF" in out
+    assert out.strip().splitlines()[-1] == "summary: extracted 1, skipped 1, failed 0"
+    code, out = run(
+        capsys, "extract", "--all", "--version", "1", catalog_file=catalog_file
+    )
+    assert code == 2
+    code, out = run(capsys, "extract", catalog_file=catalog_file)
+    assert code == 2
+
+
+def test_extract_broken_pdf_fails_without_traceback(
+    catalog_file, library, scripted, capsys
+):
+    pytest.importorskip("pypdfium2")
+    scripted.responses[URL] = ok(b"%PDF-1.4 garbage")
+    run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
+    assert code == 2
+    assert "failed DSP0236 1.3.3" in out
+
+
+def test_extract_picks_the_newest_held_version_by_catalog_date(
+    catalog_file, library, scripted, tmp_path, capsys
+):
+    pytest.importorskip("pypdfium2")
+    # catalog: 1.3.2 (2024-01-02) < 1.3.3 (2024-03-25) < 1.4.0 wip; hold the
+    # two published ones only after renaming so directory order misleads.
+    scripted.responses["https://example.test/DSP0236_1.3.2.pdf"] = ok(
+        _pdf_bytes(tmp_path)
+    )
+    scripted.responses["https://example.test/DSP0236_1.4.0.pdf"] = ok(
+        _pdf_bytes(tmp_path)
+    )
+    run(capsys, "fetch", "DSP0236", "--version", "1.3.2", catalog_file=catalog_file)
+    run(capsys, "fetch", "DSP0236", "--wip", catalog_file=catalog_file)
+    # latest published (1.3.3) is not held: newest held by date is 1.4.0
+    code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
+    assert code == 0 and "extracted DSP0236 1.4.0" in out
+
+
+def test_extract_unknown_document_uses_fetch_time(
+    catalog_file, library, tmp_path, capsys
+):
+    pytest.importorskip("pypdfium2")
+    from tests import pdfgen
+
+    older = library.specs / "vendor" / "OEM" / "1.10.0"
+    newer = library.specs / "vendor" / "OEM" / "1.9.0"
+    for vdir, stamp in (
+        (older, "2025-01-01T00:00:00+00:00"),
+        (newer, "2025-06-01T00:00:00+00:00"),
+    ):
+        vdir.mkdir(parents=True)
+        pdfgen.write_pdf(vdir / "original.pdf", [pdfgen.plain_page(["x"])])
+        library.write_meta(
+            vdir,
+            {
+                "family": "vendor",
+                "document": "OEM",
+                "version": vdir.name,
+                "file": "original.pdf",
+                "url": None,
+                "fetch_method": "dropin",
+                "sha256": "0" * 64,
+                "size": 1,
+                "fetched_at": stamp,
+                "dropin": True,
+            },
+        )
+    code, out = run(capsys, "extract", "OEM", catalog_file=catalog_file)
+    assert code == 0 and "extracted OEM 1.9.0" in out

@@ -32,6 +32,7 @@ ENV_LIBRARY = "BMC_SPEC_LIBRARY"
 DEFAULT_LIBRARY_DIRNAME = ".bmc-specs"
 META_NAME = "meta.json"
 ORIGINAL_STEM = "original"
+DERIVED_NAMES = ("extract.txt", "extract.json", "outline.json", "linemap.json")
 MAGIC = {"pdf": (b"%PDF",), "zip": (b"PK\x03\x04",)}
 
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
@@ -99,6 +100,17 @@ class Holding:
     def original(self) -> Path:
         return self.path / self.meta.get("file", "original")
 
+    @property
+    def extract_meta(self) -> dict | None:
+        """Contents of extract.json when the version has been extracted."""
+        path = self.path / "extract.json"
+        if not path.is_file() or not (self.path / "extract.txt").is_file():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+
 
 class Library:
     def __init__(self, root: Path):
@@ -161,6 +173,19 @@ class Library:
                 f"directory as '{version}'"
             )
 
+    @staticmethod
+    def _clear_previous(vdir: Path, keep: str) -> None:
+        """Drop other originals and every derived file before a new original."""
+        if not vdir.is_dir():
+            return
+        for p in vdir.glob(ORIGINAL_STEM + ".*"):
+            if p.name != keep and not p.name.endswith(".part"):
+                p.unlink()
+        for name in DERIVED_NAMES:
+            p = vdir / name
+            if p.exists():
+                p.unlink()
+
     def write_meta(self, vdir: Path, meta: dict) -> Path:
         vdir.mkdir(parents=True, exist_ok=True)
         path = vdir / META_NAME
@@ -186,6 +211,7 @@ class Library:
         self._guard_collision(vdir, version)
         vdir.mkdir(parents=True, exist_ok=True)
         filename = f"{ORIGINAL_STEM}.{ext}"
+        self._clear_previous(vdir, filename)
         target = vdir / filename
         tmp = vdir / (filename + ".part")
         tmp.write_bytes(data)
@@ -215,6 +241,7 @@ class Library:
         self._guard_collision(vdir, version)
         vdir.mkdir(parents=True, exist_ok=True)
         filename = f"{ORIGINAL_STEM}.{ext}"
+        self._clear_previous(vdir, filename)
         target = vdir / filename
         shutil.copyfile(source, target)
         self.write_meta(
