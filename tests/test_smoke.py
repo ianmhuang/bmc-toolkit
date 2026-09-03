@@ -1,5 +1,6 @@
 """Skeleton checks: the plugin is well-formed and the launcher runs."""
 
+import argparse
 import json
 import subprocess
 import sys
@@ -89,3 +90,13 @@ def test_unknown_command_is_an_error():
     with pytest.raises(SystemExit) as exc:
         cli.main(["no-such-command"])
     assert exc.value.code != 0
+
+
+def test_skill_documents_every_cli_command():
+    skill = (ROOT / "skills" / "bmc-spec" / "SKILL.md").read_text("utf-8")
+    parser = cli.build_parser()
+    subparsers = next(
+        a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
+    )
+    for name in subparsers.choices:
+        assert f"`{name}" in skill, f"SKILL.md does not document '{name}'"

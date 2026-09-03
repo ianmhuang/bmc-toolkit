@@ -158,3 +158,16 @@ def test_extract_meta_property(library, tmp_path):
     assert holding.extract_meta is None  # no extract.txt yet
     (vdir / "extract.txt").write_text("=== page 1 ===\n", "utf-8")
     assert holding.extract_meta == {"outline_source": "bookmarks"}
+
+
+def test_replacing_an_original_clears_figures_and_renders(library, tmp_path):
+    vdir = library.store(
+        "mctp", "DSP0236", "1.3.3", b"%PDF", "pdf", url="u", method="direct"
+    )
+    (vdir / "figures.json").write_text("{}", "utf-8")
+    (vdir / "renders").mkdir()
+    (vdir / "renders" / "page-1.png").write_bytes(b"x")
+    library.store(
+        "mctp", "DSP0236", "1.3.3", b"%PDF again", "pdf", url="u", method="direct"
+    )
+    assert sorted(p.name for p in vdir.iterdir()) == ["meta.json", "original.pdf"]

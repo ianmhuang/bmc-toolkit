@@ -117,3 +117,8 @@ def test_document_ids_are_path_safe(shipped):
         d.id for d in shipped.documents if not re.fullmatch(r"[A-Za-z0-9._-]+", d.id)
     ]
     assert not bad
+
+
+def test_ipmi_is_searched_with_its_update(shipped):
+    assert shipped.get("IPMI").searched_with == ("IPMI-UPDATE",)
+    assert shipped.get("IPMI-UPDATE") is not None

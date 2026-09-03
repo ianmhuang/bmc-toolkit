@@ -17,6 +17,9 @@ Schema (``schema_version = 1``)::
     access = "open"            open | gated | member | confidential
     fetch = "direct"           direct | wayback | manual
     notes = "..."              optional, free text
+    searched_with = ["ID"]     optional: documents searched together with
+                               this one (errata, spec updates); their hits
+                               are reported first
 
     [[documents.versions]]     newest last or in any order; dates decide
     version = "1.3.3"          the publisher's own string, verbatim
@@ -72,6 +75,7 @@ class Document:
     fetch: str
     versions: tuple[Version, ...]
     notes: str = ""
+    searched_with: tuple[str, ...] = ()
 
     def latest(self, include_wip: bool = False) -> Version | None:
         """Newest version by publication date; WIP only when asked.
@@ -181,7 +185,24 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
             )
         seen.add(v.version)
         versions.append(v)
-    return Document(doc_id, family, title, access, fetch, tuple(versions), notes)
+    raw_with = _expect(raw, "searched_with", list, where, default=[], required=False)
+    for k, item in enumerate(raw_with):
+        if not isinstance(item, str) or not item.strip():
+            raise CatalogError(f"{where}.searched_with[{k}]: expected a document id")
+        if item.strip().lower() == doc_id.lower():
+            raise CatalogError(
+                f"{where}.searched_with[{k}]: a document cannot list itself"
+            )
+    return Document(
+        doc_id,
+        family,
+        title,
+        access,
+        fetch,
+        tuple(versions),
+        notes,
+        tuple(s.strip() for s in raw_with),
+    )
 
 
 def parse_catalog(data: dict) -> Catalog:
@@ -216,6 +237,12 @@ def parse_catalog(data: dict) -> Catalog:
             raise CatalogError(f"documents[{i}].id: duplicate id '{doc.id}'")
         ids.add(key)
         documents.append(doc)
+    for i, doc in enumerate(documents):
+        for k, other in enumerate(doc.searched_with):
+            if other.lower() not in ids:
+                raise CatalogError(
+                    f"documents[{i}].searched_with[{k}]: unknown document '{other}'"
+                )
     return Catalog(families, documents)
 
 

@@ -140,3 +140,24 @@ def test_impossible_date_is_rejected():
     with pytest.raises(CatalogError) as exc:
         _parse(text)
     assert "documents[0].versions[0].published" in str(exc.value)
+
+
+def test_searched_with_is_optional_and_validated(catalog):
+    assert catalog.get("IPMI").searched_with == ()
+    text = MINI_CATALOG.replace(
+        'title = "IPMI Specification v2.0"',
+        'title = "IPMI Specification v2.0"\nsearched_with = [" dsp0236 "]',
+    )
+    assert _parse(text).get("IPMI").searched_with == ("dsp0236",)
+    with pytest.raises(CatalogError) as exc:
+        _parse(text.replace('[" dsp0236 "]', '["NOPE"]'))
+    assert "searched_with[0]: unknown document 'NOPE'" in str(exc.value)
+    with pytest.raises(CatalogError) as exc:
+        _parse(text.replace('[" dsp0236 "]', '["ipmi"]'))
+    assert "cannot list itself" in str(exc.value)
+    with pytest.raises(CatalogError) as exc:
+        _parse(text.replace('[" dsp0236 "]', "[1]"))
+    assert "expected a document id" in str(exc.value)
+    with pytest.raises(CatalogError) as exc:
+        _parse(text.replace('[" dsp0236 "]', '"DSP0236"'))
+    assert "searched_with: expected list" in str(exc.value)
