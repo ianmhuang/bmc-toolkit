@@ -20,6 +20,12 @@ Schema (``schema_version = 1``)::
     searched_with = ["ID"]     optional: documents searched together with
                                this one (errata, spec updates); their hits
                                are reported first
+    listing = "nvme:<slug>"    optional: where the publisher lists the
+                               document's versions, "<source>:<key>" with
+                               source dmtf (key: the DSP id; the default for
+                               DMTF documents), nvme (key: the specification
+                               slug of the nvmexpress.org API) or ocp (key:
+                               "<wiki page title>|<description prefix>")
 
     [[documents.versions]]     newest last or in any order; dates decide
     version = "1.3.3"          the publisher's own string, verbatim
@@ -49,10 +55,12 @@ from pathlib import Path
 ACCESS_TIERS = ("open", "gated", "member", "confidential")
 FETCH_METHODS = ("direct", "wayback", "manual")
 FILE_TYPES = ("pdf", "zip")
+LISTING_SOURCES = ("dmtf", "nvme", "ocp")
 SCHEMA_VERSION = 1
 DEFAULT_CATALOG = Path(__file__).with_name("catalog.toml")
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_DSP_RE = re.compile(r"^DSP\d+$", re.IGNORECASE)
 
 
 class CatalogError(Exception):
@@ -86,6 +94,16 @@ class Document:
     versions: tuple[Version, ...]
     notes: str = ""
     searched_with: tuple[str, ...] = ()
+    listing: str = ""  # "<source>:<key>", "" when no publisher listing exists
+
+    @property
+    def listing_source(self) -> str:
+        """dmtf | nvme | ocp, or "" without a listing."""
+        return self.listing.partition(":")[0]
+
+    @property
+    def listing_key(self) -> str:
+        return self.listing.partition(":")[2]
 
     def latest(self, include_wip: bool = False) -> Version | None:
         """Newest version by publication date; WIP only when asked.
@@ -221,6 +239,17 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
             raise CatalogError(
                 f"{where}.searched_with[{k}]: a document cannot list itself"
             )
+    listing = _expect(raw, "listing", str, where, default="", required=False)
+    listing = listing.strip()
+    if listing:
+        source, _, key = listing.partition(":")
+        if source not in LISTING_SOURCES or not key.strip():
+            raise CatalogError(
+                f"{where}.listing: '{listing}' is not '<source>:<key>' with "
+                f"source one of {LISTING_SOURCES}"
+            )
+    elif families[family].publisher == "DMTF" and _DSP_RE.match(doc_id):
+        listing = f"dmtf:{doc_id.upper()}"
     return Document(
         doc_id,
         family,
@@ -230,6 +259,7 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
         tuple(versions),
         notes,
         tuple(s.strip() for s in raw_with),
+        listing,
     )
 
 

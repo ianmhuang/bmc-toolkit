@@ -318,3 +318,63 @@ def test_gh_search_without_gh_is_an_error(monkeypatch):
     monkeypatch.setattr(C.shutil, "which", lambda name: None)
     with pytest.raises(C.CodeError, match="gh is not on PATH"):
         C.gh_search("x")
+
+
+def test_find_pin_recipe_reports_the_path_and_refuses_disagreeing_layers(tmp_path):
+    distro = tmp_path / "distro"
+    phosphor = distro / "meta-phosphor" / "recipes-phosphor" / "things"
+    vendor = distro / "meta-vendor" / "recipes-phosphor" / "things"
+    phosphor.mkdir(parents=True)
+    vendor.mkdir(parents=True)
+    (phosphor / "thing_git.bb").write_text(
+        RECIPE.format(url="github.com/openbmc/thing", sha="a" * 40), encoding="utf-8"
+    )
+    rev, recipe = C.find_pin_recipe(distro, "thing")
+    assert rev == "a" * 40
+    assert recipe == "meta-phosphor/recipes-phosphor/things/thing_git.bb"
+    # a second layer agreeing on the commit is fine
+    (vendor / "thing_%.bbappend").write_text("x\n", encoding="utf-8")
+    (vendor / "thing_git.bb").write_text(
+        RECIPE.format(url="github.com/openbmc/thing.git", sha="a" * 40),
+        encoding="utf-8",
+    )
+    assert C.find_pin(distro, "thing") == "a" * 40
+    # a layer pinning another commit is reported with both paths
+    (vendor / "thing_git.bb").write_text(
+        RECIPE.format(url="github.com/openbmc/thing.git", sha="b" * 40),
+        encoding="utf-8",
+    )
+    with pytest.raises(C.CodeError, match="different commits") as exc:
+        C.find_pin(distro, "thing")
+    message = str(exc.value)
+    assert (
+        "meta-phosphor/recipes-phosphor/things/thing_git.bb pins aaaaaaaaaaaa"
+        in message
+    )
+    assert (
+        "meta-vendor/recipes-phosphor/things/thing_git.bb pins bbbbbbbbbbbb" in message
+    )
+
+
+def test_clone_ref_fallback_cleans_its_directory_with_the_readonly_aware_remover(
+    thing, library, monkeypatch
+):
+    """The sha fallback of _clone_ref removes a half-made directory the
+    same way every other path does (git objects are read-only on Windows)."""
+    work, bare, url = thing
+    second = commit(work, {"README.md": "two\n"}, "second")
+    push(work)
+    removed = []
+    real = C._rmtree
+
+    def spy(path):
+        removed.append(path)
+        real(path)
+
+    monkeypatch.setattr(C, "_rmtree", spy)
+    tmp = library.code / "thing" / ".tmp-x"
+    tmp.mkdir(parents=True)
+    (tmp / "stale").write_text("x", encoding="utf-8")
+    C._clone_ref(url, second, tmp, ())
+    assert tmp in removed and (tmp / "README.md").is_file()
+    real(tmp)

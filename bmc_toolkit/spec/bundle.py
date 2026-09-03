@@ -108,8 +108,7 @@ def select_members(members: list[str]) -> tuple[list[str], int, int]:
     no member lies under such a folder.
     """
     refused = 0
-    duplicates = 0
-    seen_base: set[str] = set()
+    repeats: dict[str, int] = {}  # base name -> members beyond the first
     unversioned: list[str] = []
     newest: dict[str, tuple[tuple[int, int, int], str]] = {}
     seen_folder = False
@@ -122,10 +121,10 @@ def select_members(members: list[str]) -> tuple[list[str], int, int]:
             refused += 1
             continue
         base = parts[-1]
-        if base in seen_base:
-            duplicates += 1
+        if base in repeats:
+            repeats[base] += 1
             continue
-        seen_base.add(base)
+        repeats[base] = 0
         key = version_key(base)
         if key is not None:
             name = resource_name(base)
@@ -136,6 +135,8 @@ def select_members(members: list[str]) -> tuple[list[str], int, int]:
     if not seen_folder:
         raise NoSchemas(f"no {SCHEMA_FOLDER}/ folder in the archive")
     kept = sorted(unversioned) + sorted(m for _, m in newest.values())
+    # a repeated name counts only when the member it shadows is written
+    duplicates = sum(repeats[PurePosixPath(m).parts[-1]] for m in kept)
     return kept, refused, duplicates
 
 
@@ -383,6 +384,8 @@ class Schemas:
         if "properties" in node or node.get("type") == "object":
             return f"object {def_name}"
         options = _non_null(node.get("anyOf"))
+        if options and len(options) == 1 and self.enum_of(node, target.file):
+            return f"enum {def_name}"  # one $ref onto an enum, not an index
         if options and all(_is_object_like(o) for o in options):
             return f"object {def_name}"  # an index entry: refs to the versions
         inner = self.type_of(node, target.file)

@@ -349,3 +349,71 @@ def test_bad_json_is_a_schema_error(tmp_path):
         schemas.load("Common.json")
     with pytest.raises(B.SchemaError):
         B.Schemas(tmp_path / "nowhere").files()
+
+
+def test_duplicates_count_only_names_that_shadow_a_kept_member():
+    members = [
+        "DSP8010_2026.1/json-schema/Chassis.json",
+        "DSP8010_2026.1/json-schema/Chassis.v1_1_0.json",
+        "DSP8010_2026.1/json-schema/Chassis.v1_2_0.json",
+        "other/json-schema/Chassis.v1_1_0.json",  # repeats a member not kept
+        "other/json-schema/Chassis.json",  # repeats a kept member
+    ]
+    kept, refused, duplicates = B.select_members(members)
+    assert kept == [
+        "DSP8010_2026.1/json-schema/Chassis.json",
+        "DSP8010_2026.1/json-schema/Chassis.v1_2_0.json",
+    ]
+    assert (refused, duplicates) == (0, 1)
+
+
+def test_type_of_a_single_ref_chain_onto_an_enum_is_an_enum(tmp_path):
+    """Chassis.PowerState -> anyOf [{$ref Resource.json#/definitions/State}]
+    where State is itself anyOf [{$ref .../StateEnum}]: an enum, not an
+    index of versions."""
+    schemas = tmp_path / "schemas"
+    schemas.mkdir()
+    (schemas / "Resource.json").write_text(
+        json.dumps(
+            {
+                "definitions": {
+                    "State": {"anyOf": [{"$ref": "#/definitions/StateEnum"}]},
+                    "StateEnum": {"enum": ["On", "Off"], "type": "string"},
+                    "Links": {
+                        "anyOf": [
+                            {"$ref": "#/definitions/LinksV1"},
+                            {"$ref": "#/definitions/LinksV2"},
+                        ]
+                    },
+                    "LinksV1": {"type": "object", "properties": {}},
+                    "LinksV2": {"type": "object", "properties": {}},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (schemas / "Thing.json").write_text(
+        json.dumps(
+            {
+                "definitions": {
+                    "Thing": {
+                        "type": "object",
+                        "properties": {
+                            "State": {
+                                "anyOf": [
+                                    {"$ref": "Resource.json#/definitions/State"},
+                                    {"type": "null"},
+                                ]
+                            },
+                            "Links": {"$ref": "Resource.json#/definitions/Links"},
+                        },
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    loaded = B.Schemas(tmp_path)
+    thing = loaded.load("Thing.json")["definitions"]["Thing"]["properties"]
+    assert loaded.type_of(thing["State"], "Thing.json") == "enum State"
+    assert loaded.type_of(thing["Links"], "Thing.json") == "object Links"

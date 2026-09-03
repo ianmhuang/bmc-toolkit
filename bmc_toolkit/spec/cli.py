@@ -15,10 +15,14 @@ from bmc_toolkit.spec import bundle as bundle_mod
 from bmc_toolkit.spec import code as code_mod
 from bmc_toolkit.spec import extract as extract_mod
 from bmc_toolkit.spec import fetch as fetch_mod
+from bmc_toolkit.spec import freshness as fresh_mod
+from bmc_toolkit.spec import listing as listing_mod
+from bmc_toolkit.spec import refresh as refresh_mod
 from bmc_toolkit.spec import render as render_mod
 from bmc_toolkit.spec import search as search_mod
 from bmc_toolkit.spec import tables as tables_mod
 from bmc_toolkit.spec.catalog import (
+    DEFAULT_CATALOG,
     Catalog,
     CatalogError,
     Document,
@@ -51,6 +55,7 @@ EXIT_ACTION = 2
 
 MAX_HITS = 50  # find: hits printed per call unless --max says otherwise
 MAX_PAGES = 10  # page: pages printed per call unless --max-pages says otherwise
+OCP_NOTE_CHARS = 60  # check: how much of a wiki row's description is printed
 
 # Tests replace this to keep the network out.
 CLIENT_FACTORY = fetch_mod.default_client
@@ -95,6 +100,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("scan", help="register files placed into the Library by hand")
     sub.add_parser("status", help="what the Library holds")
+
+    p = sub.add_parser(
+        "check", help="ask the publishers whether the catalog is behind (no download)"
+    )
+    p.add_argument("document", nargs="?", help="one document id; none checks all")
+
+    p = sub.add_parser(
+        "refresh",
+        help="maintainer: versions the publishers list that the catalog lacks",
+    )
+    p.add_argument("document", nargs="?", help="one document id; none does all")
+    p.add_argument(
+        "--write", action="store_true", help="append the new entries to the catalog"
+    )
 
     p = sub.add_parser("extract", help="turn a PDF in the Library into text")
     p.add_argument("document", nargs="?", help="document id")
@@ -182,6 +201,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ref", help="the Code Tree reached by this ref")
     p.add_argument("--release", help="the Code Tree pinned by this release")
 
+    p = sub.add_parser("prune", help="remove superseded Code Trees and leftovers")
+    p.add_argument(
+        "--yes", action="store_true", help="really remove (the default only lists)"
+    )
+
     p = sub.add_parser("table", help="print the ruled tables on a page, whole")
     p.add_argument("document", help="document id")
     p.add_argument("--page", type=int, required=True, help="physical page (1-based)")
@@ -239,6 +263,7 @@ def cmd_catalog(args: argparse.Namespace) -> int:
         print(f"access: {doc.access}")
         print(f"fetch: {doc.fetch}")
         print(f"latest: {latest.version if latest else '-'}")
+        print(f"listing: {doc.listing or '- (hand-maintained)'}")
         if doc.notes:
             print(f"notes: {doc.notes}")
         print("versions:")
@@ -310,6 +335,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             library, doc, ver, force=args.force, client=client
         )
         _report(outcome)
+        _freshness_notes(catalog, library, [doc.id])
         return EXIT_OK if outcome.status != "failed" else EXIT_ACTION
 
     todo = []
@@ -329,11 +355,42 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         )
         _report(outcome)
         counts[outcome.status] += 1
+    _freshness_notes(catalog, library, [doc.id for doc, _ in todo])
     print(
         f"summary: fetched {counts['fetched']}, skipped {counts['skipped']}, "
         f"failed {counts['failed']}"
     )
     return EXIT_OK if counts["failed"] == 0 else EXIT_ACTION
+
+
+def _freshness_notes(catalog: Catalog, library: Library, doc_ids: list[str]) -> None:
+    """Remind the user when documents have not been checked against their
+    publishers lately: one line for a single document, one summary line
+    for several; each document is reminded about once, until the next
+    check. Reads the Library and writes freshness.json, never the network."""
+    if not doc_ids:
+        return
+    try:
+        max_age = fresh_mod.max_age_days(library.root)
+    except fresh_mod.FreshnessError as exc:
+        print(f"note: {exc}")
+        return
+    state = fresh_mod.Freshness(library.root)
+    due = state.due_documents(catalog, doc_ids, max_age)
+    if not due:
+        return
+    if len(doc_ids) == 1:
+        print(state.note_for(due[0], max_age))
+    else:
+        print(
+            f"note: {len(due)} of these documents have not been checked against "
+            f"their publishers in the last {max_age} days; run: bmcspec check"
+        )
+    state.mark_reminded([doc.id for doc in due])
+    try:
+        state.save()
+    except OSError:
+        pass  # the reminder repeats next time; nothing else is lost
 
 
 def cmd_add(args: argparse.Namespace) -> int:
@@ -456,6 +513,161 @@ def cmd_status(args: argparse.Namespace) -> int:
             f"{h.family}\t{h.document}\t{h.version}\t{flag}\t{size}"
             f"\t{extracted}\t{outline}"
         )
+    try:
+        catalog = _load(args)
+    except CatalogError as exc:
+        print(f"note: freshness not checked, the catalog does not load: {exc}")
+        return EXIT_OK
+    _freshness_notes(catalog, library, sorted({h.document for h in holdings}))
+    return EXIT_OK
+
+
+# ---------------------------------------------------------- freshness
+
+
+def _checkable(catalog: Catalog, requested: str | None):
+    """(documents to check, exit code): one named document, or every one
+    with a listing; a message and exit 2 when the request cannot be met."""
+    if requested:
+        doc = catalog.get(requested)
+        if doc is None:
+            print(f"unknown document '{requested}'; run: bmcspec catalog")
+            return [], EXIT_ACTION
+        if not doc.listing:
+            print(
+                f"{doc.id} has no publisher listing; its versions are maintained "
+                f"by hand in the catalog"
+            )
+            return [], EXIT_ACTION
+        return [doc], EXIT_OK
+    return [d for d in catalog.documents if d.listing], EXIT_OK
+
+
+def _seen_line(doc: Document, seen: listing_mod.Seen) -> str:
+    when = f" ({seen.published})" if seen.published else ""
+    if doc.listing_source == "ocp":
+        link = seen.url or "no link"
+        note = seen.note[:OCP_NOTE_CHARS].rstrip()
+        if len(seen.note) > OCP_NOTE_CHARS:
+            note += "..."
+        note = f" [{note}]" if note else ""
+        return f"{seen.version}{when} {link} (URL to confirm by hand){note}"
+    note = f" [{seen.note}]" if seen.note else ""
+    return f"{seen.version}{when} {seen.url}{note}"
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    catalog = _load(args)
+    library = Library(resolve_library())
+    docs, code = _checkable(catalog, args.document)
+    if code != EXIT_OK:
+        return code
+    state = fresh_mod.Freshness(library.root)
+    listings = listing_mod.Listings(CLIENT_FACTORY())
+    counts = {"current": 0, "newer": 0, "unreachable": 0}
+    for doc in docs:
+        check = fresh_mod.check_document(doc, listings)
+        state.record(check)
+        counts[check.status] += 1
+        if check.status == "current":
+            print(f"current {doc.id} {check.catalog_latest}")
+        elif check.status == "unreachable":
+            print(f"unreachable {doc.id}: {check.problem}")
+        else:
+            listed = "; ".join(_seen_line(doc, s) for s in check.newer)
+            print(
+                f"newer {doc.id}: catalog latest {check.catalog_latest}, "
+                f"{fresh_mod.publisher_name(doc)} lists {listed}"
+            )
+    unchecked = [d.id for d in catalog.documents if not d.listing]
+    if not args.document and unchecked:
+        print(f"unchecked: {', '.join(unchecked)} (no publisher listing)")
+    if not args.document:
+        _check_release(catalog, library, state)
+    state.save()
+    if counts["newer"]:
+        print(
+            "nothing was downloaded: a newer version enters the Library only "
+            "after the catalog lists it (bmcspec refresh, or a pull request) "
+            "or as a Drop-in"
+        )
+    print(
+        f"summary: current {counts['current']}, newer {counts['newer']}, "
+        f"unreachable {counts['unreachable']}"
+        + (f", unchecked {len(unchecked)}" if not args.document else "")
+    )
+    return EXIT_OK
+
+
+def _check_release(catalog: Catalog, library: Library, state) -> None:
+    """The OpenBMC release line of ``check``, when config.toml pins one."""
+    try:
+        config = code_mod.load_config(library.root)
+    except code_mod.CodeError as exc:
+        print(f"unreachable release: {exc}")
+        return
+    if not config.release:
+        return
+    source = catalog.get_repo(code_mod.OPENBMC_REPO)
+    if source is None:
+        print(f"unreachable release: the catalog has no '{code_mod.OPENBMC_REPO}'")
+        return
+    try:
+        newest = fresh_mod.newest_release_tag(source.url)
+    except code_mod.CodeError as exc:
+        print(f"unreachable release: {exc}")
+        state.record_release(config.release, None, str(exc))
+        return
+    state.record_release(config.release, newest, "")
+    head = (
+        f"release: {config.release} (config.toml); newest openbmc tag {newest or '-'}"
+    )
+    if newest is None:
+        print(f"{head} (no X.Y.Z tag found)")
+        return
+    verdict = fresh_mod.release_is_newer(config.release, newest)
+    if verdict is None:
+        print(f"{head} ({config.release} is a branch, not compared)")
+    elif verdict:
+        print(f"{head} -> newer")
+    else:
+        print(f"{head} -> {config.release} is the newest")
+
+
+def cmd_refresh(args: argparse.Namespace) -> int:
+    catalog = _load(args)
+    path = args.catalog or DEFAULT_CATALOG
+    docs, code = _checkable(catalog, args.document)
+    if code != EXIT_OK:
+        return code
+    listings = listing_mod.Listings(CLIENT_FACTORY())
+    counts = {"add": 0, "confirm": 0, "changed": 0, "unreachable": 0}
+    written = 0
+    for doc in docs:
+        found = refresh_mod.proposals(doc, listings)
+        for prop in found:
+            counts[prop.kind] += 1
+            if prop.kind == "unreachable":
+                print(f"unreachable {doc.id}: {prop.problem}")
+            else:
+                line = f"{prop.kind} {doc.id} {_seen_line(doc, prop.seen)}"
+                if prop.why and doc.listing_source != "ocp":
+                    line += f" ({prop.why})"
+                print(line)
+        to_write = [p.seen for p in found if p.writable]
+        if args.write and to_write:
+            try:
+                refresh_mod.append_versions(path, doc.id, to_write)
+            except refresh_mod.RefreshError as exc:
+                print(f"cannot write {doc.id}: {exc}")
+                return EXIT_ERROR
+            written += len(to_write)
+            print(f"wrote {len(to_write)} version(s) of {doc.id} to {path}")
+    print(
+        f"summary: add {counts['add']}, confirm {counts['confirm']}, "
+        f"changed {counts['changed']}, unreachable {counts['unreachable']}"
+        + (f", written {written}" if args.write else " (dry run; --write adds them)")
+    )
     return EXIT_OK
 
 
@@ -934,7 +1146,7 @@ def cmd_clone(args: argparse.Namespace) -> int:
     try:
         if release:
             source = _openbmc_tree(catalog, library, release, args.force)
-            pin = code_mod.find_pin(source.path, repo.id)
+            pin, recipe = code_mod.find_pin_recipe(source.path, repo.id)
             prov = code_mod.Provenance("release", release, source.commit)
             tree, fetched = library.clone(
                 repo.id,
@@ -979,7 +1191,51 @@ def cmd_clone(args: argparse.Namespace) -> int:
                 )
     else:
         print(f"held {tree.label} ({what}) at {tree.path}")
+    if release:
+        print(f"pin: {tree.short} from {recipe} of openbmc {source.short}")
     return EXIT_OK
+
+
+def cmd_prune(args: argparse.Namespace) -> int:
+    root = resolve_library()
+    library = code_mod.CodeLibrary(root)
+    doomed = [t for t in library.trees() if t.superseded]
+    leftovers = []
+    if library.code.is_dir():
+        for rdir in sorted(p for p in library.code.iterdir() if p.is_dir()):
+            leftovers += sorted(
+                p for p in rdir.iterdir() if p.is_dir() and p.name.startswith(".tmp-")
+            )
+    if not doomed and not leftovers:
+        print("nothing to prune: no superseded Code Tree, no leftover")
+        return EXIT_OK
+    verb = "removed" if args.yes else "would remove"
+    failed = 0
+    for tree in doomed:
+        why = (
+            f"{tree.label}, {tree.provenance.label(tree.fetched_at)}, "
+            f"superseded by {tree.superseded_by[:7]}"
+        )
+        failed += _prune_path(tree.path, f"{verb} {tree.path} ({why})", args.yes)
+    for path in leftovers:
+        failed += _prune_path(path, f"{verb} {path} (leftover)", args.yes)
+    tail = "" if args.yes else " (dry run; --yes removes them)"
+    print(
+        f"prune: {len(doomed)} superseded tree(s), {len(leftovers)} leftover(s){tail}"
+    )
+    return EXIT_ERROR if failed else EXIT_OK
+
+
+def _prune_path(path: Path, line: str, really: bool) -> int:
+    """Print the line and, when ``really``, remove the directory; 1 on failure."""
+    if really:
+        try:
+            code_mod._rmtree(path)
+        except code_mod.CodeError as exc:
+            print(f"failed {path}: {exc}")
+            return 1
+    print(line)
+    return 0
 
 
 def _select_tree(args, catalog, library, config, repo):
@@ -1378,6 +1634,9 @@ COMMANDS = {
     "add": cmd_add,
     "scan": cmd_scan,
     "status": cmd_status,
+    "check": cmd_check,
+    "refresh": cmd_refresh,
+    "prune": cmd_prune,
     "extract": cmd_extract,
     "find": cmd_find,
     "section": cmd_section,

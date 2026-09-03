@@ -1,10 +1,12 @@
 {
     "name": "bmc-toolkit",
-    "version": "0.1.0",
+    "version": "0.9.0",
     "description": "Skills for BMC firmware developers: answer questions from the BMC specification corpus (IPMI, DMTF MCTP/PLDM/SPDM, Redfish, NVMe-MI, OCP, ...) and from OpenBMC source, with citations.",
     "author": {
-        "name": "Muwen Huang"
+        "name": "Muwen Huang (Ian Huang)"
     },
     "license": "MIT",
+    "homepage": "https://github.com/ianmhuang/bmc-toolkit",
+    "repository": "https://github.com/ianmhuang/bmc-toolkit",
     "keywords": ["bmc", "ipmi", "redfish", "pldm", "mctp", "spdm", "openbmc"]
 }

@@ -10,10 +10,12 @@ asked about, defaults to the latest published version of each document,
 serves any specific version on request, and cites document, version, section
 and page in every answer.
 
-**Status: pre-release.** The Source Catalog, document fetching, text
-extraction, section lookup, search, page reading with Citations and page
-rendering work. Tables that span pages and OpenBMC source questions are
-being added milestone by milestone.
+**Status: pre-release (0.9.0).** The Source Catalog covers Intel IPMI, DMTF,
+Redfish, NVMe, OCP DC-SCM and DC-MHS, I2C, SMBus and CMIS; UEFI and ACPI
+are not in the catalog (uefi.org serves no scripted client) and enter only
+as Drop-ins. Version 1.0.0 follows once the catalog is broader and every
+document has been checked against the acceptance set in
+`docs/golden-questions.md`.
 
 ## Install
 
@@ -77,6 +79,9 @@ python skills/bmc-spec/scripts/bmcspec.py fetch --all          # several hundred
 python skills/bmc-spec/scripts/bmcspec.py add vendor.pdf --document DSP0236 --version 1.1.0   # --force to replace
 python skills/bmc-spec/scripts/bmcspec.py scan                 # register hand-placed files
 python skills/bmc-spec/scripts/bmcspec.py status
+python skills/bmc-spec/scripts/bmcspec.py check DSP0236        # is the catalog behind DMTF? (no download)
+python skills/bmc-spec/scripts/bmcspec.py check                # every document with a listing, plus the OpenBMC release
+python skills/bmc-spec/scripts/bmcspec.py refresh --write      # maintainer: add the versions the publishers list
 python skills/bmc-spec/scripts/bmcspec.py extract DSP0236      # text, outline, line map, figures
 python skills/bmc-spec/scripts/bmcspec.py extract --all
 python skills/bmc-spec/scripts/bmcspec.py section DSP0236 8.1  # level | title | pages, per matching entry
@@ -92,6 +97,7 @@ python skills/bmc-spec/scripts/bmcspec.py clone bmcweb                         #
 python skills/bmc-spec/scripts/bmcspec.py clone pldm --release 2.18.0          # the commit OpenBMC 2.18.0 ships
 python skills/bmc-spec/scripts/bmcspec.py grep bmcweb CurrentPowerState --context 2
 python skills/bmc-spec/scripts/bmcspec.py code bmcweb redfish-core/lib/chassis.hpp --lines 160-175
+python skills/bmc-spec/scripts/bmcspec.py prune                # list superseded Code Trees; --yes removes them
 ```
 
 Exit codes: 0 done, 1 error, 2 you need to act (the message says what).
@@ -144,9 +150,18 @@ tree: a user checkout named in `config.toml` first, then the `--ref` or
 default-branch tree. Every `code` output starts with a `cite:` line naming
 repository, commit, provenance, path and lines.
 
+`prune` lists every Code Tree marked superseded (an older commit of a
+moving name re-fetched with `--force`) and every `.tmp-*` directory a
+failed clone left behind, and removes nothing; `prune --yes` removes
+them. The current tree of each name, trees reached by a commit, user
+checkouts and `specs/` are never touched.
+
 `config.toml` at the Library root (optional):
 
 ```toml
+[library]
+freshness_days = 30           # how old a Freshness Check may be before a note
+
 [code]
 release = "2.18.0"            # default Release for clone, grep and code
 
@@ -154,6 +169,27 @@ release = "2.18.0"            # default Release for clone, grep and code
 bmcweb = "/home/me/src/bmcweb" # a checkout of your own wins over the Library
                                # (a relative path is taken from the Library root)
 ```
+
+## Freshness Check
+
+Publishers add versions faster than a catalog is maintained. `check DOC`
+asks the publisher what it lists now and compares with the catalog:
+`current DOC V`, or `newer DOC: catalog latest V, <publisher> lists W
+(date) URL`. `check` alone does every document that has a listing (the
+DMTF published-documents page, the nvmexpress.org specifications API, the
+OCP wiki specification tables; Intel, NXP, SMBus and OIF have no
+parseable index and are printed as `unchecked`), then, when `config.toml`
+pins a release, compares it with the newest `X.Y.Z` tag of
+`openbmc/openbmc` (`release: 2.18.0 (config.toml); newest openbmc tag
+3.0.0 -> newer`). Nothing is downloaded and no version is switched: a
+newer version enters the Library only after the catalog lists it (see
+The Source Catalog below) or as a Drop-in. The outcome and the time go to
+`freshness.json` at the Library root; `fetch` and `status` print a
+`note:` when a document served has not been checked within
+`freshness_days` (default 30), once per document until the next `check`,
+and that note never touches the network.
+OCP versions are mostly Google Drive links on the wiki, so `check`
+reports them with `(URL to confirm by hand)`.
 
 ## What the tool does on the network and on disk
 
@@ -180,18 +216,29 @@ bmcweb = "/home/me/src/bmcweb" # a checkout of your own wins over the Library
   dictionaries and the PDFs stay in the ZIP. Member paths that would
   escape `schemas/` are refused, and a base name that appears twice is
   written once.
-- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository), `grep` and `code` (reading `HEAD` of a user checkout); `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed.
-- `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>` directory that is removed on failure. A user checkout named in `config.toml` is only read.
+- `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/w/index.php?title=<page>` for the pages named in the catalog's `listing` keys. They download no document.
+- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed.
+- `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>` directory that is removed on failure. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees and `.tmp-*` leftovers under `code/`, nothing else.
+- `check` writes `freshness.json` at the Library root; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it appends version entries to the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).
 
 ## The Source Catalog
 
 `bmc_toolkit/spec/catalog.toml` lists every family, document, version and
 URL; comments in the file record when a URL was last confirmed. A document
 may name companions in `searched_with` (errata, specification updates)
-that `find` searches together with it. Publishers
-add versions faster than any one maintainer notices: if `catalog DOC` shows
-an older latest than the publisher's site, please open a pull request
-adding the version entry.
+that `find` searches together with it, and a `listing`
+(`dmtf:<DSP>`, implied for DMTF documents; `nvme:<slug>` of the
+nvmexpress.org API; `ocp:<wiki page>|<description prefix>`) that `check`
+and `refresh` consult. `refresh` prints the versions the publishers list
+that the catalog lacks (`add`), catalog URLs that moved (`changed`, for
+DMTF and NVMe) and versions a human has to handle (`confirm`: OCP rows,
+whose download URL has to be found, and DMTF Work-in-Progress rows, which
+the catalog lists only by hand with `wip = true`); `refresh --write`
+appends the `add` entries as `[[documents.versions]]` blocks at the end of
+the document's block, leaving every other line and comment as it was, and
+refuses an edit the parser would not accept. If `check` reports a newer version, please open a
+pull request with the `refresh --write` result (and the confirmed OCP
+URL).
 
 ## Development
 
