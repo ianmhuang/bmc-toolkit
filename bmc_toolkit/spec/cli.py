@@ -15,6 +15,7 @@ from bmc_toolkit.spec import extract as extract_mod
 from bmc_toolkit.spec import fetch as fetch_mod
 from bmc_toolkit.spec import render as render_mod
 from bmc_toolkit.spec import search as search_mod
+from bmc_toolkit.spec import tables as tables_mod
 from bmc_toolkit.spec.catalog import Catalog, CatalogError, Document, load_catalog
 from bmc_toolkit.spec.library import (
     DEFAULT_LIBRARY_DIRNAME,
@@ -132,6 +133,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", dest="doc_version", help="exact version string")
     p.add_argument("--scale", type=float, default=render_mod.DEFAULT_SCALE)
     p.add_argument("--force", action="store_true", help="re-render if present")
+
+    p = sub.add_parser("table", help="print the ruled tables on a page, whole")
+    p.add_argument("document", help="document id")
+    p.add_argument("--page", type=int, required=True, help="physical page (1-based)")
+    p.add_argument("--version", dest="doc_version", help="exact version string")
+    p.add_argument(
+        "--index", type=int, help="only the K-th table on the page (1-based)"
+    )
+    p.add_argument(
+        "--force", action="store_true", help="read the PDF again instead of tables.json"
+    )
     return parser
 
 
@@ -700,6 +712,80 @@ def cmd_render(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _section_lookup(version: search_mod.Version):
+    """The Outline entry in force at a table's caption (or the page top)."""
+
+    def lookup(page: int, caption: str | None):
+        index = version.find_line(page, caption) if caption else 0
+        return version.owning_section(page, index)
+
+    return lookup
+
+
+def _label(section) -> str | None:
+    return section.label if section else None
+
+
+def cmd_table(args: argparse.Namespace) -> int:
+    version, _, code = _open_version(args)
+    if version is None:
+        return code
+    n = args.page
+    if not 1 <= n <= version.page_count:
+        print(f"page {n} is outside {version.label} (pages 1-{version.page_count})")
+        return EXIT_ACTION
+    if args.index is not None and args.index < 1:
+        print("--index counts from 1")
+        return EXIT_ACTION
+    lookup = _section_lookup(version)
+    tables = None if args.force else tables_mod.stored_for_page(version.path, n)
+    if tables is None:
+        original = version.original or version.path / "original.pdf"
+        try:
+            with tables_mod.Reader(original) as reader:
+                tables = reader.logical_tables(
+                    n, section_of=lambda page, caption: _label(lookup(page, caption))
+                )
+        except ImportError as exc:
+            print(f"cannot read tables: {exc}; run: pip install -r requirements.txt")
+            return EXIT_ACTION
+        except tables_mod.TableError as exc:
+            print(f"cannot read tables of {version.label}: {exc}")
+            return EXIT_ERROR
+        tables_mod.store(version.path, n, tables)
+    if not tables:
+        doc = version.document
+        print(
+            f"no ruled table on page {n} of {version.label}; read the page with: "
+            f"bmcspec page {doc} {n}, or look at it with: "
+            f"bmcspec render {doc} --page {n}"
+        )
+        return EXIT_ACTION
+    if args.index is not None:
+        if args.index > len(tables):
+            print(
+                f"page {n} has {len(tables)} table(s); "
+                f"--index {args.index} is out of range"
+            )
+            return EXIT_ACTION
+        tables = [tables[args.index - 1]]
+    for i, table in enumerate(tables):
+        if i:
+            print()
+        print(
+            version.cite(
+                table.first,
+                lines=f"table {table.index}",
+                last=table.last,
+                section=lookup(table.first, table.caption),
+            )
+        )
+        print(tables_mod.describe(table))
+        for ln in tables_mod.format_table(table):
+            print(ln)
+    return EXIT_OK
+
+
 COMMANDS = {
     "library": cmd_library,
     "catalog": cmd_catalog,
@@ -712,6 +798,7 @@ COMMANDS = {
     "section": cmd_section,
     "page": cmd_page,
     "render": cmd_render,
+    "table": cmd_table,
 }
 
 

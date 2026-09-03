@@ -34,7 +34,8 @@ checkout run `pip install -r requirements.txt` yourself.
 - `pypdfium2` 5.x (BSD-3-Clause or Apache-2.0): PDF text with character
   positions and bookmarks; the text layer. Version 5 or newer is required
   (its bookmark API changed in 5.0); `extract` refuses an older install.
-- `pdfplumber` (MIT): table extraction (used from a later milestone on).
+- `pdfplumber` (MIT): cell geometry and cell text of ruled tables, for
+  `table`; loaded only by that command.
 
 ## Library location
 
@@ -77,6 +78,7 @@ python skills/bmc-spec/scripts/bmcspec.py find DSP0236 "Msg tag" --context 1   #
 python skills/bmc-spec/scripts/bmcspec.py page DSP0236 24 --to 25              # the pages, with a cite: line each
 python skills/bmc-spec/scripts/bmcspec.py page DSP0236 --section 8.2
 python skills/bmc-spec/scripts/bmcspec.py render DSP0236 --page 24             # renders/page-24.png
+python skills/bmc-spec/scripts/bmcspec.py table DSP0236 --page 122             # the table(s) on the page, whole
 ```
 
 Exit codes: 0 done, 1 error, 2 you need to act (the message says what).
@@ -91,6 +93,16 @@ Specification Update) is searched together with those, their hits first;
 line range (or `rendered page`), origin URL or `user-provided`, and the
 Library path. The Skill copies Citations from those lines and never
 composes them.
+
+`table` prints every ruled table touching the page as a Logical Table: the
+pages it spans are read and joined (a table continues when it is the last
+thing on its page, the next page starts with a table with the same column
+edges, and only running headers, footers and page numbers lie between;
+a repeated header row is dropped), and the result is a `cite:` line with
+`PDF pages A-B` and `table K`, a `table:` line with the caption, and the
+rows as a text grid. Tables are read on demand and kept in `tables.json`
+next to the Extract, so a page is read from the PDF once; `--force` reads
+it again. Tables without ruling lines are not detected.
 
 ## What the tool does on the network and on disk
 
@@ -108,7 +120,8 @@ composes them.
   (`catalog_known`). Nothing already in the Library is replaced without
   `--force`.
 - Replacing an original (`add --force`, `fetch --force`) removes the
-  previous original and everything extracted from it.
+  previous original and everything extracted from it, `tables.json` and
+  rendered pages included; so does `extract --force`.
 - Never runs a subprocess and never re-uploads or redistributes anything.
 
 ## The Source Catalog

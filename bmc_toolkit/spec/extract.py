@@ -49,6 +49,7 @@ LINEMAP_NAME = "linemap.json"
 FIGURES_NAME = "figures.json"
 META_NAME = "extract.json"
 RENDERS_DIRNAME = "renders"
+TABLES_NAME = "tables.json"  # written by tables.py; removed with the rest
 
 # Figure detection, in PDF points.
 DIAGONAL_PT = 2.0  # a segment moving more than this in both x and y is diagonal
@@ -625,6 +626,13 @@ def extract_pdf(path: Path) -> ExtractResult:
 
     started = time.perf_counter()
     pdf = pdfium.PdfDocument(str(path))
+    try:
+        return _extract_open(pdf, raw, started)
+    finally:
+        pdf.close()  # or Windows keeps the original locked
+
+
+def _extract_open(pdf, raw, started: float) -> ExtractResult:
     count = len(pdf)
     chunks: list[str] = []
     pages_lines: list[list[str]] = []
@@ -719,6 +727,9 @@ def write_result(vdir: Path, result: ExtractResult) -> None:
         dump(FIGURES_NAME, result.figures)
     elif figures_path.exists():
         figures_path.unlink()
+    tables_path = vdir / TABLES_NAME  # tables carry section labels: read anew
+    if tables_path.exists():
+        tables_path.unlink()
     dump(META_NAME, result.to_meta())
 
 
@@ -742,7 +753,14 @@ def is_current(vdir: Path) -> bool:
 
 
 def remove_derived(vdir: Path) -> None:
-    for name in (EXTRACT_NAME, OUTLINE_NAME, LINEMAP_NAME, FIGURES_NAME, META_NAME):
+    for name in (
+        EXTRACT_NAME,
+        OUTLINE_NAME,
+        LINEMAP_NAME,
+        FIGURES_NAME,
+        TABLES_NAME,
+        META_NAME,
+    ):
         p = vdir / name
         if p.exists():
             p.unlink()

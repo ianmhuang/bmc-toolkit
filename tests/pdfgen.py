@@ -6,6 +6,10 @@ Each page is a list of items in PDF points, origin bottom-left:
                                           embedding)
     ("line", x0, y0, x1, y1)              a stroked line
     ("rect", x, y, w, h)                  a stroked rectangle
+    ("fill", x, y, w, h[, gray])          a filled rectangle (black, or the
+                                          grey level 0..1): a thin one is a
+                                          table rule the way Word draws it, a
+                                          large light one a shaded cell
     ("curve", x0, y0, x1, y1, x2, y2, x3, y3)   a stroked Bezier curve
     ("image", x, y, w, h)                 a 2x2 grey raster image scaled to w x h
     ("form", x, y, w, h)                  a form XObject (a diagonal line across a
@@ -37,6 +41,9 @@ def _content(items) -> bytes:
                 draw.append(b"%.2f %.2f m %.2f %.2f l S" % tuple(item[1:5]))
             elif kind == "rect":
                 draw.append(b"%.2f %.2f %.2f %.2f re S" % tuple(item[1:5]))
+            elif kind == "fill":
+                gray = item[5] if len(item) > 5 else 0.0
+                draw.append(b"q %.3f g %.2f %.2f %.2f %.2f re f Q" % (gray, *item[1:5]))
             elif kind == "curve":
                 draw.append(
                     b"%.2f %.2f m %.2f %.2f %.2f %.2f %.2f %.2f c S" % tuple(item[1:9])

@@ -62,9 +62,12 @@ def render_page(
     """Render physical page ``page`` (1-based) of ``pdf_path`` into ``out``."""
     pdfium = _require_pypdfium2()
     pdf = pdfium.PdfDocument(str(pdf_path))
-    if not 1 <= page <= len(pdf):
-        raise ValueError(f"page {page} is outside 1-{len(pdf)}")
-    bitmap = pdf[page - 1].render(scale=scale, rev_byteorder=True)
+    try:
+        if not 1 <= page <= len(pdf):
+            raise ValueError(f"page {page} is outside 1-{len(pdf)}")
+        bitmap = pdf[page - 1].render(scale=scale, rev_byteorder=True)
+    finally:
+        pdf.close()  # or Windows keeps the original locked
     out.parent.mkdir(parents=True, exist_ok=True)
     write_png(out, bitmap.width, bitmap.height, _rgb_rows(bitmap))
     return out

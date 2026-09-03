@@ -16,6 +16,9 @@ the verbatim string.
 (``direct`` | ``wayback`` | ``dropin``), ``sha256``, ``size``, ``fetched_at``
 (ISO 8601, UTC), ``dropin`` (bool), and for files registered by ``scan``
 ``catalog_known`` (bool: whether the document id is in the Source Catalog).
+
+Everything derived from the original (the Extract and its companions,
+``tables.json``, rendered pages) goes away when the original is replaced.
 """
 
 import hashlib
@@ -38,6 +41,7 @@ DERIVED_NAMES = (
     "outline.json",
     "linemap.json",
     "figures.json",
+    "tables.json",
 )
 RENDERS_DIRNAME = "renders"  # page images rendered from the original
 MAGIC = {"pdf": (b"%PDF",), "zip": (b"PK\x03\x04",)}
