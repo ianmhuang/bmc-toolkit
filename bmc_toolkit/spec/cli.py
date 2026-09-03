@@ -12,6 +12,7 @@ from pathlib import Path
 
 from bmc_toolkit import __version__
 from bmc_toolkit.spec import bundle as bundle_mod
+from bmc_toolkit.spec import code as code_mod
 from bmc_toolkit.spec import extract as extract_mod
 from bmc_toolkit.spec import fetch as fetch_mod
 from bmc_toolkit.spec import render as render_mod
@@ -143,6 +144,37 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--property", help="one property of the resource")
     p.add_argument("--definition", help="one named definition of the resource's file")
     p.add_argument("--version", dest="doc_version", help="exact version string")
+
+    p = sub.add_parser("repos", help="list the code repositories and held Code Trees")
+    p.add_argument("--topic", help="only repositories about this topic")
+    p.add_argument(
+        "--search", metavar="PATTERN", help="GitHub code search over openbmc via gh"
+    )
+
+    p = sub.add_parser("clone", help="bring a repository into the Library")
+    p.add_argument("repo", help="repository id (see repos)")
+    p.add_argument("--ref", help="a branch, tag or commit of the repository")
+    p.add_argument("--release", help="an OpenBMC release tag or branch (2.18.0)")
+    p.add_argument("--force", action="store_true", help="resolve a moving name again")
+
+    p = sub.add_parser("grep", help="search a held Code Tree with git grep")
+    p.add_argument("repo", help="repository id")
+    p.add_argument("pattern", help="text to look for (fixed string unless --regex)")
+    p.add_argument("--ref", help="the Code Tree reached by this ref")
+    p.add_argument("--release", help="the Code Tree pinned by this release")
+    p.add_argument("--regex", action="store_true", help="pattern is an extended regex")
+    p.add_argument("--glob", help="only paths matching this git pathspec")
+    p.add_argument("--context", type=int, default=0, help="lines around each hit")
+    p.add_argument(
+        "--max", dest="max_hits", type=int, default=MAX_HITS, help="hits; 0 = all"
+    )
+
+    p = sub.add_parser("code", help="print a file of a held Code Tree with a cite")
+    p.add_argument("repo", help="repository id")
+    p.add_argument("path", help="path inside the repository")
+    p.add_argument("--lines", help="A-B, required for files over 200 lines")
+    p.add_argument("--ref", help="the Code Tree reached by this ref")
+    p.add_argument("--release", help="the Code Tree pinned by this release")
 
     p = sub.add_parser("table", help="print the ruled tables on a page, whole")
     p.add_argument("document", help="document id")
@@ -756,6 +788,327 @@ def cmd_render(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+# --------------------------------------------------------------- code
+
+
+def _code_setup(args):
+    """(catalog, CodeLibrary, Config) or an exit code after a message."""
+    catalog = _load(args)
+    root = resolve_library()
+    try:
+        config = code_mod.load_config(root)
+    except code_mod.CodeError as exc:
+        print(str(exc))
+        return None, None, None, EXIT_ERROR
+    return catalog, code_mod.CodeLibrary(root), config, EXIT_OK
+
+
+def _repo_or_message(catalog, repo_id: str):
+    repo = catalog.get_repo(repo_id)
+    if repo is None:
+        print(f"unknown repository '{repo_id}'; bmcspec repos lists them")
+    return repo
+
+
+def _tree_summary(tree: code_mod.Tree) -> str:
+    text = f"{tree.short} {tree.provenance.label(tree.fetched_at)}"
+    return text + (" superseded" if tree.superseded else "")
+
+
+def cmd_repos(args: argparse.Namespace) -> int:
+    catalog, library, config, code = _code_setup(args)
+    if code != EXIT_OK:
+        return code
+    if args.search:
+        try:
+            hits = code_mod.gh_search(args.search)
+        except code_mod.CodeError as exc:
+            print(str(exc))
+            return EXIT_ACTION
+        print("note: GitHub code search covers default branches only")
+        if not hits:
+            print("no hits")
+            return EXIT_OK
+        for repo, path in hits:
+            print(f"{repo} {path}")
+        return EXIT_OK
+    if config.release:
+        held = [
+            t
+            for t in library.trees(code_mod.OPENBMC_REPO)
+            if t.provenance.kind in ("ref", "default")
+            and t.provenance.name == config.release
+        ]
+        resolved = f"openbmc {held[0].short}" if held else "not resolved yet"
+        print(f"release: {config.release} (config.toml) -> {resolved}")
+    repos = catalog.by_topic(args.topic) if args.topic else catalog.repos
+    if args.topic and not repos:
+        print(f"no repository has the topic '{args.topic}'")
+        return EXIT_ACTION
+    for repo in repos:
+        trees = [t for t in library.trees(repo.id) if not t.superseded] + [
+            t for t in library.trees(repo.id) if t.superseded
+        ]
+        held = "; ".join(_tree_summary(t) for t in trees) or "-"
+        checkout = config.checkouts.get(repo.id.lower())
+        mine = f"user checkout: {checkout}" if checkout else "-"
+        print(f"{repo.id}\t{held}\t{mine}\t{', '.join(repo.topics)}")
+    return EXIT_OK
+
+
+def _openbmc_tree(catalog, library, release: str, force: bool) -> code_mod.Tree:
+    """The openbmc/openbmc Code Tree at the release, fetched if needed."""
+    source = catalog.get_repo(code_mod.OPENBMC_REPO)
+    if source is None:
+        raise code_mod.CodeError(
+            f"the catalog has no '{code_mod.OPENBMC_REPO}' repository to resolve "
+            f"releases from"
+        )
+    if not force:
+        for t in library.trees(source.id):
+            if t.provenance.kind == "ref" and t.provenance.name == release:
+                if not t.superseded:
+                    return t
+    tree, fetched = library.clone(
+        source.id,
+        source.url,
+        code_mod.Provenance("ref", release),
+        ref=release,
+        sparse=source.sparse,
+        force=force,
+    )
+    if fetched:
+        print(f"cloned {tree.label} (release {release}) -> {tree.path}")
+    return tree
+
+
+def cmd_clone(args: argparse.Namespace) -> int:
+    if args.ref and args.release:
+        print("give --ref or --release, not both")
+        return EXIT_ACTION
+    catalog, library, config, code = _code_setup(args)
+    if code != EXIT_OK:
+        return code
+    repo = _repo_or_message(catalog, args.repo)
+    if repo is None:
+        return EXIT_ACTION
+    release = args.release
+    if not args.ref and not release and config.release:
+        release = config.release
+        print(f"release: {release} (from config.toml)")
+    try:
+        if release:
+            source = _openbmc_tree(catalog, library, release, args.force)
+            pin = code_mod.find_pin(source.path, repo.id)
+            prov = code_mod.Provenance("release", release, source.commit)
+            tree, fetched = library.clone(
+                repo.id,
+                repo.url,
+                prov,
+                commit=pin,
+                sparse=repo.sparse,
+                force=args.force,
+            )
+        elif args.ref:
+            prov = code_mod.Provenance("ref", args.ref)
+            tree, fetched = library.clone(
+                repo.id,
+                repo.url,
+                prov,
+                ref=args.ref,
+                sparse=repo.sparse,
+                force=args.force,
+            )
+        else:
+            prov = code_mod.Provenance("default", "")
+            tree, fetched = library.clone(
+                repo.id, repo.url, prov, sparse=repo.sparse, force=args.force
+            )
+    except code_mod.CodeError as exc:
+        print(str(exc))
+        return EXIT_ACTION
+    what = tree.provenance.label(tree.fetched_at)
+    if fetched:
+        print(f"cloned {tree.label} ({what}) -> {tree.path}")
+        for old in library.trees(repo.id):
+            if old.superseded_by == tree.commit:
+                print(
+                    f"superseded {old.label} ({old.provenance.label(old.fetched_at)})"
+                )
+    else:
+        print(f"held {tree.label} ({what}) at {tree.path}")
+    return EXIT_OK
+
+
+def _select_tree(args, catalog, library, config, repo):
+    """(tree, notes): the Code Tree a reading command works on.
+
+    A user checkout wins; then the named ref or release; then the config
+    release; then the newest default-branch tree. CodeError says what to
+    run when nothing fits.
+    """
+    notes = []
+    checkout = config.checkouts.get(repo.id.lower())
+    if checkout is not None:
+        tree = code_mod.checkout_tree(repo.id, repo.url, checkout)
+        asked = args.ref or args.release
+        if asked:
+            notes.append(f"note: using the user checkout {checkout} instead of {asked}")
+        return tree, notes
+    trees = library.trees(repo.id)
+    if args.ref:
+        found = (
+            library.held(repo.id, args.ref) if code_mod._SHA.match(args.ref) else None
+        )
+        if found is None:
+            named = [
+                t
+                for t in trees
+                if t.provenance.kind in ("ref", "default")
+                and t.provenance.name == args.ref
+            ]
+            named.sort(key=lambda t: (t.superseded, ""))
+            found = named[0] if named else None
+        if found is None:
+            raise code_mod.CodeError(
+                f"{repo.id} is not held at {args.ref}; run: bmcspec clone {repo.id} "
+                f"--ref {args.ref}"
+            )
+        return found, notes
+    release = args.release or config.release
+    if release:
+        if not args.release:
+            notes.append(f"note: release {release} from config.toml")
+        pinned = [
+            t
+            for t in trees
+            if t.provenance.kind == "release" and t.provenance.name == release
+        ]
+        pinned.sort(key=lambda t: (t.superseded, ""))
+        if not pinned:
+            raise code_mod.CodeError(
+                f"{repo.id} is not held at release {release}; run: bmcspec clone "
+                f"{repo.id} --release {release}"
+            )
+        return pinned[0], notes
+    current = [t for t in trees if t.provenance.kind == "default" and not t.superseded]
+    if current:
+        return current[0], notes
+    if trees:
+        return trees[0], notes
+    raise code_mod.CodeError(
+        f"{repo.id} is not in the Library; run: bmcspec clone {repo.id}"
+    )
+
+
+def _reading_tree(args):
+    """(tree, repo, notes, exit code) for grep and code."""
+    if args.ref and args.release:
+        print("give --ref or --release, not both")
+        return None, None, [], EXIT_ACTION
+    catalog, library, config, code = _code_setup(args)
+    if code != EXIT_OK:
+        return None, None, [], code
+    repo = _repo_or_message(catalog, args.repo)
+    if repo is None:
+        return None, None, [], EXIT_ACTION
+    try:
+        tree, notes = _select_tree(args, catalog, library, config, repo)
+    except code_mod.CodeError as exc:
+        print(str(exc))
+        return None, None, [], EXIT_ACTION
+    return tree, repo, notes, EXIT_OK
+
+
+def cmd_grep(args: argparse.Namespace) -> int:
+    tree, repo, notes, code = _reading_tree(args)
+    if tree is None:
+        return code
+    if args.max_hits < 0:
+        print("--max must be 0 or more")
+        return EXIT_ACTION
+    try:
+        hits = code_mod.grep(
+            tree,
+            args.pattern,
+            regex=args.regex,
+            glob=args.glob,
+            context=max(0, args.context),
+        )
+    except code_mod.CodeError as exc:
+        print(str(exc))
+        return EXIT_ACTION
+    for note in notes:
+        print(note)
+    matches = [h for h in hits if not h.context and h.line]
+    if not matches:
+        print("no hits")
+        return EXIT_OK
+    limit = args.max_hits or len(matches)
+    blocks: list[list[code_mod.Hit]] = [[]]
+    for hit in hits:  # separators split blocks; context lines stay in theirs
+        if hit.line == 0:
+            blocks.append([])
+        elif args.context:
+            blocks[-1].append(hit)
+        else:
+            blocks.append([hit])  # no context: every hit stands alone
+    shown = 0
+    for i, block in enumerate(b for b in blocks if b):
+        if shown >= limit:
+            break
+        if i and args.context:
+            print("--")
+        for hit in block:
+            if hit.context:
+                print(f"    line {hit.line}: {hit.text}")
+            else:
+                print(f"{repo.id}@{tree.short} {hit.path}:{hit.line} | {hit.text}")
+                shown += 1
+    more = len(matches) - shown
+    if more > 0:
+        print(f"{more} more hits not shown; narrow the pattern or raise --max")
+    return EXIT_OK
+
+
+def cmd_code(args: argparse.Namespace) -> int:
+    tree, repo, notes, code = _reading_tree(args)
+    if tree is None:
+        return code
+    try:
+        path, lines = code_mod.read_lines(tree, args.path)
+    except code_mod.CodeError as exc:
+        print(str(exc))
+        return EXIT_ACTION
+    if lines and lines[-1] == "":
+        lines.pop()  # the file's final newline
+    total = len(lines)
+    first, last = 1, total
+    if args.lines:
+        m = re.match(r"^(\d+)-(\d+)$", args.lines.strip())
+        if not m:
+            print("--lines takes A-B (line numbers, 1-based)")
+            return EXIT_ACTION
+        first, last = int(m.group(1)), int(m.group(2))
+        if first < 1 or last < first or first > total:
+            print(f"{path} has {total} lines; --lines {args.lines} is outside it")
+            return EXIT_ACTION
+        last = min(last, total)
+    elif total > code_mod.MAX_WHOLE_FILE:
+        print(
+            f"{path} has {total} lines; give --lines A-B "
+            f"(a whole file is printed only up to {code_mod.MAX_WHOLE_FILE} lines)"
+        )
+        return EXIT_ACTION
+    for note in notes:
+        print(note)
+    print(code_mod.cite(tree, path, first, last, repo.url))
+    width = len(str(last))
+    for n in range(first, last + 1):
+        print(f"{str(n).rjust(width)}  {lines[n - 1]}".rstrip())
+    return EXIT_OK
+
+
 # ------------------------------------------------------------- schema
 
 
@@ -984,6 +1337,10 @@ COMMANDS = {
     "render": cmd_render,
     "table": cmd_table,
     "schema": cmd_schema,
+    "repos": cmd_repos,
+    "clone": cmd_clone,
+    "grep": cmd_grep,
+    "code": cmd_code,
 }
 
 

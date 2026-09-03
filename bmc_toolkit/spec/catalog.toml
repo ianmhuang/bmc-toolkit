@@ -3568,3 +3568,251 @@ version = "2026.1"
 url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2026.1.pdf"
 type = "pdf"
 published = "2026-05-17"
+
+# ------------------------------------------------------------------ repos
+#
+# Code repositories the Skill can bring into the Library as Code Trees.
+# Upstream OpenBMC only. "topics" are keywords for `repos --topic`;
+# "sparse" limits the checkout to the listed paths (openbmc/openbmc is
+# held only for the recipes that pin every component in a release).
+
+[[repos]]
+id = "openbmc"
+url = "https://github.com/openbmc/openbmc.git"
+topics = ["release", "yocto", "recipes", "distro"]
+sparse = ["meta-phosphor"]
+# The OpenBMC distribution: Yocto layers and the recipes that pin every component (releases live here)
+
+[[repos]]
+id = "bmcweb"
+url = "https://github.com/openbmc/bmcweb.git"
+topics = ["redfish", "web", "rest", "http", "chassis", "systems"]
+# Redfish and web server
+
+[[repos]]
+id = "phosphor-host-ipmid"
+url = "https://github.com/openbmc/phosphor-host-ipmid.git"
+topics = ["ipmi", "kcs", "sensors", "sdr", "sel", "fru"]
+# IPMI host interface daemon and command handlers
+
+[[repos]]
+id = "phosphor-net-ipmid"
+url = "https://github.com/openbmc/phosphor-net-ipmid.git"
+topics = ["ipmi", "lan", "rmcp", "session"]
+# IPMI over LAN (RMCP+) daemon
+
+[[repos]]
+id = "phosphor-ipmi-flash"
+url = "https://github.com/openbmc/phosphor-ipmi-flash.git"
+topics = ["ipmi", "firmware-update", "blobs"]
+# IPMI firmware update over blobs
+
+[[repos]]
+id = "phosphor-ipmi-blobs"
+url = "https://github.com/openbmc/phosphor-ipmi-blobs.git"
+topics = ["ipmi", "blobs"]
+# IPMI blob transfer protocol
+
+[[repos]]
+id = "ipmi-fru-parser"
+url = "https://github.com/openbmc/ipmi-fru-parser.git"
+topics = ["ipmi", "fru", "inventory"]
+# IPMI FRU parsing and inventory
+
+[[repos]]
+id = "pldm"
+url = "https://github.com/openbmc/pldm.git"
+topics = ["pldm", "firmware-update", "sensors", "pdr", "bios"]
+# PLDM daemon: platform monitoring, firmware update, BIOS, FRU
+
+[[repos]]
+id = "libpldm"
+url = "https://github.com/openbmc/libpldm.git"
+topics = ["pldm", "encode", "decode", "firmware-update"]
+# PLDM message encoders and decoders
+
+[[repos]]
+id = "libmctp"
+url = "https://github.com/openbmc/libmctp.git"
+topics = ["mctp", "transport", "i2c", "serial"]
+# MCTP transport library
+
+[[repos]]
+id = "dbus-sensors"
+url = "https://github.com/openbmc/dbus-sensors.git"
+topics = ["sensors", "hwmon", "thermal", "psu", "ipmb"]
+# Sensor daemons reading hwmon, PSU, IPMB and more
+
+[[repos]]
+id = "entity-manager"
+url = "https://github.com/openbmc/entity-manager.git"
+topics = ["inventory", "configuration", "fru", "entity"]
+# Entity Manager: hardware configuration from JSON and FRU
+
+[[repos]]
+id = "phosphor-dbus-interfaces"
+url = "https://github.com/openbmc/phosphor-dbus-interfaces.git"
+topics = ["dbus", "interfaces", "yaml", "state", "inventory", "sensors"]
+# D-Bus interface definitions (YAML) for every daemon
+
+[[repos]]
+id = "phosphor-state-manager"
+url = "https://github.com/openbmc/phosphor-state-manager.git"
+topics = ["state", "power", "chassis", "host", "reboot"]
+# Host, chassis and BMC state management
+
+[[repos]]
+id = "phosphor-logging"
+url = "https://github.com/openbmc/phosphor-logging.git"
+topics = ["logging", "errors", "journal", "events"]
+# Error logging and journal integration
+
+[[repos]]
+id = "phosphor-bmc-code-mgmt"
+url = "https://github.com/openbmc/phosphor-bmc-code-mgmt.git"
+topics = ["firmware-update", "software", "images"]
+# BMC and host firmware image management and update
+
+[[repos]]
+id = "phosphor-power"
+url = "https://github.com/openbmc/phosphor-power.git"
+topics = ["power", "psu", "sequencer", "regulators"]
+# Power supply and power sequencer monitoring and control
+
+[[repos]]
+id = "phosphor-fan-presence"
+url = "https://github.com/openbmc/phosphor-fan-presence.git"
+topics = ["fan", "thermal", "cooling"]
+# Fan presence, monitoring and control
+
+[[repos]]
+id = "phosphor-pid-control"
+url = "https://github.com/openbmc/phosphor-pid-control.git"
+topics = ["fan", "thermal", "pid"]
+# PID-based fan control
+
+[[repos]]
+id = "phosphor-led-manager"
+url = "https://github.com/openbmc/phosphor-led-manager.git"
+topics = ["led", "indicator"]
+# LED groups and physical LED control
+
+[[repos]]
+id = "phosphor-networkd"
+url = "https://github.com/openbmc/phosphor-networkd.git"
+topics = ["network", "ethernet", "ip", "vlan"]
+# Network configuration daemon
+
+[[repos]]
+id = "phosphor-user-manager"
+url = "https://github.com/openbmc/phosphor-user-manager.git"
+topics = ["users", "accounts", "privilege", "ldap"]
+# User, group and privilege management
+
+[[repos]]
+id = "phosphor-certificate-manager"
+url = "https://github.com/openbmc/phosphor-certificate-manager.git"
+topics = ["certificates", "tls", "security"]
+# TLS certificate management
+
+[[repos]]
+id = "phosphor-time-manager"
+url = "https://github.com/openbmc/phosphor-time-manager.git"
+topics = ["time", "ntp"]
+# Time and NTP settings
+
+[[repos]]
+id = "phosphor-hwmon"
+url = "https://github.com/openbmc/phosphor-hwmon.git"
+topics = ["sensors", "hwmon"]
+# Legacy hwmon sensor daemon
+
+[[repos]]
+id = "phosphor-inventory-manager"
+url = "https://github.com/openbmc/phosphor-inventory-manager.git"
+topics = ["inventory", "dbus"]
+# Inventory manager
+
+[[repos]]
+id = "phosphor-objmgr"
+url = "https://github.com/openbmc/phosphor-objmgr.git"
+topics = ["dbus", "mapper", "objects"]
+# D-Bus object mapper
+
+[[repos]]
+id = "phosphor-settingsd"
+url = "https://github.com/openbmc/phosphor-settingsd.git"
+topics = ["settings", "dbus"]
+# Persistent settings on D-Bus
+
+[[repos]]
+id = "phosphor-host-postd"
+url = "https://github.com/openbmc/phosphor-host-postd.git"
+topics = ["post", "host", "snoop"]
+# Host POST code reader
+
+[[repos]]
+id = "phosphor-watchdog"
+url = "https://github.com/openbmc/phosphor-watchdog.git"
+topics = ["watchdog", "host"]
+# BMC watchdog daemon
+
+[[repos]]
+id = "phosphor-virtual-sensor"
+url = "https://github.com/openbmc/phosphor-virtual-sensor.git"
+topics = ["sensors", "virtual"]
+# Sensors computed from other sensors
+
+[[repos]]
+id = "phosphor-buttons"
+url = "https://github.com/openbmc/phosphor-buttons.git"
+topics = ["buttons", "power", "chassis"]
+# Front-panel button handling
+
+[[repos]]
+id = "phosphor-gpio-monitor"
+url = "https://github.com/openbmc/phosphor-gpio-monitor.git"
+topics = ["gpio", "presence"]
+# GPIO monitoring and presence
+
+[[repos]]
+id = "phosphor-debug-collector"
+url = "https://github.com/openbmc/phosphor-debug-collector.git"
+topics = ["dump", "debug", "diagnostics"]
+# Dump collection
+
+[[repos]]
+id = "x86-power-control"
+url = "https://github.com/openbmc/x86-power-control.git"
+topics = ["power", "host", "chassis", "x86"]
+# x86 host power control state machine
+
+[[repos]]
+id = "obmc-console"
+url = "https://github.com/openbmc/obmc-console.git"
+topics = ["console", "sol", "serial"]
+# Host console (SOL) server and client
+
+[[repos]]
+id = "sdbusplus"
+url = "https://github.com/openbmc/sdbusplus.git"
+topics = ["dbus", "sdbusplus", "bindings"]
+# C++ D-Bus bindings and code generator
+
+[[repos]]
+id = "sdeventplus"
+url = "https://github.com/openbmc/sdeventplus.git"
+topics = ["event", "sdeventplus"]
+# C++ sd-event bindings
+
+[[repos]]
+id = "docs"
+url = "https://github.com/openbmc/docs.git"
+topics = ["docs", "design", "architecture", "style"]
+# OpenBMC documentation: design docs, coding style, architecture
+
+[[repos]]
+id = "webui-vue"
+url = "https://github.com/openbmc/webui-vue.git"
+topics = ["web", "ui", "vue"]
+# Web user interface

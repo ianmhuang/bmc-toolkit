@@ -1,6 +1,6 @@
 ---
 name: bmc-spec
-description: Answer questions about BMC specifications (IPMI, DCMI, DMTF MCTP/PLDM/SPDM/NC-SI/SMBIOS, Redfish, NVMe/NVMe-MI, OCP DC-SCM/DC-MHS, I2C, SMBus, CMIS) and about OpenBMC source code, citing document, version, section and page. Use whenever the user asks what a spec says, how a command or field is defined, or how OpenBMC implements something.
+description: Answer questions about BMC specifications (IPMI, DCMI, DMTF MCTP/PLDM/SPDM/NC-SI/SMBIOS, Redfish, NVMe/NVMe-MI, OCP DC-SCM/DC-MHS, I2C, SMBus, CMIS) and about OpenBMC source code (bmcweb, phosphor-host-ipmid, pldm, dbus-sensors and thirty more repositories, at master or at a named OpenBMC release), citing document, version, section and page, or repository, commit and line. Use whenever the user asks what a spec says, how a command or field is defined, or how OpenBMC implements something.
 allowed-tools: Bash(python *)
 ---
 
@@ -9,8 +9,9 @@ allowed-tools: Bash(python *)
 Answer spec questions from the documents themselves: bring the document into
 the Library, find the section or the phrase, read only the pages involved,
 and cite what the tool printed. A table is read whole with `table`, even
-when the PDF splits it over pages. OpenBMC source questions arrive in a
-later milestone; say so when asked for them.
+when the PDF splits it over pages. OpenBMC source questions are answered
+from a Code Tree: the repository at the commit the user's Ref or Release
+names (or the default branch), searched with `grep` and read with `code`.
 
 ## Vocabulary
 
@@ -49,6 +50,25 @@ later milestone; say so when asked for them.
   rows. `table` prints it and stores it in `tables.json` next to the
   Extract. Only tables drawn with ruling lines are found; a table laid out
   with spaces alone stays readable in the Extract.
+- **Code Tree**: a shallow checkout of one catalog repository at one
+  commit, at `code/<repo>/<commit>/` in the Library. The commit is its
+  identity; the Ref or Release it was reached by is its provenance.
+  Several Code Trees of one repository coexist (master today, the one a
+  product ships); a re-fetched moving name marks the older tree
+  `superseded`, never deletes it.
+- **Ref**: a name on the component repository itself: a branch, a tag or
+  a full commit id. Without one, the repository's default branch at fetch
+  time (`master` for most OpenBMC repositories, `main` for libpldm).
+- **Release**: a tag (`2.18.0`) or a Yocto-named branch (`scarthgap`) of
+  `openbmc/openbmc`, whose recipes fix which commit of every component
+  ships together. `config.toml` at the Library root may set a default
+  Release for every answer; the tool never changes it.
+- **Pin**: the commit of a component repository that a Release fixes
+  through its recipe (`SRCREV`). `clone REPO --release L` resolves the Pin
+  and holds the Code Tree at that commit.
+- **User checkout**: a local checkout the user names in `config.toml`
+  (`[code.checkouts] bmcweb = "/path"`); it wins over every Library Code
+  Tree of that repository, whatever it has checked out.
 - **Citation**: a `cite:` line printed by `page`, `render` or `table`. Its
   fields, separated by ` | `: family, document and version, section,
   `PDF page N` (or `PDF pages A-B` for a Logical Table), `lines A-B` (or
@@ -56,7 +76,10 @@ later milestone; say so when asked for them.
   page), origin (download URL or `user-provided`), Library path. A `schema`
   Citation has, in the section, page and lines positions: `<Resource>
   vX.Y.Z` (or the index name), `file <name>.json`, and the JSON pointer of
-  what was printed.
+  what was printed. A `code` Citation reads `cite: code | <repo>
+  <commit7> | <provenance> | <path> lines A-B | - | <repository URL> |
+  <Code Tree path>`, where provenance is `master 2026-09-03` (a branch or
+  tag and the day it was fetched), `release 2.18.0`, or `user checkout`.
 
 ## Helper CLI
 
@@ -82,6 +105,11 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `page DOC N [--to M]` or `page DOC --section QUERY [--version V] [--max-pages K]` | print pages of the Extract, each starting with a `cite:` line, every line behind its printed line number when there is one, `[figure]` appended to lines inside a figure. Refuses more than 10 pages per call unless `--max-pages` |
 | `render DOC --page N [--version V] [--scale S] [--force]` | write `renders/page-N.png` (S times 72 dpi, default 2) under the version directory; prints `rendered <path>` and a `cite:` line with `rendered page`. Reuses an existing file unless `--force` |
 | `schema DOC [RESOURCE] [--property P \| --definition D] [--version V]` | read a schema bundle. No RESOURCE: every resource, one per line, `Name\tvX.Y.Z` (`-` for an index-only name such as a collection). RESOURCE: a `cite:` line, a `schema:` line (name, version, property count, the file's definitions), then one property per line: `name \| type \| readonly or writable \| added vX.Y.Z or - \| description`; types read `string`, `enum Def`, `object Def`, `array of T`, `odata name`, or the raw `$ref` when its file is not in `schemas/`. `--property P`: its description, longDescription, deprecation and other notes, and when it is an enum, a second `cite:` for the file that defines it (for instance `Resource.json`) followed by `values:` with every value, its description and when it was added. `--definition D`: the same for a named definition of the file (an enum, or an action with its `parameters:`). Names are case-insensitive; an unknown resource lists the names containing the query (exit 2) |
+| `repos [--topic T]` | the catalog's repositories, one per line: `id \| held Code Trees (commit7 provenance, `superseded` when re-fetched) or - \| user checkout: path or - \| topics`; a first line `release: L (config.toml) -> openbmc <commit7>` when a default Release is set |
+| `repos --search PATTERN` | GitHub code search over the openbmc organisation through `gh` (must be installed and logged in), `repo path` per hit; searches default branches only. For when no topic matches |
+| `clone REPO [--ref R \| --release L] [--force]` | bring the repository into the Library as a Code Tree: at branch/tag/full commit R, at the Pin of OpenBMC release L (the `openbmc` repository is fetched at L first, recipes only), or at the default branch. Prints `cloned <repo> <commit7> (<provenance>) -> <path>` or `held ...` when already there (no network); `--force` resolves a moving name again and prints `superseded` for the older tree. Uses the `config.toml` default Release when no flag is given, and says `release: L (from config.toml)` |
+| `grep REPO PATTERN [--ref R \| --release L] [--regex] [--glob G] [--context N] [--max N]` | `git grep` over the selected Code Tree (user checkout first, then the named Ref or Release, then the config Release, then the default-branch tree): one hit per line `REPO@commit7 path:line \| text`, context lines as `line N:` with `--` between groups, at most 50 hits unless `--max` (0 = all); `no hits`; exit 2 with the `clone` command when the tree is not held. Case-sensitive, a fixed string unless `--regex` |
+| `code REPO PATH [--lines A-B] [--ref R \| --release L]` | a `cite:` line then the file's lines behind their numbers; a file over 200 lines needs `--lines`. Same tree selection as `grep`; a `note:` line says when a user checkout or the config Release was used |
 | `table DOC --page N [--version V] [--index K] [--force]` | print every Logical Table touching page N, whole: a `cite:` line (`PDF pages A-B`, `table K`), a `table:` line (caption or `-`, page range, columns, rows including the header), then the rows as a grid, columns separated by ` \| `, one physical line per cell line, a rule after the header and after every row with a multi-line cell. `--index K` keeps only the K-th table on the page. Read from `tables.json` when the page was read before, unless `--force`. Exit 2 with `no ruled table on page N` when the page has none |
 
 Exit codes: 0 done, 1 error (malformed catalog, unreadable file), 2 the
@@ -123,6 +151,38 @@ not in the Library or not extracted, too many pages asked for).
 7. Answer, quoting at paragraph granularity and in the document's own
    language, with a Citation for every claim.
 
+## Code workflow (OpenBMC questions)
+
+1. Pick the repository: `repos --topic T` (ipmi, redfish, pldm, sensors,
+   power, state, firmware-update, ...). When no topic fits, `repos --search
+   PATTERN` asks GitHub; when `gh` is not there, say which repository you
+   guessed and why.
+2. Pick the commit. The user names a release ("we ship 2.18.0", "our base
+   is scarthgap"): `clone REPO --release L`. A branch, tag or commit of the
+   repository itself: `clone REPO --ref R`. Nothing named: `clone REPO`
+   (default branch), unless `config.toml` sets a default Release, which
+   `clone` and the reading commands then use and announce. Never edit
+   `config.toml` yourself; a newer release is the user's move.
+3. `grep REPO PATTERN` for the identifier, D-Bus interface, command name
+   or Redfish property; `--context 2` to see the surrounding lines;
+   `--glob 'src/*.cpp'` to narrow.
+4. `code REPO PATH --lines A-B` for the lines you will cite; keep ranges
+   small (a function, not a file).
+5. Answer with a Citation per claim. A `note:` line saying a user checkout
+   was used means the answer is about the user's own working tree: say so.
+
+## Two-part answers (spec and code)
+
+When a question touches both a specification and OpenBMC, answer in two
+parts, each with its own Citations: **what the spec says** (from `page`,
+`table` or `schema`) and **what the code does** (from `grep` and `code`).
+Then call out differences: values the schema allows that the code never
+produces, a command the spec defines that the handler does not register, a
+field the code sets that the spec marks optional. A difference is a
+finding, not an error; say which side you would trust for the user's
+purpose and why. Say which commit the code part describes; master today
+and the user's release may differ, and `grep` at both is cheap.
+
 ## Citation rules
 
 - Every Citation is copied from a `cite:` line the tool printed in this
@@ -141,6 +201,10 @@ not in the Library or not extracted, too many pages asked for).
   file and pointer, and for an enum the file that defines it. Say the
   bundle version and the schema version (`Chassis v1.28.0`); the enum's
   `added vX.Y.Z` notes say when a value appeared.
+- A code claim cites the `cite:` line `code` printed (repository, commit,
+  provenance, path and lines). Name the commit's provenance in the answer
+  ("bmcweb ae6cec2, master as of 2026-09-03", "pldm 93ad795, the 2.18.0
+  pin"), and never present a default-branch answer as what a release does.
 - A value read from a Logical Table is cited with the `cite:` line `table`
   printed (all the pages the table spans, `table K`), naming the caption
   and the row; it carries no line numbers.
@@ -163,3 +227,6 @@ not in the Library or not extracted, too many pages asked for).
 - `fetch --all` downloads several hundred megabytes; only run it when the
   user asks for everything. `extract --all` on a full Library takes a couple
   of minutes.
+- `clone` is one repository at a time (2 to 32 MB each); a Release needs the
+  `openbmc` repository too (recipes only, a few MB). Repository ids are
+  case-insensitive; a commit given to `--ref` must be the full 40 characters.
