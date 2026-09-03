@@ -233,6 +233,42 @@ def test_a_continued_sub_header_that_repeats_an_earlier_row_is_dropped(tmp_path)
     assert t.rows == [HEADER, sub, ROWS_A[0], ROWS_B[0]]
 
 
+def test_a_repeated_header_followed_by_a_continued_sub_header_loses_both(tmp_path):
+    """AC-3 (round 2 F1): Word's repeat-header setting plus a hand-written
+    "(continued)" sub-header on the same continuation page: the header
+    rule and the sub-header rule both apply, so neither row is kept."""
+    sub = ["Type", "Response data", ""]
+    widths = [100, 160, 120]
+    page1 = furniture(1) + grid(72, 200, widths, [16] * 3, [HEADER, sub, ROWS_A[0]])
+    page2 = furniture(2) + grid(
+        72,
+        740,
+        widths,
+        [16] * 3,
+        [HEADER, ["Type", "Response data (continued)", ""], ROWS_B[0]],
+    )
+    with reader(tmp_path, [page1, page2]) as r:
+        (t,) = r.logical_tables(2)
+    assert (t.first, t.last) == (1, 2)
+    assert t.rows == [HEADER, sub, ROWS_A[0], ROWS_B[0]]
+
+
+def test_a_new_sub_header_after_the_repeated_header_is_kept(tmp_path):
+    """AC-3: dropping the repeated header must not take the next row with
+    it. A "(continued)" row that repeats no earlier row is a new sub-header
+    (the request part of a command format ends, the response part begins)
+    and stays; so does an unmarked body row after the header."""
+    sub = ["Type", "Request data", ""]
+    other = ["Type", "Response data (continued)", ""]
+    widths = [100, 160, 120]
+    page1 = furniture(1) + grid(72, 200, widths, [16] * 3, [HEADER, sub, ROWS_A[0]])
+    page2 = furniture(2) + grid(72, 740, widths, [16] * 3, [HEADER, other, ROWS_B[0]])
+    with reader(tmp_path, [page1, page2]) as r:
+        (t,) = r.logical_tables(1)
+    assert (t.first, t.last) == (1, 2)
+    assert t.rows == [HEADER, sub, ROWS_A[0], other, ROWS_B[0]]
+
+
 def test_walk_both_ways_from_the_middle_page(tmp_path):
     page1 = furniture(1) + grid(72, 200, WIDTHS, [16] * 2, [HEADER, ROWS_A[0]])
     page2 = furniture(2) + grid(72, 740, WIDTHS, [16] * 2, [HEADER, ROWS_A[1]])
