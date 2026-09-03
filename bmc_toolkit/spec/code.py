@@ -30,6 +30,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tomllib
 from dataclasses import dataclass, field
@@ -198,7 +199,8 @@ def head_commit(work: Path) -> str:
 
 
 def load_config(root: Path) -> Config:
-    """``config.toml`` at the Library root; missing keys are None/empty."""
+    """``config.toml`` at the Library root; missing keys are None/empty.
+    A relative checkout path is taken from the Library root."""
     path = root / CONFIG_NAME
     if not path.is_file():
         return Config()
@@ -220,7 +222,8 @@ def load_config(root: Path) -> Config:
     for repo, value in raw.items():
         if not isinstance(value, str) or not value.strip():
             raise CodeError(f"{path}: code.checkouts.{repo} must be a path string")
-        checkouts[repo.lower()] = Path(value).expanduser()
+        given = Path(value).expanduser()
+        checkouts[repo.lower()] = given if given.is_absolute() else root / given
     return Config(release.strip() if release else None, checkouts)
 
 
@@ -315,7 +318,7 @@ class CodeLibrary:
         rdir.mkdir(parents=True, exist_ok=True)
         tmp = rdir / f".tmp-{os.getpid()}"
         if tmp.exists():
-            shutil.rmtree(tmp, ignore_errors=True)
+            _rmtree(tmp)
         try:
             if commit:
                 _fetch_commit(url, commit, tmp, sparse)
@@ -325,16 +328,19 @@ class CodeLibrary:
             if provenance.kind == "default" and not provenance.name:
                 branch = run_git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=tmp)
                 provenance = Provenance("default", branch.stdout.strip())
-            existing = self.held(repo, sha)
-            if existing is not None and not force:
-                shutil.rmtree(tmp, ignore_errors=True)
-                return existing, False
             target = rdir / sha
-            if target.exists():
-                shutil.rmtree(target, ignore_errors=True)
+            existing = self.read_tree(target) if target.exists() else None
+            if existing is not None:  # the same commit again: keep what we hold
+                _rmtree(tmp)
+                return existing, False
+            if target.exists():  # a directory without its meta: a leftover
+                _rmtree(target)
             os.replace(tmp, target)
         except BaseException:
-            shutil.rmtree(tmp, ignore_errors=True)
+            try:
+                _rmtree(tmp)
+            except CodeError:
+                pass  # the original error matters more
             raise
         tree = Tree(
             repo, url, sha, target, provenance, now_iso(), catalog_known=catalog_known
@@ -373,6 +379,27 @@ class CodeLibrary:
                 self.write_tree(old)
 
 
+def _rmtree(path: Path) -> None:
+    """Remove a work tree, clearing the read-only bit git sets on objects
+    and pack files (Windows refuses to unlink them otherwise)."""
+
+    def retry(func, target, _exc):
+        os.chmod(target, stat.S_IWRITE)
+        func(target)
+
+    try:
+        if hasattr(shutil.rmtree, "avoids_symlink_attacks") and "onexc" in str(
+            shutil.rmtree.__doc__
+        ):
+            shutil.rmtree(path, onexc=retry)
+        else:
+            shutil.rmtree(path, onerror=retry)  # older Pythons
+    except OSError as exc:
+        raise CodeError(f"cannot remove {path}: {exc}") from exc
+    if path.exists():
+        raise CodeError(f"cannot remove {path}: still there")
+
+
 def _clone_args(sparse: tuple[str, ...]) -> list[str]:
     args = ["--depth", "1", "--quiet"]
     if sparse:
@@ -381,8 +408,15 @@ def _clone_args(sparse: tuple[str, ...]) -> list[str]:
 
 
 def _apply_sparse(work: Path, sparse: tuple[str, ...]) -> None:
-    if sparse:
-        run_git(["sparse-checkout", "set", *sparse], cwd=work)
+    """Directories in cone mode; entries with a glob (``/meta-*/**/*.bb``)
+    switch to pattern mode so recipe files of every layer come without the
+    layers' sources."""
+    if not sparse:
+        return
+    args = ["sparse-checkout", "set"]
+    if any(ch in entry for entry in sparse for ch in "*?["):
+        args.append("--no-cone")
+    run_git([*args, *sparse], cwd=work)
 
 
 def _clone_ref(url: str, ref: str | None, tmp: Path, sparse: tuple[str, ...]) -> None:
@@ -407,7 +441,7 @@ def _fetch_commit(url: str, commit: str, tmp: Path, sparse: tuple[str, ...]) -> 
     fetch = ["fetch", "--depth", "1", "--quiet"]
     if sparse:
         fetch.append("--filter=blob:none")
-        run_git(["sparse-checkout", "set", *sparse], cwd=tmp)
+        _apply_sparse(tmp, sparse)
     proc = run_git([*fetch, "origin", commit], cwd=tmp, check=False)
     if proc.returncode != 0:
         raise CodeError(
@@ -427,8 +461,9 @@ def find_pin(openbmc_tree: Path, repo: str) -> str:
     """
     wanted = re.compile(rf"/{re.escape(repo)}(?:\.git)?(?:;|\"|\s|$)")
     candidates = []
-    for path in sorted(openbmc_tree.rglob("*")):
-        if path.suffix not in (".bb", ".inc") or not path.is_file():
+    recipes = list(openbmc_tree.rglob("*.bb")) + list(openbmc_tree.rglob("*.inc"))
+    for path in sorted(recipes):
+        if ".git" in path.parts or not path.is_file():
             continue
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
@@ -524,9 +559,19 @@ def _grep_pass(tree: Tree, args: list[str]) -> list[Hit]:
 def read_lines(tree: Tree, rel: str) -> tuple[str, list[str]]:
     """(normalised path, lines) of a file inside the tree."""
     clean = PurePosixPath(rel.replace("\\", "/"))
-    if clean.is_absolute() or ".." in clean.parts:
+    if (
+        clean.is_absolute()
+        or ".." in clean.parts
+        or any(":" in part for part in clean.parts)  # a Windows drive
+    ):
         raise CodeError(f"{rel} is not a path inside the tree")
     path = tree.path.joinpath(*clean.parts)
+    try:
+        inside = path.resolve().is_relative_to(tree.path.resolve())
+    except OSError:
+        inside = False
+    if not inside:
+        raise CodeError(f"{rel} is not a path inside the tree")
     if not path.is_file():
         raise CodeError(f"{clean} is not a file in {tree.label}")
     try:

@@ -113,7 +113,10 @@ def test_release_pin_and_unknown_release_and_missing_recipe(
         catalog_file=catalog_file,
     )
     assert code == 0
-    assert out.strip() == f"thing@{first[:7]} src/state.hpp:2 | int powerState();"
+    assert out.splitlines() == [
+        f"thing@{first[:7]} src/main.cpp:2 |     return powerState();",
+        f"thing@{first[:7]} src/state.hpp:2 | int powerState();",
+    ]
     # an unknown release name
     code, out = run(
         capsys, "clone", "thing", "--release", "no-such-release",
@@ -135,7 +138,10 @@ def test_grep_hit_format_and_no_hits(library, catalog_file, remotes, capsys):
     run(capsys, "clone", "thing", catalog_file=catalog_file)
     code, out = run(capsys, "grep", "thing", "powerState", catalog_file=catalog_file)
     assert code == 0
-    assert out.strip() == f"thing@{first[:7]} src/state.hpp:2 | int powerState();"
+    assert out.splitlines() == [
+        f"thing@{first[:7]} src/main.cpp:2 |     return powerState();",
+        f"thing@{first[:7]} src/state.hpp:2 | int powerState();",
+    ]
     code, out = run(capsys, "grep", "thing", "zzzz", catalog_file=catalog_file)
     assert code == 0 and out.strip() == "no hits"
     code, out = run(

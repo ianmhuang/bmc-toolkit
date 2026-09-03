@@ -3573,14 +3573,15 @@ published = "2026-05-17"
 #
 # Code repositories the Skill can bring into the Library as Code Trees.
 # Upstream OpenBMC only. "topics" are keywords for `repos --topic`;
-# "sparse" limits the checkout to the listed paths (openbmc/openbmc is
-# held only for the recipes that pin every component in a release).
+# "sparse" limits the checkout to the listed directories, or, with glob
+# patterns, to the matching files (openbmc/openbmc is held only for the
+# recipe files of every layer, which pin every component in a release).
 
 [[repos]]
 id = "openbmc"
 url = "https://github.com/openbmc/openbmc.git"
 topics = ["release", "yocto", "recipes", "distro"]
-sparse = ["meta-phosphor"]
+sparse = ["/meta-*/**/*.bb", "/meta-*/**/*.inc"]
 # The OpenBMC distribution: Yocto layers and the recipes that pin every component (releases live here)
 
 [[repos]]

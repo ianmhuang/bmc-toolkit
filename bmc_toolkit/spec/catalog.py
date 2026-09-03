@@ -33,8 +33,11 @@ Schema (``schema_version = 1``)::
     id = "bmcweb"              unique, matched case-insensitively; also the
                                directory name under the Library's code/
     url = "https://github.com/openbmc/bmcweb.git"
+                               https://; file:// for a local mirror (and tests)
     topics = ["redfish"]       what the repository is about, for `repos --topic`
-    sparse = ["meta-phosphor"] optional: only these paths are checked out
+    sparse = ["meta-phosphor"] optional: only these directories are checked
+                               out, or with globs ("/meta-*/**/*.bb") only the
+                               matching files
 """
 
 import datetime

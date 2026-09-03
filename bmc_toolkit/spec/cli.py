@@ -929,6 +929,8 @@ def cmd_clone(args: argparse.Namespace) -> int:
     if not args.ref and not release and config.release:
         release = config.release
         print(f"release: {release} (from config.toml)")
+    if release and repo.id.lower() == code_mod.OPENBMC_REPO:
+        args.ref, release = release, None  # the release source: the tag or branch
     try:
         if release:
             source = _openbmc_tree(catalog, library, release, args.force)
@@ -1019,10 +1021,14 @@ def _select_tree(args, catalog, library, config, repo):
     if release:
         if not args.release:
             notes.append(f"note: release {release} from config.toml")
+        if repo.id.lower() == code_mod.OPENBMC_REPO:
+            kind = "ref"  # the release source is held at the tag or branch itself
+        else:
+            kind = "release"
         pinned = [
             t
             for t in trees
-            if t.provenance.kind == "release" and t.provenance.name == release
+            if t.provenance.kind == kind and t.provenance.name == release
         ]
         pinned.sort(key=lambda t: (t.superseded, ""))
         if not pinned:
@@ -1100,6 +1106,8 @@ def cmd_grep(args: argparse.Namespace) -> int:
         if i and args.context:
             print("--")
         for hit in block:
+            if shown >= limit:
+                break  # the cap counts hits; trailing context goes with them
             if hit.context:
                 print(f"    line {hit.line}: {hit.text}")
             else:

@@ -181,6 +181,26 @@ def test_clone_uses_the_config_release_and_says_so(
     assert code == 0 and out.startswith(f"cloned thing {second[:7]} (main ")
 
 
+def test_the_openbmc_repository_at_a_release_is_its_ref(
+    library, catalog_file, remotes, capsys
+):
+    library.mkdir()
+    (library / "config.toml").write_text(
+        '[code]\nrelease = "1.0.0"\n', encoding="utf-8"
+    )
+    code, out = run(capsys, "clone", "openbmc", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.splitlines()[0] == "release: 1.0.0 (from config.toml)"
+    assert "cloned openbmc " in out and "(1.0.0 " in out
+    code, out = run(capsys, "grep", "openbmc", "SRCREV", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.splitlines()[0] == "note: release 1.0.0 from config.toml"
+    assert "thing_git.bb:3 | SRCREV" in out
+    argv = ["code", "openbmc", "meta/unrelated.txt", "--release", "1.0.0"]
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert code == 2 and "is not a file in" in out  # outside the sparse paths
+
+
 def test_force_supersedes_and_repos_shows_it(library, catalog_file, remotes, capsys):
     work, url, first, second = remotes["thing"]
     run(capsys, "clone", "thing", catalog_file=catalog_file)
@@ -226,6 +246,12 @@ def test_grep_output_limits_and_selection(library, catalog_file, remotes, capsys
         out.splitlines()[-1]
         == "1 more hits not shown; narrow the pattern or raise --max"
     )
+    argv = ["grep", "thing", "hit", "--context", "1", "--max", "1"]
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert out.splitlines() == [
+        f"thing@{second[:7]} src/many.txt:1 | hit 1",
+        "2 more hits not shown; narrow the pattern or raise --max",
+    ]
     argv = ["grep", "thing", "int", "--ref", first, "--glob", "src/*.hpp", "--regex"]
     code, out = run(capsys, *argv, catalog_file=catalog_file)
     assert [ln.split(" ")[1] for ln in out.splitlines()] == ["src/state.hpp:2"]

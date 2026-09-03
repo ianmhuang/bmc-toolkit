@@ -1,6 +1,6 @@
 ---
 name: bmc-spec
-description: Answer questions about BMC specifications (IPMI, DCMI, DMTF MCTP/PLDM/SPDM/NC-SI/SMBIOS, Redfish, NVMe/NVMe-MI, OCP DC-SCM/DC-MHS, I2C, SMBus, CMIS) and about OpenBMC source code (bmcweb, phosphor-host-ipmid, pldm, dbus-sensors and thirty more repositories, at master or at a named OpenBMC release), citing document, version, section and page, or repository, commit and line. Use whenever the user asks what a spec says, how a command or field is defined, or how OpenBMC implements something.
+description: Answer questions about BMC specifications (IPMI, DCMI, DMTF MCTP/PLDM/SPDM/NC-SI/SMBIOS, Redfish, NVMe/NVMe-MI, OCP DC-SCM/DC-MHS, I2C, SMBus, CMIS) and about OpenBMC source code (bmcweb, phosphor-host-ipmid, pldm, dbus-sensors and ninety more repositories, at master or at a named OpenBMC release), citing document, version, section and page, or repository, commit and line. Use whenever the user asks what a spec says, how a command or field is defined, or how OpenBMC implements something.
 allowed-tools: Bash(python *)
 ---
 
@@ -105,7 +105,7 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `page DOC N [--to M]` or `page DOC --section QUERY [--version V] [--max-pages K]` | print pages of the Extract, each starting with a `cite:` line, every line behind its printed line number when there is one, `[figure]` appended to lines inside a figure. Refuses more than 10 pages per call unless `--max-pages` |
 | `render DOC --page N [--version V] [--scale S] [--force]` | write `renders/page-N.png` (S times 72 dpi, default 2) under the version directory; prints `rendered <path>` and a `cite:` line with `rendered page`. Reuses an existing file unless `--force` |
 | `schema DOC [RESOURCE] [--property P \| --definition D] [--version V]` | read a schema bundle. No RESOURCE: every resource, one per line, `Name\tvX.Y.Z` (`-` for an index-only name such as a collection). RESOURCE: a `cite:` line, a `schema:` line (name, version, property count, the file's definitions), then one property per line: `name \| type \| readonly or writable \| added vX.Y.Z or - \| description`; types read `string`, `enum Def`, `object Def`, `array of T`, `odata name`, or the raw `$ref` when its file is not in `schemas/`. `--property P`: its description, longDescription, deprecation and other notes, and when it is an enum, a second `cite:` for the file that defines it (for instance `Resource.json`) followed by `values:` with every value, its description and when it was added. `--definition D`: the same for a named definition of the file (an enum, or an action with its `parameters:`). Names are case-insensitive; an unknown resource lists the names containing the query (exit 2) |
-| `repos [--topic T]` | the catalog's repositories, one per line: `id \| held Code Trees (commit7 provenance, `superseded` when re-fetched) or - \| user checkout: path or - \| topics`; a first line `release: L (config.toml) -> openbmc <commit7>` when a default Release is set |
+| `repos [--topic T]` | the catalog's repositories, one per line, four tab-separated fields: id, held Code Trees (`commit7 provenance`, `superseded` when re-fetched) or `-`, `user checkout: path` or `-`, topics; a first line `release: L (config.toml) -> openbmc <commit7>` when a default Release is set |
 | `repos --search PATTERN` | GitHub code search over the openbmc organisation through `gh` (must be installed and logged in), `repo path` per hit; searches default branches only. For when no topic matches |
 | `clone REPO [--ref R \| --release L] [--force]` | bring the repository into the Library as a Code Tree (REPO not in the catalog: `https://github.com/openbmc/REPO.git` is tried, with a `note:` saying so, and `repos` lists it as `(not in catalog)` afterwards): at branch/tag/full commit R, at the Pin of OpenBMC release L (the `openbmc` repository is fetched at L first, recipes only), or at the default branch. Prints `cloned <repo> <commit7> (<provenance>) -> <path>` or `held ...` when already there (no network); `--force` resolves a moving name again and prints `superseded` for the older tree. Uses the `config.toml` default Release when no flag is given, and says `release: L (from config.toml)` |
 | `grep REPO PATTERN [--ref R \| --release L] [--regex] [--glob G] [--context N] [--max N]` | `git grep` over the selected Code Tree (user checkout first, then the named Ref or Release, then the config Release, then the default-branch tree): one hit per line `REPO@commit7 path:line \| text`, context lines as `line N:` with `--` between groups, at most 50 hits unless `--max` (0 = all); `no hits`; exit 2 with the `clone` command when the tree is not held. Case-sensitive, a fixed string unless `--regex` |
@@ -230,5 +230,10 @@ and the user's release may differ, and `grep` at both is cheap.
   user asks for everything. `extract --all` on a full Library takes a couple
   of minutes.
 - `clone` is one repository at a time (2 to 32 MB each); a Release needs the
-  `openbmc` repository too (recipes only, a few MB). Repository ids are
-  case-insensitive; a commit given to `--ref` must be the full 40 characters.
+  the `openbmc` repository too (the recipe files of every layer, about 20
+  MB), so `--release` resolves any repository a layer's recipe pins; a
+  repository no layer builds has no Pin and `clone` says so. For the
+  `openbmc` repository itself a release is its tag or branch: `clone openbmc
+  --release L` and `grep openbmc ... --release L` read the recipes at L.
+  Repository ids are case-insensitive; a commit given to `--ref` must be
+  the full 40 characters.

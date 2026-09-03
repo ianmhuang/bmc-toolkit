@@ -64,6 +64,7 @@ def push(work, branch="main") -> None:
 THING_FILES = {
     "src/main.cpp": "int main() {\n    return powerState();\n}\n",
     "src/state.hpp": "// CurrentPowerState\nint powerState();\n",
+    "src/many.txt": "hit 1\nhit 2\nhit 3\n",
     "README.md": "thing\n",
 }
 
@@ -137,6 +138,20 @@ def test_force_makes_a_new_tree_and_supersedes_the_old_one(thing, library):
     assert (old.path / "README.md").is_file()  # never deleted
 
 
+def test_force_at_the_same_commit_keeps_the_held_tree(thing, library):
+    # git's objects are read-only on Windows; nothing may be half-deleted
+    work, bare, url = thing
+    old, _ = library.clone("thing", url, C.Provenance("default", ""))
+    again, fetched = library.clone(
+        "thing", url, C.Provenance("default", ""), force=True
+    )
+    assert not fetched and again.path == old.path and again.commit == old.commit
+    assert not [
+        p for p in (library.code / "thing").iterdir() if p.name.startswith(".tmp")
+    ]
+    assert (old.path / "src" / "main.cpp").is_file()
+
+
 def test_a_failed_clone_leaves_no_directory(thing, library, tmp_path):
     work, bare, url = thing
     with pytest.raises(C.CodeError):
@@ -160,6 +175,24 @@ def test_sparse_clone_checks_out_only_the_listed_paths(tmp_path, library):
     )
     assert (tree.path / "meta-phosphor" / "a.bb").is_file()
     assert not (tree.path / "meta" / "big.txt").exists()
+    files = {
+        "meta-phosphor/recipes/a.bb": "x\n",
+        "meta-phosphor/recipes/a.patch": "y\n",
+        "meta-vendor/recipes/b.bb": "z\n",
+        "README": "r\n",
+    }
+    work, bare, url = make_repo(tmp_path, "layers", files)
+    tree, _ = library.clone(
+        "layers",
+        url,
+        C.Provenance("ref", "main"),
+        ref="main",
+        sparse=("/meta-*/**/*.bb",),
+    )
+    assert (tree.path / "meta-phosphor" / "recipes" / "a.bb").is_file()
+    assert (tree.path / "meta-vendor" / "recipes" / "b.bb").is_file()
+    assert not (tree.path / "meta-phosphor" / "recipes" / "a.patch").exists()
+    assert not (tree.path / "README").exists()
 
 
 # -------------------------------------------------------------- releases
@@ -202,6 +235,10 @@ def test_load_config(tmp_path):
     assert cfg.release == "2.18.0"
     assert list(cfg.checkouts) == ["bmcweb"]
     assert cfg.checkouts["bmcweb"].name == "bmcweb"
+    (tmp_path / "config.toml").write_text(
+        '[code.checkouts]\nthing = "../thing-work"\n', encoding="utf-8"
+    )
+    assert C.load_config(tmp_path).checkouts["thing"] == tmp_path / "../thing-work"
     (tmp_path / "config.toml").write_text("[code]\nrelease = 3\n", encoding="utf-8")
     with pytest.raises(C.CodeError):
         C.load_config(tmp_path)
@@ -258,7 +295,14 @@ def test_read_lines_and_cite(thing, library):
         "int main() {",
         "    return powerState();",
     ]
-    for bad in ("../x", "/etc/passwd", "src/nope.cpp", "src"):
+    for bad in (
+        "../x",
+        "/etc/passwd",
+        "C:/Windows/win.ini",
+        "C:x",
+        "src/nope.cpp",
+        "src",
+    ):
         with pytest.raises(C.CodeError):
             C.read_lines(tree, bad)
     line = C.cite(tree, "src/main.cpp", 1, 3, url)

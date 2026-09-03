@@ -132,8 +132,11 @@ shallow checkout at one commit under `code/<repo>/<commit>/` with a
 `.bmc-tree.json` recording the URL, the commit, how it was reached (the
 default branch, a `--ref` branch/tag/commit, or a `--release`) and when.
 `--release L` resolves an OpenBMC release: `openbmc/openbmc` is fetched at
-tag or branch L (only `meta-phosphor`, the recipes) and the component's
-`SRCREV` there is the commit checked out. Several commits of one repository
+tag or branch L (only the `.bb` and `.inc` recipe files of every `meta-*`
+layer, about 20 MB) and the component's `SRCREV` there is the commit
+checked out; a repository no layer's recipe pins has no release commit,
+and `clone` says so. For the `openbmc` repository itself `--release L` is
+the same as `--ref L`. Several commits of one repository
 coexist; `--force` on a moving name fetches again and marks the older tree
 superseded rather than deleting it. `grep` (`git grep`) and `code` read a
 tree: a user checkout named in `config.toml` first, then the `--ref` or
@@ -149,6 +152,7 @@ release = "2.18.0"            # default Release for clone, grep and code
 
 [code.checkouts]
 bmcweb = "/home/me/src/bmcweb" # a checkout of your own wins over the Library
+                               # (a relative path is taken from the Library root)
 ```
 
 ## What the tool does on the network and on disk
