@@ -16,82 +16,96 @@ the catalog (uefi.org serves no scripted client) and enter only as
 Drop-ins. The acceptance set the release was checked against is in
 `docs/golden-questions.md`.
 
-## Supported specifications
+## Documents in the Source Catalog
 
-The Source Catalog lists 67 documents in 14
-families, every one an open download, plus 97 OpenBMC repositories
-(`bmcspec repos`). Any document version can also enter the Library as a
-Drop-in (`add`), including documents the catalog does not list.
+The Source Catalog lists 67 documents in 14 families, every one an open
+download, plus 97 OpenBMC repositories (`bmcspec repos`). Every document
+here was fetched and extracted by the tool (`fetch --all`, `extract --all`),
+so `find`, `section`, `page` and `render` work on all of them. **Verified**
+names the documents an acceptance question in `docs/golden-questions.md` was
+answered from and checked against the document; the others have not been
+asked anything yet. Any document version, listed or not, can also enter the
+Library as a Drop-in (`add`).
 
-| Family | Document | Title | Latest in the catalog |
-|---|---|---|---|
-| IPMI, IPMB, FRU and DCMI | `IPMI` | Intelligent Platform Management Interface Specification, Second Generation, v2.0 | 2.0 rev 1.1 |
-| IPMI, IPMB, FRU and DCMI | `IPMI-UPDATE` | IPMI Specification, Second Generation, v2.0 Specification Update (Errata/Addenda/Clarifications) | 2.0 rev 1.1 Errata 7 |
-| IPMI, IPMB, FRU and DCMI | `IPMB` | Intelligent Platform Management Bus Communications Protocol Specification | 1.0 |
-| IPMI, IPMB, FRU and DCMI | `IPMI-FRU` | Platform Management FRU Information Storage Definition | 1.0 rev 1.3 |
-| IPMI, IPMB, FRU and DCMI | `DCMI` | Data Center Manageability Interface Specification | 1.5 |
-| Enhanced Serial Peripheral Interface | `ESPI` | Enhanced Serial Peripheral Interface (eSPI) Base Specification | 1.6 |
-| Management Component Transport Protocol | `DSP0236` | Management Component Transport Protocol (MCTP) Base Specification | 1.3.3 |
-| Management Component Transport Protocol | `DSP0237` | Management Component Transport Protocol (MCTP) SMBus/I2C Transport Binding Specification | 1.2.0 |
-| Management Component Transport Protocol | `DSP0238` | Management Component Transport Protocol (MCTP) PCIe® VDM Transport Binding Specification | 1.4.0 |
-| Management Component Transport Protocol | `DSP0239` | Management Component Transport Protocol (MCTP) IDs and Codes Specification | 1.12.0 |
-| Management Component Transport Protocol | `DSP0233` | Management Component Transport Protocol (MCTP) I3C Transport Binding Specification | 1.0.1 |
-| Management Component Transport Protocol | `DSP0253` | MCTP Serial Transport Binding Specification | 1.0.0 |
-| Management Component Transport Protocol | `DSP0254` | MCTP KCS Transport Binding Specification | 1.0.0 |
-| Management Component Transport Protocol | `DSP0256` | Management Component Transport Protocol (MCTP) Host Interface Specification | 2.0.0 |
-| Management Component Transport Protocol | `DSP0283` | Management Component Transport Protocol (MCTP) Universal Serial Bus (USB) Transport Binding Specification | 1.1.0 |
-| Management Component Transport Protocol | `DSP0284` | Management Component Transport Protocol (MCTP) Memory-Mapped Buffer Interface (MMBI) Transport Binding Specification | 1.0.1 |
-| Management Component Transport Protocol | `DSP0292` | Management Component Transport Protocol (MCTP) PCC Transport Binding Specification | 1.0.0 |
-| Management Component Transport Protocol | `DSP0235` | NVMe™ (NVMe Express™) Management Messages over MCTP Binding Specification | 1.0.1 |
-| Management Component Transport Protocol | `DSP0234` | CXL™ Fabric Manager API over MCTP Binding Specification | 1.0.0 |
-| Management Component Transport Protocol | `DSP0281` | CXL™ Type 3 Device Component Command Interface over MCTP Binding Specification | 1.0.0 |
-| Management Component Transport Protocol | `DSP0291` | PCIe® Management Interface (PCIe-MI®) over MCTP Binding Specification | 1.0.0 |
-| Platform Level Data Model | `DSP0240` | Platform Level Data Model (PLDM) Base Specification | 1.1.1 |
-| Platform Level Data Model | `DSP0241` | Platform Level Data Model (PLDM) Over MCTP Binding Specification | 1.0.0 |
-| Platform Level Data Model | `DSP0242` | Platform Level Data Model (PLDM) for File Transfer Specification | 1.0.1 |
-| Platform Level Data Model | `DSP0245` | Platform Level Data Model (PLDM) IDs and Codes Specification | 1.4.0 |
-| Platform Level Data Model | `DSP0246` | Platform Level Data Model (PLDM) for SMBIOS Transfer Specification | 1.0.1 |
-| Platform Level Data Model | `DSP0247` | Platform Level Data Model (PLDM) for BIOS Control and Configuration Specification | 1.0.0 |
-| Platform Level Data Model | `DSP0248` | PLDM Platform Monitoring and Control Specification | 1.3.1 |
-| Platform Level Data Model | `DSP0249` | Platform Level Data Model (PLDM) State Set Specification | 1.4.0 |
-| Platform Level Data Model | `DSP0257` | Platform Level Data Model (PLDM) for FRU Data Specification | 2.0.0 |
-| Platform Level Data Model | `DSP0267` | Platform Level Data Model (PLDM) for Firmware Update Specification | 1.3.0 |
-| Platform Level Data Model | `DSP0218` | Platform Level Data Model (PLDM) for Redfish Device Enablement | 1.2.0 |
-| Security Protocol and Data Model | `DSP0274` | Security Protocol and Data Model (SPDM) Specification | 1.4.1 |
-| Security Protocol and Data Model | `DSP0275` | Security Protocol and Data Model (SPDM) over MCTP Binding Specification | 1.0.2 |
-| Security Protocol and Data Model | `DSP0276` | Secured Messages using SPDM over MCTP Binding Specification | 1.3.0 |
-| Security Protocol and Data Model | `DSP0277` | Secured Messages Using SPDM Specification | 1.3.0 |
-| Security Protocol and Data Model | `DSP0286` | Security Protocol and Data Model (SPDM) to Storage Binding Specification | 1.0.0 |
-| Security Protocol and Data Model | `DSP0287` | SPDM over TCP Binding Specification | 1.0.0 |
-| Security Protocol and Data Model | `DSP0289` | Security Protocol and Data Model (SPDM) Authorization Specification | 1.0.0 |
-| Network Controller Sideband Interface | `DSP0222` | Network Controller Sideband Interface (NC-SI) Specification | 1.2.1 |
-| Network Controller Sideband Interface | `DSP0261` | NC-SI over MCTP Binding Specification | 1.3.1 |
-| Network Controller Sideband Interface | `DSP0296` | Network Controller Sideband Interface (NC‐SI) over Ethernet over USB Binding Specification | 1.0.0 |
-| System Management BIOS | `DSP0134` | SMBIOS Specification | 3.9.0 |
-| Redfish | `DSP0266` | Redfish Specification | 1.23.2 |
-| Redfish | `DSP8010` | Redfish Schema Bundle | 2026.1 |
-| Redfish | `DSP0268` | Redfish Data Model Specification | 2026.1 |
-| Redfish | `DSP2046` | Redfish Resource and Schema Guide | 2026.1 |
-| Redfish | `DSP0270` | Redfish Host Interface Specification | 1.3.1 |
-| Redfish | `DSP0272` | Redfish Interoperability Profiles Specification | 1.10.0 |
-| Redfish | `DSP8011` | Redfish Standard Registries Bundle | 2026.1 |
-| Redfish | `DSP8013` | Redfish Interoperability Profiles Bundle | 2026.1 |
-| Redfish | `DSP2053` | Redfish Property Guide | 2026.1 |
-| Redfish | `DSP2065` | Redfish Message Registry Guide | 2026.1 |
-| NVM Express | `NVME-BASE` | NVM Express Base Specification | 2.4 |
-| NVM Express | `NVME-MI` | NVM Express Management Interface Specification | 2.2 |
-| NVM Express | `NVME-PCIE` | NVM Express over PCIe Transport Specification | 1.4 |
-| OCP Datacenter-ready Secure Control Module | `DC-SCM` | Datacenter-ready Secure Control Module (DC-SCM) Specification | Rev 2.1 Ver 1.1 |
-| OCP Datacenter Modular Hardware System | `M-CRPS` | DC-MHS Modular Hardware System Common Redundant Power Supply (M-CRPS) Base Specification | R1 v1.0 RC4 |
-| OCP Datacenter Modular Hardware System | `M-PIC` | DC-MHS Platform Infrastructure Connectivity (M-PIC) Specification | R1 v1.11 |
-| OCP Datacenter Modular Hardware System | `M-XIO` | DC-MHS Extensible I/O (M-XIO) Specification | R1 v1.04 RC1 |
-| OCP Datacenter Modular Hardware System | `M-DNO` | DC-MHS Densified Node Operation (M-DNO) Specification | R1 v1.1 RC2 |
-| OCP Datacenter Modular Hardware System | `M-FLW` | DC-MHS Full Width HPM (M-FLW) Specification | R1 v1.2 RC3 |
-| OCP Datacenter Modular Hardware System | `M-PESTI` | DC-MHS Peripheral Sideband Tunneling Interface (M-PESTI) Specification | R1 v1.2 RC2 |
-| OCP Datacenter Modular Hardware System | `M-SDNO` | DC-MHS Shared-Infrastructure Densified Node Operation (M-SDNO) Specification | v1.1 RC2 |
-| I2C bus | `UM10204` | I2C-bus specification and user manual (UM10204) | Rev. 7.0 |
-| System Management Bus | `SMBUS` | System Management Bus (SMBus) Specification | 3.3.1 |
-| Common Management Interface Specification (optical modules) | `CMIS` | Common Management Interface Specification (OIF-CMIS) | 5.4 |
+| Family | Document | Title | Latest in the catalog | Verified |
+|---|---|---|---|---|
+| IPMI, IPMB, FRU and DCMI | `IPMI` | Intelligent Platform Management Interface Specification, Second Generation, v2.0 | 2.0 rev 1.1 | G1-G5 |
+| IPMI, IPMB, FRU and DCMI | `IPMI-UPDATE` | IPMI Specification, Second Generation, v2.0 Specification Update (Errata/Addenda/Clarifications) | 2.0 rev 1.1 Errata 7 | G1-G5 |
+| IPMI, IPMB, FRU and DCMI | `IPMB` | Intelligent Platform Management Bus Communications Protocol Specification | 1.0 |  |
+| IPMI, IPMB, FRU and DCMI | `IPMI-FRU` | Platform Management FRU Information Storage Definition | 1.0 rev 1.3 |  |
+| IPMI, IPMB, FRU and DCMI | `DCMI` | Data Center Manageability Interface Specification | 1.5 | G6-G7 |
+| Enhanced Serial Peripheral Interface | `ESPI` | Enhanced Serial Peripheral Interface (eSPI) Base Specification | 1.6 |  |
+| Management Component Transport Protocol | `DSP0236` | Management Component Transport Protocol (MCTP) Base Specification | 1.3.3 | G8 |
+| Management Component Transport Protocol | `DSP0237` | Management Component Transport Protocol (MCTP) SMBus/I2C Transport Binding Specification | 1.2.0 | G10 |
+| Management Component Transport Protocol | `DSP0238` | Management Component Transport Protocol (MCTP) PCIe® VDM Transport Binding Specification | 1.4.0 |  |
+| Management Component Transport Protocol | `DSP0239` | Management Component Transport Protocol (MCTP) IDs and Codes Specification | 1.12.0 | G9 |
+| Management Component Transport Protocol | `DSP0233` | Management Component Transport Protocol (MCTP) I3C Transport Binding Specification | 1.0.1 |  |
+| Management Component Transport Protocol | `DSP0253` | MCTP Serial Transport Binding Specification | 1.0.0 |  |
+| Management Component Transport Protocol | `DSP0254` | MCTP KCS Transport Binding Specification | 1.0.0 |  |
+| Management Component Transport Protocol | `DSP0256` | Management Component Transport Protocol (MCTP) Host Interface Specification | 2.0.0 |  |
+| Management Component Transport Protocol | `DSP0283` | Management Component Transport Protocol (MCTP) Universal Serial Bus (USB) Transport Binding Specification | 1.1.0 |  |
+| Management Component Transport Protocol | `DSP0284` | Management Component Transport Protocol (MCTP) Memory-Mapped Buffer Interface (MMBI) Transport Binding Specification | 1.0.1 |  |
+| Management Component Transport Protocol | `DSP0292` | Management Component Transport Protocol (MCTP) PCC Transport Binding Specification | 1.0.0 |  |
+| Management Component Transport Protocol | `DSP0235` | NVMe™ (NVMe Express™) Management Messages over MCTP Binding Specification | 1.0.1 |  |
+| Management Component Transport Protocol | `DSP0234` | CXL™ Fabric Manager API over MCTP Binding Specification | 1.0.0 |  |
+| Management Component Transport Protocol | `DSP0281` | CXL™ Type 3 Device Component Command Interface over MCTP Binding Specification | 1.0.0 |  |
+| Management Component Transport Protocol | `DSP0291` | PCIe® Management Interface (PCIe-MI®) over MCTP Binding Specification | 1.0.0 |  |
+| Platform Level Data Model | `DSP0240` | Platform Level Data Model (PLDM) Base Specification | 1.1.1 | G11 |
+| Platform Level Data Model | `DSP0241` | Platform Level Data Model (PLDM) Over MCTP Binding Specification | 1.0.0 |  |
+| Platform Level Data Model | `DSP0242` | Platform Level Data Model (PLDM) for File Transfer Specification | 1.0.1 |  |
+| Platform Level Data Model | `DSP0245` | Platform Level Data Model (PLDM) IDs and Codes Specification | 1.4.0 | G12 |
+| Platform Level Data Model | `DSP0246` | Platform Level Data Model (PLDM) for SMBIOS Transfer Specification | 1.0.1 |  |
+| Platform Level Data Model | `DSP0247` | Platform Level Data Model (PLDM) for BIOS Control and Configuration Specification | 1.0.0 |  |
+| Platform Level Data Model | `DSP0248` | PLDM Platform Monitoring and Control Specification | 1.3.1 | G13, G15 |
+| Platform Level Data Model | `DSP0249` | Platform Level Data Model (PLDM) State Set Specification | 1.4.0 |  |
+| Platform Level Data Model | `DSP0257` | Platform Level Data Model (PLDM) for FRU Data Specification | 2.0.0 |  |
+| Platform Level Data Model | `DSP0267` | Platform Level Data Model (PLDM) for Firmware Update Specification | 1.3.0 | G14 |
+| Platform Level Data Model | `DSP0218` | Platform Level Data Model (PLDM) for Redfish Device Enablement | 1.2.0 |  |
+| Security Protocol and Data Model | `DSP0274` | Security Protocol and Data Model (SPDM) Specification | 1.4.1 | G16 |
+| Security Protocol and Data Model | `DSP0275` | Security Protocol and Data Model (SPDM) over MCTP Binding Specification | 1.0.2 |  |
+| Security Protocol and Data Model | `DSP0276` | Secured Messages using SPDM over MCTP Binding Specification | 1.3.0 |  |
+| Security Protocol and Data Model | `DSP0277` | Secured Messages Using SPDM Specification | 1.3.0 |  |
+| Security Protocol and Data Model | `DSP0286` | Security Protocol and Data Model (SPDM) to Storage Binding Specification | 1.0.0 |  |
+| Security Protocol and Data Model | `DSP0287` | SPDM over TCP Binding Specification | 1.0.0 |  |
+| Security Protocol and Data Model | `DSP0289` | Security Protocol and Data Model (SPDM) Authorization Specification | 1.0.0 |  |
+| Network Controller Sideband Interface | `DSP0222` | Network Controller Sideband Interface (NC-SI) Specification | 1.2.1 |  |
+| Network Controller Sideband Interface | `DSP0261` | NC-SI over MCTP Binding Specification | 1.3.1 |  |
+| Network Controller Sideband Interface | `DSP0296` | Network Controller Sideband Interface (NC‐SI) over Ethernet over USB Binding Specification | 1.0.0 |  |
+| System Management BIOS | `DSP0134` | SMBIOS Specification | 3.9.0 |  |
+| Redfish | `DSP0266` | Redfish Specification | 1.23.2 | G18 |
+| Redfish | `DSP8010` | Redfish Schema Bundle | 2026.1 | G17 |
+| Redfish | `DSP0268` | Redfish Data Model Specification | 2026.1 |  |
+| Redfish | `DSP2046` | Redfish Resource and Schema Guide | 2026.1 |  |
+| Redfish | `DSP0270` | Redfish Host Interface Specification | 1.3.1 |  |
+| Redfish | `DSP0272` | Redfish Interoperability Profiles Specification | 1.10.0 |  |
+| Redfish | `DSP8011` | Redfish Standard Registries Bundle | 2026.1 |  |
+| Redfish | `DSP8013` | Redfish Interoperability Profiles Bundle | 2026.1 |  |
+| Redfish | `DSP2053` | Redfish Property Guide | 2026.1 |  |
+| Redfish | `DSP2065` | Redfish Message Registry Guide | 2026.1 |  |
+| NVM Express | `NVME-BASE` | NVM Express Base Specification | 2.4 |  |
+| NVM Express | `NVME-MI` | NVM Express Management Interface Specification | 2.2 | G19 |
+| NVM Express | `NVME-PCIE` | NVM Express over PCIe Transport Specification | 1.4 |  |
+| OCP Datacenter-ready Secure Control Module | `DC-SCM` | Datacenter-ready Secure Control Module (DC-SCM) Specification | Rev 2.1 Ver 1.1 | G20 |
+| OCP Datacenter Modular Hardware System | `M-CRPS` | DC-MHS Modular Hardware System Common Redundant Power Supply (M-CRPS) Base Specification | R1 v1.0 RC4 |  |
+| OCP Datacenter Modular Hardware System | `M-PIC` | DC-MHS Platform Infrastructure Connectivity (M-PIC) Specification | R1 v1.11 |  |
+| OCP Datacenter Modular Hardware System | `M-XIO` | DC-MHS Extensible I/O (M-XIO) Specification | R1 v1.04 RC1 |  |
+| OCP Datacenter Modular Hardware System | `M-DNO` | DC-MHS Densified Node Operation (M-DNO) Specification | R1 v1.1 RC2 |  |
+| OCP Datacenter Modular Hardware System | `M-FLW` | DC-MHS Full Width HPM (M-FLW) Specification | R1 v1.2 RC3 |  |
+| OCP Datacenter Modular Hardware System | `M-PESTI` | DC-MHS Peripheral Sideband Tunneling Interface (M-PESTI) Specification | R1 v1.2 RC2 |  |
+| OCP Datacenter Modular Hardware System | `M-SDNO` | DC-MHS Shared-Infrastructure Densified Node Operation (M-SDNO) Specification | v1.1 RC2 |  |
+| I2C bus | `UM10204` | I2C-bus specification and user manual (UM10204) | Rev. 7.0 | G21 |
+| System Management Bus | `SMBUS` | System Management Bus (SMBus) Specification | 3.3.1 |  |
+| Common Management Interface Specification (optical modules) | `CMIS` | Common Management Interface Specification (OIF-CMIS) | 5.4 |  |
+
+Known limits, per document:
+
+- `IPMI`: table numbers are missing from the PDF's text layer; tables are cited by title.
+- `DC-SCM`: tables are images: `page` and `render`, not `table`.
+- `CMIS`: tables have no ruling lines: `page` and `render`, not `table`.
+- `DSP0274`: most tables have no ruling lines: `page` and `render`, not `table`.
+- `DSP0239`: one page holds an emoji that breaks pdfium's character order; extracted without layout.
+- `DSP8011`: ZIP of registries: `extract` skips it until registries are supported.
+- `DSP8013`: ZIP of profiles: `extract` skips it until profiles are supported.
 
 Not in the catalog: UEFI, ACPI and PI (uefi.org serves no scripted client;
 Drop-in only), EDK2, TCG, CXL, JEDEC, MIPI I3C, PMBus, SNIA SFF, ARM SBMR,
