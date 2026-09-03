@@ -57,7 +57,9 @@ images and vector drawings with the paths that overlap them, in PDF points)
 and the indices of the text lines lying inside them; `renders/page-N.png`
 holds pages rendered on request. `tables.json` holds the Logical Tables
 read so far (a format version, `pages_done`, and per table the page range,
-caption, section, column edges, parts and rows).
+caption, section, column edges, parts and rows). For a ZIP bundle,
+`extract` writes `schemas/` instead: the JSON Schema files, flat, and
+`extract.json` with `"kind": "schemas"` and the file and resource counts.
 
 ## Command line
 
@@ -81,6 +83,8 @@ python skills/bmc-spec/scripts/bmcspec.py page DSP0236 24 --to 25              #
 python skills/bmc-spec/scripts/bmcspec.py page DSP0236 --section 8.2
 python skills/bmc-spec/scripts/bmcspec.py render DSP0236 --page 24             # renders/page-24.png
 python skills/bmc-spec/scripts/bmcspec.py table DSP0236 --page 122             # the table(s) on the page, whole
+python skills/bmc-spec/scripts/bmcspec.py extract DSP8010                       # unpack the Redfish JSON Schema
+python skills/bmc-spec/scripts/bmcspec.py schema DSP8010 Chassis --property PowerState
 ```
 
 Exit codes: 0 done, 1 error, 2 you need to act (the message says what).
@@ -106,6 +110,15 @@ rows as a text grid. Tables are read on demand and kept in `tables.json`
 next to the Extract, so a page is read from the PDF once; `--force` reads
 it again. Tables without ruling lines are not detected.
 
+`schema` reads a Redfish schema bundle (DSP8010): without a resource it
+lists the resources and their newest schema version; with one it prints
+the properties (type resolved through `anyOf` and `$ref`, read-only flag,
+the version that added it, description); `--property` or `--definition`
+prints one property or one named definition in full, including every
+value of an enum with its description, following `$ref` into the file that
+defines it. Each block starts with a `cite:` line naming the bundle
+version, the schema file and the JSON pointer.
+
 ## What the tool does on the network and on disk
 
 - Downloads only URLs listed in `bmc_toolkit/spec/catalog.toml`, in this
@@ -122,8 +135,13 @@ it again. Tables without ruling lines are not detected.
   (`catalog_known`). Nothing already in the Library is replaced without
   `--force`.
 - Replacing an original (`add --force`, `fetch --force`) removes the
-  previous original and everything extracted from it, `tables.json` and
-  rendered pages included; so does `extract --force`.
+  previous original and everything extracted from it, `tables.json`,
+  `schemas/` and rendered pages included; so does `extract --force`.
+- From a schema bundle only the JSON Schema files an answer needs leave the
+  archive: every unversioned `<Name>.json` and the newest
+  `<Name>.vX_Y_Z.json` per resource (about 450 files, 7 MB, of DSP8010's
+  6900 files and 234 MB); CSDL, OpenAPI, dictionaries and the PDFs stay in
+  the ZIP. Member paths that would escape `schemas/` are refused.
 - Never runs a subprocess and never re-uploads or redistributes anything.
 
 ## The Source Catalog

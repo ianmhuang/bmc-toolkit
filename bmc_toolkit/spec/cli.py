@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from bmc_toolkit import __version__
+from bmc_toolkit.spec import bundle as bundle_mod
 from bmc_toolkit.spec import extract as extract_mod
 from bmc_toolkit.spec import fetch as fetch_mod
 from bmc_toolkit.spec import render as render_mod
@@ -133,6 +134,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", dest="doc_version", help="exact version string")
     p.add_argument("--scale", type=float, default=render_mod.DEFAULT_SCALE)
     p.add_argument("--force", action="store_true", help="re-render if present")
+
+    p = sub.add_parser(
+        "schema", help="Redfish resources, properties and enum values of a bundle"
+    )
+    p.add_argument("document", help="document id of a schema bundle")
+    p.add_argument("resource", nargs="?", help="resource name (Chassis); none lists")
+    p.add_argument("--property", help="one property of the resource")
+    p.add_argument("--definition", help="one named definition of the resource's file")
+    p.add_argument("--version", dest="doc_version", help="exact version string")
 
     p = sub.add_parser("table", help="print the ruled tables on a page, whole")
     p.add_argument("document", help="document id")
@@ -397,7 +407,10 @@ def cmd_status(args: argparse.Namespace) -> int:
         em = h.extract_meta
         extracted = "-"
         if em:
-            current = em.get("extractor_version") == extract_mod.EXTRACTOR_VERSION
+            wanted = extract_mod.EXTRACTOR_VERSION
+            if em.get("kind") == "schemas":
+                wanted = bundle_mod.BUNDLE_VERSION
+            current = em.get("extractor_version") == wanted
             extracted = "extracted" if current else "stale"
         outline = em.get("outline_source", "-") if em else "-"
         size = h.meta.get("size", "?")
@@ -412,12 +425,14 @@ def _extract_one(holding, force: bool) -> str:
     """Extract one holding; returns extracted | skipped | failed."""
     original = holding.original
     label = f"{holding.document} {holding.version}"
-    if original.suffix.lower() != ".pdf":
-        print(f"skipped {label}: {original.name} is not a PDF (bundles come later)")
-        return "skipped"
     if not original.is_file():
         print(f"failed {label}: {original} is missing")
         return "failed"
+    if original.suffix.lower() == ".zip":
+        return _unpack_one(holding, force, label)
+    if original.suffix.lower() != ".pdf":
+        print(f"skipped {label}: {original.name} is neither a PDF nor a ZIP")
+        return "skipped"
     if not force and extract_mod.is_current(holding.path):
         print(f"skipped {label}: already extracted")
         return "skipped"
@@ -441,6 +456,27 @@ def _extract_one(holding, force: bool) -> str:
         f"extracted {label}: {meta['pages']} pages in {meta['seconds']}s, "
         f"outline {meta['outline_source']} ({meta['outline_entries']} entries)"
         f"{numbers}{figures}"
+    )
+    return "extracted"
+
+
+def _unpack_one(holding, force: bool, label: str) -> str:
+    """Unpack a schema bundle; returns extracted | skipped | failed."""
+    if not force and bundle_mod.is_current(holding.path):
+        print(f"skipped {label}: already extracted")
+        return "skipped"
+    try:
+        result = bundle_mod.unpack(holding.original, holding.path)
+    except bundle_mod.NoSchemas as exc:
+        print(f"skipped {label}: {exc} (registries and profiles come later)")
+        return "skipped"
+    except bundle_mod.BundleError as exc:
+        print(f"failed {label}: {exc}")
+        return "failed"
+    refused = f", {result.refused} unsafe paths refused" if result.refused else ""
+    print(
+        f"extracted {label}: {result.files} schema files, {result.resources} "
+        f"resources in {result.seconds:.2f}s{refused}"
     )
     return "extracted"
 
@@ -528,7 +564,10 @@ def _unreadable(holding) -> str:
     label = f"{holding.document} {holding.version}"
     ext = holding.original.suffix.lower().lstrip(".")
     if ext != "pdf":
-        return f"{label} is a {ext} bundle; bundles are not searchable yet"
+        return (
+            f"{label} is a {ext} bundle; its schemas are read with: "
+            f"bmcspec schema {holding.document}"
+        )
     if not extract_mod.is_current(holding.path):
         return (
             f"{label} is not extracted, or was extracted by an older version of "
@@ -712,6 +751,142 @@ def cmd_render(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+# ------------------------------------------------------------- schema
+
+
+def _bundle_cite(holding, file: str, pointer: str) -> str:
+    return " | ".join(
+        [
+            f"cite: {holding.family}",
+            f"{holding.document} {holding.version}",
+            bundle_mod.label_of(file),
+            f"file {file}",
+            pointer,
+            search_mod.origin_of(holding.meta),
+            str(holding.path),
+        ]
+    )
+
+
+def cmd_schema(args: argparse.Namespace) -> int:
+    if args.property and args.definition:
+        print("give --property or --definition, not both")
+        return EXIT_ACTION
+    catalog = _load(args)
+    library = Library(resolve_library())
+    holding, _, problem = _held_version(
+        catalog, library, args.document, args.doc_version
+    )
+    if holding is None:
+        print(problem)
+        return EXIT_ACTION
+    label = f"{holding.document} {holding.version}"
+    doc = holding.document
+    if holding.original.suffix.lower() != ".zip":
+        print(
+            f"{label} is a PDF document, not a schema bundle; read it with: "
+            f"bmcspec find {doc} PATTERN, or: bmcspec page {doc} N"
+        )
+        return EXIT_ACTION
+    if not bundle_mod.is_current(holding.path):
+        print(
+            f"{label} is not extracted, or was unpacked by an older version; run: "
+            f'bmcspec extract {doc} --version "{holding.version}"'
+        )
+        return EXIT_ACTION
+    schemas = bundle_mod.Schemas(holding.path)
+    try:
+        return _schema_output(args, holding, schemas)
+    except bundle_mod.SchemaError as exc:
+        print(f"cannot read the schemas of {label}: {exc}")
+        return EXIT_ERROR
+
+
+def _schema_output(args, holding, schemas: bundle_mod.Schemas) -> int:
+    if not args.resource:
+        for res in schemas.resources():
+            print(f"{res.name}\t{res.version or '-'}")
+        return EXIT_OK
+    res = schemas.resource(args.resource)
+    if res is None:
+        names = schemas.similar(args.resource)
+        if names:
+            found = ", ".join(names)
+            print(f"no resource named {args.resource!r}; containing it: {found}")
+        else:
+            print(
+                f"no resource named {args.resource!r}; "
+                f"bmcspec schema {holding.document} lists them"
+            )
+        return EXIT_ACTION
+    main = schemas.main_definition(res)
+    if main is None:
+        print(f"{res.file} has no definition named {res.name}")
+        return EXIT_ERROR
+    if args.definition:
+        where = schemas.definition(res.file, args.definition)
+        if where is None:
+            print(
+                f"{res.file} has no definition named {args.definition!r}; "
+                f"bmcspec schema {holding.document} {res.name} lists them"
+            )
+            return EXIT_ACTION
+        _print_node(holding, schemas, where, where.pointer.rsplit("/", 1)[-1])
+        return EXIT_OK
+    if args.property:
+        where = schemas.property(main, args.property)
+        if where is None:
+            print(
+                f"{res.label} has no property named {args.property!r}; "
+                f"bmcspec schema {holding.document} {res.name} lists them"
+            )
+            return EXIT_ACTION
+        name = where.pointer.rsplit("/", 1)[-1]
+        _print_node(holding, schemas, where, name, is_property=True)
+        return EXIT_OK
+    print(_bundle_cite(holding, main.file, main.pointer))
+    lines = bundle_mod.property_lines(schemas, main)
+    defs = schemas.load(main.file).get("definitions", {})
+    names = ", ".join(sorted(defs)) if isinstance(defs, dict) else "-"
+    print(f"schema: {res.label} | {len(lines)} properties | definitions: {names}")
+    for ln in lines:
+        print(ln)
+    return EXIT_OK
+
+
+def _print_node(
+    holding, schemas, where, name: str, *, is_property: bool = False
+) -> None:
+    print(_bundle_cite(holding, where.file, where.pointer))
+    node = where.node
+    kind = schemas.type_of(node, where.file)
+    if is_property:
+        access = "readonly" if node.get("readonly") else "writable"
+        added = node.get("versionAdded")
+        added = f"added {bundle_mod.dotted(added)}" if added else "-"
+        print(f"property: {name} | {kind} | {access} | {added}")
+    else:
+        print(f"definition: {name} | {kind}")
+    for ln in bundle_mod.detail_lines(node):
+        print(ln)
+    if "enum" in node:
+        for ln in bundle_mod.enum_lines(node):
+            print(ln)
+    else:
+        enum = schemas.enum_of(node, where.file, where.pointer)
+        if enum is not None:
+            if (enum.file, enum.pointer) != (where.file, where.pointer):
+                print(_bundle_cite(holding, enum.file, enum.pointer))
+            for ln in bundle_mod.enum_lines(enum.node):
+                print(ln)
+    for ln in bundle_mod.parameter_lines(schemas, where):
+        print(ln)
+    if "properties" in node and not is_property:
+        print("properties:")
+        for ln in bundle_mod.property_lines(schemas, where):
+            print("  " + ln)
+
+
 def _section_lookup(version: search_mod.Version):
     """The Outline entry in force at a table's caption (or the page top)."""
 
@@ -799,6 +974,7 @@ COMMANDS = {
     "page": cmd_page,
     "render": cmd_render,
     "table": cmd_table,
+    "schema": cmd_schema,
 }
 
 

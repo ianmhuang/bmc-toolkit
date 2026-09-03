@@ -300,6 +300,13 @@ def _read_json(path: Path, default):
         raise SearchError(f"{path}: {exc}") from exc
 
 
+def origin_of(meta: dict) -> str:
+    """The Citation's origin field: the download URL, or user-provided."""
+    if meta.get("dropin"):
+        return USER_PROVIDED
+    return meta.get("url") or USER_PROVIDED
+
+
 def load_version(holding) -> Version:
     """Load a held version's Extract and companions.
 
@@ -311,10 +318,7 @@ def load_version(holding) -> Version:
         text = (vdir / EXTRACT_NAME).read_text(encoding="utf-8")
     except OSError as exc:
         raise SearchError(f"{vdir / EXTRACT_NAME}: {exc}") from exc
-    meta = holding.meta
-    origin = meta.get("url") or USER_PROVIDED
-    if meta.get("dropin"):
-        origin = USER_PROVIDED
+    origin = origin_of(holding.meta)
     return Version(
         family=holding.family,
         document=holding.document,
@@ -358,5 +362,6 @@ __all__ = [
     "Version",
     "format_page",
     "load_version",
+    "origin_of",
     "split_pages",
 ]

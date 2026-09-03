@@ -441,8 +441,9 @@ def test_bundles_are_refused(catalog_file, library, scripted, capsys):
     run(capsys, "fetch", "BUNDLE", catalog_file=catalog_file)
     code, out = run(capsys, "find", "BUNDLE", "x", catalog_file=catalog_file)
     assert code == 2
-    assert (
-        out.strip() == "BUNDLE 2026.1 is a zip bundle; bundles are not searchable yet"
+    assert out.strip() == (
+        "BUNDLE 2026.1 is a zip bundle; its schemas are read with: "
+        "bmcspec schema BUNDLE"
     )
 
 
