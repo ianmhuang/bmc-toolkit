@@ -28,6 +28,16 @@ Schema (``schema_version = 1``)::
     published = "2024-03-25"   ISO date
     wip = false                optional, default false
     notes = "..."              optional
+
+    [[repos]]                  one entry per code repository (Code Trees)
+    id = "bmcweb"              unique, matched case-insensitively; also the
+                               directory name under the Library's code/
+    url = "https://github.com/openbmc/bmcweb.git"
+                               https://; file:// for a local mirror (and tests)
+    topics = ["redfish"]       what the repository is about, for `repos --topic`
+    sparse = ["meta-phosphor"] optional: only these directories are checked
+                               out, or with globs ("/meta-*/**/*.bb") only the
+                               matching files
 """
 
 import datetime
@@ -98,20 +108,38 @@ class Document:
         return None
 
 
+@dataclass(frozen=True)
+class Repo:
+    id: str
+    url: str
+    topics: tuple[str, ...]
+    sparse: tuple[str, ...] = ()
+
+
 @dataclass
 class Catalog:
     families: dict[str, Family]
     documents: list[Document]
+    repos: list[Repo] = field(default_factory=list)
     _index: dict[str, Document] = field(default_factory=dict, repr=False)
+    _repo_index: dict[str, Repo] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         self._index = {d.id.lower(): d for d in self.documents}
+        self._repo_index = {r.id.lower(): r for r in self.repos}
 
     def get(self, doc_id: str) -> Document | None:
         return self._index.get(doc_id.strip().lower())
 
     def by_family(self, family_id: str) -> list[Document]:
         return [d for d in self.documents if d.family == family_id]
+
+    def get_repo(self, repo_id: str) -> Repo | None:
+        return self._repo_index.get(repo_id.strip().lower())
+
+    def by_topic(self, topic: str) -> list[Repo]:
+        wanted = topic.strip().lower()
+        return [r for r in self.repos if wanted in (t.lower() for t in r.topics)]
 
 
 def _expect(table: dict, key: str, kind, where: str, default=None, required=True):
@@ -205,6 +233,31 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
     )
 
 
+def _parse_repo(raw: dict, where: str) -> Repo:
+    if not isinstance(raw, dict):
+        raise CatalogError(f"{where}: expected a table")
+    repo_id = _expect(raw, "id", str, where).strip()
+    if not repo_id or "/" in repo_id or "\\" in repo_id or repo_id.startswith("."):
+        raise CatalogError(f"{where}.id: '{repo_id}' is not a directory name")
+    url = _expect(raw, "url", str, where).strip()
+    if not (url.startswith("https://") or url.startswith("file://")):
+        raise CatalogError(
+            f"{where}.url: '{url}' must start with https:// (or file://)"
+        )
+    topics = _expect(raw, "topics", list, where)
+    if not topics or not all(isinstance(t, str) and t.strip() for t in topics):
+        raise CatalogError(f"{where}.topics: must list at least one non-empty topic")
+    sparse = _expect(raw, "sparse", list, where, default=[], required=False)
+    if not all(isinstance(s, str) and s.strip() for s in sparse):
+        raise CatalogError(f"{where}.sparse: expected non-empty path strings")
+    return Repo(
+        repo_id,
+        url,
+        tuple(t.strip() for t in topics),
+        tuple(s.strip() for s in sparse),
+    )
+
+
 def parse_catalog(data: dict) -> Catalog:
     """Validate a decoded TOML document into a Catalog."""
     if not isinstance(data, dict):
@@ -243,7 +296,16 @@ def parse_catalog(data: dict) -> Catalog:
                 raise CatalogError(
                     f"documents[{i}].searched_with[{k}]: unknown document '{other}'"
                 )
-    return Catalog(families, documents)
+    raw_repos = _expect(data, "repos", list, "catalog", default=[], required=False)
+    repos: list[Repo] = []
+    repo_ids: set[str] = set()
+    for i, raw in enumerate(raw_repos):
+        repo = _parse_repo(raw, f"repos[{i}]")
+        if repo.id.lower() in repo_ids:
+            raise CatalogError(f"repos[{i}].id: duplicate id '{repo.id}'")
+        repo_ids.add(repo.id.lower())
+        repos.append(repo)
+    return Catalog(families, documents, repos)
 
 
 def load_catalog(path: Path | None = None) -> Catalog:

@@ -60,6 +60,8 @@ read so far (a format version, `pages_done`, and per table the page range,
 caption, section, column edges, parts and rows). For a ZIP bundle,
 `extract` writes `schemas/` instead: the JSON Schema files, flat, and
 `extract.json` with `"kind": "schemas"` and the file and resource counts.
+Code Trees live beside `specs/`, under `code/<repo>/<commit>/`, each with
+a `.bmc-tree.json`.
 
 ## Command line
 
@@ -85,6 +87,11 @@ python skills/bmc-spec/scripts/bmcspec.py render DSP0236 --page 24             #
 python skills/bmc-spec/scripts/bmcspec.py table DSP0236 --page 122             # the table(s) on the page, whole
 python skills/bmc-spec/scripts/bmcspec.py extract DSP8010                       # unpack the Redfish JSON Schema
 python skills/bmc-spec/scripts/bmcspec.py schema DSP8010 Chassis --property PowerState
+python skills/bmc-spec/scripts/bmcspec.py repos --topic redfish                # repositories and held Code Trees
+python skills/bmc-spec/scripts/bmcspec.py clone bmcweb                         # default branch, shallow
+python skills/bmc-spec/scripts/bmcspec.py clone pldm --release 2.18.0          # the commit OpenBMC 2.18.0 ships
+python skills/bmc-spec/scripts/bmcspec.py grep bmcweb CurrentPowerState --context 2
+python skills/bmc-spec/scripts/bmcspec.py code bmcweb redfish-core/lib/chassis.hpp --lines 160-175
 ```
 
 Exit codes: 0 done, 1 error, 2 you need to act (the message says what).
@@ -119,6 +126,35 @@ value of an enum with its description, following `$ref` into the file that
 defines it. Each block starts with a `cite:` line naming the bundle
 version, the schema file and the JSON pointer.
 
+`clone` brings a repository into the Library as a Code Tree (a catalog
+entry, or any `openbmc/<name>` when the catalog does not list it), a
+shallow checkout at one commit under `code/<repo>/<commit>/` with a
+`.bmc-tree.json` recording the URL, the commit, how it was reached (the
+default branch, a `--ref` branch/tag/commit, or a `--release`) and when.
+`--release L` resolves an OpenBMC release: `openbmc/openbmc` is fetched at
+tag or branch L (only the `.bb` and `.inc` recipe files of every `meta-*`
+layer, about 20 MB) and the component's `SRCREV` there is the commit
+checked out; a repository no layer's recipe pins has no release commit,
+and `clone` says so. For the `openbmc` repository itself `--release L` is
+the same as `--ref L`. Several commits of one repository
+coexist; `--force` on a moving name fetches again and marks the older tree
+superseded rather than deleting it. `grep` (`git grep`) and `code` read a
+tree: a user checkout named in `config.toml` first, then the `--ref` or
+`--release` asked for, then the `config.toml` default Release, then the
+default-branch tree. Every `code` output starts with a `cite:` line naming
+repository, commit, provenance, path and lines.
+
+`config.toml` at the Library root (optional):
+
+```toml
+[code]
+release = "2.18.0"            # default Release for clone, grep and code
+
+[code.checkouts]
+bmcweb = "/home/me/src/bmcweb" # a checkout of your own wins over the Library
+                               # (a relative path is taken from the Library root)
+```
+
 ## What the tool does on the network and on disk
 
 - Downloads only URLs listed in `bmc_toolkit/spec/catalog.toml`, in this
@@ -144,7 +180,8 @@ version, the schema file and the JSON pointer.
   dictionaries and the PDFs stay in the ZIP. Member paths that would
   escape `schemas/` are refused, and a base name that appears twice is
   written once.
-- Never runs a subprocess and never re-uploads or redistributes anything.
+- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository), `grep` and `code` (reading `HEAD` of a user checkout); `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed.
+- `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>` directory that is removed on failure. A user checkout named in `config.toml` is only read.
 
 ## The Source Catalog
 
