@@ -1,0 +1,29 @@
+# revali project configuration. Keys left out come from defaults.toml.
+
+[project]
+config_version = 1
+base_branch = "main"
+platforms = ["linux"]
+test_dir = "tests"
+test_file_pattern = "test_review_{topic}.py"
+
+[review]
+budget_usd = 4.0
+checklist = "CONVENTIONS.md"
+max_diff_lines = 1000
+exclude = ["*.lock"]
+
+[validate]
+budget_usd = 1.0
+
+[validate.linux]
+runner = "wsl"
+distro = "Ubuntu"
+network = true                    # setup installs from PyPI
+command_timeout_min = 20
+setup = "python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt -r requirements-dev.txt"
+test = ".venv/bin/python -m pytest -q"
+new_test = ".venv/bin/python -m pytest -q tests/test_review_*.py"
+
+[merge]
+method = "squash"

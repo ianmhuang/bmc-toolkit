@@ -1,0 +1,5 @@
+# Runtime packages, installed by hooks/install_deps.py into the plugin data dir.
+# curl_cffi: downloads that need a browser TLS fingerprint (Intel, OCP CDNs).
+# pdfplumber: PDF text with word coordinates, and table extraction (MIT).
+curl_cffi>=0.10
+pdfplumber>=0.11

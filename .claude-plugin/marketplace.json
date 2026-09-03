@@ -1,0 +1,13 @@
+{
+    "name": "bmc-toolkit",
+    "owner": {
+        "name": "Muwen Huang"
+    },
+    "plugins": [
+        {
+            "name": "bmc-toolkit",
+            "source": "./",
+            "description": "BMC specification and OpenBMC source assistant for Claude Code."
+        }
+    ]
+}
