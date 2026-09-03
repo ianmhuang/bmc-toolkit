@@ -239,6 +239,44 @@ def test_a_row_cut_by_the_page_break_is_closed_and_joined(tmp_path):
     ]
 
 
+def test_a_grouped_row_after_a_closed_bottom_stays_a_row(tmp_path):
+    # An empty first cell is how tables group rows; only a missing bottom
+    # rule says the page break cut a row.
+    rows1 = [HEADER, ["Processor", "07h", "IERR"]]
+    page1 = furniture(1) + ruled_table(72, 200, WIDTHS, [16, 16], rows1)
+    rows2 = [HEADER, ["", "08h", "Thermal Trip"], ["Power", "09h", "watts"]]
+    page2 = furniture(2) + ruled_table(72, 740, WIDTHS, [16] * 3, rows2)
+    with reader(tmp_path, [page1, page2]) as r:
+        t = r.logical_tables(1)[0]
+    assert (t.first, t.last) == (1, 2)
+    assert t.rows == [HEADER, *rows1[1:], *rows2[1:]]
+
+
+def test_a_body_row_equal_to_an_earlier_one_is_kept(tmp_path):
+    placeholder = ["reserved", "-", "-"]
+    page1 = furniture(1) + ruled_table(
+        72, 200, WIDTHS, [16] * 3, [HEADER, placeholder, ROWS_1[0]]
+    )
+    page2 = furniture(2) + ruled_table(
+        72, 740, WIDTHS, [16] * 3, [HEADER, placeholder, ROWS_2[0]]
+    )
+    with reader(tmp_path, [page1, page2]) as r:
+        t = r.logical_tables(2)[0]
+    assert t.rows == [HEADER, placeholder, ROWS_1[0], placeholder, ROWS_2[0]]
+
+
+def test_read_page_assembles_every_table_on_the_pages_it_visits(tmp_path):
+    page1 = furniture(1) + ruled_table(72, 200, WIDTHS, [16] * 2, [HEADER, ROWS_1[0]])
+    page2 = furniture(2) + ruled_table(72, 740, WIDTHS, [16] * 2, [HEADER, ROWS_1[1]])
+    page2 += ruled_table(72, 500, WIDTHS, [16] * 2, [HEADER, ROWS_2[0]])
+    page3 = furniture(3) + ruled_table(72, 740, WIDTHS, [16] * 2, [HEADER, ROWS_2[1]])
+    with reader(tmp_path, [page1, page2, page3]) as r:
+        on_page, found, done = r.read_page(1)
+    assert [(t.first, t.last) for t in on_page] == [(1, 2)]
+    assert sorted((t.first, t.last, t.index) for t in found) == [(1, 2, 1), (2, 3, 2)]
+    assert done == [1, 2, 3]
+
+
 def test_three_pages_walk_both_ways_from_the_middle(tmp_path):
     page1 = furniture(1) + ruled_table(72, 200, WIDTHS, [16] * 2, [HEADER, ROWS_1[0]])
     page2 = furniture(2) + ruled_table(72, 740, WIDTHS, [16] * 2, [HEADER, ROWS_1[1]])
@@ -261,6 +299,8 @@ def test_drop_repeated_header_and_join_cells():
         ["a"]
     ]
     assert T.drop_repeated_header(so_far, [["Other"], ["a"]]) == [["Other"], ["a"]]
+    body = [["Type", "Response data"], ["a"]]  # equal to a body row, unmarked
+    assert T.drop_repeated_header(so_far, body) == body
     assert T.drop_repeated_header(so_far, []) == []
     assert T.join_cells(["a", "b"], ["", "c", "d"]) == ["a", "b\nc", "d"]
 

@@ -17,6 +17,17 @@ def page_lines(text: str, n: int) -> list[str]:
     return text[start : end if end >= 0 else None].splitlines()
 
 
+def test_the_document_is_closed_after_extract_and_render(tmp_path):
+    # An open pypdfium2 document keeps the file locked on Windows.
+    from bmc_toolkit.spec import render as render_mod
+
+    pdf = pdfgen.write_pdf(tmp_path / "a.pdf", [pdfgen.plain_page(["one line"])])
+    ex.extract_pdf(pdf)
+    render_mod.render_page(pdf, 1, tmp_path / "p.png", scale=0.5)
+    pdf.unlink()
+    assert not pdf.exists()
+
+
 # ------------------------------------------------------------------ layout
 
 

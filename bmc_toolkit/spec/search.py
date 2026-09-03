@@ -237,12 +237,17 @@ class Version:
         lines: str | None = None,
         *,
         last: int | None = None,
-        section: Section | None = None,
+        section: "Section | str | None" = None,
     ) -> str:
         """The Citation line for a page, or for pages ``page``-``last``;
-        ``section`` overrides the entry owning the page's first line."""
+        ``section`` (an entry or its label) overrides the entry owning the
+        page's first line."""
         if section is None:
             section = self.owning_section(page, 0)
+        if isinstance(section, str):
+            label = section
+        else:
+            label = section.label if section else "-"
         if lines is None:
             rng = self.line_range(page)
             lines = f"{rng[0]}-{rng[1]}" if rng else "-"
@@ -250,7 +255,7 @@ class Version:
             [
                 f"cite: {self.family}",
                 self.label,
-                section.label if section else "-",
+                label,
                 f"PDF page {page}"
                 if not last or last == page
                 else f"PDF pages {page}-{last}",

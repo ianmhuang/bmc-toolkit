@@ -743,7 +743,7 @@ def cmd_table(args: argparse.Namespace) -> int:
         original = version.original or version.path / "original.pdf"
         try:
             with tables_mod.Reader(original) as reader:
-                tables = reader.logical_tables(
+                tables, found, done = reader.read_page(
                     n, section_of=lambda page, caption: _label(lookup(page, caption))
                 )
         except ImportError as exc:
@@ -752,7 +752,7 @@ def cmd_table(args: argparse.Namespace) -> int:
         except tables_mod.TableError as exc:
             print(f"cannot read tables of {version.label}: {exc}")
             return EXIT_ERROR
-        tables_mod.store(version.path, n, tables)
+        tables_mod.store(version.path, done, found)
     if not tables:
         doc = version.document
         print(
@@ -777,7 +777,7 @@ def cmd_table(args: argparse.Namespace) -> int:
                 table.first,
                 lines=f"table {table.index}",
                 last=table.last,
-                section=lookup(table.first, table.caption),
+                section=table.section,
             )
         )
         print(tables_mod.describe(table))

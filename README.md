@@ -55,7 +55,9 @@ page offset could not be confirmed carry `"approximate": true`.
 `figures.json` lists, per page that has one, the figure regions (raster
 images and vector drawings with the paths that overlap them, in PDF points)
 and the indices of the text lines lying inside them; `renders/page-N.png`
-holds pages rendered on request.
+holds pages rendered on request. `tables.json` holds the Logical Tables
+read so far (a format version, `pages_done`, and per table the page range,
+caption, section, column edges, parts and rows).
 
 ## Command line
 

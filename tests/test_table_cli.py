@@ -82,9 +82,14 @@ def test_table_reads_the_store_unless_forced(held, catalog_file, capsys):
         capsys, "table", "DSP0236", "--page", "1", catalog_file=catalog_file
     )
     assert code == 0 and again == first
-    # page 2 was never read on its own: the store does not answer for it
+    # the table runs onto page 2, so that page is answered from the store too
     code, out = run(
         capsys, "table", "DSP0236", "--page", "2", catalog_file=catalog_file
+    )
+    assert code == 0 and out == first
+    # page 3 was never read: the store does not answer for it
+    code, out = run(
+        capsys, "table", "DSP0236", "--page", "3", catalog_file=catalog_file
     )
     assert code == 1 and out.startswith("cannot read tables of DSP0236 1.3.3: ")
     code, out = run(

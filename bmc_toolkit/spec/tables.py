@@ -17,7 +17,9 @@ continuation page repeats, with or without "(continued)", is dropped.
 ``tables.json`` in the version directory::
 
     {"tables_version": 1,
-     "pages_done": [N, ...],          pages whose tables are all stored
+     "pages_done": [N, ...],          pages whose tables are all stored:
+                                      the pages asked for and every page
+                                      a table found there runs onto
      "tables": [{"first": a, "last": b, "index": k, "caption": str | null,
                  "section": str | null, "columns": [x, ...],
                  "parts": [[page, index, x0, top, x1, bottom], ...],
@@ -75,6 +77,7 @@ class PageTable:
     bbox: tuple[float, float, float, float]  # x0, top, x1, bottom
     columns: list[float]  # x of the column edges, one more than the columns
     rows: list[list[str]]
+    open_bottom: bool = False  # no rule under the last row: the page break cut it
 
     @property
     def top(self) -> float:
@@ -216,10 +219,10 @@ def _closing_rules(horizontal: list, vertical: list) -> list[dict]:
 
 def page_tables(page, number: int) -> list[PageTable]:
     """The ruled tables on a pdfplumber page, top to bottom."""
-    horizontal, vertical = page_rules(page)
+    drawn, vertical = page_rules(page)
     if len(vertical) < 2:  # an underline or a bar, not a grid
         return []
-    horizontal = horizontal + _closing_rules(horizontal, vertical)
+    horizontal = drawn + _closing_rules(drawn, vertical)
     if len(horizontal) < 2:  # pdfplumber wants two explicit lines each way
         return []
     settings = {
@@ -245,6 +248,7 @@ def page_tables(page, number: int) -> list[PageTable]:
             continue  # a framed block of text, not a table
         if not any(cell for row in rows for cell in row):
             continue
+        bottom = float(table.bbox[3])
         found.append(
             PageTable(
                 page=number,
@@ -252,6 +256,7 @@ def page_tables(page, number: int) -> list[PageTable]:
                 bbox=tuple(float(v) for v in table.bbox),
                 columns=columns,
                 rows=rows,
+                open_bottom=not any(abs(h["top"] - bottom) <= SNAP_Y_PT for h in drawn),
             )
         )
     found.sort(key=lambda t: t.top)
@@ -394,35 +399,68 @@ class Reader:
         section_of: Callable[[int, str | None], str | None] | None = None,
     ) -> list[LogicalTable]:
         """Every Logical Table that touches the page, top to bottom."""
-        out = []
-        for table in self.page(number).tables:
-            parts = [table]
-            cur = table
-            while cur.page > 1:
-                prev = self.page(cur.page - 1).tables
-                if not prev or not self.continues(prev[-1], cur):
-                    break
-                cur = prev[-1]
-                parts.insert(0, cur)
-            cur = table
-            while cur.page < self.page_count:
-                nxt = self.page(cur.page + 1).tables
-                if not nxt or not self.continues(cur, nxt[0]):
-                    break
-                cur = nxt[0]
-                parts.append(cur)
-            out.append(self._assemble(parts, section_of))
-        return out
+        return self.read_page(number, section_of)[0]
+
+    def read_page(
+        self,
+        number: int,
+        section_of: Callable[[int, str | None], str | None] | None = None,
+    ) -> tuple[list[LogicalTable], list[LogicalTable], list[int]]:
+        """(the Logical Tables touching the page, top to bottom; every
+        Logical Table assembled on the way; the pages whose tables are all
+        among them).
+
+        A table found from the page may run onto other pages; those pages'
+        remaining tables are assembled too, so a later call for any of them
+        can be answered from the store."""
+        found: dict[tuple[int, int], LogicalTable] = {}
+        done: set[int] = set()
+        pending = [number]
+        while pending:
+            page = pending.pop()
+            if page in done:
+                continue
+            done.add(page)
+            for table in self.page(page).tables:
+                if any(_holds(lt, table) for lt in found.values()):
+                    continue
+                lt = self._walk(table, section_of)
+                found[(lt.first, lt.index)] = lt
+                pending.extend(
+                    int(part[0]) for part in lt.parts if int(part[0]) not in done
+                )
+        on_page = [t for t in found.values() if t.covers(number)]
+        return sort_on_page(on_page, number), list(found.values()), sorted(done)
+
+    def _walk(self, table: PageTable, section_of) -> LogicalTable:
+        parts = [table]
+        cur = table
+        while cur.page > 1:
+            prev = self.page(cur.page - 1).tables
+            if not prev or not self.continues(prev[-1], cur):
+                break
+            cur = prev[-1]
+            parts.insert(0, cur)
+        cur = table
+        while cur.page < self.page_count:
+            nxt = self.page(cur.page + 1).tables
+            if not nxt or not self.continues(cur, nxt[0]):
+                break
+            cur = nxt[0]
+            parts.append(cur)
+        return self._assemble(parts, section_of)
 
     def _assemble(self, parts: list[PageTable], section_of) -> LogicalTable:
         first = parts[0]
         rows: list[list[str]] = [list(r) for r in first.rows]
+        previous = first
         for part in parts[1:]:
             more = drop_repeated_header(rows, part.rows)
-            if more and rows and _is_cut_row(more[0]):
+            if more and rows and previous.open_bottom and _is_cut_row(more[0]):
                 rows[-1] = join_cells(rows[-1], more[0])
                 more = more[1:]
             rows.extend(more)
+            previous = part
         caption = self.caption(first)
         section = section_of(first.page, caption) if section_of else None
         return LogicalTable(
@@ -435,6 +473,10 @@ class Reader:
             parts=[[p.page, p.index, *[round(v, 1) for v in p.bbox]] for p in parts],
             rows=rows,
         )
+
+
+def _holds(table: LogicalTable, part: PageTable) -> bool:
+    return any(int(p[0]) == part.page and int(p[1]) == part.index for p in table.parts)
 
 
 def _furniture_key(text: str) -> str:
@@ -454,20 +496,24 @@ def _row_key(row: list[str]) -> tuple[str, ...]:
 def drop_repeated_header(
     so_far: list[list[str]], rows: list[list[str]]
 ) -> list[list[str]]:
-    """``rows`` without its first row when that row repeats one already in
-    the table (the header, or the sub-header in force), "(continued)"
-    aside."""
-    if not rows:
+    """``rows`` without its first row when that row repeats the table's
+    header, or carries "(continued)" and repeats an earlier row (a
+    sub-header). A body row that merely looks like an earlier one stays."""
+    if not rows or not so_far:
         return rows
-    seen = {_row_key(r) for r in so_far}
-    if _row_key(rows[0]) in seen:
+    key = _row_key(rows[0])
+    if key == _row_key(so_far[0]):
+        return rows[1:]
+    marked = any(_CONTINUED.search(c) for c in rows[0])
+    if marked and key in {_row_key(r) for r in so_far}:
         return rows[1:]
     return rows
 
 
 def _is_cut_row(row: list[str]) -> bool:
-    """A continuation page's first row with an empty first cell carries the
-    rest of the row the page break cut."""
+    """A continuation page's first row with an empty first cell may be the
+    rest of a row the page break cut; the caller also checks that the part
+    before it had no rule under its last row."""
     return bool(row) and not row[0].strip() and any(c.strip() for c in row)
 
 
@@ -509,9 +555,12 @@ def stored_for_page(vdir: Path, page: int) -> list[LogicalTable] | None:
     return sort_on_page([t for t in tables if t.covers(page)], page)
 
 
-def store(vdir: Path, page: int, tables: list[LogicalTable]) -> Path:
-    """Record the tables found for the page; a table already stored for the
-    same first page and index is replaced."""
+def store(vdir: Path, pages, tables: list[LogicalTable]) -> Path:
+    """Record the tables found while reading ``pages`` (one number or a
+    list); a table already stored for the same first page and index is
+    replaced."""
+    if isinstance(pages, int):
+        pages = [pages]
     data = _read_store(vdir)
     keep = []
     new_keys = {(t.first, t.index) for t in tables}
@@ -522,7 +571,7 @@ def store(vdir: Path, page: int, tables: list[LogicalTable]) -> Path:
     keep.sort(key=lambda e: (e["first"], e["index"]))
     data["tables"] = keep
     done = set(data["pages_done"])
-    done.add(page)
+    done.update(int(p) for p in pages)
     data["pages_done"] = sorted(done)
     path = vdir / TABLES_NAME
     with open(path, "w", encoding="utf-8", newline="") as fh:
