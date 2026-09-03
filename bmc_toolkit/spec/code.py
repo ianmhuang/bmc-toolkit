@@ -9,7 +9,9 @@ Layout::
         {"repo": id, "url": ..., "commit": full sha,
          "provenance": {"kind": "default" | "ref" | "release", "name": ...,
                         "openbmc_commit": sha (release only)},
-         "fetched_at": ISO 8601 UTC, "superseded_by": sha (optional)}
+         "fetched_at": ISO 8601 UTC, "superseded_by": sha (optional),
+         "catalog_known": false when the repository is not in the catalog
+                          and its URL was guessed under GUESS_BASE}
     <library>/config.toml
         [code]
         release = "2.18.0"          default Release for every repository
@@ -39,6 +41,7 @@ CODE_DIRNAME = "code"
 TREE_META = ".bmc-tree.json"
 CONFIG_NAME = "config.toml"
 OPENBMC_REPO = "openbmc"  # catalog id of openbmc/openbmc, the release source
+GUESS_BASE = "https://github.com/openbmc/"  # where an unlisted repository is looked for
 GIT_TIMEOUT = 600  # seconds for one git command
 MAX_WHOLE_FILE = 200  # ``code`` prints a longer file only with --lines
 
@@ -97,6 +100,7 @@ class Tree:
     provenance: Provenance
     fetched_at: str = ""
     superseded_by: str | None = None
+    catalog_known: bool = True
 
     @property
     def short(self) -> str:
@@ -120,6 +124,8 @@ class Tree:
         }
         if self.superseded_by:
             meta["superseded_by"] = self.superseded_by
+        if not self.catalog_known:
+            meta["catalog_known"] = False
         return meta
 
 
@@ -264,6 +270,7 @@ class CodeLibrary:
             provenance=Provenance.from_dict(meta.get("provenance", {})),
             fetched_at=str(meta.get("fetched_at", "")),
             superseded_by=meta.get("superseded_by"),
+            catalog_known=bool(meta.get("catalog_known", True)),
         )
 
     def write_tree(self, tree: Tree) -> None:
@@ -291,6 +298,7 @@ class CodeLibrary:
         commit: str | None = None,
         sparse: tuple[str, ...] = (),
         force: bool = False,
+        catalog_known: bool = True,
     ) -> tuple[Tree, bool]:
         """Bring the repository in at ``ref`` (branch or tag), at ``commit``,
         or at the default branch; returns (tree, fetched). A tree already
@@ -328,7 +336,9 @@ class CodeLibrary:
         except BaseException:
             shutil.rmtree(tmp, ignore_errors=True)
             raise
-        tree = Tree(repo, url, sha, target, provenance, now_iso())
+        tree = Tree(
+            repo, url, sha, target, provenance, now_iso(), catalog_known=catalog_known
+        )
         self.write_tree(tree)
         self._supersede(tree)
         return tree, True
@@ -587,9 +597,15 @@ def gh_search(
     return out
 
 
+def guess_url(repo_id: str) -> str:
+    """The URL an unlisted repository is looked for at."""
+    return f"{GUESS_BASE}{repo_id}.git"
+
+
 __all__ = [
     "CODE_DIRNAME",
     "CONFIG_NAME",
+    "GUESS_BASE",
     "MAX_WHOLE_FILE",
     "OPENBMC_REPO",
     "TREE_META",
@@ -606,6 +622,7 @@ __all__ = [
     "find_pin",
     "gh_search",
     "grep",
+    "guess_url",
     "load_config",
     "read_lines",
     "run_git",

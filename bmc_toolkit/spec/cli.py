@@ -18,7 +18,13 @@ from bmc_toolkit.spec import fetch as fetch_mod
 from bmc_toolkit.spec import render as render_mod
 from bmc_toolkit.spec import search as search_mod
 from bmc_toolkit.spec import tables as tables_mod
-from bmc_toolkit.spec.catalog import Catalog, CatalogError, Document, load_catalog
+from bmc_toolkit.spec.catalog import (
+    Catalog,
+    CatalogError,
+    Document,
+    Repo,
+    load_catalog,
+)
 from bmc_toolkit.spec.library import (
     DEFAULT_LIBRARY_DIRNAME,
     ENV_LIBRARY,
@@ -803,11 +809,26 @@ def _code_setup(args):
     return catalog, code_mod.CodeLibrary(root), config, EXIT_OK
 
 
-def _repo_or_message(catalog, repo_id: str):
+def _repo_or_message(catalog, library, repo_id: str, *, guess: bool):
+    """The catalog's Repo, or one built for an unlisted repository: from a
+    held tree, or (``guess``, for clone) from the openbmc organisation.
+    None after a message when nothing fits."""
     repo = catalog.get_repo(repo_id)
-    if repo is None:
-        print(f"unknown repository '{repo_id}'; bmcspec repos lists them")
-    return repo
+    if repo is not None:
+        return repo
+    name = repo_id.strip()
+    if not name or "/" in name or "\\" in name or name.startswith("."):
+        print(f"'{repo_id}' is not a repository id; bmcspec repos lists them")
+        return None
+    held = library.trees(name)
+    if held:
+        return Repo(name, held[0].url, (), ())
+    if guess:
+        url = code_mod.guess_url(name)
+        print(f"note: {name} is not in the catalog; trying {url}")
+        return Repo(name, url, (), ())
+    print(f"unknown repository '{repo_id}'; bmcspec repos lists them")
+    return None
 
 
 def _tree_summary(tree: code_mod.Tree) -> str:
@@ -853,6 +874,17 @@ def cmd_repos(args: argparse.Namespace) -> int:
         checkout = config.checkouts.get(repo.id.lower())
         mine = f"user checkout: {checkout}" if checkout else "-"
         print(f"{repo.id}\t{held}\t{mine}\t{', '.join(repo.topics)}")
+    if not args.topic:  # held repositories the catalog does not list
+        listed = {r.id.lower() for r in catalog.repos}
+        extra = sorted(
+            {t.repo for t in library.trees() if t.repo.lower() not in listed}
+        )
+        for name in extra:
+            trees = library.trees(name)
+            held = "; ".join(_tree_summary(t) for t in trees) or "-"
+            checkout = config.checkouts.get(name.lower())
+            mine = f"user checkout: {checkout}" if checkout else "-"
+            print(f"{name}\t{held}\t{mine}\t(not in catalog)")
     return EXIT_OK
 
 
@@ -889,9 +921,10 @@ def cmd_clone(args: argparse.Namespace) -> int:
     catalog, library, config, code = _code_setup(args)
     if code != EXIT_OK:
         return code
-    repo = _repo_or_message(catalog, args.repo)
+    repo = _repo_or_message(catalog, library, args.repo, guess=True)
     if repo is None:
         return EXIT_ACTION
+    known = catalog.get_repo(repo.id) is not None
     release = args.release
     if not args.ref and not release and config.release:
         release = config.release
@@ -908,6 +941,7 @@ def cmd_clone(args: argparse.Namespace) -> int:
                 commit=pin,
                 sparse=repo.sparse,
                 force=args.force,
+                catalog_known=known,
             )
         elif args.ref:
             prov = code_mod.Provenance("ref", args.ref)
@@ -918,11 +952,17 @@ def cmd_clone(args: argparse.Namespace) -> int:
                 ref=args.ref,
                 sparse=repo.sparse,
                 force=args.force,
+                catalog_known=known,
             )
         else:
             prov = code_mod.Provenance("default", "")
             tree, fetched = library.clone(
-                repo.id, repo.url, prov, sparse=repo.sparse, force=args.force
+                repo.id,
+                repo.url,
+                prov,
+                sparse=repo.sparse,
+                force=args.force,
+                catalog_known=known,
             )
     except code_mod.CodeError as exc:
         print(str(exc))
@@ -1009,7 +1049,7 @@ def _reading_tree(args):
     catalog, library, config, code = _code_setup(args)
     if code != EXIT_OK:
         return None, None, [], code
-    repo = _repo_or_message(catalog, args.repo)
+    repo = _repo_or_message(catalog, library, args.repo, guess=False)
     if repo is None:
         return None, None, [], EXIT_ACTION
     try:

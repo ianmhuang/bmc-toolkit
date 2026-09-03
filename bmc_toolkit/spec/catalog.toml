@@ -3816,3 +3816,293 @@ id = "webui-vue"
 url = "https://github.com/openbmc/webui-vue.git"
 topics = ["web", "ui", "vue"]
 # Web user interface
+
+# Component daemons, OEM IPMI handlers and libraries beyond the core set.
+# Forks and tooling (linux, u-boot, qemu, openbmc-build-scripts,
+# openbmc-test-automation, openbmc-tools, .github, skeleton) are left out
+# on purpose; `clone` still accepts any openbmc/<name> and says it guessed.
+
+[[repos]]
+id = "intel-ipmi-oem"
+url = "https://github.com/openbmc/intel-ipmi-oem.git"
+topics = ["ipmi", "oem", "intel"]
+
+[[repos]]
+id = "fb-ipmi-oem"
+url = "https://github.com/openbmc/fb-ipmi-oem.git"
+topics = ["ipmi", "oem", "facebook"]
+
+[[repos]]
+id = "ampere-ipmi-oem"
+url = "https://github.com/openbmc/ampere-ipmi-oem.git"
+topics = ["ipmi", "oem", "ampere"]
+
+[[repos]]
+id = "google-ipmi-sys"
+url = "https://github.com/openbmc/google-ipmi-sys.git"
+topics = ["ipmi", "oem", "google"]
+
+[[repos]]
+id = "google-ipmi-i2c"
+url = "https://github.com/openbmc/google-ipmi-i2c.git"
+topics = ["ipmi", "oem", "google", "i2c"]
+
+[[repos]]
+id = "iei-ipmi-oem"
+url = "https://github.com/openbmc/iei-ipmi-oem.git"
+topics = ["ipmi", "oem", "iei"]
+
+[[repos]]
+id = "foxconn-ipmi-oem"
+url = "https://github.com/openbmc/foxconn-ipmi-oem.git"
+topics = ["ipmi", "oem", "foxconn"]
+
+[[repos]]
+id = "kunlun-ipmi-oem"
+url = "https://github.com/openbmc/kunlun-ipmi-oem.git"
+topics = ["ipmi", "oem", "kunlun"]
+
+[[repos]]
+id = "wistron-ipmi-oem"
+url = "https://github.com/openbmc/wistron-ipmi-oem.git"
+topics = ["ipmi", "oem", "wistron"]
+
+[[repos]]
+id = "openpower-host-ipmi-oem"
+url = "https://github.com/openbmc/openpower-host-ipmi-oem.git"
+topics = ["ipmi", "oem", "openpower"]
+
+[[repos]]
+id = "phosphor-sel-logger"
+url = "https://github.com/openbmc/phosphor-sel-logger.git"
+topics = ["ipmi", "sel", "logging", "events"]
+
+[[repos]]
+id = "phosphor-ipmi-ethstats"
+url = "https://github.com/openbmc/phosphor-ipmi-ethstats.git"
+topics = ["ipmi", "network", "statistics"]
+
+[[repos]]
+id = "phosphor-ipmi-blobs-binarystore"
+url = "https://github.com/openbmc/phosphor-ipmi-blobs-binarystore.git"
+topics = ["ipmi", "blobs", "storage"]
+
+[[repos]]
+id = "kcsbridge"
+url = "https://github.com/openbmc/kcsbridge.git"
+topics = ["ipmi", "kcs", "host-interface"]
+
+[[repos]]
+id = "btbridge"
+url = "https://github.com/openbmc/btbridge.git"
+topics = ["ipmi", "bt", "host-interface"]
+
+[[repos]]
+id = "ssifbridge"
+url = "https://github.com/openbmc/ssifbridge.git"
+topics = ["ipmi", "ssif", "host-interface"]
+
+[[repos]]
+id = "ipmbbridge"
+url = "https://github.com/openbmc/ipmbbridge.git"
+topics = ["ipmi", "ipmb", "i2c"]
+
+[[repos]]
+id = "pam-ipmi"
+url = "https://github.com/openbmc/pam-ipmi.git"
+topics = ["ipmi", "users", "pam"]
+
+[[repos]]
+id = "smbios-mdr"
+url = "https://github.com/openbmc/smbios-mdr.git"
+topics = ["smbios", "inventory", "cpu", "dimm"]
+
+[[repos]]
+id = "telemetry"
+url = "https://github.com/openbmc/telemetry.git"
+topics = ["redfish", "telemetry", "metrics"]
+
+[[repos]]
+id = "libpeci"
+url = "https://github.com/openbmc/libpeci.git"
+topics = ["peci", "cpu", "intel"]
+
+[[repos]]
+id = "peci-pcie"
+url = "https://github.com/openbmc/peci-pcie.git"
+topics = ["peci", "pcie", "inventory"]
+
+[[repos]]
+id = "phosphor-nvme"
+url = "https://github.com/openbmc/phosphor-nvme.git"
+topics = ["nvme", "sensors", "storage"]
+
+[[repos]]
+id = "estoraged"
+url = "https://github.com/openbmc/estoraged.git"
+topics = ["storage", "encryption", "emmc"]
+
+[[repos]]
+id = "spdm"
+url = "https://github.com/openbmc/spdm.git"
+topics = ["spdm", "attestation", "security"]
+
+[[repos]]
+id = "libcper"
+url = "https://github.com/openbmc/libcper.git"
+topics = ["cper", "errors", "ras"]
+
+[[repos]]
+id = "libbej"
+url = "https://github.com/openbmc/libbej.git"
+topics = ["redfish", "rde", "bej", "pldm"]
+
+[[repos]]
+id = "bios-settings-mgr"
+url = "https://github.com/openbmc/bios-settings-mgr.git"
+topics = ["bios", "settings", "redfish"]
+
+[[repos]]
+id = "bios-bmc-smm-error-logger"
+url = "https://github.com/openbmc/bios-bmc-smm-error-logger.git"
+topics = ["bios", "errors", "smm"]
+
+[[repos]]
+id = "phosphor-health-monitor"
+url = "https://github.com/openbmc/phosphor-health-monitor.git"
+topics = ["health", "sensors", "bmc"]
+
+[[repos]]
+id = "phosphor-post-code-manager"
+url = "https://github.com/openbmc/phosphor-post-code-manager.git"
+topics = ["post", "host"]
+
+[[repos]]
+id = "phosphor-psu-code-mgmt"
+url = "https://github.com/openbmc/phosphor-psu-code-mgmt.git"
+topics = ["firmware-update", "psu", "power"]
+
+[[repos]]
+id = "phosphor-power-control"
+url = "https://github.com/openbmc/phosphor-power-control.git"
+topics = ["power", "host", "chassis"]
+
+[[repos]]
+id = "phosphor-dbus-monitor"
+url = "https://github.com/openbmc/phosphor-dbus-monitor.git"
+topics = ["dbus", "monitor", "events"]
+
+[[repos]]
+id = "phosphor-hostlogger"
+url = "https://github.com/openbmc/phosphor-hostlogger.git"
+topics = ["console", "host", "logging"]
+
+[[repos]]
+id = "phosphor-led-sysfs"
+url = "https://github.com/openbmc/phosphor-led-sysfs.git"
+topics = ["led", "sysfs"]
+
+[[repos]]
+id = "phosphor-ecc"
+url = "https://github.com/openbmc/phosphor-ecc.git"
+topics = ["memory", "ecc", "errors"]
+
+[[repos]]
+id = "phosphor-modbus"
+url = "https://github.com/openbmc/phosphor-modbus.git"
+topics = ["modbus", "sensors"]
+
+[[repos]]
+id = "phosphor-snmp"
+url = "https://github.com/openbmc/phosphor-snmp.git"
+topics = ["snmp", "network", "events"]
+
+[[repos]]
+id = "phosphor-u-boot-env-mgr"
+url = "https://github.com/openbmc/phosphor-u-boot-env-mgr.git"
+topics = ["u-boot", "environment", "settings"]
+
+[[repos]]
+id = "host-error-monitor"
+url = "https://github.com/openbmc/host-error-monitor.git"
+topics = ["host", "errors", "cpu"]
+
+[[repos]]
+id = "hiomapd"
+url = "https://github.com/openbmc/hiomapd.git"
+topics = ["openpower", "pnor", "flash", "lpc"]
+
+[[repos]]
+id = "obmc-ikvm"
+url = "https://github.com/openbmc/obmc-ikvm.git"
+topics = ["kvm", "usb", "video"]
+
+[[repos]]
+id = "jsnbd"
+url = "https://github.com/openbmc/jsnbd.git"
+topics = ["virtual-media", "nbd", "web"]
+
+[[repos]]
+id = "dbus-top"
+url = "https://github.com/openbmc/dbus-top.git"
+topics = ["dbus", "tools", "monitor"]
+
+[[repos]]
+id = "stdplus"
+url = "https://github.com/openbmc/stdplus.git"
+topics = ["c++", "library", "utilities"]
+
+[[repos]]
+id = "gpioplus"
+url = "https://github.com/openbmc/gpioplus.git"
+topics = ["gpio", "library"]
+
+[[repos]]
+id = "service-config-manager"
+url = "https://github.com/openbmc/service-config-manager.git"
+topics = ["services", "settings", "systemd"]
+
+[[repos]]
+id = "phosphor-misc"
+url = "https://github.com/openbmc/phosphor-misc.git"
+topics = ["misc", "scripts", "tools"]
+
+[[repos]]
+id = "openpower-occ-control"
+url = "https://github.com/openbmc/openpower-occ-control.git"
+topics = ["openpower", "occ", "power", "thermal"]
+
+[[repos]]
+id = "openpower-pnor-code-mgmt"
+url = "https://github.com/openbmc/openpower-pnor-code-mgmt.git"
+topics = ["openpower", "firmware-update", "pnor"]
+
+[[repos]]
+id = "openpower-proc-control"
+url = "https://github.com/openbmc/openpower-proc-control.git"
+topics = ["openpower", "host", "boot"]
+
+[[repos]]
+id = "openpower-vpd-parser"
+url = "https://github.com/openbmc/openpower-vpd-parser.git"
+topics = ["openpower", "vpd", "inventory"]
+
+[[repos]]
+id = "openpower-hw-diags"
+url = "https://github.com/openbmc/openpower-hw-diags.git"
+topics = ["openpower", "diagnostics", "errors"]
+
+[[repos]]
+id = "openpower-libhei"
+url = "https://github.com/openbmc/openpower-libhei.git"
+topics = ["openpower", "errors", "diagnostics"]
+
+[[repos]]
+id = "openpower-debug-collector"
+url = "https://github.com/openbmc/openpower-debug-collector.git"
+topics = ["openpower", "dump", "debug"]
+
+[[repos]]
+id = "openpower-host-ipmi-flash"
+url = "https://github.com/openbmc/openpower-host-ipmi-flash.git"
+topics = ["openpower", "ipmi", "firmware-update"]

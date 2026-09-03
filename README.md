@@ -126,7 +126,8 @@ value of an enum with its description, following `$ref` into the file that
 defines it. Each block starts with a `cite:` line naming the bundle
 version, the schema file and the JSON pointer.
 
-`clone` brings a catalog repository into the Library as a Code Tree, a
+`clone` brings a repository into the Library as a Code Tree (a catalog
+entry, or any `openbmc/<name>` when the catalog does not list it), a
 shallow checkout at one commit under `code/<repo>/<commit>/` with a
 `.bmc-tree.json` recording the URL, the commit, how it was reached (the
 default branch, a `--ref` branch/tag/commit, or a `--release`) and when.

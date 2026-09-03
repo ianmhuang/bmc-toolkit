@@ -125,11 +125,6 @@ def test_clone_default_ref_and_commit(library, catalog_file, remotes, capsys):
     )
     assert code == 2 and out.startswith("git clone failed: ")
     assert not (library / "code" / "thing" / ".tmp-").exists()
-    code, out = run(capsys, "clone", "nope", catalog_file=catalog_file)
-    assert (
-        code == 2
-        and out.strip() == "unknown repository 'nope'; bmcspec repos lists them"
-    )
     argv = ["clone", "thing", "--ref", "a", "--release", "b"]
     code, out = run(capsys, *argv, catalog_file=catalog_file)
     assert code == 2 and out.strip() == "give --ref or --release, not both"
@@ -340,6 +335,39 @@ def test_reading_commands_pick_the_config_release(
     argv = ["grep", "thing", "powerState", "--ref", "main"]
     code, out = run(capsys, *argv, catalog_file=catalog_file)
     assert out.splitlines()[0].startswith(f"thing@{second[:7]} ")
+
+
+def test_unlisted_repository_is_guessed_and_listed(
+    library, catalog_file, remotes, capsys, monkeypatch, tmp_path
+):
+    (tmp_path / "guess").mkdir()
+    work, bare, url = make_repo(tmp_path / "guess", "extra", {"a.txt": "hello\n"})
+    base = (tmp_path / "guess").as_uri() + "/"
+    monkeypatch.setattr(code_mod, "GUESS_BASE", base)
+    code, out = run(capsys, "clone", "extra", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0] == f"note: extra is not in the catalog; trying {base}extra.git"
+    assert lines[1].startswith("cloned extra ")
+    tree = next(p for p in (library / "code" / "extra").iterdir() if p.is_dir())
+    meta = (tree / code_mod.TREE_META).read_text("utf-8")
+    assert '"catalog_known": false' in meta
+    code, out = run(capsys, "grep", "extra", "hello", catalog_file=catalog_file)
+    assert code == 0 and out.strip().endswith("a.txt:1 | hello")
+    code, out = run(capsys, "repos", catalog_file=catalog_file)
+    assert out.splitlines()[-1].startswith("extra\t") and out.strip().endswith(
+        "\t-\t(not in catalog)"
+    )
+    code, out = run(capsys, "grep", "nowhere", "x", catalog_file=catalog_file)
+    assert (
+        code == 2
+        and out.strip() == "unknown repository 'nowhere'; bmcspec repos lists them"
+    )
+    code, out = run(capsys, "clone", "../evil", catalog_file=catalog_file)
+    assert (
+        code == 2
+        and out.strip() == "'../evil' is not a repository id; bmcspec repos lists them"
+    )
 
 
 def test_git_missing_is_an_exit_2_message(library, catalog_file, capsys, monkeypatch):
