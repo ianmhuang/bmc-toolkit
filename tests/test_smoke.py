@@ -72,9 +72,10 @@ def test_library_env_override(tmp_path):
 
 
 def test_library_env_blank_is_ignored():
-    assert cli.resolve_library(env={"BMC_SPEC_LIBRARY": "  "}) == (
-        Path.home() / ".bmc-specs"
-    ).resolve()
+    assert (
+        cli.resolve_library(env={"BMC_SPEC_LIBRARY": "  "})
+        == (Path.home() / ".bmc-specs").resolve()
+    )
 
 
 def test_library_command_prints_override(tmp_path, monkeypatch):
