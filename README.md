@@ -10,10 +10,11 @@ asked about, defaults to the latest published version of each document,
 serves any specific version on request, and cites document, version, section
 and page in every answer.
 
-Version 1.0.0. The Source Catalog covers Intel IPMI, DMTF, Redfish,
-NVMe, OCP DC-SCM and DC-MHS, I2C, SMBus and CMIS; UEFI and ACPI are not in
-the catalog (uefi.org serves no scripted client) and enter only as
-Drop-ins. The acceptance set the release was checked against is in
+**Status: pre-release (0.9.0).** The Source Catalog covers Intel IPMI, DMTF,
+Redfish, NVMe, OCP DC-SCM and DC-MHS, I2C, SMBus and CMIS; UEFI and ACPI
+are not in the catalog (uefi.org serves no scripted client) and enter only
+as Drop-ins. Version 1.0.0 follows once the catalog is broader and every
+document has been checked against the acceptance set in
 `docs/golden-questions.md`.
 
 ## Install
@@ -218,7 +219,7 @@ reports them with `(URL to confirm by hand)`.
 - `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/w/index.php?title=<page>` for the pages named in the catalog's `listing` keys. They download no document.
 - Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed.
 - `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>` directory that is removed on failure. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees and `.tmp-*` leftovers under `code/`, nothing else.
-- `check` writes `freshness.json` at the Library root. `refresh --write` is the one command that writes outside the Library: it appends version entries to the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).
+- `check` writes `freshness.json` at the Library root; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it appends version entries to the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).
 
 ## The Source Catalog
 
@@ -229,12 +230,13 @@ that `find` searches together with it, and a `listing`
 (`dmtf:<DSP>`, implied for DMTF documents; `nvme:<slug>` of the
 nvmexpress.org API; `ocp:<wiki page>|<description prefix>`) that `check`
 and `refresh` consult. `refresh` prints the versions the publishers list
-that the catalog lacks (`add`), catalog URLs that moved (`changed`) and
-OCP versions whose download URL a human has to find (`confirm`);
-`refresh --write` appends the `add` entries of DMTF and NVMe documents as
-`[[documents.versions]]` blocks at the end of the document's block,
-leaving every other line and comment as it was, and refuses an edit the
-parser would not accept. If `check` reports a newer version, please open a
+that the catalog lacks (`add`), catalog URLs that moved (`changed`, for
+DMTF and NVMe) and versions a human has to handle (`confirm`: OCP rows,
+whose download URL has to be found, and DMTF Work-in-Progress rows, which
+the catalog lists only by hand with `wip = true`); `refresh --write`
+appends the `add` entries as `[[documents.versions]]` blocks at the end of
+the document's block, leaving every other line and comment as it was, and
+refuses an edit the parser would not accept. If `check` reports a newer version, please open a
 pull request with the `refresh --write` result (and the confirmed OCP
 URL).
 

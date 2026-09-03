@@ -261,21 +261,36 @@ def test_refresh_one_document_touches_only_that_document(
 
 
 def test_refresh_write_restores_the_file_when_the_edit_does_not_parse(
-    catalog_file, lib_root, client, capsys
+    catalog_file, lib_root, client, capsys, monkeypatch
 ):
-    """A publisher version string carrying a double quote makes a TOML line
-    that does not parse; the catalog must come back unchanged, exit 1."""
+    """An edit the parser rejects leaves the catalog unchanged, exit 1.
+    (A double quote in a version string is escaped since round 1, F2, so
+    the bad block is forced through version_block instead.)"""
+    from bmc_toolkit.spec import refresh as refresh_mod
+
     row = (
         '<tr><td>1.3.5"beta</td><td><a href="https://example.test/DSP0236_1.3.5.pdf">'
         "MCTP Base</a></td><td>4 Sep 2026</td><td>Standard</td></tr>"
     )
     client.responses[DMTF_DSP0236] = html(dsp_page(row))
     before = catalog_file.read_bytes()
-    code, out = run(capsys, "refresh", "DSP0236", "--write", catalog_file=catalog_file)
+    with monkeypatch.context() as bad:  # undo() would also drop the fixtures' patches
+        bad.setattr(
+            refresh_mod,
+            "version_block",
+            lambda seen: "[[documents.versions]]\nversion = 1\n",
+        )
+        code, out = run(
+            capsys, "refresh", "DSP0236", "--write", catalog_file=catalog_file
+        )
     assert code == 1, out
     assert "DSP0236" in out
     assert catalog_file.read_bytes() == before
     load_catalog(catalog_file)
+    # the quoted version string itself is written correctly
+    code, out = run(capsys, "refresh", "DSP0236", "--write", catalog_file=catalog_file)
+    assert code == 0, out
+    assert load_catalog(catalog_file).get("DSP0236").find_version('1.3.5"beta')
 
 
 def test_refresh_unreachable_listing_and_unlisted_document(

@@ -72,10 +72,12 @@ names (or the default branch), searched with `grep` and read with `code`.
 - **Freshness Check**: `check` asks the publisher (DMTF, nvmexpress.org,
   the OCP wiki) what versions it lists and reports one the catalog lacks
   (`newer DOC: ...`). It never downloads or switches versions; the catalog
-  stays the authority for Latest until a maintainer updates it. `fetch`
+  stays the authority for Latest until a maintainer updates it. The
+  outcome and the time go to `freshness.json` at the Library root. `fetch`
   and `status` print a `note:` when a document has not been checked
   within `freshness_days` (`[library]` in `config.toml`, default 30),
-  once per document until the next `check`.
+  once per document until the next `check` (the reminder is stamped in
+  the same file).
 - **Citation**: a `cite:` line printed by `page`, `render` or `table`. Its
   fields, separated by ` | `: family, document and version, section,
   `PDF page N` (or `PDF pages A-B` for a Logical Table), `lines A-B` (or
@@ -106,7 +108,7 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `scan` | register files placed by hand under `specs/<family>/<document>/<version>/original.pdf` |
 | `status` | what the Library holds; columns: family, id, version, origin, size, `extracted` / `stale` (extracted by an older extractor: run `extract` again) / `-`, outline source; a final `note:` when held documents are due for a Freshness Check |
 | `check [DOC]` | ask the publisher whether the catalog is behind: `current DOC V`, `newer DOC: catalog latest V, <publisher> lists W (date) URL` (OCP: `(URL to confirm by hand)`), or `unreachable DOC: reason`; without DOC every document with a listing, an `unchecked:` line for the hand-maintained ones, a `release:` line comparing `config.toml`'s release with the newest `openbmc/openbmc` tag (`-> newer` or `-> L is the newest`), and a `summary:`. Nothing is downloaded. Exit 2 for an unknown document or one without a listing |
-| `refresh [DOC] [--write]` | maintainer command: what `check` found, per version (`add`, `changed`, `confirm`); `--write` appends the `add` entries to the catalog file. Not for answering questions |
+| `refresh [DOC] [--write]` | maintainer command: what `check` found, per version (`add`, `changed`, `confirm` with the reason: an OCP URL to find, a DMTF Work-in-Progress row); `--write` appends the `add` entries to the catalog file. Not for answering questions |
 | `extract DOC [--version V] [--force]` | write the Extract, Outline, Line Map and figure regions for a PDF version already in the Library (latest held version by default), or unpack a schema bundle's JSON Schema into `schemas/`; skips if current. A ZIP without a `json-schema/` folder (registries, profiles) is skipped with a message |
 | `extract --all [--force]` | every PDF and bundle in the Library; ends with a `summary:` line |
 | `section DOC QUERY [--version V]` | Outline entries matching a section number prefix (`20.1` also matches `20.1.2`) or every word of QUERY; one per line: `LEVEL \| title \| pages FIRST-LAST` (LEVEL 0 is a top-level heading), where LAST is where the next entry of the same or a higher level begins (`~` in front of an approximate page). `no matching section` when nothing matches |

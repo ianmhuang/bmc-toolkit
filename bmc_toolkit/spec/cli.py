@@ -513,7 +513,12 @@ def cmd_status(args: argparse.Namespace) -> int:
             f"{h.family}\t{h.document}\t{h.version}\t{flag}\t{size}"
             f"\t{extracted}\t{outline}"
         )
-    _freshness_notes(_load(args), library, sorted({h.document for h in holdings}))
+    try:
+        catalog = _load(args)
+    except CatalogError as exc:
+        print(f"note: freshness not checked, the catalog does not load: {exc}")
+        return EXIT_OK
+    _freshness_notes(catalog, library, sorted({h.document for h in holdings}))
     return EXIT_OK
 
 
@@ -547,7 +552,8 @@ def _seen_line(doc: Document, seen: listing_mod.Seen) -> str:
             note += "..."
         note = f" [{note}]" if note else ""
         return f"{seen.version}{when} {link} (URL to confirm by hand){note}"
-    return f"{seen.version}{when} {seen.url}"
+    note = f" [{seen.note}]" if seen.note else ""
+    return f"{seen.version}{when} {seen.url}{note}"
 
 
 def cmd_check(args: argparse.Namespace) -> int:
@@ -579,17 +585,17 @@ def cmd_check(args: argparse.Namespace) -> int:
     if not args.document:
         _check_release(catalog, library, state)
     state.save()
-    print(
-        f"summary: current {counts['current']}, newer {counts['newer']}, "
-        f"unreachable {counts['unreachable']}"
-        + (f", unchecked {len(unchecked)}" if not args.document else "")
-    )
     if counts["newer"]:
         print(
             "nothing was downloaded: a newer version enters the Library only "
             "after the catalog lists it (bmcspec refresh, or a pull request) "
             "or as a Drop-in"
         )
+    print(
+        f"summary: current {counts['current']}, newer {counts['newer']}, "
+        f"unreachable {counts['unreachable']}"
+        + (f", unchecked {len(unchecked)}" if not args.document else "")
+    )
     return EXIT_OK
 
 
@@ -644,7 +650,10 @@ def cmd_refresh(args: argparse.Namespace) -> int:
             if prop.kind == "unreachable":
                 print(f"unreachable {doc.id}: {prop.problem}")
             else:
-                print(f"{prop.kind} {doc.id} {_seen_line(doc, prop.seen)}")
+                line = f"{prop.kind} {doc.id} {_seen_line(doc, prop.seen)}"
+                if prop.why and doc.listing_source != "ocp":
+                    line += f" ({prop.why})"
+                print(line)
         to_write = [p.seen for p in found if p.writable]
         if args.write and to_write:
             try:

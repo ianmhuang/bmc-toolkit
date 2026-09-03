@@ -364,7 +364,8 @@ def test_fetch_note_after_freshness_days_and_the_config_key(
     )
     code, out = run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
     assert code == 0 and "note:" not in out
-    assert DMTF_PUBLISHED not in client.calls
+    # the listing was read once, by the check at the top; never by fetch
+    assert client.calls.count(DMTF_PUBLISHED) == 1
 
 
 def test_fetch_all_and_status_print_one_note_for_the_documents_together(

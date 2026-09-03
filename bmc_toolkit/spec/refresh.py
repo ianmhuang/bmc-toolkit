@@ -8,6 +8,7 @@ maintainer comments survive; the result is re-parsed before it is kept.
 OCP versions are only reported: their links are viewers, not files.
 """
 
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,15 +32,13 @@ class Proposal:
     document: str
     seen: Seen | None = None
     problem: str = ""
+    why: str = ""  # for confirm: what keeps it from being written
 
     @property
     def writable(self) -> bool:
-        """An ``add`` whose URL is a file the fetch chain can download."""
-        return (
-            self.kind == "add"
-            and self.seen is not None
-            and bool(_file_type(self.seen.url))
-        )
+        """An ``add``: a published version whose URL is a file the fetch
+        chain can download."""
+        return self.kind == "add"
 
 
 def _file_type(url: str) -> str:
@@ -48,6 +47,20 @@ def _file_type(url: str) -> str:
         if lower.endswith("." + ext):
             return ext
     return ""
+
+
+def _is_wip(seen: Seen) -> bool:
+    """A Work-in-Progress row: the catalog lists WIP releases only by hand,
+    with ``wip = true``, so refresh never writes one."""
+    return "work in progress" in seen.note.lower() or "_wip" in seen.url.lower()
+
+
+def _why_confirm(source: str, seen: Seen) -> str:
+    if source == "ocp":
+        return "URL to confirm by hand"
+    if _is_wip(seen):
+        return "work in progress, not written; add it by hand with wip = true"
+    return "not a pdf or zip URL, not written"
 
 
 def proposals(doc: Document, listings: Listings) -> list[Proposal]:
@@ -62,23 +75,30 @@ def proposals(doc: Document, listings: Listings) -> list[Proposal]:
     for s in seen:
         known = by_key.get(version_key(source, s.version))
         if known is None:
-            kind = "add" if source != "ocp" and _file_type(s.url) else "confirm"
-            out.append(Proposal(kind, doc.id, s))
-        elif source == "dmtf" and known.url and s.url and known.url != s.url:
+            if source != "ocp" and _file_type(s.url) and not _is_wip(s):
+                out.append(Proposal("add", doc.id, s))
+            else:
+                out.append(Proposal("confirm", doc.id, s, why=_why_confirm(source, s)))
+        elif source != "ocp" and known.url and s.url and known.url != s.url:
             out.append(Proposal("changed", doc.id, s))
     return out
+
+
+def _toml_string(value: str) -> str:
+    """A TOML basic string: JSON's escaping of ``"`` and ``\\`` is TOML's."""
+    return json.dumps(value, ensure_ascii=False)
 
 
 def version_block(seen: Seen) -> str:
     lines = [
         "[[documents.versions]]",
-        f'version = "{seen.version}"',
-        f'url = "{seen.url}"',
+        f"version = {_toml_string(seen.version)}",
+        f"url = {_toml_string(seen.url)}",
         f'type = "{_file_type(seen.url)}"',
-        f'published = "{seen.published}"',
+        f"published = {_toml_string(seen.published)}",
     ]
     if seen.note:
-        lines.append(f'notes = "{seen.note}"')
+        lines.append(f"notes = {_toml_string(seen.note)}")
     return "\n".join(lines) + "\n"
 
 
@@ -89,8 +109,8 @@ def _document_span(lines: list[str], doc_id: str) -> tuple[int, int]:
     id_re = re.compile(rf'^id\s*=\s*"{re.escape(doc_id)}"\s*$', re.IGNORECASE)
     start = None
     for i, line in enumerate(lines):
-        if _BLOCK_START.match(line) and line.startswith("[[documents]]"):
-            start = i
+        if _BLOCK_START.match(line):  # a repos block never holds a document
+            start = i if line.startswith("[[documents]]") else None
         elif id_re.match(line) and start is not None:
             for j in range(i + 1, len(lines)):
                 if _BLOCK_START.match(lines[j]) or _SECTION_COMMENT.match(lines[j]):

@@ -249,7 +249,9 @@ def test_check_all_continues_past_failures_and_lists_unchecked(
     assert lines[1].startswith("unreachable NVME-MI: ") and "no route to" in lines[1]
     assert lines[2].startswith("newer M-CRPS: ")
     assert lines[3] == "unchecked: IPMI, BUNDLE, SECRET (no publisher listing)"
-    assert lines[4] == "summary: current 1, newer 1, unreachable 1, unchecked 3"
+    assert lines[4].startswith("nothing was downloaded")
+    assert lines[5] == "summary: current 1, newer 1, unreachable 1, unchecked 3"
+    assert lines[-1] == lines[5]  # the summary is the last line (AC-2)
     assert pages.calls.count(L.DMTF_PUBLISHED) == 1
     saved = json.loads((library.root / F.FRESHNESS_NAME).read_text("utf-8"))
     assert "no route to" in saved["documents"]["NVME-MI"]["problem"]
@@ -455,3 +457,96 @@ def test_document_span_and_block_text(tmp_path):
         '[[documents.versions]]\nversion = "3"\nurl = "https://x/z.pdf"\n'
         'type = "pdf"\npublished = "2027-01-01"\nnotes = "WIP"\n'
     )
+
+
+# ------------------------------------------------------- round 1 fixes
+
+
+def test_refresh_never_writes_a_work_in_progress_row(
+    catalog_file, library, pages, capsys
+):
+    """F1: a WIP row the catalog lacks is reported as confirm, not added."""
+    text = catalog_file.read_text("utf-8")
+    start = text.index('[[documents.versions]]\nversion = "1.4.0"')
+    end = text.index("[[documents]]", start)
+    catalog_file.write_text(text[:start] + text[end:], encoding="utf-8", newline="")
+    assert load_catalog(catalog_file).get("DSP0236").find_version("1.4.0") is None
+    code, out = run(capsys, "refresh", "DSP0236", "--write", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    wip = [ln for ln in lines if ln.startswith("confirm DSP0236 1.4.0")]
+    assert len(wip) == 1
+    assert wip[0].endswith(
+        "[Work in Progress] (work in progress, not written; add it by hand "
+        "with wip = true)"
+    )
+    assert "wrote 1 version(s) of DSP0236" in out  # 1.3.4 only
+    doc = load_catalog(catalog_file).get("DSP0236")
+    assert doc.find_version("1.3.4") is not None
+    assert doc.find_version("1.4.0") is None
+    assert doc.latest().version == "1.3.4"
+
+
+def test_version_block_escapes_quotes_and_backslashes():
+    """F2: publisher strings with a quote still make a TOML the parser reads."""
+    block = R.version_block(
+        L.Seen('1.0 "final"', "https://x/a\\b.pdf", "2026-01-02", 'say "hi"')
+    )
+    assert block == (
+        "[[documents.versions]]\n"
+        'version = "1.0 \\"final\\""\n'
+        'url = "https://x/a\\\\b.pdf"\n'
+        'type = "pdf"\n'
+        'published = "2026-01-02"\n'
+        'notes = "say \\"hi\\""\n'
+    )
+    import tomllib
+
+    parsed = tomllib.loads("[[documents]]\n" + block)
+    assert parsed["documents"][0]["versions"][0]["version"] == '1.0 "final"'
+
+
+def test_refresh_reports_a_moved_nvme_file(catalog_file, library, scripted, capsys):
+    """F5: `changed` covers NVMe, not only DMTF."""
+    moved = (
+        NVME_JSON.replace(
+            "Revision-2.1-2025.08.01-Ratified.pdf",
+            "Revision-2.1-2025.08.02-Ratified.pdf",
+        )
+        .replace("Revision-2.2-", "Revision-2.1-")
+        .replace("2026.07.31", "2025.08.02")
+    )
+    scripted.responses[L.NVME_API] = ok(moved.encode(), "application/json")
+    code, out = run(capsys, "refresh", "NVME-MI", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.splitlines()[0].startswith("changed NVME-MI 2.1 (2025-08-02) ")
+    assert "add NVME-MI" not in out
+
+
+def test_status_survives_a_malformed_catalog(library, tmp_path, capsys, monkeypatch):
+    """F6: status prints the holdings and a note, exit 0, without a catalog."""
+    from bmc_toolkit.spec.library import Library
+
+    lib = Library(library.root)
+    lib.store("mctp", "DSP0236", "1.3.3", PDF_BYTES, "pdf", url="u", method="direct")
+    bad = tmp_path / "bad.toml"
+    bad.write_text("schema_version = 1\n[families\n", encoding="utf-8")
+    code, out = run(capsys, "status", catalog_file=bad)
+    assert code == 0
+    lines = out.splitlines()
+    assert lines[1].startswith("mctp\tDSP0236\t1.3.3")
+    assert lines[-1].startswith(
+        "note: freshness not checked, the catalog does not load"
+    )
+
+
+def test_document_span_ignores_ids_in_repos_blocks():
+    """F7: a repository sharing a document's id does not stand in for it."""
+    lines = (
+        '[[repos]]\nid = "X"\nurl = "https://x"\n\n'
+        '[[documents]]\nid = "X"\nfamily = "f"\n\n[[documents.versions]]\nversion = "1"\n'
+    ).split("\n")
+    assert R._document_span(lines, "X") == (4, len(lines))
+    only_repo = '[[repos]]\nid = "Y"\n'.split("\n")
+    with pytest.raises(R.RefreshError):
+        R._document_span(only_repo, "Y")
