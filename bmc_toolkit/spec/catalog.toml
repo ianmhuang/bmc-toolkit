@@ -1,0 +1,3569 @@
+# Source Catalog for the bmc-spec skill.
+#
+# What exists, which versions, and where each one is downloaded from. Read
+# by bmc_toolkit/spec/catalog.py; the schema is documented there. Version
+# strings are the publisher's own, verbatim. "published" decides which
+# version is latest; Work-in-Progress entries carry wip = true and are never
+# latest unless asked for.
+#
+# access: open (direct public download) | gated (free registration or
+#         click-through) | member (paid or member-only) | confidential (NDA)
+# fetch:  direct (publisher URL, then Wayback, then manual) | wayback
+#         (publisher blocks scripts; Internet Archive only) | manual (never
+#         downloaded; the user places the file)
+#
+# Comments record when a URL was last confirmed reachable by the fetch code.
+
+schema_version = 1
+
+# ---------------------------------------------------------------- families
+
+[families.ipmi]
+title = "IPMI, IPMB, FRU and DCMI"
+publisher = "Intel"
+
+[families.espi]
+title = "Enhanced Serial Peripheral Interface"
+publisher = "Intel"
+
+[families.mctp]
+title = "Management Component Transport Protocol"
+publisher = "DMTF"
+
+[families.pldm]
+title = "Platform Level Data Model"
+publisher = "DMTF"
+
+[families.spdm]
+title = "Security Protocol and Data Model"
+publisher = "DMTF"
+
+[families.ncsi]
+title = "Network Controller Sideband Interface"
+publisher = "DMTF"
+
+[families.smbios]
+title = "System Management BIOS"
+publisher = "DMTF"
+
+[families.redfish]
+title = "Redfish"
+publisher = "DMTF"
+
+[families.nvme]
+title = "NVM Express"
+publisher = "NVM Express, Inc."
+
+[families.ocp-dcscm]
+title = "OCP Datacenter-ready Secure Control Module"
+publisher = "Open Compute Project"
+
+[families.ocp-dcmhs]
+title = "OCP Datacenter Modular Hardware System"
+publisher = "Open Compute Project"
+
+[families.i2c]
+title = "I2C bus"
+publisher = "NXP"
+
+[families.smbus]
+title = "System Management Bus"
+publisher = "SBS Implementers Forum"
+
+[families.cmis]
+title = "Common Management Interface Specification (optical modules)"
+publisher = "OIF"
+
+# ---------------------------------------------------------------- Intel
+# Intel has no index page; each PDF is a fixed URL on intel.com, mirrored on
+# intel.la. The CDN rejects non-browser TLS fingerprints (curl_cffi needed).
+# All six URLs confirmed 2026-09-03.
+
+[[documents]]
+id = "IPMI"
+family = "ipmi"
+title = "Intelligent Platform Management Interface Specification, Second Generation, v2.0"
+access = "open"
+fetch = "direct"
+notes = "Latest means this document plus IPMI-UPDATE read together."
+
+[[documents.versions]]
+version = "2.0 rev 1.1"
+url = "https://www.intel.com/content/dam/www/public/us/en/documents/product-briefs/ipmi-second-gen-interface-spec-v2-rev1-1.pdf"
+type = "pdf"
+published = "2013-10-01"
+
+[[documents]]
+id = "IPMI-UPDATE"
+family = "ipmi"
+title = "IPMI Specification, Second Generation, v2.0 Specification Update (Errata/Addenda/Clarifications)"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "2.0 rev 1.1 Errata 7"
+url = "https://www.intel.com/content/dam/www/public/us/en/documents/specification-updates/ipmi-intelligent-platform-mgt-interface-spec-2nd-gen-v2-0-spec-update.pdf"
+type = "pdf"
+published = "2015-04-01"
+notes = "Also at www.intel.la with the same path."
+
+[[documents]]
+id = "IPMB"
+family = "ipmi"
+title = "Intelligent Platform Management Bus Communications Protocol Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0"
+url = "https://www.intel.com/content/dam/www/public/us/en/documents/product-briefs/ipmp-spec-v1.0.pdf"
+type = "pdf"
+published = "1999-11-15"
+
+[[documents]]
+id = "IPMI-FRU"
+family = "ipmi"
+title = "Platform Management FRU Information Storage Definition"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0 rev 1.3"
+url = "https://www.intel.com/content/dam/www/public/us/en/documents/specification-updates/ipmi-platform-mgt-fru-info-storage-def-v1-0-rev-1-3-spec-update.pdf"
+type = "pdf"
+published = "2013-03-24"
+
+[[documents]]
+id = "DCMI"
+family = "ipmi"
+title = "Data Center Manageability Interface Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.5"
+url = "https://www.intel.com/content/dam/www/public/us/en/documents/technical-specifications/dcmi-v1-5-rev-spec.pdf"
+type = "pdf"
+published = "2011-08-01"
+
+[[documents]]
+id = "ESPI"
+family = "espi"
+title = "Enhanced Serial Peripheral Interface (eSPI) Base Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.6"
+url = "https://cdrdv2-public.intel.com/841685/841685_ESPI_IBS_TS_Rev_1_6.pdf"
+type = "pdf"
+published = "2025-03-12"
+
+# ---------------------------------------------------------------- NVMe
+# nvmexpress.org lists specifications through JavaScript; the PDF URLs under
+# wp-content/uploads are stable per revision but the file-name pattern changed
+# several times, so each is recorded verbatim. All confirmed 2026-09-03.
+
+[[documents]]
+id = "NVME-BASE"
+family = "nvme"
+title = "NVM Express Base Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.3d"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-1_3d-2019.03.20-Ratified.pdf"
+type = "pdf"
+published = "2019-03-20"
+
+[[documents.versions]]
+version = "2.0"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Base-Specification-2_0-2021.06.02-Ratified-4.pdf"
+type = "pdf"
+published = "2021-06-02"
+
+[[documents.versions]]
+version = "1.4c"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-1_4c-2021.06.28-Ratified.pdf"
+type = "pdf"
+published = "2021-06-28"
+
+[[documents.versions]]
+version = "2.0a"
+url = "https://nvmexpress.org/wp-content/uploads/NVMe-NVM-Express-2.0a-2021.07.26-Ratified.pdf"
+type = "pdf"
+published = "2021-07-26"
+
+[[documents.versions]]
+version = "2.0b"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Base-Specification-2.0b-2021.12.18-Ratified.pdf"
+type = "pdf"
+published = "2021-12-18"
+
+[[documents.versions]]
+version = "2.0c"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Base-Specification-2.0c-2022.10.04-Ratified.pdf"
+type = "pdf"
+published = "2022-10-04"
+
+[[documents.versions]]
+version = "2.0d"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Base-Specification-2.0d-2024.01.11-Ratified.pdf"
+type = "pdf"
+published = "2024-01-11"
+
+[[documents.versions]]
+version = "2.0e"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Base-Specification-2.0e-2024.07.29-Ratified.pdf"
+type = "pdf"
+published = "2024-07-29"
+
+[[documents.versions]]
+version = "2.1"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Base-Specification-Revision-2.1-2024.08.05-Ratified.pdf"
+type = "pdf"
+published = "2024-08-05"
+
+[[documents.versions]]
+version = "2.2"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Base-Specification-Revision-2.2-2025.03.11-Ratified.pdf"
+type = "pdf"
+published = "2025-03-11"
+
+[[documents.versions]]
+version = "2.3"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Base-Specification-Revision-2.3-2025.08.01-Ratified.pdf"
+type = "pdf"
+published = "2025-08-01"
+
+[[documents.versions]]
+version = "2.4"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Base-Specification-Revision-2.4-Ratified-2026.07.31.pdf"
+type = "pdf"
+published = "2026-07-31"
+
+[[documents]]
+id = "NVME-MI"
+family = "nvme"
+title = "NVM Express Management Interface Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0"
+url = "https://nvmexpress.org/wp-content/uploads/NVM_Express_Management_Interface_1_0_gold.pdf"
+type = "pdf"
+published = "2015-11-17"
+
+[[documents.versions]]
+version = "1.0a"
+url = "https://nvmexpress.org/wp-content/uploads/NVM_Express_Management_Interface_1_0a_2017.04.08_-_gold.pdf"
+type = "pdf"
+published = "2017-04-08"
+
+[[documents.versions]]
+version = "1.1"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interface-1.1-Ratified.pdf"
+type = "pdf"
+published = "2019-05-13"
+
+[[documents.versions]]
+version = "1.1a"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interface-1.1a-2020.04.20-Ratified.pdf"
+type = "pdf"
+published = "2020-04-20"
+
+[[documents.versions]]
+version = "1.1b"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interface-1.1b-2020.10.05-Ratified.pdf"
+type = "pdf"
+published = "2020-10-05"
+
+[[documents.versions]]
+version = "1.1c"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interface-1.1c-2021.02.22-Ratified.pdf"
+type = "pdf"
+published = "2021-02-22"
+
+[[documents.versions]]
+version = "1.2"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interface-1.2-2021.06.02-Ratified.pdf"
+type = "pdf"
+published = "2021-06-02"
+
+[[documents.versions]]
+version = "1.2a"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interface-1.2a-2021.07.22-Ratified.pdf"
+type = "pdf"
+published = "2021-07-22"
+
+[[documents.versions]]
+version = "1.2b"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interface-Specification-1.2b-2022.01.10-Ratified.pdf"
+type = "pdf"
+published = "2022-01-10"
+
+[[documents.versions]]
+version = "1.2c"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interface-Specification-1.2c-2022.10.06-Ratified.pdf"
+type = "pdf"
+published = "2022-10-06"
+
+[[documents.versions]]
+version = "1.2d"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interface-Specification-1.2d-2024.01.10-Ratified.pdf"
+type = "pdf"
+published = "2024-01-10"
+
+[[documents.versions]]
+version = "1.2e"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interface-Specification-Revision-1.2e-2024.07.28-Ratified.pdf"
+type = "pdf"
+published = "2024-07-28"
+
+[[documents.versions]]
+version = "2.0"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interface-Specification-Revision-2.0-2024.08.05-Ratified.pdf"
+type = "pdf"
+published = "2024-08-05"
+
+[[documents.versions]]
+version = "2.1"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-Management-Interface-Specification-Revision-2.1-2025.08.01-Ratified.pdf"
+type = "pdf"
+published = "2025-08-01"
+
+[[documents]]
+id = "NVME-PCIE"
+family = "nvme"
+title = "NVM Express over PCIe Transport Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.2"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-PCI-Express-Transport-Specification-Revision-1.2-2025.03.11-Ratified.pdf"
+type = "pdf"
+published = "2025-03-11"
+
+[[documents.versions]]
+version = "1.3"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-NVMe-over-PCIe-Transport-Specification-Revision-1.3-2025.08.01-Ratified.pdf"
+type = "pdf"
+published = "2025-08-01"
+
+# ---------------------------------------------------------------- OCP
+# opencompute.org/documents/<slug> serves the PDF directly but the slug is
+# human-written and a re-upload may add a numeric suffix; every URL here was
+# confirmed by hand on 2026-09-03. The site rejects non-browser TLS
+# fingerprints. DC-MHS has no umbrella document; it is the set of M-* specs.
+# Publication dates come from the OCP wiki specification tables.
+
+[[documents]]
+id = "DC-SCM"
+family = "ocp-dcscm"
+title = "Datacenter-ready Secure Control Module (DC-SCM) Specification"
+access = "open"
+fetch = "direct"
+notes = "Rev 2.0 Ver 1.0 exists only as a Google Drive link on the OCP wiki and is not listed."
+
+[[documents.versions]]
+version = "Rev 1.0"
+url = "https://www.opencompute.org/documents/ocp-dc-scm-spec-rev-1-0-pdf"
+type = "pdf"
+published = "2021-03-26"
+
+[[documents.versions]]
+version = "Rev 2.1 Ver 1.1"
+url = "https://www.opencompute.org/documents/ocp-dc-scm-rev2-1-ver1-1-pdf-1"
+type = "pdf"
+published = "2025-01-01"
+notes = "Errata release of rev 2.1. Publication date approximate."
+
+[[documents]]
+id = "M-CRPS"
+family = "ocp-dcmhs"
+title = "DC-MHS Modular Hardware System Common Redundant Power Supply (M-CRPS) Base Specification"
+access = "open"
+fetch = "direct"
+notes = "A v1.06 draft (2026-04) exists only as a Google Drive link and is not listed."
+
+[[documents.versions]]
+version = "R1 v1.0 RC4"
+url = "https://www.opencompute.org/documents/m-crps-r1-v1p0-rc4-pdf"
+type = "pdf"
+published = "2023-01-01"
+notes = "Publication date approximate."
+
+[[documents]]
+id = "M-PIC"
+family = "ocp-dcmhs"
+title = "DC-MHS Platform Infrastructure Connectivity (M-PIC) Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "R1 v1.11"
+url = "https://www.opencompute.org/documents/m-pic-r1-v1-11-pdf"
+type = "pdf"
+published = "2025-03-25"
+
+[[documents]]
+id = "M-XIO"
+family = "ocp-dcmhs"
+title = "DC-MHS Extensible I/O (M-XIO) Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "R1 v1.0 RC4"
+url = "https://www.opencompute.org/documents/m-xio-r1-v1p0-rc4-pdf"
+type = "pdf"
+published = "2023-01-01"
+notes = "Publication date approximate."
+
+[[documents.versions]]
+version = "R1 v1.04 RC1"
+url = "https://www.opencompute.org/documents/m-xio-r1-v1p04-rc1-pdf"
+type = "pdf"
+published = "2024-02-28"
+
+[[documents]]
+id = "M-DNO"
+family = "ocp-dcmhs"
+title = "DC-MHS Densified Node Operation (M-DNO) Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "R1 v1.0 RC5"
+url = "https://www.opencompute.org/documents/m-dno-r1-v1p0-rc5-pdf"
+type = "pdf"
+published = "2022-09-28"
+
+[[documents.versions]]
+version = "R1 v1.1 RC2"
+url = "https://www.opencompute.org/documents/m-dno-r1-v1p1-rc2-pdf"
+type = "pdf"
+published = "2024-03-21"
+
+[[documents]]
+id = "M-FLW"
+family = "ocp-dcmhs"
+title = "DC-MHS Full Width HPM (M-FLW) Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "R1 v1.2 RC3"
+url = "https://www.opencompute.org/documents/m-flw-r1-v1p2-rc3-pdf"
+type = "pdf"
+published = "2024-10-10"
+
+[[documents]]
+id = "M-PESTI"
+family = "ocp-dcmhs"
+title = "DC-MHS Peripheral Sideband Tunneling Interface (M-PESTI) Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "R1 v1.0 RC2"
+url = "https://www.opencompute.org/documents/m-pesti-r1-v1p0-rc2-pdf"
+type = "pdf"
+published = "2022-09-28"
+
+[[documents.versions]]
+version = "R1 v1.2 RC2"
+url = "https://www.opencompute.org/documents/m-pesti-r1-v1p2-rc2-pdf"
+type = "pdf"
+published = "2024-03-14"
+
+[[documents]]
+id = "M-SDNO"
+family = "ocp-dcmhs"
+title = "DC-MHS Shared-Infrastructure Densified Node Operation (M-SDNO) Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "v1.0 RC2"
+url = "https://www.opencompute.org/documents/m-sdno-specification-v1p0-rc2-pdf"
+type = "pdf"
+published = "2024-06-13"
+
+[[documents.versions]]
+version = "v1.1 RC2"
+url = "https://www.opencompute.org/documents/m-sdno-v1p1-rc2-pdf"
+type = "pdf"
+published = "2025-05-30"
+
+# ---------------------------------------------------------------- buses
+
+[[documents]]
+id = "UM10204"
+family = "i2c"
+title = "I2C-bus specification and user manual (UM10204)"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "Rev. 7.0"
+url = "https://www.nxp.com/docs/en/user-guide/UM10204.pdf"
+type = "pdf"
+published = "2021-10-01"
+notes = "NXP keeps only the current revision at this URL. Confirmed 2026-09-03."
+
+[[documents]]
+id = "SMBUS"
+family = "smbus"
+title = "System Management Bus (SMBus) Specification"
+access = "open"
+fetch = "direct"
+notes = "All versions listed at https://smbus.org/specs/"
+
+[[documents.versions]]
+version = "3.0"
+url = "https://smbus.org/specs/SMBus_3_0_20141220.pdf"
+type = "pdf"
+published = "2014-12-20"
+
+[[documents.versions]]
+version = "3.1"
+url = "https://smbus.org/specs/SMBus_3_1_20180319.pdf"
+type = "pdf"
+published = "2018-03-19"
+
+[[documents.versions]]
+version = "3.2"
+url = "https://smbus.org/specs/SMBus_3_2_20220112.pdf"
+type = "pdf"
+published = "2022-01-12"
+
+[[documents.versions]]
+version = "3.3"
+url = "https://smbus.org/specs/SMBus_3_3_20240512.pdf"
+type = "pdf"
+published = "2024-05-12"
+
+[[documents.versions]]
+version = "3.3.1"
+url = "https://smbus.org/specs/SMBus_3_3_1_20241020.pdf"
+type = "pdf"
+published = "2024-10-20"
+
+[[documents]]
+id = "CMIS"
+family = "cmis"
+title = "Common Management Interface Specification (OIF-CMIS)"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "5.2"
+url = "https://www.oiforum.com/wp-content/uploads/OIF-CMIS-05.2.pdf"
+type = "pdf"
+published = "2022-04-01"
+
+[[documents.versions]]
+version = "5.3"
+url = "https://www.oiforum.com/wp-content/uploads/OIF-CMIS-05.3.pdf"
+type = "pdf"
+published = "2024-06-01"
+
+[[documents.versions]]
+version = "5.4"
+url = "https://www.oiforum.com/wp-content/uploads/OIF-CMIS-05.4.pdf"
+type = "pdf"
+published = "2026-05-01"
+notes = "Publication month approximate."
+
+# ---------------------------------------------------------------- DMTF
+# Generated from the per-document version pages at https://www.dmtf.org/dsp/DSP<num>
+# on 2026-09-03. URL pattern: https://www.dmtf.org/sites/default/files/standards/documents/DSP<num>_<version>.<ext>
+# Work-in-Progress releases live at https://www.dmtf.org/standards/wip and are not listed here.
+# A '_0' suffix in a file name is a re-upload of the same version; the newer upload is kept.
+
+# mctp
+
+[[documents]]
+id = "DSP0236"
+family = "mctp"
+title = "Management Component Transport Protocol (MCTP) Base Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0236_1.0.0.pdf"
+type = "pdf"
+published = "2009-07-28"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0236_1.1.0.pdf"
+type = "pdf"
+published = "2010-04-22"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0236_1.2.0.pdf"
+type = "pdf"
+published = "2013-02-04"
+
+[[documents.versions]]
+version = "1.2.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0236_1.2.1.pdf"
+type = "pdf"
+published = "2014-12-08"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0236_1.3.0.pdf"
+type = "pdf"
+published = "2016-11-28"
+
+[[documents.versions]]
+version = "1.3.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0236_1.3.1.pdf"
+type = "pdf"
+published = "2019-09-04"
+
+[[documents.versions]]
+version = "1.3.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0236_1.3.2.pdf"
+type = "pdf"
+published = "2024-01-02"
+
+[[documents.versions]]
+version = "1.3.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0236_1.3.3.pdf"
+type = "pdf"
+published = "2024-03-25"
+
+[[documents]]
+id = "DSP0237"
+family = "mctp"
+title = "Management Component Transport Protocol (MCTP) SMBus/I2C Transport Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0237_1.0.0.pdf"
+type = "pdf"
+published = "2009-07-28"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0237_1.1.0.pdf"
+type = "pdf"
+published = "2017-05-23"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0237_1.2.0.pdf"
+type = "pdf"
+published = "2020-04-06"
+
+[[documents]]
+id = "DSP0238"
+family = "mctp"
+title = "Management Component Transport Protocol (MCTP) PCIe® VDM Transport Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0238_1.0.0.pdf"
+type = "pdf"
+published = "2009-07-28"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0238_1.0.1.pdf"
+type = "pdf"
+published = "2009-12-17"
+
+[[documents.versions]]
+version = "1.0.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0238_1.0.2.pdf"
+type = "pdf"
+published = "2014-12-08"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0238_1.1.0.pdf"
+type = "pdf"
+published = "2018-11-29"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0238_1.2.0.pdf"
+type = "pdf"
+published = "2021-04-18"
+
+[[documents.versions]]
+version = "1.2.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0238_1.2.1.pdf"
+type = "pdf"
+published = "2024-01-23"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0238_1.3.0.pdf"
+type = "pdf"
+published = "2024-10-04"
+
+[[documents.versions]]
+version = "1.3.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0238_1.3.1.pdf"
+type = "pdf"
+published = "2025-07-22"
+
+[[documents.versions]]
+version = "1.4.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0238_1.4.0.pdf"
+type = "pdf"
+published = "2026-02-28"
+
+[[documents]]
+id = "DSP0239"
+family = "mctp"
+title = "Management Component Transport Protocol (MCTP) IDs and Codes Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.0.0.pdf"
+type = "pdf"
+published = "2009-07-28"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.1.0.pdf"
+type = "pdf"
+published = "2009-11-16"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.2.0.pdf"
+type = "pdf"
+published = "2012-09-10"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.3.0.pdf"
+type = "pdf"
+published = "2015-03-17"
+
+[[documents.versions]]
+version = "1.4.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.4.0.pdf"
+type = "pdf"
+published = "2017-01-13"
+
+[[documents.versions]]
+version = "1.5.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.5.0.pdf"
+type = "pdf"
+published = "2018-01-08"
+
+[[documents.versions]]
+version = "1.6.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.6.0.pdf"
+type = "pdf"
+published = "2019-07-18"
+
+[[documents.versions]]
+version = "1.7.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.7.0.pdf"
+type = "pdf"
+published = "2020-05-26"
+
+[[documents.versions]]
+version = "1.7.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.7.1.pdf"
+type = "pdf"
+published = "2021-02-18"
+
+[[documents.versions]]
+version = "1.6.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.6.1.pdf"
+type = "pdf"
+published = "2021-02-18"
+
+[[documents.versions]]
+version = "1.7.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.7.2.pdf"
+type = "pdf"
+published = "2021-04-30"
+
+[[documents.versions]]
+version = "1.6.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.6.2.pdf"
+type = "pdf"
+published = "2021-04-30"
+
+[[documents.versions]]
+version = "1.8.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.8.0.pdf"
+type = "pdf"
+published = "2021-06-14"
+
+[[documents.versions]]
+version = "1.9.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.9.0.pdf"
+type = "pdf"
+published = "2022-01-03"
+
+[[documents.versions]]
+version = "1.10.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.10.0.pdf"
+type = "pdf"
+published = "2023-08-28"
+
+[[documents.versions]]
+version = "1.11.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.11.0.pdf"
+type = "pdf"
+published = "2024-05-22"
+
+[[documents.versions]]
+version = "1.11.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.11.1.pdf"
+type = "pdf"
+published = "2024-08-19"
+
+[[documents.versions]]
+version = "1.12.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0239_1.12.0.pdf"
+type = "pdf"
+published = "2026-04-11"
+
+[[documents]]
+id = "DSP0233"
+family = "mctp"
+title = "Management Component Transport Protocol (MCTP) I3C Transport Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0233_1.0.0.pdf"
+type = "pdf"
+published = "2021-06-24"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0233_1.0.1.pdf"
+type = "pdf"
+published = "2024-03-25"
+
+[[documents]]
+id = "DSP0253"
+family = "mctp"
+title = "MCTP Serial Transport Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0253_1.0.0.pdf"
+type = "pdf"
+published = "2010-07-21"
+
+[[documents]]
+id = "DSP0254"
+family = "mctp"
+title = "MCTP KCS Transport Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0254_1.0.0.pdf"
+type = "pdf"
+published = "2010-07-21"
+
+[[documents]]
+id = "DSP0256"
+family = "mctp"
+title = "Management Component Transport Protocol (MCTP) Host Interface Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0256_1.0.0.pdf"
+type = "pdf"
+published = "2010-07-21"
+
+[[documents.versions]]
+version = "2.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0256_2.0.0.pdf"
+type = "pdf"
+published = "2025-04-09"
+
+[[documents]]
+id = "DSP0283"
+family = "mctp"
+title = "Management Component Transport Protocol (MCTP) Universal Serial Bus (USB) Transport Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0283_1.0.0.pdf"
+type = "pdf"
+published = "2023-11-07"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0283_1.0.1.pdf"
+type = "pdf"
+published = "2024-05-21"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0283_1.1.0.pdf"
+type = "pdf"
+published = "2026-05-14"
+
+[[documents]]
+id = "DSP0284"
+family = "mctp"
+title = "Management Component Transport Protocol (MCTP) Memory-Mapped Buffer Interface (MMBI) Transport Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0284_1.0.0.pdf"
+type = "pdf"
+published = "2023-08-28"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0284_1.0.1.pdf"
+type = "pdf"
+published = "2024-10-22"
+
+[[documents]]
+id = "DSP0292"
+family = "mctp"
+title = "Management Component Transport Protocol (MCTP) PCC Transport Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0292_1.0.0_0.pdf"
+type = "pdf"
+published = "2025-09-08"
+
+[[documents]]
+id = "DSP0235"
+family = "mctp"
+title = "NVMe™ (NVMe Express™) Management Messages over MCTP Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0235_1.0.0.pdf"
+type = "pdf"
+published = "2015-03-10"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0235_1.0.1.pdf"
+type = "pdf"
+published = "2018-08-03"
+
+[[documents]]
+id = "DSP0234"
+family = "mctp"
+title = "CXL™ Fabric Manager API over MCTP Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0234_1.0.0.pdf"
+type = "pdf"
+published = "2021-05-25"
+
+[[documents]]
+id = "DSP0281"
+family = "mctp"
+title = "CXL™ Type 3 Device Component Command Interface over MCTP Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0281_1.0.0_0.pdf"
+type = "pdf"
+published = "2021-12-28"
+
+[[documents]]
+id = "DSP0291"
+family = "mctp"
+title = "PCIe® Management Interface (PCIe-MI®) over MCTP Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0291_1.0.0.pdf"
+type = "pdf"
+published = "2025-11-02"
+
+# pldm
+
+[[documents]]
+id = "DSP0240"
+family = "pldm"
+title = "Platform Level Data Model (PLDM) Base Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0240_1.0.0.pdf"
+type = "pdf"
+published = "2009-04-23"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0240_1.1.0.pdf"
+type = "pdf"
+published = "2021-02-11"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0240_1.2.0.pdf"
+type = "pdf"
+published = "2024-08-05"
+
+[[documents.versions]]
+version = "1.1.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0240_1.1.1.pdf"
+type = "pdf"
+published = "2026-08-25"
+
+[[documents]]
+id = "DSP0241"
+family = "pldm"
+title = "Platform Level Data Model (PLDM) Over MCTP Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0241_1.0.0.pdf"
+type = "pdf"
+published = "2009-04-23"
+
+[[documents]]
+id = "DSP0242"
+family = "pldm"
+title = "Platform Level Data Model (PLDM) for File Transfer Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0242_1.0.0.pdf"
+type = "pdf"
+published = "2024-08-05"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0242_1.0.1.pdf"
+type = "pdf"
+published = "2026-02-20"
+
+[[documents]]
+id = "DSP0245"
+family = "pldm"
+title = "Platform Level Data Model (PLDM) IDs and Codes Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0245_1.0.0.pdf"
+type = "pdf"
+published = "2009-04-23"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0245_1.1.0.pdf"
+type = "pdf"
+published = "2011-02-01"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0245_1.2.0.pdf"
+type = "pdf"
+published = "2016-11-28"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0245_1.3.0.pdf"
+type = "pdf"
+published = "2018-11-28"
+
+[[documents.versions]]
+version = "1.4.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0245_1.4.0.pdf"
+type = "pdf"
+published = "2024-05-22"
+
+[[documents]]
+id = "DSP0246"
+family = "pldm"
+title = "Platform Level Data Model (PLDM) for SMBIOS Transfer Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0246_1.0.0.pdf"
+type = "pdf"
+published = "2009-04-23"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0246_1.0.1.pdf"
+type = "pdf"
+published = "2009-12-11"
+
+[[documents]]
+id = "DSP0247"
+family = "pldm"
+title = "Platform Level Data Model (PLDM) for BIOS Control and Configuration Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0247_1.0.0.pdf"
+type = "pdf"
+published = "2009-04-23"
+
+[[documents]]
+id = "DSP0248"
+family = "pldm"
+title = "PLDM Platform Monitoring and Control Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0248_1.0.0.pdf"
+type = "pdf"
+published = "2009-03-16"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0248_1.0.1.pdf"
+type = "pdf"
+published = "2010-01-13"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0248_1.1.0.pdf"
+type = "pdf"
+published = "2011-12-05"
+
+[[documents.versions]]
+version = "1.1.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0248_1.1.1.pdf"
+type = "pdf"
+published = "2017-01-13"
+
+[[documents.versions]]
+version = "1.1.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0248_1.1.2.pdf"
+type = "pdf"
+published = "2019-09-25"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0248_1.2.0.pdf"
+type = "pdf"
+published = "2019-11-01"
+
+[[documents.versions]]
+version = "1.2.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0248_1.2.1.pdf"
+type = "pdf"
+published = "2021-07-28"
+
+[[documents.versions]]
+version = "1.2.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0248_1.2.2.pdf"
+type = "pdf"
+published = "2022-11-02"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0248_1.3.0.pdf"
+type = "pdf"
+published = "2024-08-05"
+
+[[documents.versions]]
+version = "1.3.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0248_1.3.1.pdf"
+type = "pdf"
+published = "2026-06-19"
+
+[[documents]]
+id = "DSP0249"
+family = "pldm"
+title = "Platform Level Data Model (PLDM) State Set Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0249_1.0.0.pdf"
+type = "pdf"
+published = "2009-03-16"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0249_1.1.0.pdf"
+type = "pdf"
+published = "2020-03-03"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0249_1.2.0.pdf"
+type = "pdf"
+published = "2024-07-17"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0249_1.3.0.pdf"
+type = "pdf"
+published = "2024-10-04"
+
+[[documents.versions]]
+version = "1.4.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0249_1.4.0.pdf"
+type = "pdf"
+published = "2025-10-22"
+
+[[documents]]
+id = "DSP0257"
+family = "pldm"
+title = "Platform Level Data Model (PLDM) for FRU Data Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0257_1.0.0.pdf"
+type = "pdf"
+published = "2011-10-26"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0257_1.0.1_0.pdf"
+type = "pdf"
+published = "2022-01-03"
+
+[[documents.versions]]
+version = "2.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0257_2.0.0.pdf"
+type = "pdf"
+published = "2025-05-19"
+
+[[documents]]
+id = "DSP0267"
+family = "pldm"
+title = "Platform Level Data Model (PLDM) for Firmware Update Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0267_1.0.0.pdf"
+type = "pdf"
+published = "2016-11-28"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0267_1.0.1.pdf"
+type = "pdf"
+published = "2018-04-02"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0267_1.1.0.pdf"
+type = "pdf"
+published = "2019-12-04"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0267_1.2.0.pdf"
+type = "pdf"
+published = "2022-09-13"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0267_1.3.0.pdf"
+type = "pdf"
+published = "2023-12-13"
+
+[[documents]]
+id = "DSP0218"
+family = "pldm"
+title = "Platform Level Data Model (PLDM) for Redfish Device Enablement"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0218_1.0.0_1.pdf"
+type = "pdf"
+published = "2019-06-28"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0218_1.0.1.pdf"
+type = "pdf"
+published = "2020-01-21"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0218_1.1.0.pdf"
+type = "pdf"
+published = "2021-02-11"
+
+[[documents.versions]]
+version = "1.1.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0218_1.1.1.pdf"
+type = "pdf"
+published = "2021-11-02"
+
+[[documents.versions]]
+version = "1.1.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0218_1.1.2.pdf"
+type = "pdf"
+published = "2022-11-02"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0218_1.2.0.pdf"
+type = "pdf"
+published = "2024-08-05"
+
+# spdm
+
+[[documents]]
+id = "DSP0274"
+family = "spdm"
+title = "Security Protocol and Data Model (SPDM) Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.0.0.pdf"
+type = "pdf"
+published = "2019-12-22"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.1.0.pdf"
+type = "pdf"
+published = "2020-08-17"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.0.1.pdf"
+type = "pdf"
+published = "2021-03-19"
+
+[[documents.versions]]
+version = "1.1.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.1.1.pdf"
+type = "pdf"
+published = "2021-05-25"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.2.0.pdf"
+type = "pdf"
+published = "2021-12-21"
+
+[[documents.versions]]
+version = "1.1.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.1.2.pdf"
+type = "pdf"
+published = "2022-04-26"
+
+[[documents.versions]]
+version = "1.2.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.2.1.pdf"
+type = "pdf"
+published = "2022-06-23"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.3.0.pdf"
+type = "pdf"
+published = "2023-06-28"
+
+[[documents.versions]]
+version = "1.2.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.2.2.pdf"
+type = "pdf"
+published = "2023-10-25"
+
+[[documents.versions]]
+version = "1.1.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.1.3.pdf"
+type = "pdf"
+published = "2023-10-25"
+
+[[documents.versions]]
+version = "1.0.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.0.2.pdf"
+type = "pdf"
+published = "2023-10-25"
+
+[[documents.versions]]
+version = "1.3.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.3.1.pdf"
+type = "pdf"
+published = "2024-07-01"
+
+[[documents.versions]]
+version = "1.3.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.3.2.pdf"
+type = "pdf"
+published = "2024-09-23"
+
+[[documents.versions]]
+version = "1.2.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.2.3.pdf"
+type = "pdf"
+published = "2024-09-23"
+
+[[documents.versions]]
+version = "1.1.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.1.4.pdf"
+type = "pdf"
+published = "2024-09-23"
+
+[[documents.versions]]
+version = "1.4.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.4.0.pdf"
+type = "pdf"
+published = "2025-05-25"
+
+[[documents.versions]]
+version = "1.3.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.3.3.pdf"
+type = "pdf"
+published = "2025-12-08"
+
+[[documents.versions]]
+version = "1.2.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.2.4.pdf"
+type = "pdf"
+published = "2025-12-08"
+
+[[documents.versions]]
+version = "1.1.5"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.1.5.pdf"
+type = "pdf"
+published = "2026-04-20"
+notes = "Stabilized"
+
+[[documents.versions]]
+version = "1.0.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.0.3.pdf"
+type = "pdf"
+published = "2026-04-20"
+notes = "Stabilized"
+
+[[documents.versions]]
+version = "1.4.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.4.1.pdf"
+type = "pdf"
+published = "2026-07-02"
+
+[[documents]]
+id = "DSP0275"
+family = "spdm"
+title = "Security Protocol and Data Model (SPDM) over MCTP Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0275_1.0.0.pdf"
+type = "pdf"
+published = "2019-12-22"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0275_1.0.1.pdf"
+type = "pdf"
+published = "2022-04-26"
+
+[[documents.versions]]
+version = "1.0.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0275_1.0.2.pdf"
+type = "pdf"
+published = "2023-10-25"
+
+[[documents]]
+id = "DSP0276"
+family = "spdm"
+title = "Secured Messages using SPDM over MCTP Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0276_1.0.0.pdf"
+type = "pdf"
+published = "2020-11-16"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0276_1.1.0.pdf"
+type = "pdf"
+published = "2022-05-19"
+
+[[documents.versions]]
+version = "1.1.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0276_1.1.1.pdf"
+type = "pdf"
+published = "2023-10-25"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0276_1.2.0.pdf"
+type = "pdf"
+published = "2024-09-03"
+
+[[documents.versions]]
+version = "2.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0276_2.0.0.pdf"
+type = "pdf"
+published = "2025-12-08"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0276_1.3.0.pdf"
+type = "pdf"
+published = "2025-12-08"
+
+[[documents]]
+id = "DSP0277"
+family = "spdm"
+title = "Secured Messages Using SPDM Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_1.0.0.pdf"
+type = "pdf"
+published = "2020-09-18"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_1.1.0.pdf"
+type = "pdf"
+published = "2022-05-19"
+
+[[documents.versions]]
+version = "1.1.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_1.1.1.pdf"
+type = "pdf"
+published = "2023-10-25"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_1.0.1.pdf"
+type = "pdf"
+published = "2023-10-25"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_1.2.0.pdf"
+type = "pdf"
+published = "2024-06-10"
+
+[[documents.versions]]
+version = "2.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_2.0.0.pdf"
+type = "pdf"
+published = "2025-12-08"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_1.3.0.pdf"
+type = "pdf"
+published = "2025-12-08"
+
+[[documents]]
+id = "DSP0286"
+family = "spdm"
+title = "Security Protocol and Data Model (SPDM) to Storage Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0286_1.0.0.pdf"
+type = "pdf"
+published = "2025-05-25"
+
+[[documents]]
+id = "DSP0287"
+family = "spdm"
+title = "SPDM over TCP Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0287_1.0.0.pdf"
+type = "pdf"
+published = "2024-09-03"
+
+[[documents]]
+id = "DSP0289"
+family = "spdm"
+title = "Security Protocol and Data Model (SPDM) Authorization Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0289_1.0.0.pdf"
+type = "pdf"
+published = "2025-12-08"
+
+# ncsi
+
+[[documents]]
+id = "DSP0222"
+family = "ncsi"
+title = "Network Controller Sideband Interface (NC-SI) Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0222_1.0.0.pdf"
+type = "pdf"
+published = "2010-04-12"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0222_1.0.1.pdf"
+type = "pdf"
+published = "2013-02-04"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0222_1.1.0.pdf"
+type = "pdf"
+published = "2015-09-23"
+
+[[documents.versions]]
+version = "1.1.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0222_1.1.1.pdf"
+type = "pdf"
+published = "2021-05-25"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0222_1.2.0.pdf"
+type = "pdf"
+published = "2023-08-28"
+
+[[documents.versions]]
+version = "1.1.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0222_1.1.2.pdf"
+type = "pdf"
+published = "2026-07-17"
+
+[[documents.versions]]
+version = "1.2.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0222_1.2.1.pdf"
+type = "pdf"
+published = "2026-08-25"
+
+[[documents]]
+id = "DSP0261"
+family = "ncsi"
+title = "NC-SI over MCTP Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0261_1.0.0.pdf"
+type = "pdf"
+published = "2013-08-30"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0261_1.1.0.pdf"
+type = "pdf"
+published = "2015-03-24"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0261_1.2.0.pdf"
+type = "pdf"
+published = "2017-08-29"
+
+[[documents.versions]]
+version = "1.2.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0261_1.2.1.pdf"
+type = "pdf"
+published = "2018-09-22"
+
+[[documents.versions]]
+version = "1.2.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0261_1.2.2.pdf"
+type = "pdf"
+published = "2019-09-24"
+
+[[documents.versions]]
+version = "1.1.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0261_1.1.1.pdf"
+type = "pdf"
+published = "2019-09-24"
+
+[[documents.versions]]
+version = "1.2.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0261_1.2.3.pdf"
+type = "pdf"
+published = "2021-05-25"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0261_1.3.0.pdf"
+type = "pdf"
+published = "2023-08-28"
+
+[[documents.versions]]
+version = "1.3.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0261_1.3.1.pdf"
+type = "pdf"
+published = "2024-08-29"
+
+[[documents]]
+id = "DSP0296"
+family = "ncsi"
+title = "Network Controller Sideband Interface (NC‐SI) over Ethernet over USB Binding Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0296_1.0.0.pdf"
+type = "pdf"
+published = "2026-08-15"
+
+# smbios
+
+[[documents]]
+id = "DSP0134"
+family = "smbios"
+title = "SMBIOS Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "2.4.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134V2.4Final.pdf"
+type = "pdf"
+published = "2004-07-21"
+
+[[documents.versions]]
+version = "2.5.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134v2.5Final.pdf"
+type = "pdf"
+published = "2006-09-05"
+
+[[documents.versions]]
+version = "2.6.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_2.6.0.pdf"
+type = "pdf"
+published = "2008-08-04"
+
+[[documents.versions]]
+version = "2.6.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_2.6.1.pdf"
+type = "pdf"
+published = "2009-04-23"
+
+[[documents.versions]]
+version = "2.7.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_2.7.0.pdf"
+type = "pdf"
+published = "2010-07-21"
+
+[[documents.versions]]
+version = "2.7.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_2.7.1.pdf"
+type = "pdf"
+published = "2011-02-01"
+
+[[documents.versions]]
+version = "2.8.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_2.8.0.pdf"
+type = "pdf"
+published = "2013-04-03"
+
+[[documents.versions]]
+version = "3.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.0.0.pdf"
+type = "pdf"
+published = "2015-02-12"
+
+[[documents.versions]]
+version = "3.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.1.0.pdf"
+type = "pdf"
+published = "2016-11-21"
+
+[[documents.versions]]
+version = "3.1.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.1.1.pdf"
+type = "pdf"
+published = "2017-01-13"
+
+[[documents.versions]]
+version = "3.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.2.0.pdf"
+type = "pdf"
+published = "2018-05-14"
+
+[[documents.versions]]
+version = "3.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.3.0.pdf"
+type = "pdf"
+published = "2019-09-25"
+
+[[documents.versions]]
+version = "3.4.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.4.0.pdf"
+type = "pdf"
+published = "2020-07-17"
+
+[[documents.versions]]
+version = "3.5.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.5.0.pdf"
+type = "pdf"
+published = "2021-09-22"
+
+[[documents.versions]]
+version = "3.6.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.6.0.pdf"
+type = "pdf"
+published = "2022-06-20"
+
+[[documents.versions]]
+version = "3.7.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.7.0.pdf"
+type = "pdf"
+published = "2023-07-21"
+
+[[documents.versions]]
+version = "3.7.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.7.1.pdf"
+type = "pdf"
+published = "2024-05-24"
+
+[[documents.versions]]
+version = "3.8.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.8.0.pdf"
+type = "pdf"
+published = "2024-08-05"
+
+[[documents.versions]]
+version = "3.9.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.9.0.pdf"
+type = "pdf"
+published = "2025-08-19"
+
+# redfish
+
+[[documents]]
+id = "DSP0266"
+family = "redfish"
+title = "Redfish Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.0.0.pdf"
+type = "pdf"
+published = "2015-08-04"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.0.1.pdf"
+type = "pdf"
+published = "2015-12-16"
+
+[[documents.versions]]
+version = "1.0.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.0.2.pdf"
+type = "pdf"
+published = "2016-05-02"
+
+[[documents.versions]]
+version = "1.0.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.0.3.pdf"
+type = "pdf"
+published = "2016-07-14"
+
+[[documents.versions]]
+version = "1.0.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.0.4.pdf"
+type = "pdf"
+published = "2016-08-30"
+
+[[documents.versions]]
+version = "1.0.5"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.0.5.pdf"
+type = "pdf"
+published = "2017-01-03"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.1.0.pdf"
+type = "pdf"
+published = "2017-01-08"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.2.0.pdf"
+type = "pdf"
+published = "2017-05-22"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.3.0.pdf"
+type = "pdf"
+published = "2017-10-02"
+
+[[documents.versions]]
+version = "1.2.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.2.1.pdf"
+type = "pdf"
+published = "2017-10-02"
+
+[[documents.versions]]
+version = "1.4.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.4.0.pdf"
+type = "pdf"
+published = "2017-12-31"
+
+[[documents.versions]]
+version = "1.4.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.4.1.pdf"
+type = "pdf"
+published = "2018-04-25"
+
+[[documents.versions]]
+version = "1.5.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.5.0.pdf"
+type = "pdf"
+published = "2018-05-14"
+
+[[documents.versions]]
+version = "1.6.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.6.0.pdf"
+type = "pdf"
+published = "2018-09-20"
+
+[[documents.versions]]
+version = "1.5.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.5.1.pdf"
+type = "pdf"
+published = "2018-09-20"
+
+[[documents.versions]]
+version = "1.6.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.6.1.pdf"
+type = "pdf"
+published = "2019-01-11"
+
+[[documents.versions]]
+version = "1.7.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.7.0.pdf"
+type = "pdf"
+published = "2019-05-20"
+
+[[documents.versions]]
+version = "1.8.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.8.0.pdf"
+type = "pdf"
+published = "2019-09-23"
+
+[[documents.versions]]
+version = "1.7.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.7.1.pdf"
+type = "pdf"
+published = "2019-09-24"
+
+[[documents.versions]]
+version = "1.9.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.9.0.pdf"
+type = "pdf"
+published = "2020-01-29"
+
+[[documents.versions]]
+version = "1.8.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.8.1.pdf"
+type = "pdf"
+published = "2020-02-01"
+
+[[documents.versions]]
+version = "1.9.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.9.1.pdf"
+type = "pdf"
+published = "2020-04-15"
+
+[[documents.versions]]
+version = "1.10.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.10.0.pdf"
+type = "pdf"
+published = "2020-05-11"
+
+[[documents.versions]]
+version = "1.11.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.11.0.pdf"
+type = "pdf"
+published = "2020-06-15"
+
+[[documents.versions]]
+version = "1.11.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.11.1.pdf"
+type = "pdf"
+published = "2020-09-23"
+
+[[documents.versions]]
+version = "1.12.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.12.0.pdf"
+type = "pdf"
+published = "2021-01-20"
+
+[[documents.versions]]
+version = "1.11.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.11.2.pdf"
+type = "pdf"
+published = "2021-01-20"
+
+[[documents.versions]]
+version = "1.12.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.12.1.pdf"
+type = "pdf"
+published = "2021-04-30"
+
+[[documents.versions]]
+version = "1.13.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.13.0.pdf"
+type = "pdf"
+published = "2021-05-18"
+
+[[documents.versions]]
+version = "1.14.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.14.0.pdf"
+type = "pdf"
+published = "2021-09-22"
+
+[[documents.versions]]
+version = "1.13.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.13.1.pdf"
+type = "pdf"
+published = "2021-09-22"
+
+[[documents.versions]]
+version = "1.14.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.14.1.pdf"
+type = "pdf"
+published = "2021-11-23"
+
+[[documents.versions]]
+version = "1.15.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.15.0.pdf"
+type = "pdf"
+published = "2022-01-18"
+
+[[documents.versions]]
+version = "1.14.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.14.2.pdf"
+type = "pdf"
+published = "2022-01-18"
+
+[[documents.versions]]
+version = "1.15.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.15.1.pdf"
+type = "pdf"
+published = "2022-05-24"
+
+[[documents.versions]]
+version = "1.16.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.16.0.pdf"
+type = "pdf"
+published = "2022-09-21"
+
+[[documents.versions]]
+version = "1.15.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.15.2.pdf"
+type = "pdf"
+published = "2022-09-21"
+
+[[documents.versions]]
+version = "1.17.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.17.0.pdf"
+type = "pdf"
+published = "2023-01-23"
+
+[[documents.versions]]
+version = "1.16.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.16.1.pdf"
+type = "pdf"
+published = "2023-01-23"
+
+[[documents.versions]]
+version = "1.18.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.18.0.pdf"
+type = "pdf"
+published = "2023-05-22"
+
+[[documents.versions]]
+version = "1.17.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.17.1.pdf"
+type = "pdf"
+published = "2023-05-22"
+
+[[documents.versions]]
+version = "1.19.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.19.0.pdf"
+type = "pdf"
+published = "2023-09-21"
+
+[[documents.versions]]
+version = "1.18.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.18.1.pdf"
+type = "pdf"
+published = "2023-09-21"
+
+[[documents.versions]]
+version = "1.20.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.20.0.pdf"
+type = "pdf"
+published = "2024-01-17"
+
+[[documents.versions]]
+version = "1.19.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.19.1.pdf"
+type = "pdf"
+published = "2024-01-17"
+
+[[documents.versions]]
+version = "1.20.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.20.1.pdf"
+type = "pdf"
+published = "2024-05-20"
+
+[[documents.versions]]
+version = "1.21.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.21.0.pdf"
+type = "pdf"
+published = "2024-09-16"
+
+[[documents.versions]]
+version = "1.20.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.20.2_0.pdf"
+type = "pdf"
+published = "2024-09-16"
+
+[[documents.versions]]
+version = "1.21.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.21.1.pdf"
+type = "pdf"
+published = "2025-01-13"
+
+[[documents.versions]]
+version = "1.22.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.22.0.pdf"
+type = "pdf"
+published = "2025-03-21"
+
+[[documents.versions]]
+version = "1.22.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.22.1.pdf"
+type = "pdf"
+published = "2025-06-16"
+
+[[documents.versions]]
+version = "1.23.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.23.0.pdf"
+type = "pdf"
+published = "2025-10-12"
+
+[[documents.versions]]
+version = "1.22.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.22.2.pdf"
+type = "pdf"
+published = "2025-10-12"
+
+[[documents.versions]]
+version = "1.23.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.23.1.pdf"
+type = "pdf"
+published = "2026-01-16"
+
+[[documents.versions]]
+version = "1.24.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.24.0.pdf"
+type = "pdf"
+published = "2026-05-17"
+
+[[documents.versions]]
+version = "1.23.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.23.2.pdf"
+type = "pdf"
+published = "2026-05-17"
+
+[[documents]]
+id = "DSP8010"
+family = "redfish"
+title = "Redfish Schema Bundle"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_1.0.0.zip"
+type = "zip"
+published = "2015-08-04"
+
+[[documents.versions]]
+version = "2016.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2016.1.zip"
+type = "zip"
+published = "2016-05-31"
+
+[[documents.versions]]
+version = "2016.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2016.2_0.zip"
+type = "zip"
+published = "2016-09-18"
+
+[[documents.versions]]
+version = "2016.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2016.3.zip"
+type = "zip"
+published = "2017-01-08"
+
+[[documents.versions]]
+version = "2017.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2017.1.zip"
+type = "zip"
+published = "2017-05-22"
+
+[[documents.versions]]
+version = "2017.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2017.2.zip"
+type = "zip"
+published = "2017-10-02"
+
+[[documents.versions]]
+version = "2017.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2017.3.zip"
+type = "zip"
+published = "2017-12-31"
+
+[[documents.versions]]
+version = "2018.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2018.1.zip"
+type = "zip"
+published = "2018-05-14"
+
+[[documents.versions]]
+version = "2018.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2018.2.zip"
+type = "zip"
+published = "2018-09-20"
+
+[[documents.versions]]
+version = "2018.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2018.3.zip"
+type = "zip"
+published = "2019-01-11"
+
+[[documents.versions]]
+version = "2019.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2019.1_1.zip"
+type = "zip"
+published = "2019-05-20"
+
+[[documents.versions]]
+version = "2019.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2019.2.zip"
+type = "zip"
+published = "2019-09-23"
+
+[[documents.versions]]
+version = "2019.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2019.3.zip"
+type = "zip"
+published = "2019-11-15"
+
+[[documents.versions]]
+version = "2019.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2019.4.zip"
+type = "zip"
+published = "2020-01-29"
+
+[[documents.versions]]
+version = "2020.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2020.1.zip"
+type = "zip"
+published = "2020-05-11"
+
+[[documents.versions]]
+version = "2020.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2020.2.zip"
+type = "zip"
+published = "2020-06-15"
+
+[[documents.versions]]
+version = "2020.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2020.3.zip"
+type = "zip"
+published = "2020-09-19"
+
+[[documents.versions]]
+version = "2020.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2020.4.zip"
+type = "zip"
+published = "2021-01-20"
+
+[[documents.versions]]
+version = "2021.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2021.1.zip"
+type = "zip"
+published = "2021-05-18"
+
+[[documents.versions]]
+version = "2021.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2021.2.zip"
+type = "zip"
+published = "2021-09-22"
+
+[[documents.versions]]
+version = "2021.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2021.3.zip"
+type = "zip"
+published = "2021-11-23"
+
+[[documents.versions]]
+version = "2021.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2021.4_0.zip"
+type = "zip"
+published = "2022-01-18"
+
+[[documents.versions]]
+version = "2022.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2022.1.zip"
+type = "zip"
+published = "2022-05-24"
+
+[[documents.versions]]
+version = "2022.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2022.2.zip"
+type = "zip"
+published = "2022-09-21"
+
+[[documents.versions]]
+version = "2022.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2022.3_0.zip"
+type = "zip"
+published = "2023-01-23"
+
+[[documents.versions]]
+version = "2023.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2023.1.zip"
+type = "zip"
+published = "2023-05-22"
+
+[[documents.versions]]
+version = "2023.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2023.2.zip"
+type = "zip"
+published = "2023-09-21"
+
+[[documents.versions]]
+version = "2023.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2023.3.zip"
+type = "zip"
+published = "2024-01-17"
+
+[[documents.versions]]
+version = "2024.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2024.1.zip"
+type = "zip"
+published = "2024-05-20"
+
+[[documents.versions]]
+version = "2024.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2024.2.zip"
+type = "zip"
+published = "2024-07-27"
+
+[[documents.versions]]
+version = "2024.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2024.3.zip"
+type = "zip"
+published = "2024-09-16"
+
+[[documents.versions]]
+version = "2024.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2024.4.zip"
+type = "zip"
+published = "2025-01-13"
+
+[[documents.versions]]
+version = "2025.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2025.1.zip"
+type = "zip"
+published = "2025-03-21"
+
+[[documents.versions]]
+version = "2025.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2025.2.zip"
+type = "zip"
+published = "2025-06-16"
+
+[[documents.versions]]
+version = "2025.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2025.3.zip"
+type = "zip"
+published = "2025-10-12"
+
+[[documents.versions]]
+version = "2025.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2025.4.zip"
+type = "zip"
+published = "2026-01-16"
+
+[[documents.versions]]
+version = "2026.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2026.1.zip"
+type = "zip"
+published = "2026-05-17"
+
+[[documents]]
+id = "DSP0268"
+family = "redfish"
+title = "Redfish Data Model Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "2019.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2019.3.pdf"
+type = "pdf"
+published = "2019-11-01"
+
+[[documents.versions]]
+version = "2019.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2019.4_1.pdf"
+type = "pdf"
+published = "2020-01-29"
+
+[[documents.versions]]
+version = "2020.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2020.1.pdf"
+type = "pdf"
+published = "2020-05-11"
+
+[[documents.versions]]
+version = "2020.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2020.2.pdf"
+type = "pdf"
+published = "2020-06-15"
+
+[[documents.versions]]
+version = "2020.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2020.3.pdf"
+type = "pdf"
+published = "2020-09-19"
+
+[[documents.versions]]
+version = "2020.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2020.4.pdf"
+type = "pdf"
+published = "2021-01-20"
+
+[[documents.versions]]
+version = "2021.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2021.1.pdf"
+type = "pdf"
+published = "2021-05-18"
+
+[[documents.versions]]
+version = "2021.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2021.2.pdf"
+type = "pdf"
+published = "2021-09-22"
+
+[[documents.versions]]
+version = "2021.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2021.3.pdf"
+type = "pdf"
+published = "2021-11-23"
+
+[[documents.versions]]
+version = "2021.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2021.4_0.pdf"
+type = "pdf"
+published = "2022-01-18"
+
+[[documents.versions]]
+version = "2022.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2022.1.pdf"
+type = "pdf"
+published = "2022-05-24"
+
+[[documents.versions]]
+version = "2022.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2022.2.pdf"
+type = "pdf"
+published = "2022-09-21"
+
+[[documents.versions]]
+version = "2022.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2022.3.pdf"
+type = "pdf"
+published = "2023-01-23"
+
+[[documents.versions]]
+version = "2023.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2023.1.pdf"
+type = "pdf"
+published = "2023-05-22"
+
+[[documents.versions]]
+version = "2023.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2023.2.pdf"
+type = "pdf"
+published = "2023-09-21"
+
+[[documents.versions]]
+version = "2023.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2023.3.pdf"
+type = "pdf"
+published = "2024-01-17"
+
+[[documents.versions]]
+version = "2024.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2024.1.pdf"
+type = "pdf"
+published = "2024-05-20"
+
+[[documents.versions]]
+version = "2024.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2024.2.pdf"
+type = "pdf"
+published = "2024-07-27"
+
+[[documents.versions]]
+version = "2024.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2024.3.pdf"
+type = "pdf"
+published = "2024-09-16"
+
+[[documents.versions]]
+version = "2024.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2024.4.pdf"
+type = "pdf"
+published = "2025-01-13"
+
+[[documents.versions]]
+version = "2025.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2025.1.pdf"
+type = "pdf"
+published = "2025-03-21"
+
+[[documents.versions]]
+version = "2025.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2025.2.pdf"
+type = "pdf"
+published = "2025-06-16"
+
+[[documents.versions]]
+version = "2025.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2025.3.pdf"
+type = "pdf"
+published = "2025-10-12"
+
+[[documents.versions]]
+version = "2025.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2025.4.pdf"
+type = "pdf"
+published = "2026-01-16"
+
+[[documents.versions]]
+version = "2026.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2026.1.pdf"
+type = "pdf"
+published = "2026-05-17"
+
+[[documents]]
+id = "DSP2046"
+family = "redfish"
+title = "Redfish Resource and Schema Guide"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "2016.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2016.2.pdf"
+type = "pdf"
+published = "2018-05-06"
+
+[[documents.versions]]
+version = "2016.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2016.3.pdf"
+type = "pdf"
+published = "2018-05-07"
+
+[[documents.versions]]
+version = "2017.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2017.1.pdf"
+type = "pdf"
+published = "2018-05-08"
+
+[[documents.versions]]
+version = "2017.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2017.2.pdf"
+type = "pdf"
+published = "2018-05-09"
+
+[[documents.versions]]
+version = "2017.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2017.3.pdf"
+type = "pdf"
+published = "2018-05-10"
+
+[[documents.versions]]
+version = "2018.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2018.1_1.pdf"
+type = "pdf"
+published = "2018-05-14"
+
+[[documents.versions]]
+version = "2018.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2018.2_1.pdf"
+type = "pdf"
+published = "2018-09-20"
+
+[[documents.versions]]
+version = "2018.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2018.3.pdf"
+type = "pdf"
+published = "2019-01-11"
+
+[[documents.versions]]
+version = "2019.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2019.1_1.pdf"
+type = "pdf"
+published = "2019-05-21"
+
+[[documents.versions]]
+version = "2019.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2019.2.pdf"
+type = "pdf"
+published = "2019-09-24"
+
+[[documents.versions]]
+version = "2019.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2019.3.pdf"
+type = "pdf"
+published = "2019-11-17"
+
+[[documents.versions]]
+version = "2019.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2019.4_1.pdf"
+type = "pdf"
+published = "2020-01-29"
+
+[[documents.versions]]
+version = "2020.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2020.1.pdf"
+type = "pdf"
+published = "2020-05-11"
+
+[[documents.versions]]
+version = "2020.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2020.2.pdf"
+type = "pdf"
+published = "2020-06-16"
+
+[[documents.versions]]
+version = "2020.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2020.3_1.pdf"
+type = "pdf"
+published = "2020-09-20"
+
+[[documents.versions]]
+version = "2020.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2020.4.pdf"
+type = "pdf"
+published = "2021-01-20"
+
+[[documents.versions]]
+version = "2021.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2021.1.pdf"
+type = "pdf"
+published = "2021-05-18"
+
+[[documents.versions]]
+version = "2021.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2021.2.pdf"
+type = "pdf"
+published = "2021-09-22"
+
+[[documents.versions]]
+version = "2021.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2021.3.pdf"
+type = "pdf"
+published = "2021-11-23"
+
+[[documents.versions]]
+version = "2021.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2021.4_0.pdf"
+type = "pdf"
+published = "2022-01-19"
+
+[[documents.versions]]
+version = "2022.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2022.1.pdf"
+type = "pdf"
+published = "2022-05-24"
+
+[[documents.versions]]
+version = "2022.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2022.2.pdf"
+type = "pdf"
+published = "2022-09-21"
+
+[[documents.versions]]
+version = "2022.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2022.3.pdf"
+type = "pdf"
+published = "2023-01-23"
+
+[[documents.versions]]
+version = "2023.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2023.1.pdf"
+type = "pdf"
+published = "2023-05-22"
+
+[[documents.versions]]
+version = "2023.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2023.2.pdf"
+type = "pdf"
+published = "2023-09-21"
+
+[[documents.versions]]
+version = "2023.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2023.3.pdf"
+type = "pdf"
+published = "2024-01-17"
+
+[[documents.versions]]
+version = "2024.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2024.1.pdf"
+type = "pdf"
+published = "2024-05-20"
+
+[[documents.versions]]
+version = "2024.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2024.2.pdf"
+type = "pdf"
+published = "2024-07-27"
+
+[[documents.versions]]
+version = "2024.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2024.3.pdf"
+type = "pdf"
+published = "2024-09-16"
+
+[[documents.versions]]
+version = "2024.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2024.4.pdf"
+type = "pdf"
+published = "2025-01-13"
+
+[[documents.versions]]
+version = "2025.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2025.1.pdf"
+type = "pdf"
+published = "2025-03-21"
+
+[[documents.versions]]
+version = "2025.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2025.2.pdf"
+type = "pdf"
+published = "2025-06-16"
+
+[[documents.versions]]
+version = "2025.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2025.3.pdf"
+type = "pdf"
+published = "2025-10-12"
+
+[[documents.versions]]
+version = "2025.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2025.4.pdf"
+type = "pdf"
+published = "2026-01-16"
+
+[[documents.versions]]
+version = "2026.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2026.1.pdf"
+type = "pdf"
+published = "2026-05-17"
+
+[[documents]]
+id = "DSP0270"
+family = "redfish"
+title = "Redfish Host Interface Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0270_1.0.0.pdf"
+type = "pdf"
+published = "2017-01-13"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0270_1.0.1.pdf"
+type = "pdf"
+published = "2017-12-31"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0270_1.1.0.pdf"
+type = "pdf"
+published = "2019-05-20"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0270_1.2.0.pdf"
+type = "pdf"
+published = "2019-11-15"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0270_1.3.0.pdf"
+type = "pdf"
+published = "2020-08-04"
+
+[[documents.versions]]
+version = "1.3.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0270_1.3.1.pdf"
+type = "pdf"
+published = "2023-09-21"
+
+[[documents]]
+id = "DSP0272"
+family = "redfish"
+title = "Redfish Interoperability Profiles Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.0.0_1.pdf"
+type = "pdf"
+published = "2018-01-08"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.0.1.pdf"
+type = "pdf"
+published = "2018-05-15"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.1.0.pdf"
+type = "pdf"
+published = "2019-03-21"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.2.0.pdf"
+type = "pdf"
+published = "2019-08-22"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.3.0.pdf"
+type = "pdf"
+published = "2019-12-06"
+
+[[documents.versions]]
+version = "1.3.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.3.1.pdf"
+type = "pdf"
+published = "2021-04-30"
+
+[[documents.versions]]
+version = "1.4.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.4.0.pdf"
+type = "pdf"
+published = "2021-09-22"
+
+[[documents.versions]]
+version = "1.4.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.4.1.pdf"
+type = "pdf"
+published = "2021-11-23"
+
+[[documents.versions]]
+version = "1.5.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.5.0.pdf"
+type = "pdf"
+published = "2022-01-18"
+
+[[documents.versions]]
+version = "1.6.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.6.0.pdf"
+type = "pdf"
+published = "2023-01-23"
+
+[[documents.versions]]
+version = "1.7.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.7.0.pdf"
+type = "pdf"
+published = "2024-01-17"
+
+[[documents.versions]]
+version = "1.8.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.8.0.pdf"
+type = "pdf"
+published = "2024-05-20"
+
+[[documents.versions]]
+version = "1.8.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.8.1.pdf"
+type = "pdf"
+published = "2025-06-16"
+
+[[documents.versions]]
+version = "1.8.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.8.2.pdf"
+type = "pdf"
+published = "2025-10-12"
+
+[[documents.versions]]
+version = "1.9.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.9.0.pdf"
+type = "pdf"
+published = "2026-01-16"
+
+[[documents.versions]]
+version = "1.10.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0272_1.10.0.pdf"
+type = "pdf"
+published = "2026-05-17"
+
+[[documents]]
+id = "DSP8011"
+family = "redfish"
+title = "Redfish Standard Registries Bundle"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_1.0.0.zip"
+type = "zip"
+published = "2016-11-17"
+
+[[documents.versions]]
+version = "2017.1"
+url = "https://redfish.dmtf.org/schemas/registries/archive/DSP8011_2017.1.zip"
+type = "zip"
+published = "2017-05-30"
+
+[[documents.versions]]
+version = "2017.2"
+url = "https://redfish.dmtf.org/schemas/registries/archive/2017.2/DSP8011_2017.2.zip"
+type = "zip"
+published = "2017-10-02"
+
+[[documents.versions]]
+version = "2018.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2018.1.zip"
+type = "zip"
+published = "2018-09-20"
+
+[[documents.versions]]
+version = "2018.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2018.2.zip"
+type = "zip"
+published = "2019-01-11"
+
+[[documents.versions]]
+version = "2019.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2019.1.zip"
+type = "zip"
+published = "2019-05-20"
+
+[[documents.versions]]
+version = "2019.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2019.2.zip"
+type = "zip"
+published = "2019-09-23"
+
+[[documents.versions]]
+version = "2019.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2019.3.zip"
+type = "zip"
+published = "2019-11-18"
+
+[[documents.versions]]
+version = "2019.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2019.4.zip"
+type = "zip"
+published = "2020-01-29"
+
+[[documents.versions]]
+version = "2020.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2020.1.zip"
+type = "zip"
+published = "2020-05-11"
+
+[[documents.versions]]
+version = "2020.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2020.2.zip"
+type = "zip"
+published = "2020-06-16"
+
+[[documents.versions]]
+version = "2020.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2020.3_1.zip"
+type = "zip"
+published = "2020-09-19"
+
+[[documents.versions]]
+version = "2020.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2020.4.zip"
+type = "zip"
+published = "2021-01-20"
+
+[[documents.versions]]
+version = "2021.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2021.1.zip"
+type = "zip"
+published = "2021-05-18"
+
+[[documents.versions]]
+version = "2021.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2021.2.zip"
+type = "zip"
+published = "2021-09-22"
+
+[[documents.versions]]
+version = "2021.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2021.3.zip"
+type = "zip"
+published = "2021-11-23"
+
+[[documents.versions]]
+version = "2021.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2021.4.zip"
+type = "zip"
+published = "2022-01-18"
+
+[[documents.versions]]
+version = "2022.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2022.1.zip"
+type = "zip"
+published = "2022-05-24"
+
+[[documents.versions]]
+version = "2022.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2022.2.zip"
+type = "zip"
+published = "2022-09-21"
+
+[[documents.versions]]
+version = "2022.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2022.3.zip"
+type = "zip"
+published = "2023-01-23"
+
+[[documents.versions]]
+version = "2023.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2023.1.zip"
+type = "zip"
+published = "2023-05-22"
+
+[[documents.versions]]
+version = "2023.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2023.2.zip"
+type = "zip"
+published = "2023-09-21"
+
+[[documents.versions]]
+version = "2023.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2023.3.zip"
+type = "zip"
+published = "2024-01-17"
+
+[[documents.versions]]
+version = "2024.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2024.1.zip"
+type = "zip"
+published = "2024-05-20"
+
+[[documents.versions]]
+version = "2024.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2024.3.zip"
+type = "zip"
+published = "2024-09-16"
+
+[[documents.versions]]
+version = "2024.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2024.4.zip"
+type = "zip"
+published = "2025-01-13"
+
+[[documents.versions]]
+version = "2025.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2025.1.zip"
+type = "zip"
+published = "2025-03-21"
+
+[[documents.versions]]
+version = "2025.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2025.2.zip"
+type = "zip"
+published = "2025-06-16"
+
+[[documents.versions]]
+version = "2025.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2025.3.zip"
+type = "zip"
+published = "2025-10-12"
+
+[[documents.versions]]
+version = "2025.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2025.4.zip"
+type = "zip"
+published = "2026-01-16"
+
+[[documents.versions]]
+version = "2026.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2026.1.zip"
+type = "zip"
+published = "2026-05-17"
+
+[[documents]]
+id = "DSP8013"
+family = "redfish"
+title = "Redfish Interoperability Profiles Bundle"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "2017.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2017.1.zip"
+type = "zip"
+published = "2018-01-08"
+
+[[documents.versions]]
+version = "2018.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2018.1.zip"
+type = "zip"
+published = "2018-05-15"
+
+[[documents.versions]]
+version = "2018.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2018.2.zip"
+type = "zip"
+published = "2019-01-11"
+
+[[documents.versions]]
+version = "2019.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2019.1.zip"
+type = "zip"
+published = "2019-03-21"
+
+[[documents.versions]]
+version = "2019.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2019.2.zip"
+type = "zip"
+published = "2019-08-22"
+
+[[documents.versions]]
+version = "2019.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2019.3.zip"
+type = "zip"
+published = "2020-01-29"
+
+[[documents.versions]]
+version = "2020.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2020.1.zip"
+type = "zip"
+published = "2020-06-23"
+
+[[documents.versions]]
+version = "2021.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2021.2.zip"
+type = "zip"
+published = "2021-09-22"
+
+[[documents.versions]]
+version = "2021.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2021.3.zip"
+type = "zip"
+published = "2021-11-23"
+
+[[documents.versions]]
+version = "2021.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2021.4.zip"
+type = "zip"
+published = "2022-01-18"
+
+[[documents.versions]]
+version = "2022.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2022.2.zip"
+type = "zip"
+published = "2022-09-21"
+
+[[documents.versions]]
+version = "2022.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2022.3.zip"
+type = "zip"
+published = "2023-01-23"
+
+[[documents.versions]]
+version = "2023.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2023.3.zip"
+type = "zip"
+published = "2024-01-17"
+
+[[documents.versions]]
+version = "2024.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2024.1.zip"
+type = "zip"
+published = "2024-05-20"
+
+[[documents.versions]]
+version = "2025.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2025.2.zip"
+type = "zip"
+published = "2025-06-16"
+
+[[documents.versions]]
+version = "2025.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2025.3.zip"
+type = "zip"
+published = "2025-10-12"
+
+[[documents.versions]]
+version = "2025.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2025.4.zip"
+type = "zip"
+published = "2026-01-16"
+
+[[documents.versions]]
+version = "2026.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2026.1.zip"
+type = "zip"
+published = "2026-05-17"
+
+[[documents]]
+id = "DSP2053"
+family = "redfish"
+title = "Redfish Property Guide"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "2019.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2019.1_1.pdf"
+type = "pdf"
+published = "2019-05-21"
+
+[[documents.versions]]
+version = "2019.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2019.2.pdf"
+type = "pdf"
+published = "2019-09-24"
+
+[[documents.versions]]
+version = "2019.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2019.3.pdf"
+type = "pdf"
+published = "2019-11-17"
+
+[[documents.versions]]
+version = "2019.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2019.4_1.pdf"
+type = "pdf"
+published = "2020-01-29"
+
+[[documents.versions]]
+version = "2020.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2020.1.pdf"
+type = "pdf"
+published = "2020-05-11"
+
+[[documents.versions]]
+version = "2020.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2020.2.pdf"
+type = "pdf"
+published = "2020-06-16"
+
+[[documents.versions]]
+version = "2020.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2020.3.pdf"
+type = "pdf"
+published = "2020-09-20"
+
+[[documents.versions]]
+version = "2020.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2020.4.pdf"
+type = "pdf"
+published = "2021-01-20"
+
+[[documents.versions]]
+version = "2021.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2021.1.pdf"
+type = "pdf"
+published = "2021-05-18"
+
+[[documents.versions]]
+version = "2021.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2021.2.pdf"
+type = "pdf"
+published = "2021-09-22"
+
+[[documents.versions]]
+version = "2021.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2021.3.pdf"
+type = "pdf"
+published = "2021-11-23"
+
+[[documents.versions]]
+version = "2021.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2021.4_0.pdf"
+type = "pdf"
+published = "2022-01-19"
+
+[[documents.versions]]
+version = "2022.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2022.1.pdf"
+type = "pdf"
+published = "2022-05-24"
+
+[[documents.versions]]
+version = "2022.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2022.2.pdf"
+type = "pdf"
+published = "2022-09-21"
+
+[[documents.versions]]
+version = "2022.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2022.3.pdf"
+type = "pdf"
+published = "2023-01-23"
+
+[[documents.versions]]
+version = "2023.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2023.1.pdf"
+type = "pdf"
+published = "2023-05-22"
+
+[[documents.versions]]
+version = "2023.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2023.2.pdf"
+type = "pdf"
+published = "2023-09-21"
+
+[[documents.versions]]
+version = "2023.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2023.3.pdf"
+type = "pdf"
+published = "2024-01-17"
+
+[[documents.versions]]
+version = "2024.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2024.1.pdf"
+type = "pdf"
+published = "2024-05-20"
+
+[[documents.versions]]
+version = "2024.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2024.2.pdf"
+type = "pdf"
+published = "2024-07-27"
+
+[[documents.versions]]
+version = "2024.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2024.3.pdf"
+type = "pdf"
+published = "2024-09-16"
+
+[[documents.versions]]
+version = "2024.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2024.4.pdf"
+type = "pdf"
+published = "2025-01-13"
+
+[[documents.versions]]
+version = "2025.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2025.1.pdf"
+type = "pdf"
+published = "2025-03-21"
+
+[[documents.versions]]
+version = "2025.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2025.2.pdf"
+type = "pdf"
+published = "2025-06-16"
+
+[[documents.versions]]
+version = "2025.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2025.3.pdf"
+type = "pdf"
+published = "2025-10-12"
+
+[[documents.versions]]
+version = "2025.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2025.4.pdf"
+type = "pdf"
+published = "2026-01-16"
+
+[[documents.versions]]
+version = "2026.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2026.1.pdf"
+type = "pdf"
+published = "2026-05-17"
+
+[[documents]]
+id = "DSP2065"
+family = "redfish"
+title = "Redfish Message Registry Guide"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "2022.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2022.1.pdf"
+type = "pdf"
+published = "2022-05-24"
+
+[[documents.versions]]
+version = "2022.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2022.2.pdf"
+type = "pdf"
+published = "2022-09-21"
+
+[[documents.versions]]
+version = "2022.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2022.3.pdf"
+type = "pdf"
+published = "2023-01-23"
+
+[[documents.versions]]
+version = "2023.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2023.1.pdf"
+type = "pdf"
+published = "2023-05-22"
+
+[[documents.versions]]
+version = "2023.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2023.2.pdf"
+type = "pdf"
+published = "2023-09-21"
+
+[[documents.versions]]
+version = "2023.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2023.3.pdf"
+type = "pdf"
+published = "2024-01-17"
+
+[[documents.versions]]
+version = "2024.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2024.1.pdf"
+type = "pdf"
+published = "2024-05-20"
+
+[[documents.versions]]
+version = "2024.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2024.3.pdf"
+type = "pdf"
+published = "2024-09-16"
+
+[[documents.versions]]
+version = "2024.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2024.4.pdf"
+type = "pdf"
+published = "2025-01-13"
+
+[[documents.versions]]
+version = "2025.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2025.1.pdf"
+type = "pdf"
+published = "2025-03-21"
+
+[[documents.versions]]
+version = "2025.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2025.2.pdf"
+type = "pdf"
+published = "2025-06-16"
+
+[[documents.versions]]
+version = "2025.3"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2025.3.pdf"
+type = "pdf"
+published = "2025-10-12"
+
+[[documents.versions]]
+version = "2025.4"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2025.4.pdf"
+type = "pdf"
+published = "2026-01-16"
+
+[[documents.versions]]
+version = "2026.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2026.1.pdf"
+type = "pdf"
+published = "2026-05-17"
