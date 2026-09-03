@@ -383,7 +383,10 @@ def cmd_status(args: argparse.Namespace) -> int:
     for h in holdings:
         flag = "dropin" if h.dropin else h.meta.get("fetch_method", "")
         em = h.extract_meta
-        extracted = "extracted" if em else "-"
+        extracted = "-"
+        if em:
+            current = em.get("extractor_version") == extract_mod.EXTRACTOR_VERSION
+            extracted = "extracted" if current else "stale"
         outline = em.get("outline_source", "-") if em else "-"
         size = h.meta.get("size", "?")
         print(
@@ -419,9 +422,13 @@ def _extract_one(holding, force: bool) -> str:
     numbers = ""
     if meta["line_numbers"]:
         numbers = f", line numbers on {meta['line_numbered_pages']} pages"
+    figures = f", figures on {meta['figure_pages']} pages"
+    if meta["figure_errors"]:
+        figures += f" (figure pass failed on {meta['figure_errors']} pages)"
     print(
         f"extracted {label}: {meta['pages']} pages in {meta['seconds']}s, "
-        f"outline {meta['outline_source']} ({meta['outline_entries']} entries){numbers}"
+        f"outline {meta['outline_source']} ({meta['outline_entries']} entries)"
+        f"{numbers}{figures}"
     )
     return "extracted"
 
@@ -605,9 +612,9 @@ def cmd_find(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def _section_line(sec: search_mod.Section, end: int) -> str:
+def _section_line(level: int, sec: search_mod.Section, end: int) -> str:
     first = f"~{sec.page}" if sec.approximate else str(sec.page)
-    return f"{sec.title} | pages {first}-{end}"
+    return f"{level} | {sec.title} | pages {first}-{end}"
 
 
 def cmd_section(args: argparse.Namespace) -> int:
@@ -618,8 +625,8 @@ def cmd_section(args: argparse.Namespace) -> int:
     if not matches:
         print("no matching section")
         return EXIT_OK
-    for sec, end in matches:
-        print(_section_line(sec, end))
+    for level, sec, end in matches:
+        print(_section_line(level, sec, end))
     return EXIT_OK
 
 
@@ -638,7 +645,7 @@ def cmd_page(args: argparse.Namespace) -> int:
         if not matches:
             print("no matching section")
             return EXIT_ACTION
-        sec, end = matches[0]
+        _, sec, end = matches[0]
         first, last = sec.page, end
     else:
         first = args.page
@@ -679,7 +686,7 @@ def cmd_render(args: argparse.Namespace) -> int:
     if out.is_file() and not args.force:
         print(f"rendered {out} (existing; --force to redo)")
     else:
-        original = version.path / "original.pdf"
+        original = version.original or version.path / "original.pdf"
         try:
             render_mod.render_page(original, n, out, scale=args.scale)
         except ImportError as exc:

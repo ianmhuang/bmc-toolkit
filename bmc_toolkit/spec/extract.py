@@ -111,6 +111,7 @@ class ExtractResult:
     numbered_pages: int
     page_offset: int | None = None
     figures: dict = field(default_factory=lambda: {"pages": {}})
+    figure_errors: int = 0  # pages whose figure pass failed
     text: str = field(default="", repr=False)
 
     @property
@@ -128,6 +129,7 @@ class ExtractResult:
             "outline_entries": len(self.outline),
             "page_offset": self.page_offset,
             "figure_pages": self.figure_pages,
+            "figure_errors": self.figure_errors,
         }
 
 
@@ -412,10 +414,10 @@ def _apply(matrix, x: float, y: float) -> tuple[float, float]:
 def _containers(obj) -> list:
     """Form objects enclosing ``obj``, innermost first."""
     chain = []
-    c = getattr(obj, "container", None)
-    while c is not None:
+    c = obj.container  # AttributeError on a pypdfium2 without it: counted
+    while c is not None:  # as a figure error, never a silent wrong box
         chain.append(c)
-        c = getattr(c, "container", None)
+        c = c.container
     return chain
 
 
@@ -628,6 +630,7 @@ def extract_pdf(path: Path) -> ExtractResult:
     pages_lines: list[list[str]] = []
     linemap: dict = {}
     figures: dict = {}
+    figure_errors = 0
     numbered = 0
     previous_last: int | None = None
     for i in range(count):
@@ -637,6 +640,7 @@ def extract_pdf(path: Path) -> ExtractResult:
             regions = page_figures(pdf_page, raw)
         except Exception:  # noqa: BLE001 - a page object pdfium chokes on
             regions = []  # loses figure marks on this page, never the text
+            figure_errors += 1
         if regions:
             figures[str(i + 1)] = {
                 "regions": [[round(v, 1) for v in r] for r in regions],
@@ -685,6 +689,7 @@ def extract_pdf(path: Path) -> ExtractResult:
         numbered_pages=numbered,
         page_offset=offset,
         figures={"pages": figures},
+        figure_errors=figure_errors,
         text=text,
     )
 

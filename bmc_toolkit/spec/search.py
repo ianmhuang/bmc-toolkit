@@ -81,6 +81,7 @@ class Version:
     outline: list[dict]
     linemap: dict = field(default_factory=dict)  # "N" -> {"first","last","lines"}
     figures: dict = field(default_factory=dict)  # "N" -> {"regions","lines"}
+    original: Path | None = None  # the PDF the Extract came from
 
     @property
     def page_count(self) -> int:
@@ -142,27 +143,32 @@ class Version:
     def _heading_index(self, entry: Section, page: int) -> int:
         """Line index of the entry's heading on the page.
 
-        The whole title, or failing that a line starting with the section
-        number; -1 (the top of the page) when neither is on the page.
+        A line that is the title or starts with it, else one that contains
+        it, else one starting with the section number; -1 (the top of the
+        page) when none is on the page. Body text that quotes a short title
+        ("see Overview below") therefore does not steal the heading.
         """
         wanted = _norm(entry.title)
         if not wanted:
             return -1
-        lines = self.lines(page)
-        for i, ln in enumerate(lines):
-            if wanted in _norm(ln):
+        normed = [_norm(ln) for ln in self.lines(page)]
+        for i, ln in enumerate(normed):  # the heading itself
+            if ln == wanted or ln.startswith(wanted + " "):
+                return i
+        for i, ln in enumerate(normed):  # a heading with a trailing note
+            if wanted in ln:
                 return i
         number = entry.number
         if number:  # the bookmark's wording differs: settle for the number
-            for i, ln in enumerate(lines):
-                if _norm(ln).startswith(number.lower() + " "):
+            for i, ln in enumerate(normed):
+                if ln.startswith(number.lower() + " "):
                     return i
         return -1
 
-    def match_sections(self, query: str) -> list[tuple[Section, int]]:
-        """Entries matching the query, each with the page where its extent
-        ends (where the next entry of the same or a higher level begins, or
-        the last page).
+    def match_sections(self, query: str) -> list[tuple[int, Section, int]]:
+        """(level, entry, end page) for the entries matching the query; the
+        end page is where the next entry of the same or a higher level
+        begins, or the last page.
 
         A query that looks like a section number (``20.1``, ``A.2``) matches
         entries whose number is it or starts with it on a dot boundary;
@@ -189,7 +195,7 @@ class Version:
                 if later["level"] <= e["level"]:
                     end = later["page"]
                     break
-            out.append((sec, end))
+            out.append((e["level"], sec, end))
         return out
 
     # ------------------------------------------------------------ search
@@ -287,6 +293,7 @@ def load_version(holding) -> Version:
         path=vdir,
         origin=origin,
         pages=split_pages(text),
+        original=holding.original,
         outline=_read_json(vdir / OUTLINE_NAME, []),
         linemap=_read_json(vdir / LINEMAP_NAME, {}).get("pages", {}),
         figures=_read_json(vdir / FIGURES_NAME, {}).get("pages", {}),

@@ -8,6 +8,8 @@ Each page is a list of items in PDF points, origin bottom-left:
     ("rect", x, y, w, h)                  a stroked rectangle
     ("curve", x0, y0, x1, y1, x2, y2, x3, y3)   a stroked Bezier curve
     ("image", x, y, w, h)                 a 2x2 grey raster image scaled to w x h
+    ("form", x, y, w, h)                  a form XObject (a diagonal line across a
+                                          100 x 100 box) scaled to w x h
 
 Optional bookmarks become a PDF outline. Enough for the extractor's geometry
 rules and figure detection; not a general PDF writer.
@@ -42,6 +44,11 @@ def _content(items) -> bytes:
             elif kind == "image":
                 x, y, w, h = item[1:5]
                 draw.append(b"q %.2f 0 0 %.2f %.2f %.2f cm /Im1 Do Q" % (w, h, x, y))
+            elif kind == "form":
+                x, y, w, h = item[1:5]
+                draw.append(
+                    b"q %.4f 0 0 %.4f %.2f %.2f cm /Fm1 Do Q" % (w / 100, h / 100, x, y)
+                )
             else:
                 raise ValueError(f"unknown item kind {kind!r}")
             continue
@@ -77,6 +84,11 @@ def write_pdf(path: Path, pages, bookmarks=None) -> Path:
         b"/ColorSpace /DeviceGray /BitsPerComponent 8 /Length 4 >>\nstream\n"
         b"\x40\x80\x80\x40\nendstream"
     )
+    form_stream = b"0 0 m 100 100 l S"
+    form_no = add(
+        b"<< /Type /XObject /Subtype /Form /BBox [0 0 100 100] /Length %d >>\n"
+        b"stream\n" % len(form_stream) + form_stream + b"\nendstream"
+    )
     page_nos = []
     for items in pages:
         stream = _content(items)
@@ -85,9 +97,9 @@ def write_pdf(path: Path, pages, bookmarks=None) -> Path:
         )
         page_no = add(
             b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %d %d] "
-            b"/Resources << /Font << /F1 %d 0 R >> /XObject << /Im1 %d 0 R >> >> "
-            b"/Contents %d 0 R >>"
-            % (pages_no, PAGE_W, PAGE_H, font_no, image_no, content_no)
+            b"/Resources << /Font << /F1 %d 0 R >> "
+            b"/XObject << /Im1 %d 0 R /Fm1 %d 0 R >> >> /Contents %d 0 R >>"
+            % (pages_no, PAGE_W, PAGE_H, font_no, image_no, form_no, content_no)
         )
         page_nos.append(page_no)
     kids = b" ".join(b"%d 0 R" % n for n in page_nos)

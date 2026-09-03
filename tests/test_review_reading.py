@@ -229,7 +229,7 @@ def test_approximate_entries_carry_a_tilde(
     fetch_plain(catalog_file, scripted, tmp_path, capsys, [contents] + body)
     code, out = run(capsys, "section", "DSP0236", "4", catalog_file=catalog_file)
     assert code == 0, out
-    assert out.strip() == "4 Errors | pages ~4-6"
+    assert out.strip() == "0 | 4 Errors | pages ~4-6"
     code, out = run(capsys, "find", "DSP0236", "body text", catalog_file=catalog_file)
     hits = out.strip().splitlines()
     assert len(hits) == 5
@@ -244,19 +244,19 @@ def test_approximate_entries_carry_a_tilde(
 def test_section_by_number_prefix_on_a_dot_boundary(held, catalog_file, capsys):
     code, out = run(capsys, "section", "DSP0236", "3.1", catalog_file=catalog_file)
     assert code == 0, out
-    assert out.strip() == "3.1 Frobnicate | pages 2-2"  # not 3.10
+    assert out.strip() == "1 | 3.1 Frobnicate | pages 2-2"  # not 3.10
     code, out = run(capsys, "section", "DSP0236", "3", catalog_file=catalog_file)
     assert out.strip().splitlines() == [
-        "3 Commands | pages 2-3",
-        "3.1 Frobnicate | pages 2-2",
-        "3.2 Reset | pages 2-3",
-        "3.10 Extra | pages 3-3",
+        "0 | 3 Commands | pages 2-3",
+        "1 | 3.1 Frobnicate | pages 2-2",
+        "1 | 3.2 Reset | pages 2-3",
+        "1 | 3.10 Extra | pages 3-3",
     ]
 
 
 def test_section_by_title_words_case_insensitively(held, catalog_file, capsys):
     code, out = run(capsys, "section", "DSP0236", "FROBNICATE", catalog_file=catalog_file)
-    assert code == 0 and out.strip() == "3.1 Frobnicate | pages 2-2"
+    assert code == 0 and out.strip() == "1 | 3.1 Frobnicate | pages 2-2"
     code, out = run(capsys, "section", "DSP0236", "widget", catalog_file=catalog_file)
     assert code == 0 and out.strip() == "no matching section"
 

@@ -99,6 +99,21 @@ def test_owning_section_falls_back_to_the_section_number():
     assert v.owning_section(2, 2).title == "3.1 Get Device ID command"
 
 
+def test_body_text_quoting_a_title_does_not_steal_the_heading():
+    v = make_version(
+        pages=[["intro", "see Overview below for details", "text", "Overview", "body"]],
+        outline=[
+            {"level": 0, "title": "Intro", "page": 1},
+            {"level": 0, "title": "Overview", "page": 1},
+        ],
+    )
+    assert v.owning_section(1, 2).title == "Intro"
+    assert v.owning_section(1, 3).title == "Overview"
+    # a heading carrying a trailing note still matches by containment
+    v.pages[0][3] = "Overview (informative)"
+    assert v.owning_section(1, 3).title == "Overview"
+
+
 def test_owning_section_heading_not_found_on_page_counts_from_the_top():
     v = make_version()
     v.outline[3]["title"] = "Device identification"  # no number, not on the page
@@ -126,10 +141,11 @@ def test_match_sections_by_number_prefix_on_dot_boundary():
             {"level": 0, "title": "9 Other", "page": 3},
         ]
     )
-    titles = [s.title for s, _ in v.match_sections("8.1")]
+    titles = [s.title for _, s, _ in v.match_sections("8.1")]
     assert titles == ["8.1 Overview", "8.1.2 Details"]
-    assert [s.title for s, _ in v.match_sections("8.1.")] == titles
-    assert [s.title for s, _ in v.match_sections("8")] == [
+    assert [s.title for _, s, _ in v.match_sections("8.1.")] == titles
+    assert [lv for lv, _, _ in v.match_sections("8.1")] == [1, 2]
+    assert [s.title for _, s, _ in v.match_sections("8")] == [
         "8 Base protocol",
         "8.1 Overview",
         "8.1.2 Details",
@@ -140,16 +156,16 @@ def test_match_sections_by_number_prefix_on_dot_boundary():
 def test_match_sections_by_title_words_case_insensitively():
     v = make_version()
     got = v.match_sections("device id")
-    assert [s.title for s, _ in got] == ["3.1 Get Device ID"]
+    assert [s.title for _, s, _ in got] == ["3.1 Get Device ID"]
     assert v.match_sections("device nope") == []
 
 
 def test_match_sections_end_page_is_next_same_or_higher_level_entry():
     v = make_version()
-    got = dict((s.title, end) for s, end in v.match_sections("3"))
+    got = dict((s.title, end) for _, s, end in v.match_sections("3"))
     assert got["3 Commands"] == 3  # "A Annex" (level 0) starts on page 3
     assert got["3.1 Get Device ID"] == 3
-    ((sec, end),) = v.match_sections("annex")
+    ((_, sec, end),) = v.match_sections("annex")
     assert end == 3  # last page of the document
 
 

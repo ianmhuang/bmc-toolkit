@@ -56,11 +56,6 @@ def _rgb_rows(bitmap) -> list[bytes]:
     return rows
 
 
-def page_count(pdf_path: Path) -> int:
-    pdfium = _require_pypdfium2()
-    return len(pdfium.PdfDocument(str(pdf_path)))
-
-
 def render_page(
     pdf_path: Path, page: int, out: Path, scale: float = DEFAULT_SCALE
 ) -> Path:

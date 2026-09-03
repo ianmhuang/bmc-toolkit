@@ -72,7 +72,7 @@ python skills/bmc-spec/scripts/bmcspec.py scan                 # register hand-p
 python skills/bmc-spec/scripts/bmcspec.py status
 python skills/bmc-spec/scripts/bmcspec.py extract DSP0236      # text, outline, line map, figures
 python skills/bmc-spec/scripts/bmcspec.py extract --all
-python skills/bmc-spec/scripts/bmcspec.py section DSP0236 8.1  # outline entries and their pages
+python skills/bmc-spec/scripts/bmcspec.py section DSP0236 8.1  # level | title | pages, per matching entry
 python skills/bmc-spec/scripts/bmcspec.py find DSP0236 "Msg tag" --context 1   # hits with page, line, section
 python skills/bmc-spec/scripts/bmcspec.py page DSP0236 24 --to 25              # the pages, with a cite: line each
 python skills/bmc-spec/scripts/bmcspec.py page DSP0236 --section 8.2

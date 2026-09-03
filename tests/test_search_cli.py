@@ -209,18 +209,18 @@ def test_find_searches_companions_first_and_notes_missing_ones(
 def test_section_by_number_and_by_words(held, catalog_file, capsys):
     code, out = run(capsys, "section", "DSP0236", "8.2", catalog_file=catalog_file)
     assert code == 0
-    assert out.strip() == "8.2 MCTP packet fields | pages 1-2"
+    assert out.strip() == "1 | 8.2 MCTP packet fields | pages 1-2"
     code, out = run(capsys, "section", "DSP0236", "8", catalog_file=catalog_file)
     assert out.strip().splitlines() == [
-        "8 MCTP base protocol | pages 1-2",
-        "8.1 Overview | pages 1-1",
-        "8.2 MCTP packet fields | pages 1-2",
-        "8.3 Message assembly | pages 2-2",
+        "0 | 8 MCTP base protocol | pages 1-2",
+        "1 | 8.1 Overview | pages 1-1",
+        "1 | 8.2 MCTP packet fields | pages 1-2",
+        "1 | 8.3 Message assembly | pages 2-2",
     ]
     code, out = run(
         capsys, "section", "DSP0236", "message ASSEMBLY", catalog_file=catalog_file
     )
-    assert out.strip() == "8.3 Message assembly | pages 2-2"
+    assert out.strip() == "1 | 8.3 Message assembly | pages 2-2"
     code, out = run(capsys, "section", "DSP0236", "nope", catalog_file=catalog_file)
     assert code == 0 and out.strip() == "no matching section"
 
@@ -251,8 +251,8 @@ def test_section_marks_approximate_pages(
     run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
     code, out = run(capsys, "section", "DSP0236", "2", catalog_file=catalog_file)
     assert out.strip().splitlines() == [
-        "2 Overview | pages ~2-3",
-        "2.1 Arch | pages ~2-3",
+        "0 | 2 Overview | pages ~2-3",
+        "1 | 2.1 Arch | pages ~2-3",
     ]
     code, out = run(capsys, "page", "DSP0236", "2", catalog_file=catalog_file)
     # both entries claim page 2 and neither heading is on it: the last owns
@@ -429,6 +429,9 @@ def test_reading_commands_share_the_error_paths(
     (vdir / "extract.json").write_text(json.dumps(meta), "utf-8")
     code, out = call()
     assert code == 2 and "older version of the extractor" in out
+    code, out = run(capsys, "status", catalog_file=catalog_file)
+    row = next(ln for ln in out.splitlines() if "DSP0236" in ln).split("\t")
+    assert row[5] == "stale"
 
 
 def test_bundles_are_refused(catalog_file, library, scripted, capsys):

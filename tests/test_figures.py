@@ -166,3 +166,16 @@ def test_figure_pass_failure_keeps_the_text(tmp_path, monkeypatch):
         pdfgen.write_pdf(tmp_path / "f.pdf", [pdfgen.plain_page(["kept"])])
     )
     assert "kept" in r.text and r.figure_pages == 0
+    assert r.figure_errors == 1 and r.to_meta()["figure_errors"] == 1
+
+
+def test_drawing_inside_a_form_xobject_lands_in_page_coordinates(tmp_path):
+    # the form draws a diagonal across its 100x100 space; placed at (300, 400)
+    items = [("form", 300, 400, 100, 100), (320, 450, "in the form"), (72, 700, "body")]
+    r, page = regions_of(tmp_path, "x.pdf", items)
+    assert page is not None
+    (box,) = page["regions"]
+    assert 295 <= box[0] <= 305 and 395 <= box[1] <= 405
+    assert 395 <= box[2] <= 405 and 495 <= box[3] <= 505
+    texts = r.text.splitlines()[1:]
+    assert [texts[i].strip() for i in page["lines"]] == ["in the form"]
