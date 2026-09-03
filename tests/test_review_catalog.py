@@ -156,6 +156,11 @@ def test_catalog_list_is_one_record_per_document(catalog_path, capsys):
     assert rows["ONLYWIP"][4] == "-"
     # every record has the same number of fields, so the skill can split on tabs
     assert len({len(r) for r in rows.values()}) == 1
+    # AC-1: the list form names each document's known versions
+    dsp_line = "\t".join(rows["DSP0236"])
+    for v in ("1.3.2", "1.3.3", "1.4.0"):
+        assert v in dsp_line, dsp_line
+    assert "2.0 rev 1.1" in "\t".join(rows["IPMI"])
 
 
 def test_catalog_single_document_lists_every_version(catalog_path, capsys):
@@ -376,13 +381,16 @@ def test_fetch_unknown_version_names_known_versions_and_dropin_path(
         assert known in out
     assert "mctp/DSP0236/9.9" in out.replace("\\", "/")
     assert offline.calls == []
-    assert not (lib_root / "specs" / "mctp" / "DSP0236").exists()
+    # a failed request creates nothing, not even the Library root
+    assert not lib_root.exists()
+    assert "created" not in out.lower()
 
 
 def test_fetch_unknown_document_exits_2(catalog_path, lib_root, offline, capsys):
     code, out = run(capsys, catalog_path, "fetch", "DSP9999")
     assert code == 2
     assert offline.calls == []
+    assert not lib_root.exists()
 
 
 # ----------------------------------------------------------------- AC-13

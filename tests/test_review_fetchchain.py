@@ -208,6 +208,93 @@ def test_transport_error_on_direct_falls_back_to_wayback(
     assert meta_of(lib_root, "mctp", "DSP0236", "1.3.3")["fetch_method"] == "wayback"
 
 
+class _FakeCurlResponse:
+    """The subset of a curl_cffi response the tool may rely on."""
+
+    def __init__(self, status_code, headers, content):
+        self.status_code = status_code
+        self.headers = headers
+        self.content = content
+
+
+class _NotAnOSError(Exception):
+    """curl_cffi's own error type in releases where it does not subclass OSError."""
+
+
+def test_curl_cffi_transport_error_falls_through_to_wayback(
+    catalog_path, lib_root, capsys, monkeypatch
+):
+    """AC-7: with the default client (curl_cffi present) a direct-step failure
+    that is not an OSError still leads to the Wayback step, no traceback."""
+    import types
+
+    calls = []
+
+    def get(url, **kwargs):
+        calls.append(url)
+        if url == DSP_URL:
+            raise _NotAnOSError("Failed to connect to example.invalid")
+        if "archive.org/wayback/available" in url:
+            body = json.dumps(
+                {
+                    "archived_snapshots": {
+                        "closest": {
+                            "available": True,
+                            "status": "200",
+                            "url": f"http://web.archive.org/web/{TS}/{DSP_URL}",
+                            "timestamp": TS,
+                        }
+                    }
+                }
+            ).encode()
+            return _FakeCurlResponse(200, {"Content-Type": "application/json"}, body)
+        if "web.archive.org/web/" in url and url.endswith(DSP_URL):
+            return _FakeCurlResponse(200, {"Content-Type": "application/pdf"}, PDF)
+        raise _NotAnOSError(f"no route to {url}")
+
+    fake_requests = types.SimpleNamespace(get=get)
+    fake = types.ModuleType("curl_cffi")
+    fake.requests = fake_requests
+    monkeypatch.setitem(sys.modules, "curl_cffi", fake)
+    monkeypatch.setitem(sys.modules, "curl_cffi.requests", fake_requests)
+    # the real default client, not a scripted stand-in
+    monkeypatch.setattr(cli, "CLIENT_FACTORY", fetch_mod.default_client)
+
+    code, out = run(capsys, catalog_path, "fetch", "DSP0236")
+    assert code == 0, out
+    assert calls[0] == DSP_URL
+    assert any("archive.org" in u for u in calls)
+    meta = meta_of(lib_root, "mctp", "DSP0236", "1.3.3")
+    assert meta["fetch_method"] == "wayback"
+    assert (lib_root / "specs" / "mctp" / "DSP0236" / "1.3.3" / "original.pdf").read_bytes() == PDF
+    assert "Failed to connect" in out
+
+
+def test_curl_cffi_transport_error_does_not_abort_fetch_all(
+    catalog_path, lib_root, capsys, monkeypatch
+):
+    """AC-14: a curl_cffi error on one document must not stop --all."""
+    import types
+
+    def get(url, **kwargs):
+        raise _NotAnOSError("TLS handshake failed")
+
+    fake_requests = types.SimpleNamespace(get=get)
+    fake = types.ModuleType("curl_cffi")
+    fake.requests = fake_requests
+    monkeypatch.setitem(sys.modules, "curl_cffi", fake)
+    monkeypatch.setitem(sys.modules, "curl_cffi.requests", fake_requests)
+    monkeypatch.setattr(cli, "CLIENT_FACTORY", fetch_mod.default_client)
+
+    code, out = run(capsys, catalog_path, "fetch", "--all")
+    assert code == 2
+    summary = [ln for ln in out.splitlines() if ln.lower().startswith("summary")]
+    assert summary, out
+    # DSP0236 and IPMI both attempted and both failed; SECRET and ONLYWIP skipped
+    assert "failed 2" in summary[-1]
+    assert "fetched 0" in summary[-1]
+
+
 def test_wayback_method_never_tries_direct(catalog_path, lib_root, client, capsys):
     client.routes[IPMI_URL] = pdf_ok()  # would succeed, but must not be used
     client.wayback[IPMI_URL] = pdf_ok()

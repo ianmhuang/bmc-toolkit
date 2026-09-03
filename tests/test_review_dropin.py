@@ -107,6 +107,58 @@ def test_add_rejects_unknown_document_and_missing_file(
     assert code == 2
 
 
+def test_add_refuses_to_replace_a_present_version_without_force(
+    catalog_path, lib_root, tmp_path, capsys
+):
+    """AC-10 with the round-1 fix: a version already in the Library (here one
+    that looks fetched) is not overwritten unless --force is given."""
+    vdir = lib_root / "specs" / "mctp" / "DSP0236" / "1.3.3"
+    vdir.mkdir(parents=True)
+    fetched = b"%PDF-1.7\n%publisher copy\n" + b"p" * 64
+    (vdir / "original.pdf").write_bytes(fetched)
+    fetched_meta = {
+        "family": "mctp",
+        "document": "DSP0236",
+        "version": "1.3.3",
+        "file": "original.pdf",
+        "url": "https://example.invalid/DSP0236_1.3.3.pdf",
+        "fetch_method": "direct",
+        "sha256": hashlib.sha256(fetched).hexdigest(),
+        "size": len(fetched),
+        "fetched_at": "2026-01-01T00:00:00+00:00",
+        "dropin": False,
+    }
+    (vdir / "meta.json").write_text(json.dumps(fetched_meta), encoding="utf-8")
+
+    mine = tmp_path / "mine.pdf"
+    mine.write_bytes(PDF)
+    args = ["add", str(mine), "--document", "DSP0236", "--version", "1.3.3"]
+    code, out = run(capsys, catalog_path, *args)
+    assert code == 2
+    assert "force" in out.lower()
+    assert (vdir / "original.pdf").read_bytes() == fetched
+    assert read_meta(vdir) == fetched_meta
+
+    code, out = run(capsys, catalog_path, *args, "--force")
+    assert code == 0
+    assert (vdir / "original.pdf").read_bytes() == PDF
+    meta = read_meta(vdir)
+    assert meta["dropin"] is True
+    assert meta.get("url") in (None, "")
+    assert meta["sha256"] == hashlib.sha256(PDF).hexdigest()
+
+
+def test_add_rejects_a_block_page_saved_as_pdf(catalog_path, lib_root, tmp_path, capsys):
+    """A file whose bytes are not a PDF must not become a Drop-in."""
+    fake = tmp_path / "blocked.pdf"
+    fake.write_bytes(b"<!DOCTYPE html><html><body>Access denied</body></html>")
+    code, out = run(
+        capsys, catalog_path, "add", str(fake), "--document", "DSP0236", "--version", "1.3.2"
+    )
+    assert code == 2
+    assert not (lib_root / "specs" / "mctp" / "DSP0236" / "1.3.2").exists()
+
+
 # ----------------------------------------------------------------- AC-11
 
 
@@ -152,6 +204,22 @@ def test_scan_registers_hand_placed_files_and_reports_the_rest(
 def test_scan_on_empty_library_is_a_clean_no_op(catalog_path, lib_root, capsys):
     code, out = run(capsys, catalog_path, "scan")
     assert code == 0
+
+
+def test_scan_does_not_register_a_block_page_saved_as_pdf(
+    catalog_path, lib_root, capsys
+):
+    bad = lib_root / "specs" / "mctp" / "DSP0236" / "1.3.2"
+    bad.mkdir(parents=True)
+    (bad / "original.pdf").write_bytes(b"<html><body>Access denied</body></html>")
+    good = lib_root / "specs" / "mctp" / "DSP0236" / "1.3.3"
+    good.mkdir(parents=True)
+    (good / "original.pdf").write_bytes(PDF)
+    code, out = run(capsys, catalog_path, "scan")
+    assert code == 0
+    assert not (bad / "meta.json").exists()
+    assert read_meta(good)["dropin"] is True
+    assert "1.3.2" in out  # the rejected directory is reported
 
 
 # ----------------------------------------------------------------- AC-12
