@@ -478,7 +478,7 @@ def test_table_flags_are_checked(extended_file, tmp_path, capsys):
     assert code == 1 and "cannot read" in out
 
 
-def test_shipped_golden_questions_verify_sixteen_documents():
+def test_shipped_golden_questions_verify_every_open_document_but_the_bundles():
     from pathlib import Path
 
     from bmc_toolkit.spec.catalog import load_catalog as load_shipped
@@ -489,6 +489,12 @@ def test_shipped_golden_questions_verify_sixteen_documents():
         root / "docs" / "golden-questions.md", catalog
     )
     assert problems == []
-    assert len(verified) == 16
+    # AC-1 of M8: every open document has a question, except the two ZIP
+    # bundles that extract does not unpack yet (registries and profiles).
+    expected = {d.id.lower() for d in catalog.documents if d.access == "open"} - {
+        "dsp8011",
+        "dsp8013",
+    }
+    assert set(verified) == expected
     assert verified["ipmi"] == ["G1", "G2", "G3", "G4", "G5"]
     assert verified["dsp0248"] == ["G13", "G15"]

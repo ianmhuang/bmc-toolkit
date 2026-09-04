@@ -131,6 +131,7 @@ family = "ipmi"
 title = "Intelligent Platform Management Bus Communications Protocol Specification"
 access = "open"
 fetch = "direct"
+limits = "PDF bookmarks carry titles without section numbers: section by title, not by number."
 
 [[documents.versions]]
 version = "1.0"
@@ -873,6 +874,7 @@ family = "mctp"
 title = "Management Component Transport Protocol (MCTP) SMBus/I2C Transport Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -959,7 +961,7 @@ family = "mctp"
 title = "Management Component Transport Protocol (MCTP) IDs and Codes Specification"
 access = "open"
 fetch = "direct"
-limits = "One page holds an emoji that breaks pdfium's character order; extracted without layout."
+limits = "One page holds an emoji that breaks pdfium's character order; extracted without layout. Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1094,6 +1096,7 @@ family = "mctp"
 title = "MCTP Serial Transport Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "Some PDF bookmarks are cross-reference anchors; a cite may name one instead of the heading."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1107,6 +1110,7 @@ family = "mctp"
 title = "MCTP KCS Transport Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "Some PDF bookmarks are cross-reference anchors; a cite may name one instead of the heading."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1120,6 +1124,7 @@ family = "mctp"
 title = "Management Component Transport Protocol (MCTP) Host Interface Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1164,6 +1169,7 @@ family = "mctp"
 title = "Management Component Transport Protocol (MCTP) Memory-Mapped Buffer Interface (MMBI) Transport Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page. Figure 1's rotated labels extract as single letters; use render."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1196,6 +1202,7 @@ family = "mctp"
 title = "NVMe™ (NVMe Express™) Management Messages over MCTP Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1215,6 +1222,7 @@ family = "mctp"
 title = "CXL™ Fabric Manager API over MCTP Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1241,6 +1249,7 @@ family = "mctp"
 title = "PCIe® Management Interface (PCIe-MI®) over MCTP Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1300,6 +1309,7 @@ family = "pldm"
 title = "Platform Level Data Model (PLDM) for File Transfer Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1319,6 +1329,7 @@ family = "pldm"
 title = "Platform Level Data Model (PLDM) IDs and Codes Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1492,6 +1503,7 @@ family = "pldm"
 title = "Platform Level Data Model (PLDM) for FRU Data Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1735,6 +1747,7 @@ family = "spdm"
 title = "Security Protocol and Data Model (SPDM) over MCTP Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1760,6 +1773,7 @@ family = "spdm"
 title = "Secured Messages using SPDM over MCTP Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1786,14 +1800,14 @@ type = "pdf"
 published = "2024-09-03"
 
 [[documents.versions]]
-version = "2.0.0"
-url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0276_2.0.0.pdf"
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0276_1.3.0.pdf"
 type = "pdf"
 published = "2025-12-08"
 
 [[documents.versions]]
-version = "1.3.0"
-url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0276_1.3.0.pdf"
+version = "2.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0276_2.0.0.pdf"
 type = "pdf"
 published = "2025-12-08"
 
@@ -1803,6 +1817,7 @@ family = "spdm"
 title = "Secured Messages Using SPDM Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1835,14 +1850,14 @@ type = "pdf"
 published = "2024-06-10"
 
 [[documents.versions]]
-version = "2.0.0"
-url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_2.0.0.pdf"
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_1.3.0.pdf"
 type = "pdf"
 published = "2025-12-08"
 
 [[documents.versions]]
-version = "1.3.0"
-url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_1.3.0.pdf"
+version = "2.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_2.0.0.pdf"
 type = "pdf"
 published = "2025-12-08"
 
@@ -1865,6 +1880,7 @@ family = "spdm"
 title = "SPDM over TCP Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1878,6 +1894,7 @@ family = "spdm"
 title = "Security Protocol and Data Model (SPDM) Authorization Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -2003,6 +2020,7 @@ family = "ncsi"
 title = "Network Controller Sideband Interface (NC‐SI) over Ethernet over USB Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -2141,6 +2159,7 @@ family = "redfish"
 title = "Redfish Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -2713,6 +2732,7 @@ family = "redfish"
 title = "Redfish Data Model Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "2019.3"
@@ -2870,6 +2890,7 @@ family = "redfish"
 title = "Redfish Resource and Schema Guide"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "2016.2"
@@ -3087,6 +3108,7 @@ family = "redfish"
 title = "Redfish Host Interface Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -3130,6 +3152,7 @@ family = "redfish"
 title = "Redfish Interoperability Profiles Specification"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -3543,6 +3566,7 @@ family = "redfish"
 title = "Redfish Property Guide"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "2019.1"
@@ -3712,6 +3736,7 @@ family = "redfish"
 title = "Redfish Message Registry Guide"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "2022.1"
