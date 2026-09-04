@@ -171,7 +171,9 @@ def test_ac1_support_table_prints_verified_for_every_open_document(catalog, caps
             assert verified == "-", doc.id
         else:
             assert verified != "-", f"{doc.id} not Verified"
-            assert re.fullmatch(r"G\d+(, G\d+)*", verified), (doc.id, verified)
+            # M8 follow-ups: "G1, G3 (1.3.3)", one group per verified version
+            group = r"G\d+(, G\d+)* \([^()]+\)"
+            assert re.fullmatch(rf"{group}(; {group})*", verified), (doc.id, verified)
 
 
 # ------------------------------------------------------------------ AC-2

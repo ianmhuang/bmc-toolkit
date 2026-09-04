@@ -449,3 +449,152 @@ def test_write_result_leaves_no_current_meta_if_text_write_fails(tmp_path, monke
     monkeypatch.setattr("builtins.open", real_open)
     assert not ex.is_current(vdir)
     assert not (vdir / ex.META_NAME).exists()
+
+
+# ------------------------------------------------- M8 follow-ups: grouping
+
+
+def test_same_size_lines_never_merge_across_a_tall_cell(tmp_path):
+    # A table row: a large monospace-style value on the left, a two-line
+    # comment on the right at tight leading. The tall value box overlaps
+    # both comment lines by more than half their height; the two comment
+    # lines overlap each other hardly at all and must stay two lines.
+    items = [
+        (72, 695, "0x0909", 15),
+        (150, 700, "Set Link EEE Conflict"),
+        (300, 700, "Returned when Set Link parameters attempt"),
+        (300, 689.6, "unsupported EEE configuration"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "row.pdf", [items]))
+    lines = page_lines(r.text, 1)
+    assert len(lines) == 2, lines
+    assert "Returned when Set Link parameters attempt" in lines[0]
+    assert lines[1].strip() == "unsupported EEE configuration"
+    assert "0x0909" in lines[0] and "Set Link EEE Conflict" in lines[0]
+
+
+def test_superscript_and_subscript_still_join_their_line(tmp_path):
+    items = [
+        (72, 700, "I"),
+        (79, 704, "2", 6),  # superscript: small and raised
+        (84, 700, "C bus at"),
+        (130, 697, "x", 6),  # subscript: small and dropped
+        (140, 700, "speed"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "sup.pdf", [items]))
+    lines = page_lines(r.text, 1)
+    assert len(lines) == 1, lines
+    assert lines[0].replace(" ", "").startswith("I2Cbusat")
+    assert "speed" in lines[0]
+
+
+# ------------------------------------------------- M8 follow-ups: outline
+
+
+def _pages_of(offset: int):
+    """The page items of ``_contents_document``, for a PDF with bookmarks."""
+    contents = [(72, 740, "Table of Contents")]
+    entries = [
+        ("1", "Introduction", 1),
+        ("1.1", "Scope", 1),
+        ("1.2", "Audience", 2),
+        ("2", "Overview", 2),
+        ("2.1", "Architecture", 3),
+        ("2.2", "Interfaces", 3),
+        ("3", "Commands", 4),
+        ("3.1", "Get Capabilities", 4),
+        ("3.2", "Get Power", 5),
+    ]
+    y = 720.0
+    for num, title, page in entries:
+        contents.append(
+            (72, y, f"{num} {title} ........................................ {page}")
+        )
+        y -= 14
+    pages = [[(200, 700, "Cover")], contents]
+    for printed in range(1, 6):
+        pages.append(
+            [
+                (72, 700, f"Body of printed page {printed}"),
+                (300, 40, f"Version 1.5 {printed} of 5"),
+            ]
+        )
+    return pages
+
+
+def test_anchor_bookmarks_are_dropped_and_the_contents_pages_used(tmp_path):
+    pdf, _entries = _contents_document(tmp_path, 2)
+    contents_only = ex.extract_pdf(pdf)
+    anchored = pdfgen.write_pdf(
+        tmp_path / "anchors.pdf",
+        _pages_of(2),
+        bookmarks=[
+            (0, "Ref_DSP0236", 2),
+            (0, "OLE_LINK1", 3),
+            (0, "ref_IETF_RFC5234", 2),
+        ],
+    )
+    r = ex.extract_pdf(anchored)
+    assert r.outline_source == "contents"
+    assert r.outline == contents_only.outline
+    assert r.page_offset == 2
+
+
+def test_anchor_bookmarks_without_contents_give_no_outline(tmp_path):
+    pdf = pdfgen.write_pdf(
+        tmp_path / "a.pdf",
+        [pdfgen.plain_page(["one"]), pdfgen.plain_page(["two"])],
+        bookmarks=[(0, "Ref_DSP0236", 0), (0, "OLE_LINK1", 1)],
+    )
+    r = ex.extract_pdf(pdf)
+    assert r.outline == [] and r.outline_source == "none"
+
+
+def test_mixed_bookmarks_keep_the_real_headings(tmp_path):
+    pdf = pdfgen.write_pdf(
+        tmp_path / "m.pdf",
+        [pdfgen.plain_page(["one"]), pdfgen.plain_page(["two"])],
+        bookmarks=[
+            (0, "1 Scope", 0),
+            (0, "Ref_DSP0236", 0),
+            (0, "2 Overview", 1),
+            (1, "2.1 Packet format", 1),
+        ],
+    )
+    r = ex.extract_pdf(pdf)
+    assert r.outline_source == "bookmarks"
+    titles = [e["title"] for e in r.outline]
+    assert titles == ["1 Scope", "2 Overview", "2.1 Packet format"]
+
+
+def test_bookmarks_all_on_one_page_are_not_an_outline(tmp_path):
+    # DSP0237: "Mark2", "RefISO_P2", "SMBus", every one pointing at page 7.
+    pdf = pdfgen.write_pdf(
+        tmp_path / "one.pdf",
+        _pages_of(2),
+        bookmarks=[(0, "Mark2", 3), (0, "RefISO_P2", 3), (0, "SMBus", 3)],
+    )
+    r = ex.extract_pdf(pdf)
+    assert r.outline_source == "contents"
+    assert r.outline[0]["title"] == "1 Introduction"
+
+
+def test_headings_with_underscores_and_spaces_are_kept(tmp_path):
+    pdf = pdfgen.write_pdf(
+        tmp_path / "u.pdf",
+        [pdfgen.plain_page(["one"]), pdfgen.plain_page(["two"])],
+        bookmarks=[(0, "1 GET_VERSION request", 0), (0, "2 Introduction", 1)],
+    )
+    r = ex.extract_pdf(pdf)
+    titles = [e["title"] for e in r.outline]
+    assert titles == ["1 GET_VERSION request", "2 Introduction"]
+
+
+def test_repeated_contents_entries_appear_once():
+    lines = [f"{n} Section {n} ........ {n + 4}" for n in range(1, 11)]
+    entries = ex.parse_contents([lines, list(lines)])
+    assert len(entries) == 10
+    assert [e["title"] for e in entries] == [f"{n} Section {n}" for n in range(1, 11)]
+    # the same titles on other pages are new entries, not repeats
+    moved = [f"{n} Section {n} ........ {n + 5}" for n in range(1, 11)]
+    assert len(ex.parse_contents([lines, moved])) == 20

@@ -312,7 +312,7 @@ def cmd_catalog(args: argparse.Namespace) -> int:
 
 def _catalog_table(catalog: Catalog, golden: Path | None) -> int:
     """The Support Level table; Verified from the Golden Questions file."""
-    verified: dict[str, list[str]] = {}
+    verified: support_mod.Verified = {}
     if golden is not None:
         try:
             verified, problems = support_mod.read_golden(golden, catalog)

@@ -13,7 +13,12 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from bmc_toolkit.spec.catalog import CatalogError, Document, load_catalog
+from bmc_toolkit.spec.catalog import (
+    CatalogError,
+    Document,
+    load_catalog,
+    version_numbers,
+)
 from bmc_toolkit.spec.listing import ListingError, Listings, Seen, version_key
 
 _BLOCK_START = re.compile(r"^\[\[(documents|repos)\]\]\s*$")
@@ -120,8 +125,9 @@ def _document_span(lines: list[str], doc_id: str) -> tuple[int, int]:
 
 
 def append_versions(path: Path, doc_id: str, seen: list[Seen]) -> None:
-    """Add version blocks at the end of the document's block, newest last,
-    and re-parse the file; on a parse failure the file is restored."""
+    """Add version blocks at the end of the document's block, newest last
+    (same-day versions ascending by their numbers, the order the catalog
+    keeps), and re-parse the file; on a parse failure the file is restored."""
     if not seen:
         return
     with open(path, encoding="utf-8", newline="") as fh:  # read_text(newline=) is 3.13+
@@ -130,7 +136,8 @@ def append_versions(path: Path, doc_id: str, seen: list[Seen]) -> None:
     _, end = _document_span(lines, doc_id)
     while end > 0 and lines[end - 1].strip() == "":
         end -= 1
-    blocks = [version_block(s) for s in sorted(seen, key=lambda s: s.published)]
+    ordered = sorted(seen, key=lambda s: (s.published, version_numbers(s.version)))
+    blocks = [version_block(s) for s in ordered]
     insert = "\n" + "\n".join(blocks)  # a blank line, then the blocks
     rest = "\n".join(lines[end:])  # starts with the blank line(s) that were there
     text = "\n".join(lines[:end]) + "\n" + insert + rest

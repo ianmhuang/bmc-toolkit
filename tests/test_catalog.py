@@ -161,3 +161,61 @@ def test_searched_with_is_optional_and_validated(catalog):
     with pytest.raises(CatalogError) as exc:
         _parse(text.replace('[" dsp0236 "]', '"DSP0236"'))
     assert "searched_with: expected list" in str(exc.value)
+
+
+# ------------------------------------------------ M8 follow-ups: date ties
+
+
+def _two_versions(first: str, second: str, second_date: str = "2025-12-08") -> str:
+    return f"""
+schema_version = 1
+
+[families.spdm]
+title = "SPDM"
+publisher = "DMTF"
+
+[[documents]]
+id = "DSP0276"
+family = "spdm"
+title = "Secured Messages over MCTP"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "{first}"
+url = "https://example.test/{first}.pdf"
+type = "pdf"
+published = "2025-12-08"
+
+[[documents.versions]]
+version = "{second}"
+url = "https://example.test/{second}.pdf"
+type = "pdf"
+published = "{second_date}"
+"""
+
+
+def test_same_day_tie_goes_to_the_higher_version_whatever_the_order():
+    for first, second in (("1.3.0", "2.0.0"), ("2.0.0", "1.3.0")):
+        doc = _parse(_two_versions(first, second)).get("DSP0276")
+        assert doc.latest().version == "2.0.0", (first, second)
+        assert doc.newest_open().version == "2.0.0", (first, second)
+
+
+def test_version_tie_compares_numbers_not_strings():
+    doc = _parse(_two_versions("1.10", "1.9")).get("DSP0276")
+    assert doc.latest().version == "1.10"
+    doc = _parse(_two_versions("Rev 1.0 Ver 1.2", "Rev 1.2 Ver 1.0")).get("DSP0276")
+    assert doc.latest().version == "Rev 1.2 Ver 1.0"
+
+
+def test_same_day_tie_without_numbers_keeps_catalog_order():
+    doc = _parse(_two_versions("draft", "final")).get("DSP0276")
+    assert doc.latest().version == "final"
+    doc = _parse(_two_versions("final", "draft")).get("DSP0276")
+    assert doc.latest().version == "draft"
+
+
+def test_a_later_date_still_beats_a_higher_version():
+    doc = _parse(_two_versions("2.0.0", "1.3.1", "2026-01-15")).get("DSP0276")
+    assert doc.latest().version == "1.3.1"

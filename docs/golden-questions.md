@@ -17,8 +17,10 @@ Rows G25 onwards were added in M8, one per document that had none. Their
 ids follow file order, which is catalog order by family. The answer
 column records the identifying values (codes, offsets, names) from these
 open documents on purpose, so that a re-run can be checked without the
-PDF at hand; prose is paraphrased, not copied. A document whose Latest is
-gated is verified on its newest open version and the row says so.
+PDF at hand; prose is paraphrased, not copied, while registry message
+strings (DSP2065 and the like) are quoted verbatim, since the exact text
+is what a client matches on. A document whose Latest is gated is verified
+on its newest open version and the row says so.
 
 ## Documents
 

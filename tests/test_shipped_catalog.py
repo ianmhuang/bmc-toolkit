@@ -141,3 +141,46 @@ def test_document_ids_are_path_safe(shipped):
 def test_ipmi_is_searched_with_its_update(shipped):
     assert shipped.get("IPMI").searched_with == ("IPMI-UPDATE",)
     assert shipped.get("IPMI-UPDATE") is not None
+
+
+# ---------------------------------------------------------- M8 follow-ups
+
+
+def test_latest_does_not_depend_on_the_order_of_the_version_entries(shipped):
+    import dataclasses
+
+    from bmc_toolkit.spec.catalog import version_numbers
+
+    for doc in shipped.documents:
+        if not doc.versions:
+            continue
+        reversed_doc = dataclasses.replace(doc, versions=tuple(reversed(doc.versions)))
+        assert doc.latest() == reversed_doc.latest(), doc.id
+        assert doc.newest_open() == reversed_doc.newest_open(), doc.id
+        # every same-day pair is told apart by its version numbers
+        for date in {v.published for v in doc.versions}:
+            keys = [
+                version_numbers(v.version) for v in doc.versions if v.published == date
+            ]
+            assert len(keys) == len(set(keys)), (doc.id, date)
+
+
+def test_versions_are_listed_in_publication_order_then_version_order(shipped):
+    # The convention `refresh --write` follows: a version block goes after
+    # the ones published before it; same-day releases (DMTF publishes the
+    # errata of several branches together) ascend by version number.
+    from bmc_toolkit.spec.catalog import version_numbers
+
+    def order(doc):
+        return [(v.published, version_numbers(v.version)) for v in doc.versions]
+
+    bad = [
+        (d.id, [v.version for v in d.versions])
+        for d in shipped.documents
+        if order(d) != sorted(order(d))
+    ]
+    assert not bad, bad
+    dsp0277 = [v.version for v in shipped.get("DSP0277").versions]
+    assert dsp0277.index("1.0.1") < dsp0277.index("1.1.1")
+    assert shipped.get("DSP0277").latest().version == "2.0.0"
+    assert shipped.get("DSP0276").latest().version == "2.0.0"

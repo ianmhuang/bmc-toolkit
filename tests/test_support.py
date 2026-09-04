@@ -394,9 +394,9 @@ def test_read_golden_collects_question_ids_per_document(extended, tmp_path):
     path.write_text(GOLDEN, encoding="utf-8", newline="")
     verified, problems = support.read_golden(path, extended)
     assert verified == {
-        "dsp0236": ["G1", "G3"],
-        "ipmi": ["G2"],
-        "pmb": ["G2"],
+        "dsp0236": [("G1", "1.3.3"), ("G3", "1.3.3")],
+        "ipmi": [("G2", "2.0 rev 1.1")],
+        "pmb": [("G2", "1.0")],
     }
     assert problems == ["G5: unknown document 'NOPE'"]
 
@@ -432,12 +432,18 @@ def test_table_columns_access_label_fetch_label_and_verified(
         "JEDEC-X",
         "CLOSED",
     ]
-    assert rows["DSP0236"][2:] == ["open", "1.3.3", "direct", "G1, G3", "- |"]
+    assert rows["DSP0236"][2:] == [
+        "open",
+        "1.3.3",
+        "direct",
+        "G1, G3 (1.3.3)",
+        "- |",
+    ]
     assert rows["PMB"][2:] == [
         "open (latest gated)",
         "Rev 1.1",
         "direct",
-        "G2",
+        "G2 (1.0)",
         "Tables are images: page and render, not table. |",
     ]
     assert rows["SECRET"][2:] == ["confidential", "0.9", "manual (Drop-in)", "-", "- |"]
@@ -496,5 +502,51 @@ def test_shipped_golden_questions_verify_every_open_document_but_the_bundles():
         "dsp8013",
     }
     assert set(verified) == expected
-    assert verified["ipmi"] == ["G1", "G2", "G3", "G4", "G5"]
-    assert verified["dsp0248"] == ["G13", "G15"]
+    assert [q for q, _ in verified["ipmi"]] == ["G1", "G2", "G3", "G4", "G5"]
+    assert verified["dsp0248"] == [("G13", "1.3.1"), ("G15", "1.3.1")]
+
+
+# ------------------------------------------ M8 follow-ups: verified version
+
+GOLDEN_VERSIONS = """# Golden Questions
+
+| # | Question | Document | Where | Commands |
+|---|---|---|---|---|
+| G1 | on the latest | DSP0236 1.3.3 | section 8 | `page DSP0236 24` |
+| G2 | on an older one | DSP0236 1.3.2 | section 8 | `page DSP0236 24` |
+| G3 | latest again | DSP0236 1.3.3 | section 9 | `find DSP0236 y` |
+| G4 | no version given | IPMI | page 1 | `find IPMI x` |
+| G5 | spaced version | PMB Rev 1.1 | page 2 | `page PMB 2` |
+"""
+
+
+def test_verified_cell_names_the_version_each_question_was_checked_on(
+    extended_file, tmp_path, capsys
+):
+    golden = tmp_path / "golden.md"
+    golden.write_text(GOLDEN_VERSIONS, encoding="utf-8", newline="")
+    code, out, err = run(
+        capsys,
+        "catalog",
+        "--table",
+        "--golden",
+        str(golden),
+        catalog_file=extended_file,
+    )
+    assert code == 0 and err == ""
+    rows = {
+        ln.split(" | ")[1].split("`")[1]: ln.split(" | ") for ln in out.splitlines()[2:]
+    }
+    # grouped per version, in the order the versions first appear
+    assert rows["DSP0236"][5] == "G1, G3 (1.3.3); G2 (1.3.2)"
+    # an entry naming only the id keeps the bare question id
+    assert rows["IPMI"][5] == "G4"
+    # a version string with spaces is kept verbatim
+    assert rows["PMB"][5] == "G5 (Rev 1.1)"
+
+
+def test_verified_label_formats_groups_and_bare_ids():
+    assert support.verified_label([]) == "-"
+    assert support.verified_label([("G1", "1.3.3")]) == "G1 (1.3.3)"
+    assert support.verified_label([("G4", "")]) == "G4"
+    assert support.verified_label([("G4", ""), ("G6", "2.0")]) == "G4; G6 (2.0)"

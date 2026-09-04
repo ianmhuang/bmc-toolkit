@@ -553,3 +553,25 @@ def test_document_span_ignores_ids_in_repos_blocks():
     only_repo = '[[repos]]\nid = "Y"\n'.split("\n")
     with pytest.raises(R.RefreshError):
         R._document_span(only_repo, "Y")
+
+
+# ---------------------------------------------------------- M8 follow-ups
+
+
+def test_refresh_write_orders_same_day_versions_by_their_numbers(catalog_file):
+    # DMTF publishes the errata of several branches on one day and lists
+    # the higher branch first; the catalog keeps same-day versions ascending
+    # so that the file order matches what latest() picks.
+    seen = [
+        L.Seen("1.5.0", "https://example.test/DSP0236_1.5.0.pdf", "2026-08-03"),
+        L.Seen("1.3.4", "https://example.test/DSP0236_1.3.4.pdf", "2026-08-03"),
+        L.Seen("1.3.5", "https://example.test/DSP0236_1.3.5.pdf", "2026-09-01"),
+    ]
+    R.append_versions(catalog_file, "DSP0236", seen)
+    text = catalog_file.read_text("utf-8")
+    assert (
+        text.index('version = "1.3.4"')
+        < text.index('version = "1.5.0"')
+        < text.index('version = "1.3.5"')
+    )
+    assert load_catalog(catalog_file).get("DSP0236").latest().version == "1.3.5"

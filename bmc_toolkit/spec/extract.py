@@ -5,7 +5,9 @@ grouped into lines by baseline, lines are laid out on a character grid whose
 unit is the page's median glyph width, so table columns keep their positions
 across rows. Printed line numbers (DMTF documents) are recognised purely by
 geometry and moved from the text into the Line Map. The Outline comes from
-PDF bookmarks, or from the contents pages when a document has none.
+PDF bookmarks, or from the contents pages when a document has none, or when
+its bookmarks are only Word anchors (``Ref_DSP0236``, ``OLE_LINK1``) or two
+or more of them all point at one page of a longer document.
 
 Files written next to the original::
 
@@ -44,7 +46,7 @@ from pathlib import Path
 from bmc_toolkit.spec.library import SCHEMAS_DIRNAME
 from bmc_toolkit.spec.tables import remove_store
 
-EXTRACTOR_VERSION = 3  # 3: figure regions
+EXTRACTOR_VERSION = 4  # 4: line reference is the dominant glyph size; anchors
 PAGE_MARKER = "=== page {n} ==="
 EXTRACT_NAME = "extract.txt"
 OUTLINE_NAME = "outline.json"
@@ -77,6 +79,7 @@ _CONTENTS_LINE = re.compile(
     r"(?:(?:\.\s*){2,}|\s{3,})\s*(?P<page>\d{1,4})\s*$"
 )
 _INT = re.compile(r"(?<![\w.])(\d{1,4})(?![\w.])")
+_ANCHOR = re.compile(r"^\S*_\S*$")  # a Word anchor name: one token, an underscore
 
 
 @dataclass
@@ -193,18 +196,15 @@ def _group_lines(chars, unit: float) -> list[Line]:
     if not chars:
         return []
     ordered = sorted(chars, key=lambda c: (-c[1], c[0]))
-    groups: list[list] = []
-    refs: list[tuple] = []  # the tallest box of each group: its line extent
+    groups: list[_LineGroup] = []
     for c in ordered:
-        if groups and _same_line(refs[-1], c):
-            groups[-1].append(c)
-            if c[3] - c[1] > refs[-1][3] - refs[-1][1]:
-                refs[-1] = c
+        if groups and _same_line(groups[-1].ref, c):
+            groups[-1].add(c)
         else:
-            groups.append([c])
-            refs.append(c)
+            groups.append(_LineGroup(c))
     lines = []
-    for g in groups:
+    for group in groups:
+        g = group.chars
         g.sort(key=lambda c: c[0])
         segments: list[Segment] = []
         cur: list = []
@@ -230,6 +230,35 @@ def _same_line(ref, c) -> bool:
     overlap = min(ref[3], c[3]) - max(ref[1], c[1])
     smaller = min(ref[3] - ref[1], c[3] - c[1])
     return overlap >= LINE_OVERLAP * smaller
+
+
+class _LineGroup:
+    """The boxes of one line while it is being built, and its reference box.
+
+    The reference is the first box of the group's most common glyph size
+    (the taller size on a tie): the line's body text. Using the tallest box
+    instead let a large glyph in one column (a monospace value beside a
+    two-line comment cell) overlap two body lines by more than half their
+    height each, so the two lines were merged letter by letter.
+    """
+
+    def __init__(self, first) -> None:
+        self.chars = [first]
+        self._first: dict[float, tuple] = {}  # glyph height -> first box seen
+        self._counts: Counter = Counter()
+        self.ref = first
+        self._count(first)
+
+    def add(self, c) -> None:
+        self.chars.append(c)
+        self._count(c)
+
+    def _count(self, c) -> None:
+        height = round(c[3] - c[1], 1)
+        self._counts[height] += 1
+        self._first.setdefault(height, c)
+        dominant = max(self._counts, key=lambda h: (self._counts[h], h))
+        self.ref = self._first[dominant]
 
 
 def _segment(chars, unit: float) -> Segment:
@@ -336,6 +365,12 @@ def render_page(page: PageText) -> list[str]:
 
 
 def outline_from_bookmarks(pdf) -> list[dict]:
+    """Bookmark entries, without the Word cross-reference anchors.
+
+    Word exports every bookmark of the document, and a bookmark placed on a
+    reference (``Ref_DSP0236``, ``OLE_LINK1``) is not a heading: a single
+    token with an underscore is dropped. A heading keeps its spaces.
+    """
     entries = []
     for bm in pdf.get_toc():
         dest = bm.get_dest()
@@ -348,13 +383,32 @@ def outline_from_bookmarks(pdf) -> list[dict]:
         if index is None:
             continue
         title = re.sub(r"\s+", " ", bm.get_title()).strip()
+        if _ANCHOR.match(title):
+            continue
         entries.append({"level": bm.level, "title": title, "page": index + 1})
     return entries
 
 
+def bookmarks_usable(entries: list[dict], page_count: int) -> bool:
+    """False when the bookmarks are no Outline: none, or two or more that
+    all land on one page of a longer document (leftover anchors without an
+    underscore, "Mark2", "SMBus"). A single bookmark, or the bookmarks of
+    a one-page document, cannot be judged and are kept."""
+    if not entries:
+        return False
+    if len(entries) == 1 or page_count <= 1:
+        return True
+    return len({e["page"] for e in entries}) > 1
+
+
 def parse_contents(pages_text: list[list[str]]) -> list[dict]:
-    """Contents-page entries as {level, title, printed} from page texts."""
+    """Contents-page entries as {level, title, printed} from page texts.
+
+    An entry repeating an earlier one (same title, same printed page) is
+    skipped: some documents carry their contents twice.
+    """
     entries = []
+    seen: set[tuple[str, int]] = set()
     limit = max(5, min(60, len(pages_text) // 4 + 5))
     for lines in pages_text[:limit]:
         found = []
@@ -368,13 +422,12 @@ def parse_contents(pages_text: list[list[str]]) -> list[dict]:
             if re.match(r"^\d+(\.\d+)*\.?\s", title):
                 continue  # "35 1.2. Title": a stray number swallowed the section
             num = m.group("num")
-            found.append(
-                {
-                    "level": num.count("."),
-                    "title": f"{num} {title}",
-                    "printed": int(m.group("page")),
-                }
-            )
+            printed = int(m.group("page"))
+            key = (f"{num} {title}", printed)
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append({"level": num.count("."), "title": key[0], "printed": printed})
         if len(found) >= 8:
             entries.extend(found)
     return entries
@@ -674,6 +727,8 @@ def _extract_open(pdf, raw, started: float) -> ExtractResult:
         chunks.append(PAGE_MARKER.format(n=i + 1))
         chunks.extend(lines)
     outline = outline_from_bookmarks(pdf)
+    if not bookmarks_usable(outline, count):
+        outline = []
     source = "bookmarks" if outline else "none"
     offset = None
     if not outline:

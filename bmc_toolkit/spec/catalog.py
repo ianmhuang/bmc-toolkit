@@ -31,8 +31,11 @@ Schema (``schema_version = 1``)::
                                slug of the nvmexpress.org API) or ocp (key:
                                "<wiki page title>|<description prefix>")
 
-    [[documents.versions]]     newest last or in any order; dates decide;
-                               may be absent altogether when fetch = "manual"
+    [[documents.versions]]     in publication order, same-day versions
+                               ascending by version number (refresh --write
+                               appends so); dates decide which is latest and
+                               the numbers in the version string break a
+                               tie; may be absent when fetch = "manual"
     version = "1.3.3"          the publisher's own string, verbatim
     url = "https://..."        may be "" when fetch = "manual" or the
                                version's access is not open
@@ -97,12 +100,23 @@ class Version:
         return self.access == "open"
 
 
+def version_numbers(version: str) -> tuple[int, ...]:
+    """The numbers in a version string, for ordering: "1.10" after "1.9",
+    "Rev 2.2 Ver 1.0" after "Rev 2.1 Ver 1.1"; no numbers gives ()."""
+    return tuple(int(n) for n in re.findall(r"\d+", version))
+
+
 def _newest(versions) -> Version | None:
-    """The version with the latest publication date; ties keep catalog
-    order, the later entry wins."""
+    """The version with the latest publication date. Same-day versions are
+    ordered by version_numbers(); a tie there keeps catalog order, the later
+    entry wins."""
     best = None
     for v in versions:
-        if best is None or v.published >= best.published:
+        if best is None or v.published > best.published:
+            best = v
+        elif v.published == best.published and version_numbers(
+            v.version
+        ) >= version_numbers(best.version):
             best = v
     return best
 
@@ -132,7 +146,7 @@ class Document:
     def latest(self, include_wip: bool = False) -> Version | None:
         """Newest version by publication date; WIP only when asked.
 
-        Ties on the date keep catalog order, later entry wins.
+        Same-day versions are told apart by their version numbers.
         """
         return _newest(v for v in self.versions if include_wip or not v.wip)
 

@@ -140,7 +140,8 @@ def test_files_written_and_removed(tmp_path):
     figures = json.loads((vdir / "figures.json").read_text("utf-8"))
     assert figures == r.figures
     meta = json.loads((vdir / "extract.json").read_text("utf-8"))
-    assert meta["figure_pages"] == 1 and meta["extractor_version"] == 3
+    assert meta["figure_pages"] == 1
+    assert meta["extractor_version"] == ex.EXTRACTOR_VERSION
     renders = vdir / "renders"
     renders.mkdir()
     (renders / "page-1.png").write_bytes(b"x")
