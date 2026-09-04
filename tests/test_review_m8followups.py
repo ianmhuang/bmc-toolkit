@@ -2,6 +2,9 @@
 
 Black-box against extract_pdf, the catalog model, the CLI table and the
 refresh writer. Every test here fails on main and passes on the branch.
+Round 2 added the cases for the round-1 findings: many tall glyphs beside a
+two-line cell, the contents-page threshold with repeats, the `catalog DOC`
+listing on a same-day tie, and whitespace in the Document cell.
 """
 
 import json
@@ -100,6 +103,24 @@ def test_ac1_superscripts_still_join_while_the_tall_cell_stays_apart(tmp_path):
     assert lines[0].replace(" ", "") == "I2Caddress7bits"
     assert lines[1].startswith("Returned when the Set Link parameters ask")
     assert lines[2].strip() == "for an unsupported EEE configuration"
+
+
+def test_ac1_many_tall_glyphs_still_leave_the_two_line_cell_apart(tmp_path):
+    # Round 2: the tall cell carries far more glyphs (24) than either line
+    # of the two-line cell (12 and 10). A reference chosen by glyph count
+    # would flip to the tall box and merge the second line; AC-1 says the
+    # lines stay apart "whatever the number of tall glyphs".
+    items = [
+        (72, 695, "0xE0 0xE1 0xE2 0xE3 0xE4 0xE5", 15),
+        (330, 700, "Reserved for"),
+        (330, 689.6, "vendor use"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "many.pdf", [items]))
+    lines = _page_lines(r.text, 1)
+    assert len(lines) == 2, lines
+    assert "0xE0" in lines[0] and "0xE5" in lines[0]
+    assert lines[0].replace(" ", "").endswith("Reservedfor"), lines
+    assert lines[1].replace(" ", "") == "vendoruse", lines
 
 
 def test_ac1_extractor_version_bumped_so_old_extracts_are_stale(tmp_path):
@@ -267,6 +288,21 @@ def test_ac3_contents_printed_twice_give_each_entry_once(tmp_path):
     assert [e["page"] for e in twice.outline] == [e["page"] + 1 for e in once.outline]
 
 
+def test_ac3_reprinted_contents_page_with_additions_keeps_the_additions():
+    # Round 2: a second contents page that repeats the first ten entries and
+    # adds two. The repeats appear once; the two additions are not lost to
+    # the eight-matching-lines threshold that makes a page a contents page.
+    first = [f"{n} Section {n} " + "." * 30 + f" {n + 4}" for n in range(1, 11)]
+    reprinted = list(first) + [
+        "11 Annex " + "." * 30 + " 30",
+        "12 Index " + "." * 30 + " 31",
+    ]
+    entries = ex.parse_contents([first, reprinted])
+    titles = [e["title"] for e in entries]
+    assert titles == [f"{n} Section {n}" for n in range(1, 11)] + ["11 Annex", "12 Index"]
+    assert [e["printed"] for e in entries][-2:] == [30, 31]
+
+
 def test_ac3_section_lists_a_repeated_entry_once(tmp_path, monkeypatch, capsys):
     from bmc_toolkit.spec.library import Library
 
@@ -379,6 +415,24 @@ def test_ac4_newest_open_ignores_a_gated_same_day_higher_version():
     assert doc.newest_open().version == "1.3.0"
 
 
+def test_ac4_catalog_document_listing_agrees_with_latest_on_a_same_day_tie(
+    tmp_path, capsys
+):
+    # Round 2: `catalog DOC` prints versions newest first; on a same-day tie
+    # the order must follow the numbers, whatever the entry order, so that
+    # the first listed version is the one the latest: line names.
+    a = [("1.3.0", "2025-12-08", "open"), ("2.0.0", "2025-12-08", "open")]
+    for order in (a, list(reversed(a))):
+        path = tmp_path / "catalog.toml"
+        path.write_text(_catalog_with(order), encoding="utf-8", newline="")
+        code, out, _err = _run(capsys, "catalog", "DSP0277", catalog_file=path)
+        assert code == 0, out
+        lines = out.splitlines()
+        assert "latest: 2.0.0" in lines, order
+        listed = [ln.split("\t")[1] for ln in lines if ln.startswith("\t")]
+        assert listed == ["2.0.0", "1.3.0"], (order, listed)
+
+
 def test_ac4_shipped_latest_is_independent_of_entry_order():
     import dataclasses
 
@@ -462,6 +516,32 @@ def test_ac5_unknown_document_is_still_reported_and_the_rest_kept(
     assert "G4: unknown document 'NOPE'" in err
     rows = _table_rows(out)
     assert rows["IPMI"][5] == "G5 (2.0 rev 1.1)"
+
+
+def test_ac5_document_cell_splits_on_any_whitespace_between_id_and_version(
+    mini_file, tmp_path, capsys
+):
+    # Round 2: a tab or a run of spaces after the id (a spreadsheet paste)
+    # is still "<id> <version>": no unknown-document report, the version
+    # named in the Verified cell.
+    golden = (
+        "# Golden Questions\n\n"
+        "| # | Question | Document | Where | Commands |\n"
+        "|---|---|---|---|---|\n"
+        "| G1 | tab | DSP0236\t1.3.3 | section 1 | `page DSP0236 1` |\n"
+        "| G2 | spaces | IPMI    2.0 rev 1.1 | section 2 | `page IPMI 1` |\n"
+        "| G3 | both | DSP0236 \t 1.3.2 | section 3 | `page DSP0236 2` |\n"
+    )
+    path = tmp_path / "golden.md"
+    path.write_text(golden, encoding="utf-8", newline="")
+    code, out, err = _run(
+        capsys, "catalog", "--table", "--golden", str(path), catalog_file=mini_file
+    )
+    assert code == 0
+    assert "unknown document" not in err, err
+    rows = _table_rows(out)
+    assert rows["DSP0236"][5] == "G1 (1.3.3); G3 (1.3.2)"
+    assert rows["IPMI"][5] == "G2 (2.0 rev 1.1)"
 
 
 def test_ac5_shipped_golden_file_names_a_version_for_every_verified_row(capsys):
