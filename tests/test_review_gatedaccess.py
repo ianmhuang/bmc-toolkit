@@ -335,6 +335,79 @@ def test_ac6_fetch_of_a_manual_confidential_version_names_the_tier(
     assert not library.root.exists()
 
 
+def _add(capsys, cat_file, tmp_path, doc_id, version):
+    src = tmp_path / f"{doc_id}-{version}.pdf".replace(" ", "_")
+    src.write_bytes(PDF_BYTES)
+    code, out, _ = run(
+        capsys,
+        "add",
+        str(src),
+        "--document",
+        doc_id,
+        "--version",
+        version,
+        catalog_file=cat_file,
+    )
+    assert code == 0, out
+
+
+def test_ac6_a_held_gated_version_is_skipped_like_any_other_held_version(
+    cat_file, library, scripted, tmp_path, capsys
+):
+    # Round 3 (F1): a gated version can only ever reach the Library through
+    # add or scan; once it is there, fetch must not tell the user to obtain
+    # it again nor offer an older open version instead
+    _add(capsys, cat_file, tmp_path, "BUS", "1.5")
+    for argv in (["fetch", "BUS"], ["fetch", "BUS", "--version", "1.5"]):
+        code, out, _ = run(capsys, *argv, catalog_file=cat_file)
+        assert code == 0, (argv, out)
+        assert "skipped BUS 1.5: already in Library" in out.splitlines(), argv
+        assert "newest open version" not in out, argv
+        assert "does not download" not in out, argv
+        assert "scan" not in out, argv
+    assert scripted.calls == []
+    # the same for a manual confidential document held as a Drop-in
+    _add(capsys, cat_file, tmp_path, "SECRET", "0.9")
+    code, out, _ = run(capsys, "fetch", "SECRET", catalog_file=cat_file)
+    assert code == 0, out
+    assert "skipped SECRET 0.9: already in Library" in out.splitlines()
+    assert "no open version is listed" not in out
+    assert scripted.calls == []
+
+
+def test_ac6_fetch_all_does_not_substitute_for_a_held_gated_latest(
+    cat_file, library, scripted, tmp_path, capsys
+):
+    # Round 3 (F1): with 1.5 held, --all reports it skipped, prints no note
+    # for BUS and does not fetch 1.3.1 in its place
+    _add(capsys, cat_file, tmp_path, "BUS", "1.5")
+    scripted.responses[BUS_131_URL] = ok(PDF_BYTES)
+    code, out, _ = run(capsys, "fetch", "--all", catalog_file=cat_file)
+    lines = out.splitlines()
+    assert "skipped BUS 1.5: already in Library" in lines
+    assert not any(ln.startswith("note:") and "BUS" in ln for ln in lines)
+    assert not any("BUS 1.3.1" in ln for ln in lines)
+    assert BUS_131_URL not in scripted.calls
+    assert library.find("BUS", "1.3.1") is None
+    # ALLGATED still gets its note: nothing of it is held
+    assert any(ln.startswith("note: ALLGATED") for ln in lines)
+
+
+def test_ac6_force_on_a_held_gated_version_gets_the_tier_message(
+    cat_file, library, scripted, tmp_path, capsys
+):
+    # --force asks for a download; a gated version has none to give, so the
+    # tier message comes back and the held file is left untouched
+    _add(capsys, cat_file, tmp_path, "BUS", "1.5")
+    code, out, _ = run(capsys, "fetch", "BUS", "--force", catalog_file=cat_file)
+    assert code == 2
+    _assert_gated_message(out, "BUS", "1.5", "gated")
+    assert "newest open version: 1.3.1" in out
+    assert scripted.calls == []
+    held = library.find("BUS", "1.5")
+    assert held is not None and held.dropin
+
+
 def test_ac3_fetch_of_a_manual_document_without_versions_points_at_add(
     cat_file, library, scripted, capsys
 ):
