@@ -393,6 +393,46 @@ def test_ac6_fetch_all_does_not_substitute_for_a_held_gated_latest(
     assert any(ln.startswith("note: ALLGATED") for ln in lines)
 
 
+def test_ac6_fetch_all_force_with_a_held_gated_latest_refetches_the_open_one(
+    cat_file, library, scripted, tmp_path, capsys
+):
+    # Round 4 (F1 of round 3): --force asks for downloads; a held gated
+    # latest has none, so --all substitutes the newest open version as it
+    # would without the Drop-in, re-downloads it, and never hands the
+    # URL-less gated version to the fetch chain (which would print "failed"
+    # with the obtain-and-scan instruction for a file the user holds)
+    _add(capsys, cat_file, tmp_path, "BUS", "1.5")
+    _add(capsys, cat_file, tmp_path, "ALLGATED", "2.0")
+    _add(capsys, cat_file, tmp_path, "BUS", "1.3.1")
+    scripted.responses[BUS_131_URL] = ok(PDF_BYTES)
+    code, out, _ = run(capsys, "fetch", "--all", "--force", catalog_file=cat_file)
+    lines = out.splitlines()
+    assert "note: BUS latest 1.5 is gated; fetching 1.3.1 instead" in lines
+    assert (
+        "note: ALLGATED latest 2.0 is gated; no open version is listed, "
+        "nothing fetched"
+    ) in lines
+    assert "fetched BUS 1.3.1 via direct" in lines
+    assert scripted.calls.count(BUS_131_URL) == 1
+    # the held gated versions are neither reported nor touched
+    assert not any("BUS 1.5" in ln for ln in lines)
+    assert not any("ALLGATED 2.0" in ln for ln in lines)
+    assert not any(ln.startswith("failed BUS") for ln in lines)
+    assert not any(ln.startswith("failed ALLGATED") for ln in lines)
+    assert not any(ln.startswith("skipped BUS") for ln in lines)
+    for doc_id, version in (("BUS", "1.5"), ("ALLGATED", "2.0")):
+        held = library.find(doc_id, version)
+        assert held is not None and held.dropin, (doc_id, version)
+    # the re-fetched open version is no longer the Drop-in it was
+    refetched = library.find("BUS", "1.3.1")
+    assert refetched is not None and not refetched.dropin
+    # only the mini catalog's unscripted documents fail, never a Drop-in
+    summary = [ln for ln in lines if ln.startswith("summary:")]
+    assert len(summary) == 1
+    failed = [ln for ln in lines if ln.startswith("failed ")]
+    assert {ln.split()[1] for ln in failed} <= {"DSP0236", "IPMI", "BUNDLE"}, failed
+
+
 def test_ac6_force_on_a_held_gated_version_gets_the_tier_message(
     cat_file, library, scripted, tmp_path, capsys
 ):
