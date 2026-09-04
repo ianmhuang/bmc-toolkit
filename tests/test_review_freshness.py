@@ -573,10 +573,13 @@ def test_shipped_catalog_carries_listings_for_nvme_and_ocp():
 
 
 def test_release_metadata_and_documentation():
-    """AC-10 (round 2): README and SKILL.md name the new commands, the config
-    key, the listing key and freshness.json. The version numbers and the
-    README status line are checked in test_release.py since 1.0.0."""
+    """AC-10 (round 2): the user documentation and SKILL.md name the new
+    commands, the config key, the listing key and freshness.json. Since
+    1.0.0 the README holds the examples and docs/COMMANDS.md the details,
+    so the two are read together; the version numbers and the README
+    status line are checked in test_release.py."""
     readme = (ROOT / "README.md").read_text("utf-8")
+    readme += (ROOT / "docs" / "COMMANDS.md").read_text("utf-8")
     skill = (ROOT / "skills" / "bmc-spec" / "SKILL.md").read_text("utf-8")
     for text in (readme, skill):
         for word in (

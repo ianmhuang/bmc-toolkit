@@ -410,11 +410,11 @@ def test_ac5_g52_no_longer_says_section_finds_nothing(golden_rows):
 
 
 def test_ac6_readme_states_the_version_promise_per_publisher():
-    text = README.read_bytes().decode("utf-8")
-    assert b"\r" not in README.read_bytes()
-    start = text.index("## The Source Catalog")
-    end = text.index("\n## ", start + 1)
-    section = text[start:end]
+    # since 1.0.0 the Source Catalog section is docs/CATALOG.md, whole
+    raw = (ROOT / "docs" / "CATALOG.md").read_bytes()
+    assert b"\r" not in raw
+    section = raw.decode("utf-8")
+    assert section.startswith("# The Source Catalog\n")
     assert "full version history" in section
     assert "DMTF" in section and "NVM Express" in section
     assert "current version" in section

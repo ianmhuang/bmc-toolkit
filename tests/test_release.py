@@ -34,7 +34,8 @@ def test_readme_status_is_the_release():
 
 def test_marketplace_manifest_has_a_description():
     """AC-3: marketplace.json carries the description that
-    `claude plugin validate --strict` requires, and names this plugin."""
+    `claude plugin validate --strict` warns about when missing, and names
+    this plugin."""
     manifest = json.loads(
         (ROOT / ".claude-plugin" / "marketplace.json").read_text("utf-8")
     )
