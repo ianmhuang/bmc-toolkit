@@ -69,6 +69,21 @@ def test_ac6_support_doc_has_a_header_the_marker_and_the_generated_output(genera
     assert not text.endswith("\n\n")
 
 
+def test_ac6_header_describes_fetch_of_a_gated_latest_as_the_tool_behaves():
+    """Round 1 F1: the Access bullet must not say plain ``fetch`` takes the
+    newest open version of an ``open (latest gated)`` document; ``fetch DOC``
+    refuses it (exit 2, names ``--version X``) and only ``fetch --all`` takes
+    the newest open one."""
+    header = SUPPORT.read_text(encoding="utf-8").split(MARKER, 1)[0]
+    bullet = header[header.index("**Access**") :]
+    bullet = bullet[: bullet.index("\n- **")]
+    flat = " ".join(bullet.split())
+    assert "(latest gated)" in flat
+    assert "`fetch DOC` refuses" in flat
+    assert "`fetch --all` takes" in flat
+    assert "and `fetch` takes the newest open one" not in flat
+
+
 def test_ac6_support_doc_is_lf_and_would_fail_when_stale(generated):
     raw = SUPPORT.read_bytes()
     assert b"\r" not in raw
