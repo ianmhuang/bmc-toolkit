@@ -347,6 +347,13 @@ def _shell_quote(value: str) -> str:
     return f'"{value}"' if " " in value else value
 
 
+def _held(library: Library, doc: Document, ver, force: bool) -> bool:
+    """True when the version is already in the Library (a Drop-in, for a
+    gated one) and ``fetch`` will report it skipped rather than refuse it;
+    ``--force`` asks for a download, which a gated version cannot have."""
+    return not force and library.find(doc.id, ver.version) is not None
+
+
 def _resolve_version(doc: Document, requested: str | None, wip: bool):
     if requested:
         ver = doc.find_version(requested)
@@ -405,7 +412,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         if ver is None:
             print(problem)
             return EXIT_ACTION
-        if not ver.open:
+        if not ver.open and not _held(library, doc, ver, args.force):
             print(_gated_message(library, doc, ver))
             return EXIT_ACTION
         _announce_library(library)
@@ -423,9 +430,11 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         if doc.fetch == "manual":
             continue
         ver = doc.latest(include_wip=args.wip)
-        if ver is not None and not ver.open:
+        if ver is not None and not ver.open and not _held(library, doc, ver, False):
             # The latest is gated: take the newest open version instead and
-            # say so once; a document with no open version is left alone.
+            # say so once; a document with no open version is left alone. A
+            # gated latest the user added by hand is held and reported as
+            # skipped like any other held version.
             newest = doc.newest_open()
             gated_notes.append(
                 f"note: {doc.id} latest {ver.version} is {ver.access}; "

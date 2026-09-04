@@ -249,6 +249,39 @@ def test_add_accepts_any_version_of_a_manual_document(
     assert len(row) == 1 and row[0].split("\t")[2:4] == ["1.2 (2024)", "dropin"]
 
 
+def test_fetch_of_a_gated_version_the_user_added_is_skipped_not_refused(
+    extended_file, library, scripted, tmp_path, capsys
+):
+    src = tmp_path / "pmb-1.1.pdf"
+    src.write_bytes(PDF_BYTES)
+    code, out, _ = run(
+        capsys,
+        "add",
+        str(src),
+        "--document",
+        "PMB",
+        "--version",
+        "Rev 1.1",
+        catalog_file=extended_file,
+    )
+    assert code == 0
+    for argv in (["fetch", "PMB"], ["fetch", "PMB", "--version", "Rev 1.1"]):
+        code, out, _ = run(capsys, *argv, catalog_file=extended_file)
+        assert code == 0, out
+        assert "skipped PMB Rev 1.1: already in Library" in out
+        assert "newest open version" not in out
+    scripted.responses[PMB_OPEN_URL] = ok(PDF_BYTES)
+    code, out, _ = run(capsys, "fetch", "--all", catalog_file=extended_file)
+    lines = out.splitlines()
+    assert "skipped PMB Rev 1.1: already in Library" in lines
+    assert not any(ln.startswith("note: PMB") for ln in lines)
+    assert PMB_OPEN_URL not in scripted.calls
+    # --force asks for a download, which a gated version cannot have
+    code, out, _ = run(capsys, "fetch", "PMB", "--force", catalog_file=extended_file)
+    assert code == 2 and "PMB Rev 1.1 is gated" in out
+    assert scripted.calls == []
+
+
 def test_fetch_of_a_manual_document_without_versions_points_at_add(
     extended_file, library, scripted, capsys
 ):
