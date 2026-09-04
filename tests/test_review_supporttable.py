@@ -182,8 +182,10 @@ def test_ac10_golden_document_column_marks_verified_rows(cat_file, golden_file, 
     )
     assert code == 0
     rows = _rows(out)
-    assert rows["BUS"][5] == "G1, G2"
-    assert rows["DSP0236"][5] == "G2, G5"
+    # M8 follow-ups: the cell also names the version the questions were
+    # checked on (the Document column's text after the id)
+    assert rows["BUS"][5] == "G1, G2 (1.3.1)"
+    assert rows["DSP0236"][5] == "G2, G5 (1.3.3)"
     for doc_id in ("IPMI", "BUNDLE", "SECRET", "NDA-ONLY", "ALLGATED"):
         assert rows[doc_id][5] == "-", doc_id
     # the unknown id is reported on stderr and otherwise ignored
@@ -252,8 +254,9 @@ def test_ac10_shipped_golden_file_verifies_the_m8a_documents_and_more(capsys):
         "DC-SCM",
         "UM10204",
     }
-    assert rows["IPMI"][5] == "G1, G2, G3, G4, G5"
-    assert rows["DC-SCM"][5] == "G20"
+    # M8 follow-ups: the cell names the version the questions were checked on
+    assert rows["IPMI"][5] == "G1, G2, G3, G4, G5 (2.0 rev 1.1)"
+    assert rows["DC-SCM"][5] == "G20 (Rev 2.1 Ver 1.1)"
     # every question row of the shipped file names a document or "-"
     text = GOLDEN_SHIPPED.read_text(encoding="utf-8")
     question_rows = [ln for ln in text.splitlines() if re.match(r"^\|\s*G\d+\s*\|", ln)]

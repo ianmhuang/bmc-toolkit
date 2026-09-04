@@ -5,7 +5,8 @@ Access Tier (with the latest version's tier when it differs), latest
 version, how it is fetched, whether it is Verified, and its Known Limits.
 Verified comes from the Golden Questions file: a Markdown table whose
 header has a ``Document`` column naming ``<catalog id> <version>`` per
-question. Standard library only.
+question; the cell lists the question ids per version they were checked
+on, ``G1, G3 (1.3.3); G2 (1.3.2)``. Standard library only.
 """
 
 import re
@@ -38,12 +39,16 @@ def _cells(line: str) -> list[str]:
     return [p.strip() for p in parts]
 
 
-def read_golden(path: Path, catalog: Catalog) -> tuple[dict[str, list[str]], list[str]]:
-    """(verified, problems): the question ids per catalog document id
-    (lower-cased) named in a ``Document`` column, and the cells that name
-    a document the catalog does not know."""
+Verified = dict[str, list[tuple[str, str]]]
+
+
+def read_golden(path: Path, catalog: Catalog) -> tuple[Verified, list[str]]:
+    """(verified, problems): per catalog document id (lower-cased) named in
+    a ``Document`` column, the (question id, version) pairs in file order,
+    the version being the cell text after the id ("" when there is none);
+    and the cells that name a document the catalog does not know."""
     text = path.read_text(encoding="utf-8")
-    verified: dict[str, list[str]] = {}
+    verified: Verified = {}
     problems: list[str] = []
     column: int | None = None
     for line in text.splitlines():
@@ -65,15 +70,29 @@ def read_golden(path: Path, catalog: Catalog) -> tuple[dict[str, list[str]], lis
             entry = entry.strip()
             if not entry or entry == "-":
                 continue
-            doc_id = entry.split()[0]
+            doc_id, *rest = entry.split(None, 1)  # any whitespace, once
+            version = rest[0] if rest else ""
             doc = catalog.get(doc_id)
             if doc is None:
                 problems.append(f"{cells[0]}: unknown document '{doc_id}'")
                 continue
-            ids = verified.setdefault(doc.id.lower(), [])
-            if cells[0] not in ids:
-                ids.append(cells[0])
+            pairs = verified.setdefault(doc.id.lower(), [])
+            if cells[0] not in (q for q, _ in pairs):
+                pairs.append((cells[0], version.strip()))
     return verified, problems
+
+
+def verified_label(pairs: list[tuple[str, str]]) -> str:
+    """The Verified cell: question ids grouped by the version they were
+    checked on, in order of first appearance; ``-`` when there are none."""
+    groups: dict[str, list[str]] = {}
+    for qid, version in pairs:
+        groups.setdefault(version, []).append(qid)
+    parts = []
+    for version, ids in groups.items():
+        text = ", ".join(ids)
+        parts.append(f"{text} ({version})" if version else text)
+    return "; ".join(parts) if parts else "-"
 
 
 def _escape(cell: str) -> str:
@@ -92,11 +111,10 @@ def fetch_label(doc: Document) -> str:
     return "manual (Drop-in)" if doc.fetch == "manual" else doc.fetch
 
 
-def support_rows(catalog: Catalog, verified: dict[str, list[str]]) -> list[list[str]]:
+def support_rows(catalog: Catalog, verified: Verified) -> list[list[str]]:
     rows = []
     for doc in catalog.documents:
         latest = doc.latest()
-        questions = verified.get(doc.id.lower(), [])
         rows.append(
             [
                 catalog.families[doc.family].title,
@@ -104,14 +122,14 @@ def support_rows(catalog: Catalog, verified: dict[str, list[str]]) -> list[list[
                 access_label(doc),
                 latest.version if latest else "-",
                 fetch_label(doc),
-                ", ".join(questions) if questions else "-",
+                verified_label(verified.get(doc.id.lower(), [])),
                 doc.limits or "-",
             ]
         )
     return rows
 
 
-def support_table(catalog: Catalog, verified: dict[str, list[str]]) -> list[str]:
+def support_table(catalog: Catalog, verified: Verified) -> list[str]:
     """The Markdown lines of the Support Level table."""
     lines = [
         "| " + " | ".join(COLUMNS) + " |",
@@ -124,9 +142,11 @@ def support_table(catalog: Catalog, verified: dict[str, list[str]]) -> list[str]
 
 __all__ = [
     "COLUMNS",
+    "Verified",
     "access_label",
     "fetch_label",
     "read_golden",
     "support_rows",
     "support_table",
+    "verified_label",
 ]

@@ -449,3 +449,260 @@ def test_write_result_leaves_no_current_meta_if_text_write_fails(tmp_path, monke
     monkeypatch.setattr("builtins.open", real_open)
     assert not ex.is_current(vdir)
     assert not (vdir / ex.META_NAME).exists()
+
+
+# ------------------------------------------------- M8 follow-ups: grouping
+
+
+def test_same_size_lines_never_merge_across_a_tall_cell(tmp_path):
+    # A table row: a large monospace-style value on the left, a two-line
+    # comment on the right at tight leading. The tall value box overlaps
+    # both comment lines by more than half their height; the two comment
+    # lines overlap each other hardly at all and must stay two lines.
+    items = [
+        (72, 695, "0x0909", 15),
+        (150, 700, "Set Link EEE Conflict"),
+        (300, 700, "Returned when Set Link parameters attempt"),
+        (300, 689.6, "unsupported EEE configuration"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "row.pdf", [items]))
+    lines = page_lines(r.text, 1)
+    assert len(lines) == 2, lines
+    assert "Returned when Set Link parameters attempt" in lines[0]
+    assert lines[1].strip() == "unsupported EEE configuration"
+    assert "0x0909" in lines[0] and "Set Link EEE Conflict" in lines[0]
+
+
+def test_superscript_and_subscript_still_join_their_line(tmp_path):
+    items = [
+        (72, 700, "I"),
+        (79, 704, "2", 6),  # superscript: small and raised
+        (84, 700, "C bus at"),
+        (130, 697, "x", 6),  # subscript: small and dropped
+        (140, 700, "speed"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "sup.pdf", [items]))
+    lines = page_lines(r.text, 1)
+    assert len(lines) == 1, lines
+    assert lines[0].replace(" ", "").startswith("I2Cbusat")
+    assert "speed" in lines[0]
+
+
+# ------------------------------------------------- M8 follow-ups: outline
+
+
+def _pages_of(offset: int):
+    """The page items of ``_contents_document``, for a PDF with bookmarks."""
+    contents = [(72, 740, "Table of Contents")]
+    entries = [
+        ("1", "Introduction", 1),
+        ("1.1", "Scope", 1),
+        ("1.2", "Audience", 2),
+        ("2", "Overview", 2),
+        ("2.1", "Architecture", 3),
+        ("2.2", "Interfaces", 3),
+        ("3", "Commands", 4),
+        ("3.1", "Get Capabilities", 4),
+        ("3.2", "Get Power", 5),
+    ]
+    y = 720.0
+    for num, title, page in entries:
+        contents.append(
+            (72, y, f"{num} {title} ........................................ {page}")
+        )
+        y -= 14
+    pages = [[(200, 700, "Cover")], contents]
+    for printed in range(1, 6):
+        pages.append(
+            [
+                (72, 700, f"Body of printed page {printed}"),
+                (300, 40, f"Version 1.5 {printed} of 5"),
+            ]
+        )
+    return pages
+
+
+def test_anchor_bookmarks_are_dropped_and_the_contents_pages_used(tmp_path):
+    pdf, _entries = _contents_document(tmp_path, 2)
+    contents_only = ex.extract_pdf(pdf)
+    anchored = pdfgen.write_pdf(
+        tmp_path / "anchors.pdf",
+        _pages_of(2),
+        bookmarks=[
+            (0, "Ref_DSP0236", 2),
+            (0, "OLE_LINK1", 3),
+            (0, "ref_IETF_RFC5234", 2),
+        ],
+    )
+    r = ex.extract_pdf(anchored)
+    assert r.outline_source == "contents"
+    assert r.outline == contents_only.outline
+    assert r.page_offset == 2
+
+
+def test_anchor_bookmarks_without_contents_give_no_outline(tmp_path):
+    pdf = pdfgen.write_pdf(
+        tmp_path / "a.pdf",
+        [pdfgen.plain_page(["one"]), pdfgen.plain_page(["two"])],
+        bookmarks=[(0, "Ref_DSP0236", 0), (0, "OLE_LINK1", 1)],
+    )
+    r = ex.extract_pdf(pdf)
+    assert r.outline == [] and r.outline_source == "none"
+
+
+def test_mixed_bookmarks_keep_the_real_headings(tmp_path):
+    pdf = pdfgen.write_pdf(
+        tmp_path / "m.pdf",
+        [pdfgen.plain_page(["one"]), pdfgen.plain_page(["two"])],
+        bookmarks=[
+            (0, "1 Scope", 0),
+            (0, "Ref_DSP0236", 0),
+            (0, "2 Overview", 1),
+            (1, "2.1 Packet format", 1),
+        ],
+    )
+    r = ex.extract_pdf(pdf)
+    assert r.outline_source == "bookmarks"
+    titles = [e["title"] for e in r.outline]
+    assert titles == ["1 Scope", "2 Overview", "2.1 Packet format"]
+
+
+def test_bookmarks_all_on_one_page_are_not_an_outline(tmp_path):
+    # DSP0237: "Mark2", "RefISO_P2", "SMBus", every one pointing at page 7.
+    pdf = pdfgen.write_pdf(
+        tmp_path / "one.pdf",
+        _pages_of(2),
+        bookmarks=[(0, "Mark2", 3), (0, "RefISO_P2", 3), (0, "SMBus", 3)],
+    )
+    r = ex.extract_pdf(pdf)
+    assert r.outline_source == "contents"
+    assert r.outline[0]["title"] == "1 Introduction"
+
+
+def test_headings_with_underscores_and_spaces_are_kept(tmp_path):
+    pdf = pdfgen.write_pdf(
+        tmp_path / "u.pdf",
+        [pdfgen.plain_page(["one"]), pdfgen.plain_page(["two"])],
+        bookmarks=[(0, "1 GET_VERSION request", 0), (0, "2 Introduction", 1)],
+    )
+    r = ex.extract_pdf(pdf)
+    titles = [e["title"] for e in r.outline]
+    assert titles == ["1 GET_VERSION request", "2 Introduction"]
+
+
+def test_repeated_contents_entries_appear_once():
+    lines = [f"{n} Section {n} ........ {n + 4}" for n in range(1, 11)]
+    entries = ex.parse_contents([lines, list(lines)])
+    assert len(entries) == 10
+    assert [e["title"] for e in entries] == [f"{n} Section {n}" for n in range(1, 11)]
+    # the same titles on other pages are new entries, not repeats
+    moved = [f"{n} Section {n} ........ {n + 5}" for n in range(1, 11)]
+    assert len(ex.parse_contents([lines, moved])) == 20
+
+
+# ------------------------------------------------- M8 follow-ups: round 1
+
+
+def test_stacked_lines_stay_apart_when_the_tall_glyphs_outnumber_them(tmp_path):
+    # Round-1 F2: the reference box alone (most common glyph size) flips to
+    # the tall cell once its glyphs outnumber the first body line; the two
+    # short comment lines must still come out as two lines.
+    items = [
+        (72, 695, "0x0909 0x0A0B 0x0C0D 0x0E0F", 15),
+        (330, 700, "Set Link"),
+        (330, 689.6, "EEE only"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "wide.pdf", [items]))
+    lines = page_lines(r.text, 1)
+    assert len(lines) == 2, lines
+    assert "0x0909 0x0A0B 0x0C0D 0x0E0F" in lines[0] and lines[0].endswith("Set Link")
+    assert lines[1].strip() == "EEE only"
+
+
+def test_same_size_text_in_another_column_still_shares_the_row(tmp_path):
+    # The stacked rule only applies to boxes over the same x range: a
+    # same-size cell in another column on the same baseline stays on the line.
+    items = [(72, 700, "Value"), (200, 700, "Description"), (400, 700, "Comment")]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "row3.pdf", [items]))
+    lines = page_lines(r.text, 1)
+    assert len(lines) == 1 and lines[0].split() == ["Value", "Description", "Comment"]
+
+
+def test_reprinted_contents_page_with_additions_contributes_the_additions():
+    # Round-1 F5: repeats count towards recognising the page as a contents
+    # page; only the entries themselves are deduplicated.
+    lines = [f"{n} Section {n} ........ {n + 4}" for n in range(1, 11)]
+    reprinted = list(lines) + ["11 Annex ........ 30", "12 Index ........ 31"]
+    entries = ex.parse_contents([lines, reprinted])
+    assert [e["title"] for e in entries] == [
+        f"{n} Section {n}" for n in range(1, 11)
+    ] + [
+        "11 Annex",
+        "12 Index",
+    ]
+
+
+def test_same_size_sub_and_superscripts_beside_their_neighbours_stay_on_the_line(
+    tmp_path,
+):
+    # Sub- and superscripts in the body size, only raised or lowered: they
+    # sit beside their neighbours, not over them, so the stacked rule must
+    # leave them alone.
+    items = [
+        (72, 700, "0.3V"),
+        (93, 698, "DD"),
+        (110, 700, "and I"),
+        (133, 702, "2"),
+        (139, 700, "C bus"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "vdd.pdf", [items]))
+    lines = page_lines(r.text, 1)
+    assert len(lines) == 1, lines
+    assert lines[0].replace(" ", "") == "0.3VDDandI2Cbus"
+
+
+# ------------------------------------------------- M8 follow-ups: round 2
+
+
+def test_outdented_lower_line_keeps_its_leading_glyphs(tmp_path):
+    # Round-2 F1: the lower line starts further left than the upper one, so
+    # its first glyph has nothing over it; the same-size neighbour to its
+    # right on another baseline marks it as stacked all the same.
+    items = [
+        (72, 695, "0x0909 0x0A0B 0x0C0D 0x0E0F", 15),
+        (340, 700, "Set Link"),
+        (330, 689.6, "EEE only"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "outdent.pdf", [items]))
+    lines = page_lines(r.text, 1)
+    assert len(lines) == 2, lines
+    assert lines[0].endswith("Set Link")
+    assert lines[1].strip() == "EEE only"
+
+
+def test_centred_two_line_cell_wider_below_stays_two_lines(tmp_path):
+    items = [
+        (72, 695, "0x0909", 15),
+        (350, 700, "Set Link"),
+        (330, 689.6, "unsupported EEE mode"),
+        (450, 700, "Comment"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "centred.pdf", [items]))
+    lines = page_lines(r.text, 1)
+    assert len(lines) == 2, lines
+    assert "Set Link" in lines[0] and "Comment" in lines[0] and "0x0909" in lines[0]
+    assert lines[1].strip() == "unsupported EEE mode"
+
+
+def test_glyph_heights_at_a_rounding_boundary_are_one_size():
+    # Round-2 F2: one font size, two boxes whose heights differ in the third
+    # decimal across a 0.05 boundary; a tall box bridges the two lines.
+    def box(x0, y0, h, ch, w=5.0):
+        return (x0, y0, x0 + w, y0 + h, ch)
+
+    upper = [box(300 + 6 * i, 700.0, 11.549, ch) for i, ch in enumerate("Set Link")]
+    lower = [box(300 + 6 * i, 689.6, 11.551, ch) for i, ch in enumerate("EEE only")]
+    tall = [box(72 + 9 * i, 695.0, 17.3, ch, 8.0) for i, ch in enumerate("0x0909")]
+    lines = ex._group_lines(upper + lower + tall, unit=5.0)
+    texts = ["".join(s.text for s in ln.segments) for ln in lines]
+    assert texts == ["0x0909Set Link", "EEE only"], texts

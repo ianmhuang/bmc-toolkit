@@ -21,8 +21,10 @@ names (or the default branch), searched with `grep` and read with `code`.
   project on the machine. `$BMC_SPEC_LIBRARY` overrides the default
   `~/.bmc-specs`. Tell the user the path the first time a command prints
   `Library created at ...`.
-- **Latest**: the newest published version in the catalog. Work-in-Progress
-  versions count only when the user asks for WIP.
+- **Latest**: the newest published version in the catalog; versions
+  published on the same day are told apart by the numbers in their version
+  strings (`2.0.0` over `1.3.0`). Work-in-Progress versions count only when
+  the user asks for WIP.
 - **Drop-in**: a file the user placed into the Library by hand because the
   tool cannot download it (registration, membership, NDA, or a blocked
   download).
@@ -37,8 +39,10 @@ names (or the default branch), searched with `grep` and read with `code`.
   kept in `linemap.json` (the Line Map), so a citation can say "lines
   680-700".
 - **Outline**: `outline.json`, the section titles with their physical pages,
-  from the PDF bookmarks or parsed from the contents pages. An entry whose
-  page could not be confirmed is *approximate* and is printed with `~`.
+  from the PDF bookmarks or parsed from the contents pages (also when the
+  bookmarks are only Word anchors such as `Ref_DSP0236`, or two or more of
+  them all point at one page of a longer document). An entry whose page
+  could not be confirmed is *approximate* and is printed with `~`.
 - **Figure region**: `figures.json` records, per page, where raster images
   and vector drawings sit and which Extract lines lie inside them. Text
   inside a figure is often fragmentary; `find` and `page` mark such lines
@@ -107,7 +111,7 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 |---|---|
 | `library` | print the Library path |
 | `catalog [DOC] [--family F]` | list documents (one per line, tab-separated: family, id, access, fetch, latest, title, known versions joined by `;`) or show one document with every version, newest first (version, date, type, published/wip, URL or `-`, access), its `notes:` and `limits:` (Known Limits of the document itself); a manual document without versions prints the `add` command to use |
-| `catalog --table [--golden FILE]` | the Support Level table (Markdown): family, document, access (`open (latest gated)` when the newest version differs), latest, fetch, Verified (the question ids from the Golden Questions file's `Document` column, `-` without `--golden`), known limit. For README and support questions, not for answering a specification question |
+| `catalog --table [--golden FILE]` | the Support Level table (Markdown): family, document, access (`open (latest gated)` when the newest version differs), latest, fetch, Verified (the question ids from the Golden Questions file's `Document` column, grouped by the version they were checked on: `G13, G15 (1.3.1)`; `-` without `--golden`), known limit. For README and support questions, not for answering a specification question |
 | `fetch DOC [--version V] [--wip] [--force]` | download one version into the Library; latest by default; prints a `skipped` line and stays off the network if already present. A gated, member or confidential version is not downloaded: exit 2 with the Drop-in instruction and `newest open version: X; fetch it with --version X` (or `no open version is listed`), unless the user already registered it with `add` or `scan`, which gives the usual `skipped` line and exit 0 |
 | `fetch --all [--wip] [--force]` | latest open version of every downloadable document (a `note:` per document whose latest is gated); ends with a `summary:` line |
 | `add FILE --document DOC --version V [--force]` | register a file the user obtained themselves (Drop-in); refuses to replace a version already present unless `--force`; the file must really be a PDF or ZIP |

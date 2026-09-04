@@ -5,7 +5,9 @@ grouped into lines by baseline, lines are laid out on a character grid whose
 unit is the page's median glyph width, so table columns keep their positions
 across rows. Printed line numbers (DMTF documents) are recognised purely by
 geometry and moved from the text into the Line Map. The Outline comes from
-PDF bookmarks, or from the contents pages when a document has none.
+PDF bookmarks, or from the contents pages when a document has none, or when
+its bookmarks are only Word anchors (``Ref_DSP0236``, ``OLE_LINK1``) or two
+or more of them all point at one page of a longer document.
 
 Files written next to the original::
 
@@ -32,6 +34,7 @@ Requires pypdfium2 5.x (its bookmark API: ``get_toc`` items with
 ``get_dest()``/``get_title()``); 4.x is refused with a clear ImportError.
 """
 
+import bisect
 import json
 import re
 import shutil
@@ -44,7 +47,7 @@ from pathlib import Path
 from bmc_toolkit.spec.library import SCHEMAS_DIRNAME
 from bmc_toolkit.spec.tables import remove_store
 
-EXTRACTOR_VERSION = 3  # 3: figure regions
+EXTRACTOR_VERSION = 4  # 4: stacked same-size glyphs are two lines; anchor bookmarks
 PAGE_MARKER = "=== page {n} ==="
 EXTRACT_NAME = "extract.txt"
 OUTLINE_NAME = "outline.json"
@@ -68,6 +71,8 @@ WORD_GAP = 0.22  # a wider gap inside a segment is a word space
 STREAM_NEIGHBOUR = 0.6  # of glyph height: how close a stream predecessor must be
 BASELINE_TOL = 0.45  # of the glyph height: stream neighbours share a baseline
 LINE_OVERLAP = 0.5  # of the smaller glyph height: vertical overlap that joins a line
+STACKED = 0.2  # of the narrower glyph width: horizontal overlap that stacks two glyphs
+SIZE_TOL = 0.02  # of the glyph height: boxes this close in height are one size
 NUMBER_BAND_PT = 3.0  # line numbers share an edge within this many points
 MIN_NUMBERED_LINES = 5
 NUMBER_MARGIN = 0.15  # the number column lies within this fraction of the width
@@ -77,6 +82,7 @@ _CONTENTS_LINE = re.compile(
     r"(?:(?:\.\s*){2,}|\s{3,})\s*(?P<page>\d{1,4})\s*$"
 )
 _INT = re.compile(r"(?<![\w.])(\d{1,4})(?![\w.])")
+_ANCHOR = re.compile(r"^\S*_\S*$")  # a Word anchor name: one token, an underscore
 
 
 @dataclass
@@ -193,18 +199,21 @@ def _group_lines(chars, unit: float) -> list[Line]:
     if not chars:
         return []
     ordered = sorted(chars, key=lambda c: (-c[1], c[0]))
-    groups: list[list] = []
-    refs: list[tuple] = []  # the tallest box of each group: its line extent
-    for c in ordered:
-        if groups and _same_line(refs[-1], c):
-            groups[-1].append(c)
-            if c[3] - c[1] > refs[-1][3] - refs[-1][1]:
-                refs[-1] = c
+    groups: list[_LineGroup] = []
+    for run in _baseline_runs(ordered):
+        # A baseline run joins whole or not at all: the leading glyphs of a
+        # lower line that starts further left than the upper one have
+        # nothing over them, but the glyphs after them do.
+        if groups and all(groups[-1].accepts(c) for c in run):
+            for c in run:
+                groups[-1].add(c)
         else:
-            groups.append([c])
-            refs.append(c)
+            groups.append(_LineGroup(run[0]))
+            for c in run[1:]:
+                groups[-1].add(c)
     lines = []
-    for g in groups:
+    for group in groups:
+        g = group.chars
         g.sort(key=lambda c: c[0])
         segments: list[Segment] = []
         cur: list = []
@@ -221,6 +230,23 @@ def _group_lines(chars, unit: float) -> list[Line]:
     return lines
 
 
+def _baseline_runs(ordered) -> list[list]:
+    """Consecutive boxes of one baseline and one glyph height, in x order:
+    the glyphs of one line set in one size, as they come out of the sort."""
+    runs: list[list] = []
+    for c in ordered:
+        if runs:
+            prev = runs[-1][-1]
+            height = c[3] - c[1]
+            same_baseline = abs(c[1] - prev[1]) < 0.05
+            same_height = abs(height - (prev[3] - prev[1])) <= SIZE_TOL * height
+            if same_baseline and same_height:
+                runs[-1].append(c)
+                continue
+        runs.append([c])
+    return runs
+
+
 def _same_line(ref, c) -> bool:
     """Same line when the boxes overlap vertically by half the smaller height.
 
@@ -230,6 +256,91 @@ def _same_line(ref, c) -> bool:
     overlap = min(ref[3], c[3]) - max(ref[1], c[1])
     smaller = min(ref[3] - ref[1], c[3] - c[1])
     return overlap >= LINE_OVERLAP * smaller
+
+
+class _SizeRun:
+    """The boxes of one glyph height in a line group, searchable by x."""
+
+    def __init__(self, first) -> None:
+        self.height = first[3] - first[1]
+        self._x0s: list[float] = []
+        self._boxes: list[tuple] = []
+        self._widest = 0.0
+        self.add(first)
+
+    def add(self, c) -> None:
+        i = bisect.bisect_right(self._x0s, c[0])
+        self._x0s.insert(i, c[0])
+        self._boxes.insert(i, c)
+        self._widest = max(self._widest, c[2] - c[0])
+
+    def stacked_on(self, c):
+        """The box already in the group that the incoming ``c`` is stacked
+        on, or None. Boxes come top-down, so a box found here lies above
+        ``c``, over it horizontally by more than STACKED of the narrower
+        width. Touching or kerned neighbours ("I" before a raised "2", "V"
+        before a lowered "DD") do not count."""
+        width = c[2] - c[0]
+        i = bisect.bisect_left(self._x0s, c[2])
+        while i > 0 and self._x0s[i - 1] > c[0] - self._widest:
+            i -= 1
+            b = self._boxes[i]
+            overlap = min(b[2], c[2]) - max(b[0], c[0])
+            if overlap > STACKED * min(width, b[2] - b[0]):
+                return b
+        return None
+
+
+class _LineGroup:
+    """The boxes of one line while it is being built.
+
+    A box joins when it overlaps the group's tallest box by half the
+    smaller height (``_same_line``; the tallest box is a fixed anchor, so a
+    staircase of slightly offset labels cannot pull the line down step by
+    step) and when it is not stacked on a box of its own size: glyphs of
+    one size on one line share a baseline, so a same-size box lying under
+    another one without overlapping it by half is the next line. The second
+    rule keeps two body lines apart when a large glyph in another column (a
+    monospace value beside a two-line comment cell) overlaps both by more
+    than half their height and becomes the anchor; ``_group_lines`` applies
+    it to a whole baseline run at once. Super- and subscripts sit beside
+    their neighbours, not over them, so they join whether or not they are
+    smaller.
+    """
+
+    def __init__(self, first) -> None:
+        self.chars = [first]
+        self.ref = first  # the tallest box so far
+        self._sizes: list[_SizeRun] = []  # one per glyph height
+        self._index(first)
+
+    def accepts(self, c) -> bool:
+        if not _same_line(self.ref, c):
+            return False
+        run = self._run(c[3] - c[1])
+        above = run.stacked_on(c) if run is not None else None
+        return above is None or _same_line(above, c)
+
+    def add(self, c) -> None:
+        self.chars.append(c)
+        if c[3] - c[1] > self.ref[3] - self.ref[1]:
+            self.ref = c
+        self._index(c)
+
+    def _run(self, height: float):
+        """The run of this glyph height, within SIZE_TOL: one font size
+        gives one height, but rounding it would split a size at a boundary."""
+        for run in self._sizes:
+            if abs(run.height - height) <= SIZE_TOL * height:
+                return run
+        return None
+
+    def _index(self, c) -> None:
+        run = self._run(c[3] - c[1])
+        if run is None:
+            self._sizes.append(_SizeRun(c))
+        else:
+            run.add(c)
 
 
 def _segment(chars, unit: float) -> Segment:
@@ -336,6 +447,12 @@ def render_page(page: PageText) -> list[str]:
 
 
 def outline_from_bookmarks(pdf) -> list[dict]:
+    """Bookmark entries, without the Word cross-reference anchors.
+
+    Word exports every bookmark of the document, and a bookmark placed on a
+    reference (``Ref_DSP0236``, ``OLE_LINK1``) is not a heading: a single
+    token with an underscore is dropped. A heading keeps its spaces.
+    """
     entries = []
     for bm in pdf.get_toc():
         dest = bm.get_dest()
@@ -348,13 +465,33 @@ def outline_from_bookmarks(pdf) -> list[dict]:
         if index is None:
             continue
         title = re.sub(r"\s+", " ", bm.get_title()).strip()
+        if _ANCHOR.match(title):
+            continue
         entries.append({"level": bm.level, "title": title, "page": index + 1})
     return entries
 
 
+def bookmarks_usable(entries: list[dict], page_count: int) -> bool:
+    """False when the bookmarks are no Outline: none, or two or more that
+    all land on one page of a longer document (leftover anchors without an
+    underscore, "Mark2", "SMBus"). A single bookmark, or the bookmarks of
+    a one-page document, cannot be judged and are kept."""
+    if not entries:
+        return False
+    if len(entries) == 1 or page_count <= 1:
+        return True
+    return len({e["page"] for e in entries}) > 1
+
+
 def parse_contents(pages_text: list[list[str]]) -> list[dict]:
-    """Contents-page entries as {level, title, printed} from page texts."""
+    """Contents-page entries as {level, title, printed} from page texts.
+
+    An entry repeating an earlier one (same title, same printed page) is
+    kept once: some documents carry their contents twice. Repeats still
+    count towards recognising a page as a contents page.
+    """
     entries = []
+    seen: set[tuple[str, int]] = set()
     limit = max(5, min(60, len(pages_text) // 4 + 5))
     for lines in pages_text[:limit]:
         found = []
@@ -368,15 +505,16 @@ def parse_contents(pages_text: list[list[str]]) -> list[dict]:
             if re.match(r"^\d+(\.\d+)*\.?\s", title):
                 continue  # "35 1.2. Title": a stray number swallowed the section
             num = m.group("num")
+            printed = int(m.group("page"))
             found.append(
-                {
-                    "level": num.count("."),
-                    "title": f"{num} {title}",
-                    "printed": int(m.group("page")),
-                }
+                {"level": num.count("."), "title": f"{num} {title}", "printed": printed}
             )
         if len(found) >= 8:
-            entries.extend(found)
+            for e in found:
+                key = (e["title"], e["printed"])
+                if key not in seen:
+                    seen.add(key)
+                    entries.append(e)
     return entries
 
 
@@ -674,6 +812,8 @@ def _extract_open(pdf, raw, started: float) -> ExtractResult:
         chunks.append(PAGE_MARKER.format(n=i + 1))
         chunks.extend(lines)
     outline = outline_from_bookmarks(pdf)
+    if not bookmarks_usable(outline, count):
+        outline = []
     source = "bookmarks" if outline else "none"
     offset = None
     if not outline:
