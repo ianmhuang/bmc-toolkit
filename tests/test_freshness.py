@@ -248,10 +248,13 @@ def test_check_all_continues_past_failures_and_lists_unchecked(
     assert lines[0] == "current DSP0236 1.3.3"
     assert lines[1].startswith("unreachable NVME-MI: ") and "no route to" in lines[1]
     assert lines[2].startswith("newer M-CRPS: ")
-    assert lines[3] == "unchecked: IPMI, BUNDLE, SECRET (no publisher listing)"
-    assert lines[4].startswith("nothing was downloaded")
-    assert lines[5] == "summary: current 1, newer 1, unreachable 1, unchecked 3"
-    assert lines[-1] == lines[5]  # the summary is the last line (AC-2)
+    assert lines[3] == "unchecked: IPMI, BUNDLE (no publisher listing)"
+    assert lines[4] == (
+        "unchecked (manual): SECRET (confidential) (never fetched by the tool)"
+    )
+    assert lines[5].startswith("nothing was downloaded")
+    assert lines[6] == "summary: current 1, newer 1, unreachable 1, unchecked 3"
+    assert lines[-1] == lines[6]  # the summary is the last line (AC-2)
     assert pages.calls.count(L.DMTF_PUBLISHED) == 1
     saved = json.loads((library.root / F.FRESHNESS_NAME).read_text("utf-8"))
     assert "no route to" in saved["documents"]["NVME-MI"]["problem"]

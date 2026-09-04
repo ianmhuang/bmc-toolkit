@@ -265,11 +265,14 @@ def test_check_all_lists_unchecked_continues_past_failures_and_summarises(
     assert len(unreachable) == 1 and "no route to" in unreachable[0]
     assert any(ln.startswith("newer M-CRPS: ") for ln in lines)
     assert "current M-XIO R1 v1.2 RC3" in lines
+    # M8a: manual documents moved to their own "unchecked (manual):" line
     unchecked = [ln for ln in lines if ln.startswith("unchecked: ")]
     assert len(unchecked) == 1
-    for doc_id in ("IPMI", "BUNDLE", "SECRET"):
+    for doc_id in ("IPMI", "BUNDLE"):
         assert doc_id in unchecked[0]
     assert "DSP0236" not in unchecked[0]
+    manual = [ln for ln in lines if ln.startswith("unchecked (manual): ")]
+    assert len(manual) == 1 and "SECRET (confidential)" in manual[0]
     summary = [ln for ln in lines if ln.startswith("summary: ")]
     assert len(summary) == 1
     assert summary[0].startswith("summary: current 2, newer 1, unreachable 1")

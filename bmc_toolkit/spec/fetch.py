@@ -131,7 +131,7 @@ class Outcome:
 def manual_instruction(library: Library, doc: Document, ver: Version) -> str:
     target = library.version_dir(doc.family, doc.id, ver.version)
     lines = []
-    if ver.url and doc.access != "confidential":
+    if ver.url and ver.access != "confidential":
         lines.append(f"Open in a browser: {ver.url}")
     else:
         lines.append(f"Obtain '{doc.title}' version {ver.version} from {doc.family}.")
@@ -184,7 +184,7 @@ def fetch_version(
             ver.version,
             body,
             ver.type,
-            url=None if doc.access == "confidential" else source_url,
+            url=None if ver.access == "confidential" else source_url,
             method=step,
         )
         return Outcome("fetched", doc.id, ver.version, step, "", tuple(attempts))

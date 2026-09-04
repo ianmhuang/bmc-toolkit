@@ -20,6 +20,7 @@ from bmc_toolkit.spec import listing as listing_mod
 from bmc_toolkit.spec import refresh as refresh_mod
 from bmc_toolkit.spec import render as render_mod
 from bmc_toolkit.spec import search as search_mod
+from bmc_toolkit.spec import support as support_mod
 from bmc_toolkit.spec import tables as tables_mod
 from bmc_toolkit.spec.catalog import (
     DEFAULT_CATALOG,
@@ -82,6 +83,16 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("catalog", help="list documents in the Source Catalog")
     p.add_argument("document", nargs="?", help="show one document with its versions")
     p.add_argument("--family", help="only documents of this family")
+    p.add_argument(
+        "--table",
+        action="store_true",
+        help="print the Support Level table (Markdown) instead of the list",
+    )
+    p.add_argument(
+        "--golden",
+        type=Path,
+        help="Golden Questions file whose Document column marks Verified rows",
+    )
 
     p = sub.add_parser("fetch", help="download a document version into the Library")
     p.add_argument("document", nargs="?", help="document id, e.g. DSP0236")
@@ -250,6 +261,14 @@ def _doc_line(catalog: Catalog, doc: Document) -> str:
 
 def cmd_catalog(args: argparse.Namespace) -> int:
     catalog = _load(args)
+    if args.table:
+        if args.document or args.family:
+            print("--table prints every document; drop the document id or --family")
+            return EXIT_ACTION
+        return _catalog_table(catalog, args.golden)
+    if args.golden:
+        print("--golden goes with --table")
+        return EXIT_ACTION
     if args.document:
         doc = catalog.get(args.document)
         if doc is None:
@@ -266,10 +285,21 @@ def cmd_catalog(args: argparse.Namespace) -> int:
         print(f"listing: {doc.listing or '- (hand-maintained)'}")
         if doc.notes:
             print(f"notes: {doc.notes}")
+        if doc.limits:
+            print(f"limits: {doc.limits}")
+        if not doc.versions:
+            print(
+                "versions: (none listed; add any version with: bmcspec add FILE "
+                f"--document {doc.id} --version V)"
+            )
+            return EXIT_OK
         print("versions:")
         for v in sorted(doc.versions, key=lambda v: v.published, reverse=True):
             flag = "wip" if v.wip else "published"
-            print(f"\t{v.version}\t{v.published}\t{v.type}\t{flag}\t{v.url or '-'}")
+            print(
+                f"\t{v.version}\t{v.published}\t{v.type}\t{flag}\t{v.url or '-'}"
+                f"\t{v.access}"
+            )
         return EXIT_OK
     docs = catalog.by_family(args.family) if args.family else catalog.documents
     if args.family and args.family not in catalog.families:
@@ -278,6 +308,43 @@ def cmd_catalog(args: argparse.Namespace) -> int:
     for doc in docs:
         print(_doc_line(catalog, doc))
     return EXIT_OK
+
+
+def _catalog_table(catalog: Catalog, golden: Path | None) -> int:
+    """The Support Level table; Verified from the Golden Questions file."""
+    verified: dict[str, list[str]] = {}
+    if golden is not None:
+        try:
+            verified, problems = support_mod.read_golden(golden, catalog)
+        except OSError as exc:
+            print(f"cannot read {golden}: {exc}")
+            return EXIT_ERROR
+        for problem in problems:
+            print(f"{golden}: {problem}", file=sys.stderr)
+    for line in support_mod.support_table(catalog, verified):
+        print(line)
+    return EXIT_OK
+
+
+def _gated_message(library: Library, doc: Document, ver) -> str:
+    """Why ``fetch`` will not download this version, and what to do."""
+    lines = [
+        f"{doc.id} {ver.version} is {ver.access}: the tool does not download it.",
+        fetch_mod.manual_instruction(library, doc, ver),
+    ]
+    newest = doc.newest_open()
+    if newest is not None:
+        lines.append(
+            f"newest open version: {newest.version}; fetch it with "
+            f"--version {_shell_quote(newest.version)}"
+        )
+    else:
+        lines.append("no open version is listed")
+    return "\n".join(lines)
+
+
+def _shell_quote(value: str) -> str:
+    return f'"{value}"' if " " in value else value
 
 
 def _resolve_version(doc: Document, requested: str | None, wip: bool):
@@ -329,6 +396,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         if ver is None:
             print(problem)
             return EXIT_ACTION
+        if not ver.open and doc.fetch != "manual":
+            print(_gated_message(library, doc, ver))
+            return EXIT_ACTION
         _announce_library(library)
         client = CLIENT_FACTORY()
         outcome = fetch_mod.fetch_version(
@@ -339,16 +409,32 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         return EXIT_OK if outcome.status != "failed" else EXIT_ACTION
 
     todo = []
+    gated_notes = []
     for doc in catalog.documents:
         if doc.fetch == "manual":
             continue
         ver = doc.latest(include_wip=args.wip)
+        if ver is not None and not ver.open:
+            # The latest is gated: take the newest open version instead and
+            # say so once; a document with no open version is left alone.
+            newest = doc.newest_open()
+            gated_notes.append(
+                f"note: {doc.id} latest {ver.version} is {ver.access}; "
+                + (
+                    f"fetching {newest.version} instead"
+                    if newest is not None
+                    else "no open version is listed, nothing fetched"
+                )
+            )
+            ver = newest
         if ver is not None:
             todo.append((doc, ver))
     counts = {"fetched": 0, "skipped": 0, "failed": 0}
     if todo:
         _announce_library(library)
         client = CLIENT_FACTORY()
+    for note in gated_notes:
+        print(note)
     for doc, ver in todo:
         outcome = fetch_mod.fetch_version(
             library, doc, ver, force=args.force, client=client
@@ -579,9 +665,16 @@ def cmd_check(args: argparse.Namespace) -> int:
                 f"newer {doc.id}: catalog latest {check.catalog_latest}, "
                 f"{fresh_mod.publisher_name(doc)} lists {listed}"
             )
-    unchecked = [d.id for d in catalog.documents if not d.listing]
+    unchecked = [
+        d.id for d in catalog.documents if not d.listing and d.fetch != "manual"
+    ]
+    manual = [d for d in catalog.documents if d.fetch == "manual"]
     if not args.document and unchecked:
         print(f"unchecked: {', '.join(unchecked)} (no publisher listing)")
+    if not args.document and manual:
+        listed = ", ".join(f"{d.id} ({d.access})" for d in manual)
+        print(f"unchecked (manual): {listed} (never fetched by the tool)")
+    unchecked += [d.id for d in manual]
     if not args.document:
         _check_release(catalog, library, state)
     state.save()
