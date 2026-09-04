@@ -32,7 +32,16 @@ names (or the default branch), searched with `grep` and read with `code`.
   request to the publisher), `member`, `confidential` (NDA). A document has
   one; a version may have its own when the newest revisions are gated
   (PMBus 1.4 and 1.5). Only open versions are fetched; the rest are
-  Drop-ins. A `manual` document may list no versions at all.
+  Drop-ins. A `manual` document may list no versions at all: the gated,
+  member and NDA specifications (JEDEC, MIPI, PCI-SIG, PICMG, CXL, the
+  BMC SoC datasheets, Intel's and AMD's NDA interfaces) are listed that
+  way so you can tell the user why the tool has no copy.
+- **Version coverage**: DMTF and NVM Express documents carry their full
+  version history; every other publisher carries the current version
+  plus older ones only where the catalog lists them by hand; UEFI Forum
+  and TCG documents come from the Internet Archive (the newest release and
+  the one before it for UEFI, ACPI and PI; the current one for TCG). Say
+  so when a user asks for an older version the catalog does not list.
 - **Extract**: `extract.txt` next to the original, every page introduced by
   `=== page N ===` (physical page, 1-based), layout preserved so tables read
   column by column. DMTF printed line numbers are removed from the text and
@@ -187,6 +196,11 @@ not in the Library or not extracted, too many pages asked for).
    repository you guessed and why. Any repository of the openbmc
    organisation can be cloned by name even when the catalog does not list
    it; the `note:` line tells you it was a guess, and so should your answer.
+   Kernel questions (hwmon sysfs attributes, I2C, GPIO, PECI, the IPMI
+   and MCTP drivers, NC-SI) go to the `linux` Code Tree (topics `kernel`,
+   `hwmon`, `ipmi`, `mctp`, ...), which holds `Documentation/` and the
+   BMC-facing driver directories only; PECI in particular has no open
+   specification, the driver and `Documentation/` are the reference.
 2. Pick the commit. The user names a release ("we ship 2.18.0", "our base
    is scarthgap"): `clone REPO --release L`. A branch, tag or commit of the
    repository itself: `clone REPO --ref R`. Nothing named: `clone REPO`

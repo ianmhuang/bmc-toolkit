@@ -24,6 +24,7 @@ import urllib.parse
 from dataclasses import dataclass
 from html.parser import HTMLParser
 
+from bmc_toolkit.spec.catalog import version_numbers
 from bmc_toolkit.spec.fetch import HttpClient
 
 DMTF_PUBLISHED = "https://www.dmtf.org/standards/published_documents"
@@ -75,14 +76,17 @@ def parse_listing(listing: str) -> tuple[str, str]:
 def version_key(source: str, version: str) -> str:
     """What makes two version strings the same version: verbatim for DMTF
     and NVMe; for OCP the leading number and the RC token, so the wiki's
-    ``1.2 RC3`` matches the catalog's ``R1 v1.2 RC3``."""
+    ``1.2 RC3`` matches the catalog's ``R1 v1.2 RC3``. The number is
+    compared through ``catalog.version_numbers``, the same reading the
+    catalog orders versions by, so ``1.0`` and ``1.00`` are one version."""
     if source != "ocp":
         return version.strip()
     dotted = _OCP_DOTTED.search(version)  # "1.2" of "R1 v1.2 RC3", not the 1 of R1
     bare = _OCP_BARE.search(version)
     number = dotted.group(0) if dotted else (bare.group(0) if bare else "")
     rc = _OCP_RC.search(version)
-    return f"{number} {rc.group(0).upper() if rc else ''}".strip()
+    numbers = ".".join(str(n) for n in version_numbers(number))
+    return f"{numbers} {rc.group(0).upper() if rc else ''}".strip()
 
 
 # ------------------------------------------------------------- parsing

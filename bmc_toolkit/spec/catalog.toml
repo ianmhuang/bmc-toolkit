@@ -90,6 +90,77 @@ publisher = "SNIA SFF TA TWG"
 title = "Power Management Bus"
 publisher = "System Management Interface Forum"
 
+[families.ocp-security]
+title = "OCP Security (root of trust, attestation)"
+publisher = "Open Compute Project"
+
+[families.ocp-nic]
+title = "OCP NIC 3.0"
+publisher = "Open Compute Project"
+
+[families.tcg]
+title = "Trusted Computing Group (TPM 2.0, PC Client firmware profile, DICE)"
+publisher = "Trusted Computing Group"
+
+[families.nist]
+title = "NIST Special Publications (platform firmware resiliency)"
+publisher = "NIST"
+
+[families.arm-server]
+title = "Arm server standards (SBMR, SBSA, BBR)"
+publisher = "Arm"
+
+[families.uefi]
+title = "UEFI, ACPI and PI"
+publisher = "UEFI Forum"
+
+# Families whose documents the tool never downloads (registration, membership
+# or an NDA); they are listed so the Support Level table can say why.
+
+[families.jedec]
+title = "JEDEC memory and flash standards"
+publisher = "JEDEC"
+
+[families.mipi]
+title = "MIPI I3C"
+publisher = "MIPI Alliance"
+
+[families.pci-sig]
+title = "PCI Express"
+publisher = "PCI-SIG"
+
+[families.ieee]
+title = "IEEE test access port (JTAG)"
+publisher = "IEEE"
+
+[families.t10]
+title = "SCSI Enclosure Services"
+publisher = "T10 / INCITS"
+
+[families.picmg]
+title = "PICMG Hardware Platform Management"
+publisher = "PICMG"
+
+[families.cxl]
+title = "Compute Express Link"
+publisher = "CXL Consortium"
+
+[families.intel-platform]
+title = "Intel platform interfaces under NDA (PECI, PFR, ASD, SPI)"
+publisher = "Intel"
+
+[families.amd]
+title = "AMD platform management interfaces"
+publisher = "AMD"
+
+[families.aspeed]
+title = "ASPEED BMC SoC datasheets"
+publisher = "ASPEED"
+
+[families.nuvoton]
+title = "Nuvoton BMC SoC datasheets"
+publisher = "Nuvoton"
+
 # ---------------------------------------------------------------- Intel
 # Intel has no index page; each PDF is a fixed URL on intel.com, mirrored on
 # intel.la. The CDN rejects non-browser TLS fingerprints (curl_cffi needed).
@@ -3822,6 +3893,518 @@ url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2026
 type = "pdf"
 published = "2026-05-17"
 
+# ---------------------------------------------------------------- OCP Security and NIC
+# OCP Security and OCP NIC: current version only; the OCP wiki pages for
+# these groups have no specification table the ocp listing source can read,
+# so `check` reports them as unchecked. URLs confirmed 2026-09-04.
+
+[[documents]]
+id = "CALIPTRA"
+family = "ocp-security"
+title = "Caliptra: A Datacenter System on a Chip (SoC) Root of Trust (RoT) Modular Base Specification"
+access = "open"
+fetch = "direct"
+notes = "The OCP-published PDF of the Caliptra specification; the living text is Markdown in the chipsalliance/Caliptra repository."
+
+[[documents.versions]]
+version = "2.0"
+url = "https://www.opencompute.org/documents/caliptra-2-0-pdf"
+type = "pdf"
+published = "2025-07-31"
+
+[[documents]]
+id = "OCP-ATTEST"
+family = "ocp-security"
+title = "Attestation of System Components v1.0: Requirements and Recommendations"
+access = "open"
+fetch = "direct"
+notes = "SPDM-based attestation of platform components; DSP0274 and DSP0275 hold the protocol."
+
+[[documents.versions]]
+version = "1.0"
+url = "https://www.opencompute.org/documents/attestation-v1-0-20201104-pdf"
+type = "pdf"
+published = "2020-11-04"
+
+[[documents]]
+id = "OCP-NIC"
+family = "ocp-nic"
+title = "OCP NIC 3.0 Design Specification"
+access = "open"
+fetch = "direct"
+notes = "The NIC side of NC-SI (DSP0222) and FRU: sideband interface, NIC EEPROM, power states. The document is line-numbered; page text carries the numbers."
+
+[[documents.versions]]
+version = "1.6.0"
+url = "https://www.opencompute.org/documents/ocp-nic-3-0-r1v60-20250410a-tn-no-cb-pdf"
+type = "pdf"
+published = "2025-03-31"
+
+# ---------------------------------------------------------------- SFF module management
+# Module management EEPROM maps: SFF-8472 (SFP), SFF-8636 (QSFP) and the
+# code tables both refer to (SFF-8024). members.snia.org/document/dl/<n>
+# keeps one number per specification and serves the current revision; the
+# tool records the revision it saw. URLs confirmed 2026-09-04.
+
+[[documents]]
+id = "SFF-8472"
+family = "sff"
+title = "SFF-8472 Specification for Management Interface for SFP+"
+access = "open"
+fetch = "direct"
+searched_with = ["SFF-8024"]
+notes = "Diagnostic monitoring (A2h) of SFP modules; identifier and connector codes are in SFF-8024."
+
+[[documents.versions]]
+version = "Rev 12.5a"
+url = "https://members.snia.org/document/dl/25916"
+type = "pdf"
+published = "2026-01-16"
+
+[[documents]]
+id = "SFF-8636"
+family = "sff"
+title = "SFF-8636 Specification for Management Interface for 4-lane Modules and Cables"
+access = "open"
+fetch = "direct"
+searched_with = ["SFF-8024"]
+notes = "QSFP and 4-lane cable memory map; CMIS supersedes it for newer form factors."
+
+[[documents.versions]]
+version = "Rev 2.12"
+url = "https://members.snia.org/document/dl/26418"
+type = "pdf"
+published = "2026-04-29"
+
+[[documents]]
+id = "SFF-8024"
+family = "sff"
+title = "SFF-8024 Specification for SFF Module Management Reference Code Tables"
+access = "open"
+fetch = "direct"
+notes = "Identifier, connector, encoding and compliance code tables shared by SFF-8472, SFF-8636 and CMIS."
+
+[[documents.versions]]
+version = "Rev 4.14"
+url = "https://members.snia.org/document/dl/26423"
+type = "pdf"
+published = "2026-06-04"
+
+# ---------------------------------------------------------------- NIST
+# nvlpubs.nist.gov serves the PDF directly. URL confirmed 2026-09-04.
+
+[[documents]]
+id = "SP800-193"
+family = "nist"
+title = "NIST SP 800-193 Platform Firmware Resiliency Guidelines"
+access = "open"
+fetch = "direct"
+notes = "Protection, detection and recovery requirements for platform firmware; the public basis of Intel PFR and of OCP's root-of-trust work."
+
+[[documents.versions]]
+version = "2018"
+url = "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-193.pdf"
+type = "pdf"
+published = "2018-05-04"
+notes = "Cover says May 2018; the day is NIST's publication date."
+
+# ---------------------------------------------------------------- Arm
+# developer.arm.com renders its document pages with JavaScript; the PDF
+# itself is served from documentation-service.arm.com/static/<id>, one id
+# per issue, found on the document page's Downloads list. Current issue
+# only; a new issue gets a new id, which is found by hand. URLs confirmed
+# 2026-09-04.
+
+[[documents]]
+id = "SBMR"
+family = "arm-server"
+title = "Arm Server Base Manageability Requirements (DEN0069)"
+access = "open"
+fetch = "direct"
+notes = "What an Arm server BMC must provide: IPMI, Redfish, PLDM and MCTP requirements by level."
+
+[[documents.versions]]
+version = "3.0"
+url = "https://documentation-service.arm.com/static/69023ba602789941c1920f08"
+type = "pdf"
+published = "2025-10-09"
+notes = "Issue F."
+
+[[documents]]
+id = "SBSA"
+family = "arm-server"
+title = "Arm Server Base System Architecture (DEN0029)"
+access = "open"
+fetch = "direct"
+notes = "Hardware requirements of an Arm server by level; SBMR builds on it."
+
+[[documents.versions]]
+version = "8.0"
+url = "https://documentation-service.arm.com/static/68c934bd8a337a2bc66460b3"
+type = "pdf"
+published = "2025-07-24"
+notes = "Issue J (DEN0029J)."
+
+[[documents]]
+id = "BBR"
+family = "arm-server"
+title = "Arm Base Boot Requirements (DEN0044)"
+access = "open"
+fetch = "direct"
+notes = "Formerly SBBR; the SBBR recipe is one of its boot recipes. Firmware (UEFI, ACPI, SMBIOS) requirements for out-of-box operating system support."
+
+[[documents.versions]]
+version = "2.2"
+url = "https://documentation-service.arm.com/static/68512137d12d1a1df64f239d"
+type = "pdf"
+published = "2025-06-17"
+notes = "Issue I (DEN0044_0202_I_en)."
+
+# ---------------------------------------------------------------- TCG
+# trustedcomputinggroup.org answers every scripted client with 403 (tested
+# 2026-09-04, curl_cffi with a browser fingerprint included), so these are
+# fetched from the Internet Archive like uefi.org. Current version only; the
+# TPM 2.0 Library Version 185 has Parts 0 to 3 (Part 4, Supporting Routines,
+# moved into the reference code with Version 184). Snapshots confirmed
+# 2026-09-04.
+
+[[documents]]
+id = "TPM2-P0"
+family = "tcg"
+title = "Trusted Platform Module 2.0 Library Part 0: Introduction"
+access = "open"
+fetch = "wayback"
+searched_with = ["TPM2-P1", "TPM2-P2", "TPM2-P3"]
+notes = "Roadmap of the four parts and their conventions. TCG serves no scripted client; fetched from the Internet Archive."
+
+[[documents.versions]]
+version = "185"
+url = "https://trustedcomputinggroup.org/wp-content/uploads/Trusted-Platform-Module-2.0-Library-Part-0-Introduction_Version-185_pub.pdf"
+type = "pdf"
+published = "2026-03-12"
+
+[[documents]]
+id = "TPM2-P1"
+family = "tcg"
+title = "Trusted Platform Module 2.0 Library Part 1: Architecture"
+access = "open"
+fetch = "wayback"
+searched_with = ["TPM2-P0", "TPM2-P2", "TPM2-P3"]
+notes = "Concepts: hierarchies, PCRs, sessions, authorization. Structures are Part 2, commands Part 3. TCG serves no scripted client; fetched from the Internet Archive."
+
+[[documents.versions]]
+version = "185"
+url = "https://trustedcomputinggroup.org/wp-content/uploads/Trusted-Platform-Module-2.0-Library-Part-1-Architecture_Version-185_pub.pdf"
+type = "pdf"
+published = "2026-03-12"
+
+[[documents]]
+id = "TPM2-P2"
+family = "tcg"
+title = "Trusted Platform Module 2.0 Library Part 2: Structures"
+access = "open"
+fetch = "wayback"
+searched_with = ["TPM2-P0", "TPM2-P1", "TPM2-P3"]
+notes = "Constants, handles, algorithm identifiers and every TPM2B / TPMS / TPMT structure. TCG serves no scripted client; fetched from the Internet Archive."
+
+[[documents.versions]]
+version = "185"
+url = "https://trustedcomputinggroup.org/wp-content/uploads/Trusted-Platform-Module-2.0-Library-Part-2-Structures_Version-185_pub.pdf"
+type = "pdf"
+published = "2026-03-12"
+
+[[documents]]
+id = "TPM2-P3"
+family = "tcg"
+title = "Trusted Platform Module 2.0 Library Part 3: Commands"
+access = "open"
+fetch = "wayback"
+searched_with = ["TPM2-P0", "TPM2-P1", "TPM2-P2"]
+notes = "Command codes, handles, parameters and responses of every TPM2_* command. TCG serves no scripted client; fetched from the Internet Archive."
+
+[[documents.versions]]
+version = "185"
+url = "https://trustedcomputinggroup.org/wp-content/uploads/Trusted-Platform-Module-2.0-Library-Part-3-Commands_Version-185_pub.pdf"
+type = "pdf"
+published = "2026-03-12"
+
+[[documents]]
+id = "TCG-PFP"
+family = "tcg"
+title = "TCG PC Client Platform Firmware Profile Specification"
+access = "open"
+fetch = "wayback"
+notes = "Measured boot: which PCR each firmware component extends and the event log format (TCG_PCR_EVENT2). TCG serves no scripted client; fetched from the Internet Archive."
+
+[[documents.versions]]
+version = "1.06 Revision 52"
+url = "https://trustedcomputinggroup.org/wp-content/uploads/TCG-PC-Client-Platform-Firmware-Profile-Version-1.06-Revision-52_pub-3.pdf"
+type = "pdf"
+published = "2023-12-04"
+
+[[documents]]
+id = "DICE-HW"
+family = "tcg"
+title = "Hardware Requirements for a Device Identifier Composition Engine"
+access = "open"
+fetch = "wayback"
+searched_with = ["DICE-ATT"]
+notes = "The base DICE document: the Unique Device Secret and the Compound Device Identifier derivation. TCG serves no scripted client; fetched from the Internet Archive."
+
+[[documents.versions]]
+version = "1.0 Revision 0.91"
+url = "https://trustedcomputinggroup.org/wp-content/uploads/Hardware-Requirements-for-a-Device-Identifier-Composition-Engine-Version-1.0-Revision-0.91_pub.pdf"
+type = "pdf"
+published = "2024-08-08"
+
+[[documents]]
+id = "DICE-ATT"
+family = "tcg"
+title = "DICE Attestation Architecture"
+access = "open"
+fetch = "wayback"
+searched_with = ["DICE-HW"]
+notes = "Certificate chains and evidence built on DICE layers, the basis of Caliptra and SPDM device identity. TCG serves no scripted client; fetched from the Internet Archive."
+
+[[documents.versions]]
+version = "1.2"
+url = "https://trustedcomputinggroup.org/wp-content/uploads/DICE-Attestation-Architecture-v1.2_pub.pdf"
+type = "pdf"
+published = "2025-04-24"
+
+# ---------------------------------------------------------------- UEFI
+# uefi.org sits behind a Cloudflare challenge no scripted client passes
+# (tested 2026-09-03 and 2026-09-04); the Internet Archive holds the PDFs.
+# The newest release and the one before it, as archived; version strings
+# from the covers. Snapshots confirmed 2026-09-04.
+
+[[documents]]
+id = "UEFI"
+family = "uefi"
+title = "Unified Extensible Firmware Interface (UEFI) Specification"
+access = "open"
+fetch = "wayback"
+notes = "uefi.org blocks scripted downloads; fetched from the Internet Archive. Over 2000 pages: extract takes a while."
+
+[[documents.versions]]
+version = "2.10 Errata A"
+url = "https://uefi.org/sites/default/files/resources/UEFI_Spec_2_10_A_Aug8.pdf"
+type = "pdf"
+published = "2024-08-08"
+
+[[documents.versions]]
+version = "2.11"
+url = "https://uefi.org/sites/default/files/resources/UEFI_Spec_Final_2.11.pdf"
+type = "pdf"
+published = "2024-11-21"
+
+[[documents]]
+id = "ACPI"
+family = "uefi"
+title = "Advanced Configuration and Power Interface (ACPI) Specification"
+access = "open"
+fetch = "wayback"
+notes = "uefi.org blocks scripted downloads; fetched from the Internet Archive. The SPMI, IPMI and PCCT tables a BMC cares about are here."
+
+[[documents.versions]]
+version = "6.5 Errata A"
+url = "https://uefi.org/sites/default/files/resources/ACPI_Spec_6.5a_Final.pdf"
+type = "pdf"
+published = "2024-11-22"
+
+[[documents.versions]]
+version = "6.6"
+url = "https://uefi.org/sites/default/files/resources/ACPI_Spec_6.6.pdf"
+type = "pdf"
+published = "2025-05-13"
+
+[[documents]]
+id = "PI"
+family = "uefi"
+title = "UEFI Platform Initialization (PI) Specification"
+access = "open"
+fetch = "wayback"
+notes = "uefi.org blocks scripted downloads; fetched from the Internet Archive. Release 1.10 is published under an unversioned file name, so its snapshot is the one the Archive took in August 2026; Release 1.9 keeps the 'Final Draft' file name uefi.org gave the release."
+
+[[documents.versions]]
+version = "1.9"
+url = "https://uefi.org/sites/default/files/resources/UEFI_PI_Spec_Final_Draft_1.9.pdf"
+type = "pdf"
+published = "2024-12-03"
+
+[[documents.versions]]
+version = "1.10"
+url = "https://uefi.org/sites/default/files/resources/UEFI_PI_Spec.pdf"
+type = "pdf"
+published = "2026-07-01"
+notes = "Cover says July 2026; day approximate."
+
+# ---------------------------------------------------------------- manual
+# Documents the tool never downloads. They are listed so the Support Level
+# table names them with the reason; the user who has a copy registers it
+# with `add`. No URL is recorded for any of them. Version strings are left
+# out where the publisher's current one is not public knowledge.
+
+[[documents]]
+id = "JESD400-5"
+family = "jedec"
+title = "JESD400-5 DDR5 Serial Presence Detect (SPD) Contents"
+access = "gated"
+fetch = "manual"
+notes = "jedec.org: free registration and a click-through licence before download; the SPD map a BMC reads over I3C or SMBus."
+
+[[documents]]
+id = "JESD216"
+family = "jedec"
+title = "JESD216 Serial Flash Discoverable Parameters (SFDP)"
+access = "gated"
+fetch = "manual"
+notes = "jedec.org: free registration before download; the parameter tables a SPI NOR driver reads."
+
+[[documents]]
+id = "JESD251"
+family = "jedec"
+title = "JESD251 Expanded Serial Peripheral Interface (xSPI) for Non Volatile Memory Devices"
+access = "gated"
+fetch = "manual"
+notes = "jedec.org: free registration before download."
+
+[[documents]]
+id = "JESD302"
+family = "jedec"
+title = "JESD302 DIMM Temperature Sensor (TS) and Serial Presence Detect (SPD) Hub"
+access = "gated"
+fetch = "manual"
+notes = "jedec.org: free registration before download; the DDR5 SPD hub and temperature sensor the BMC polls."
+
+[[documents]]
+id = "MIPI-I3C-BASIC"
+family = "mipi"
+title = "MIPI I3C Basic Specification"
+access = "gated"
+fetch = "manual"
+notes = "mipi.org: click-through before download of the Basic edition; the full I3C specification is member-only."
+
+[[documents]]
+id = "PCIE-BASE"
+family = "pci-sig"
+title = "PCI Express Base Specification"
+access = "member"
+fetch = "manual"
+notes = "pcisig.com: PCI-SIG members only."
+
+[[documents]]
+id = "IEEE-1149.1"
+family = "ieee"
+title = "IEEE 1149.1 Standard Test Access Port and Boundary-Scan Architecture (JTAG)"
+access = "member"
+fetch = "manual"
+notes = "Sold by IEEE; no free copy."
+
+[[documents]]
+id = "SES"
+family = "t10"
+title = "SCSI Enclosure Services (SES)"
+access = "member"
+fetch = "manual"
+notes = "T10 working drafts are for members; the standard is sold by INCITS."
+
+[[documents]]
+id = "HPM.1"
+family = "picmg"
+title = "PICMG HPM.1 IPM Controller Firmware Upgrade Specification"
+access = "member"
+fetch = "manual"
+notes = "picmg.org: members only."
+
+[[documents]]
+id = "HPM.2"
+family = "picmg"
+title = "PICMG HPM.2 LAN-attached IPM Controller Specification"
+access = "member"
+fetch = "manual"
+notes = "picmg.org: members only."
+
+[[documents]]
+id = "CXL"
+family = "cxl"
+title = "Compute Express Link (CXL) Specification"
+access = "member"
+fetch = "manual"
+notes = "computeexpresslink.org: members only; an evaluation copy needs registration and a licence. The MCTP bindings for CXL are open (DSP0234, DSP0281)."
+
+[[documents]]
+id = "PECI"
+family = "intel-platform"
+title = "Intel Platform Environment Control Interface (PECI) Specification"
+access = "confidential"
+fetch = "manual"
+notes = "Intel CDI / NDA. The open path is the kernel's PECI subsystem (linux Code Tree) and libpeci."
+
+[[documents]]
+id = "PFR"
+family = "intel-platform"
+title = "Intel Platform Firmware Resilience (PFR) Specification"
+access = "confidential"
+fetch = "manual"
+notes = "Intel NDA. NIST SP 800-193 (SP800-193) is the public basis."
+
+[[documents]]
+id = "ASD"
+family = "intel-platform"
+title = "Intel At-Scale Debug (ASD) Specification"
+access = "confidential"
+fetch = "manual"
+notes = "Intel NDA."
+
+[[documents]]
+id = "SPI-PG"
+family = "intel-platform"
+title = "Intel SPI Programming Guide"
+access = "confidential"
+fetch = "manual"
+notes = "Intel NDA; the flash descriptor and region layout of Intel platforms."
+
+[[documents]]
+id = "APML"
+family = "amd"
+title = "AMD Advanced Platform Management Link (APML) and SB-RMI Specifications"
+access = "confidential"
+fetch = "manual"
+notes = "AMD NDA. SB-TSI has a public data sheet."
+
+[[documents]]
+id = "AST2500"
+family = "aspeed"
+title = "ASPEED AST2500 Datasheet"
+access = "confidential"
+fetch = "manual"
+notes = "ASPEED NDA."
+
+[[documents]]
+id = "AST2600"
+family = "aspeed"
+title = "ASPEED AST2600 Datasheet"
+access = "confidential"
+fetch = "manual"
+notes = "ASPEED NDA."
+
+[[documents]]
+id = "NPCM7XX"
+family = "nuvoton"
+title = "Nuvoton NPCM7xx (Poleg) Datasheet"
+access = "confidential"
+fetch = "manual"
+notes = "Nuvoton NDA."
+
+[[documents]]
+id = "NPCM8XX"
+family = "nuvoton"
+title = "Nuvoton NPCM8xx (Arbel) Datasheet"
+access = "confidential"
+fetch = "manual"
+notes = "Nuvoton NDA."
+
 # ------------------------------------------------------------------ repos
 #
 # Code repositories the Skill can bring into the Library as Code Trees.
@@ -3836,6 +4419,26 @@ url = "https://github.com/openbmc/openbmc.git"
 topics = ["release", "yocto", "recipes", "distro"]
 sparse = ["/meta-*/**/*.bb", "/meta-*/**/*.inc"]
 # The OpenBMC distribution: Yocto layers and the recipes that pin every component (releases live here)
+
+[[repos]]
+id = "linux"
+url = "https://github.com/openbmc/linux.git"
+topics = ["kernel", "docs", "hwmon", "i2c", "gpio", "peci", "ipmi", "ncsi", "mctp", "spi-nor", "sysfs"]
+sparse = [
+    "Documentation",
+    "drivers/hwmon",
+    "drivers/i2c",
+    "drivers/gpio",
+    "drivers/peci",
+    "drivers/char/ipmi",
+    "net/ncsi",
+    "net/mctp",
+    "drivers/net/mctp",
+    "drivers/mtd/spi-nor",
+]
+# The OpenBMC kernel: the in-tree documentation (hwmon sysfs, GPIO, I2C,
+# IPMI, MCTP) and the BMC-facing drivers; held sparse, the full tree is
+# several GB
 
 [[repos]]
 id = "bmcweb"

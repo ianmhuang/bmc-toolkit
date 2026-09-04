@@ -124,23 +124,70 @@ def _document_span(lines: list[str], doc_id: str) -> tuple[int, int]:
     raise RefreshError(f"no [[documents]] block with id {doc_id} in the catalog")
 
 
+_VERSION_BLOCK = re.compile(r"^\[\[documents\.versions\]\]\s*$")
+_KEY_LINE = re.compile(r'^(version|published)\s*=\s*"([^"]*)"\s*$')
+
+
+def _version_blocks(
+    lines: list[str], start: int, end: int
+) -> list[tuple[int, str, str]]:
+    """(line index, published, version) of every ``[[documents.versions]]``
+    block between start and end, in file order."""
+    blocks = []
+    for i in range(start, end):
+        if not _VERSION_BLOCK.match(lines[i]):
+            continue
+        published = version = ""
+        for j in range(i + 1, end):
+            if _VERSION_BLOCK.match(lines[j]):
+                break
+            m = _KEY_LINE.match(lines[j])
+            if m and m.group(1) == "version":
+                version = m.group(2)
+            elif m:
+                published = m.group(2)
+        blocks.append((i, published, version))
+    return blocks
+
+
 def append_versions(path: Path, doc_id: str, seen: list[Seen]) -> None:
-    """Add version blocks at the end of the document's block, newest last
-    (same-day versions ascending by their numbers, the order the catalog
-    keeps), and re-parse the file; on a parse failure the file is restored."""
+    """Add version blocks to the document's block at their place in the
+    order the catalog keeps (publication date, same-day versions ascending
+    by their numbers): before the first existing block that sorts after the
+    new one, at the end when none does. The file is re-parsed afterwards
+    and restored on a parse failure."""
     if not seen:
         return
     with open(path, encoding="utf-8", newline="") as fh:  # read_text(newline=) is 3.13+
         original = fh.read()
     lines = original.split("\n")
-    _, end = _document_span(lines, doc_id)
+    start, end = _document_span(lines, doc_id)
     while end > 0 and lines[end - 1].strip() == "":
         end -= 1
+    existing = _version_blocks(lines, start, end)
     ordered = sorted(seen, key=lambda s: (s.published, version_numbers(s.version)))
-    blocks = [version_block(s) for s in ordered]
-    insert = "\n" + "\n".join(blocks)  # a blank line, then the blocks
-    rest = "\n".join(lines[end:])  # starts with the blank line(s) that were there
-    text = "\n".join(lines[:end]) + "\n" + insert + rest
+    # Later insertions must not shift earlier ones: collect per position,
+    # then rebuild from the end of the block backwards.
+    at: dict[int, list[str]] = {}
+    for s in ordered:
+        key = (s.published, version_numbers(s.version))
+        position = end
+        for index, published, version in existing:
+            if (published, version_numbers(version)) > key:
+                position = index
+                break
+        at.setdefault(position, []).append(version_block(s))
+    for position in sorted(at, reverse=True):
+        # Blocks end in a newline; joined, that newline is the blank line
+        # between them, and the trailing one is dropped here.
+        blocks = "\n".join(at[position]).rstrip("\n").split("\n")
+        if position == end:
+            # A blank line, then the blocks, then whatever followed the block.
+            lines[end:end] = ["", *blocks]
+        else:
+            # The blocks, then a blank line, before the block that follows.
+            lines[position:position] = [*blocks, ""]
+    text = "\n".join(lines)
     if not text.endswith("\n"):
         text += "\n"
     path.write_text(text, encoding="utf-8", newline="")
