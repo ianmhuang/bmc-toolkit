@@ -21,8 +21,10 @@ names (or the default branch), searched with `grep` and read with `code`.
   project on the machine. `$BMC_SPEC_LIBRARY` overrides the default
   `~/.bmc-specs`. Tell the user the path the first time a command prints
   `Library created at ...`.
-- **Latest**: the newest published version in the catalog. Work-in-Progress
-  versions count only when the user asks for WIP.
+- **Latest**: the newest published version in the catalog; versions
+  published on the same day are told apart by the numbers in their version
+  strings (`2.0.0` over `1.3.0`). Work-in-Progress versions count only when
+  the user asks for WIP.
 - **Drop-in**: a file the user placed into the Library by hand because the
   tool cannot download it (registration, membership, NDA, or a blocked
   download).

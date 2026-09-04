@@ -29,6 +29,7 @@ from bmc_toolkit.spec.catalog import (
     Document,
     Repo,
     load_catalog,
+    version_numbers,
 )
 from bmc_toolkit.spec.library import (
     DEFAULT_LIBRARY_DIRNAME,
@@ -294,7 +295,12 @@ def cmd_catalog(args: argparse.Namespace) -> int:
             )
             return EXIT_OK
         print("versions:")
-        for v in sorted(doc.versions, key=lambda v: v.published, reverse=True):
+        newest_first = sorted(
+            doc.versions,
+            key=lambda v: (v.published, version_numbers(v.version)),
+            reverse=True,
+        )
+        for v in newest_first:
             flag = "wip" if v.wip else "published"
             print(
                 f"\t{v.version}\t{v.published}\t{v.type}\t{flag}\t{v.url or '-'}"

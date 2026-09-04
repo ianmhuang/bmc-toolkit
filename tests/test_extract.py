@@ -598,3 +598,64 @@ def test_repeated_contents_entries_appear_once():
     # the same titles on other pages are new entries, not repeats
     moved = [f"{n} Section {n} ........ {n + 5}" for n in range(1, 11)]
     assert len(ex.parse_contents([lines, moved])) == 20
+
+
+# ------------------------------------------------- M8 follow-ups: round 1
+
+
+def test_stacked_lines_stay_apart_when_the_tall_glyphs_outnumber_them(tmp_path):
+    # Round-1 F2: the reference box alone (most common glyph size) flips to
+    # the tall cell once its glyphs outnumber the first body line; the two
+    # short comment lines must still come out as two lines.
+    items = [
+        (72, 695, "0x0909 0x0A0B 0x0C0D 0x0E0F", 15),
+        (330, 700, "Set Link"),
+        (330, 689.6, "EEE only"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "wide.pdf", [items]))
+    lines = page_lines(r.text, 1)
+    assert len(lines) == 2, lines
+    assert "0x0909 0x0A0B 0x0C0D 0x0E0F" in lines[0] and lines[0].endswith("Set Link")
+    assert lines[1].strip() == "EEE only"
+
+
+def test_same_size_text_in_another_column_still_shares_the_row(tmp_path):
+    # The stacked rule only applies to boxes over the same x range: a
+    # same-size cell in another column on the same baseline stays on the line.
+    items = [(72, 700, "Value"), (200, 700, "Description"), (400, 700, "Comment")]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "row3.pdf", [items]))
+    lines = page_lines(r.text, 1)
+    assert len(lines) == 1 and lines[0].split() == ["Value", "Description", "Comment"]
+
+
+def test_reprinted_contents_page_with_additions_contributes_the_additions():
+    # Round-1 F5: repeats count towards recognising the page as a contents
+    # page; only the entries themselves are deduplicated.
+    lines = [f"{n} Section {n} ........ {n + 4}" for n in range(1, 11)]
+    reprinted = list(lines) + ["11 Annex ........ 30", "12 Index ........ 31"]
+    entries = ex.parse_contents([lines, reprinted])
+    assert [e["title"] for e in entries] == [
+        f"{n} Section {n}" for n in range(1, 11)
+    ] + [
+        "11 Annex",
+        "12 Index",
+    ]
+
+
+def test_same_size_sub_and_superscripts_beside_their_neighbours_stay_on_the_line(
+    tmp_path,
+):
+    # Sub- and superscripts in the body size, only raised or lowered: they
+    # sit beside their neighbours, not over them, so the stacked rule must
+    # leave them alone.
+    items = [
+        (72, 700, "0.3V"),
+        (93, 698, "DD"),
+        (110, 700, "and I"),
+        (133, 702, "2"),
+        (139, 700, "C bus"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "vdd.pdf", [items]))
+    lines = page_lines(r.text, 1)
+    assert len(lines) == 1, lines
+    assert lines[0].replace(" ", "") == "0.3VDDandI2Cbus"

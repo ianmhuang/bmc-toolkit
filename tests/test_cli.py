@@ -564,3 +564,23 @@ def test_extract_unknown_document_uses_fetch_time(
         )
     code, out = run(capsys, "extract", "OEM", catalog_file=catalog_file)
     assert code == 0 and "extracted OEM 1.9.0" in out
+
+
+# ------------------------------------------------- M8 follow-ups: round 1
+
+
+def test_catalog_document_lists_same_day_versions_newest_first_by_number(
+    tmp_path, capsys
+):
+    # Round-1 F3: DSP0276 1.3.0 and 2.0.0 share a date; the listing under
+    # "versions:" must agree with the latest: line.
+    from tests.test_catalog import _two_versions
+
+    path = tmp_path / "catalog.toml"
+    path.write_text(_two_versions("1.3.0", "2.0.0"), encoding="utf-8", newline="")
+    code, out = run(capsys, "catalog", "DSP0276", catalog_file=path)
+    assert code == 0
+    lines = out.splitlines()
+    assert "latest: 2.0.0" in lines
+    listed = [ln.split("\t")[1] for ln in lines if ln.startswith("\t")]
+    assert listed == ["2.0.0", "1.3.0"]

@@ -34,6 +34,7 @@ Requires pypdfium2 5.x (its bookmark API: ``get_toc`` items with
 ``get_dest()``/``get_title()``); 4.x is refused with a clear ImportError.
 """
 
+import bisect
 import json
 import re
 import shutil
@@ -46,7 +47,7 @@ from pathlib import Path
 from bmc_toolkit.spec.library import SCHEMAS_DIRNAME
 from bmc_toolkit.spec.tables import remove_store
 
-EXTRACTOR_VERSION = 4  # 4: line reference is the dominant glyph size; anchors
+EXTRACTOR_VERSION = 4  # 4: stacked same-size glyphs are two lines; anchor bookmarks
 PAGE_MARKER = "=== page {n} ==="
 EXTRACT_NAME = "extract.txt"
 OUTLINE_NAME = "outline.json"
@@ -70,6 +71,7 @@ WORD_GAP = 0.22  # a wider gap inside a segment is a word space
 STREAM_NEIGHBOUR = 0.6  # of glyph height: how close a stream predecessor must be
 BASELINE_TOL = 0.45  # of the glyph height: stream neighbours share a baseline
 LINE_OVERLAP = 0.5  # of the smaller glyph height: vertical overlap that joins a line
+STACKED = 0.2  # of the narrower glyph width: horizontal overlap that stacks two glyphs
 NUMBER_BAND_PT = 3.0  # line numbers share an edge within this many points
 MIN_NUMBERED_LINES = 5
 NUMBER_MARGIN = 0.15  # the number column lies within this fraction of the width
@@ -198,7 +200,7 @@ def _group_lines(chars, unit: float) -> list[Line]:
     ordered = sorted(chars, key=lambda c: (-c[1], c[0]))
     groups: list[_LineGroup] = []
     for c in ordered:
-        if groups and _same_line(groups[-1].ref, c):
+        if groups and groups[-1].accepts(c):
             groups[-1].add(c)
         else:
             groups.append(_LineGroup(c))
@@ -232,33 +234,79 @@ def _same_line(ref, c) -> bool:
     return overlap >= LINE_OVERLAP * smaller
 
 
-class _LineGroup:
-    """The boxes of one line while it is being built, and its reference box.
+class _SizeRun:
+    """The boxes of one glyph height in a line group, searchable by x."""
 
-    The reference is the first box of the group's most common glyph size
-    (the taller size on a tie): the line's body text. Using the tallest box
-    instead let a large glyph in one column (a monospace value beside a
-    two-line comment cell) overlap two body lines by more than half their
-    height each, so the two lines were merged letter by letter.
+    def __init__(self, first) -> None:
+        self._x0s: list[float] = []
+        self._boxes: list[tuple] = []
+        self._widest = 0.0
+        self.add(first)
+
+    def add(self, c) -> None:
+        i = bisect.bisect_right(self._x0s, c[0])
+        self._x0s.insert(i, c[0])
+        self._boxes.insert(i, c)
+        self._widest = max(self._widest, c[2] - c[0])
+
+    def over(self, c):
+        """A box of this size lying over ``c`` horizontally by more than
+        STACKED of the narrower width, or None. Touching or kerned
+        neighbours ("I" before a raised "2", "V" before a lowered "DD")
+        do not count."""
+        width = c[2] - c[0]
+        i = bisect.bisect_left(self._x0s, c[2])
+        while i > 0 and self._x0s[i - 1] > c[0] - self._widest:
+            i -= 1
+            b = self._boxes[i]
+            overlap = min(b[2], c[2]) - max(b[0], c[0])
+            if overlap > STACKED * min(width, b[2] - b[0]):
+                return b
+        return None
+
+
+class _LineGroup:
+    """The boxes of one line while it is being built.
+
+    A box joins when it overlaps the group's tallest box by half the
+    smaller height (``_same_line``; the tallest box is a fixed anchor, so a
+    staircase of slightly offset labels cannot pull the line down step by
+    step) and when it is not stacked on a box of its own size: glyphs of
+    one size on one line share a baseline, so a same-size box lying over
+    another one without overlapping it by half is the next line. The second
+    rule keeps two body lines apart when a large glyph in another column (a
+    monospace value beside a two-line comment cell) overlaps both by more
+    than half their height and becomes the anchor. Super- and subscripts
+    sit beside their neighbours, not over them, so they join whether or not
+    they are smaller.
     """
 
     def __init__(self, first) -> None:
         self.chars = [first]
-        self._first: dict[float, tuple] = {}  # glyph height -> first box seen
-        self._counts: Counter = Counter()
-        self.ref = first
-        self._count(first)
+        self.ref = first  # the tallest box so far
+        self._sizes: dict[float, _SizeRun] = {}  # glyph height -> its boxes
+        self._index(first)
+
+    def accepts(self, c) -> bool:
+        if not _same_line(self.ref, c):
+            return False
+        run = self._sizes.get(round(c[3] - c[1], 1))
+        below = run.over(c) if run is not None else None
+        return below is None or _same_line(below, c)
 
     def add(self, c) -> None:
         self.chars.append(c)
-        self._count(c)
+        if c[3] - c[1] > self.ref[3] - self.ref[1]:
+            self.ref = c
+        self._index(c)
 
-    def _count(self, c) -> None:
+    def _index(self, c) -> None:
         height = round(c[3] - c[1], 1)
-        self._counts[height] += 1
-        self._first.setdefault(height, c)
-        dominant = max(self._counts, key=lambda h: (self._counts[h], h))
-        self.ref = self._first[dominant]
+        run = self._sizes.get(height)
+        if run is None:
+            self._sizes[height] = _SizeRun(c)
+        else:
+            run.add(c)
 
 
 def _segment(chars, unit: float) -> Segment:
@@ -405,7 +453,8 @@ def parse_contents(pages_text: list[list[str]]) -> list[dict]:
     """Contents-page entries as {level, title, printed} from page texts.
 
     An entry repeating an earlier one (same title, same printed page) is
-    skipped: some documents carry their contents twice.
+    kept once: some documents carry their contents twice. Repeats still
+    count towards recognising a page as a contents page.
     """
     entries = []
     seen: set[tuple[str, int]] = set()
@@ -423,13 +472,15 @@ def parse_contents(pages_text: list[list[str]]) -> list[dict]:
                 continue  # "35 1.2. Title": a stray number swallowed the section
             num = m.group("num")
             printed = int(m.group("page"))
-            key = (f"{num} {title}", printed)
-            if key in seen:
-                continue
-            seen.add(key)
-            found.append({"level": num.count("."), "title": key[0], "printed": printed})
+            found.append(
+                {"level": num.count("."), "title": f"{num} {title}", "printed": printed}
+            )
         if len(found) >= 8:
-            entries.extend(found)
+            for e in found:
+                key = (e["title"], e["printed"])
+                if key not in seen:
+                    seen.add(key)
+                    entries.append(e)
     return entries
 
 

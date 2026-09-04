@@ -550,3 +550,21 @@ def test_verified_label_formats_groups_and_bare_ids():
     assert support.verified_label([("G1", "1.3.3")]) == "G1 (1.3.3)"
     assert support.verified_label([("G4", "")]) == "G4"
     assert support.verified_label([("G4", ""), ("G6", "2.0")]) == "G4; G6 (2.0)"
+
+
+def test_document_cell_accepts_any_whitespace_between_id_and_version(
+    extended, tmp_path
+):
+    # Round-1 F4: a tab or several spaces after the id (a spreadsheet paste)
+    # must not turn the whole cell into an unknown document id.
+    golden = (
+        "| # | Question | Document | Where | Commands |\n"
+        "|---|---|---|---|---|\n"
+        "| G1 | tab | DSP0236\t1.3.3 | here | `page DSP0236 1` |\n"
+        "| G2 | spaces | IPMI   2.0 rev 1.1 | here | `page IPMI 1` |\n"
+    )
+    path = tmp_path / "golden.md"
+    path.write_text(golden, encoding="utf-8", newline="")
+    verified, problems = support.read_golden(path, extended)
+    assert problems == []
+    assert verified == {"dsp0236": [("G1", "1.3.3")], "ipmi": [("G2", "2.0 rev 1.1")]}

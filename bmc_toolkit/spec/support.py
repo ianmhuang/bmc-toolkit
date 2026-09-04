@@ -70,7 +70,8 @@ def read_golden(path: Path, catalog: Catalog) -> tuple[Verified, list[str]]:
             entry = entry.strip()
             if not entry or entry == "-":
                 continue
-            doc_id, _, version = entry.partition(" ")
+            doc_id, *rest = entry.split(None, 1)  # any whitespace, once
+            version = rest[0] if rest else ""
             doc = catalog.get(doc_id)
             if doc is None:
                 problems.append(f"{cells[0]}: unknown document '{doc_id}'")
