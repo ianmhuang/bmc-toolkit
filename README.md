@@ -11,7 +11,7 @@ have asked about, defaults to the latest published version of each document,
 serves any specific version on request, and cites document, version, section
 and page in every answer.
 
-**Status: pre-release (0.9.0).** The Source Catalog lists 113 documents in
+**Status: 1.0.0.** The Source Catalog lists 113 documents in
 35 families. The 93 open ones are downloaded by the tool and every one of
 them has been checked against the acceptance questions in
 `docs/golden-questions.md`; the 20 gated, member and NDA documents are

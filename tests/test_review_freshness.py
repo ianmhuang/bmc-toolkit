@@ -573,21 +573,10 @@ def test_shipped_catalog_carries_listings_for_nvme_and_ocp():
 
 
 def test_release_metadata_and_documentation():
-    """AC-10 (round 2): pre-release 0.9.0 everywhere, README keeps the
-    pre-release note, and both documents name the new commands, the config
-    key, the listing key and freshness.json."""
-    import tomllib
-
-    import bmc_toolkit
-
-    assert bmc_toolkit.__version__ == "0.9.0"
-    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text("utf-8"))
-    assert pyproject["project"]["version"] == "0.9.0"
-    plugin = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text("utf-8"))
-    assert plugin["version"] == "0.9.0"
+    """AC-10 (round 2): README and SKILL.md name the new commands, the config
+    key, the listing key and freshness.json. The version numbers and the
+    README status line are checked in test_release.py since 1.0.0."""
     readme = (ROOT / "README.md").read_text("utf-8")
-    assert "pre-release" in readme.lower()
-    assert "0.9.0" in readme
     skill = (ROOT / "skills" / "bmc-spec" / "SKILL.md").read_text("utf-8")
     for text in (readme, skill):
         for word in (
