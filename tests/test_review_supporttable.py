@@ -225,7 +225,7 @@ def test_ac10_missing_golden_file_is_an_error_not_a_traceback(cat_file, tmp_path
     assert not out.startswith("| Family")
 
 
-def test_ac10_shipped_golden_file_verifies_the_sixteen_documents(capsys):
+def test_ac10_shipped_golden_file_verifies_the_m8a_documents_and_more(capsys):
     assert GOLDEN_SHIPPED.is_file()
     code, out, err = run(capsys, "catalog", "--table", "--golden", str(GOLDEN_SHIPPED))
     assert code == 0, out

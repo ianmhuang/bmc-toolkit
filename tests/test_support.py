@@ -478,7 +478,7 @@ def test_table_flags_are_checked(extended_file, tmp_path, capsys):
     assert code == 1 and "cannot read" in out
 
 
-def test_shipped_golden_questions_verify_sixteen_documents():
+def test_shipped_golden_questions_verify_every_open_document_but_the_bundles():
     from pathlib import Path
 
     from bmc_toolkit.spec.catalog import load_catalog as load_shipped
@@ -489,13 +489,12 @@ def test_shipped_golden_questions_verify_sixteen_documents():
         root / "docs" / "golden-questions.md", catalog
     )
     assert problems == []
-    # M3-M6 verified these sixteen; M8 adds a row per remaining open document,
-    # so the set only grows. Every id named is one the catalog knows.
-    assert set(verified) >= {
-        "ipmi", "ipmi-update", "dcmi", "dsp0236", "dsp0237", "dsp0239",
-        "dsp0240", "dsp0245", "dsp0248", "dsp0267", "dsp0274", "dsp8010",
-        "dsp0266", "nvme-mi", "dc-scm", "um10204",
-    }  # fmt: skip
-    assert all(catalog.get(doc_id) is not None for doc_id in verified)
+    # AC-1 of M8: every open document has a question, except the two ZIP
+    # bundles that extract does not unpack yet (registries and profiles).
+    expected = {d.id.lower() for d in catalog.documents if d.access == "open"} - {
+        "dsp8011",
+        "dsp8013",
+    }
+    assert set(verified) == expected
     assert verified["ipmi"] == ["G1", "G2", "G3", "G4", "G5"]
     assert verified["dsp0248"] == ["G13", "G15"]

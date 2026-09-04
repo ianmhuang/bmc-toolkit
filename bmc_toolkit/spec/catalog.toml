@@ -131,6 +131,7 @@ family = "ipmi"
 title = "Intelligent Platform Management Bus Communications Protocol Specification"
 access = "open"
 fetch = "direct"
+limits = "PDF bookmarks carry titles without section numbers: section by title, not by number."
 
 [[documents.versions]]
 version = "1.0"
@@ -1168,7 +1169,7 @@ family = "mctp"
 title = "Management Component Transport Protocol (MCTP) Memory-Mapped Buffer Interface (MMBI) Transport Binding Specification"
 access = "open"
 fetch = "direct"
-limits = "PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page."
+limits = "PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page. Figure 1's rotated labels extract as single letters; use render."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1799,14 +1800,14 @@ type = "pdf"
 published = "2024-09-03"
 
 [[documents.versions]]
-version = "2.0.0"
-url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0276_2.0.0.pdf"
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0276_1.3.0.pdf"
 type = "pdf"
 published = "2025-12-08"
 
 [[documents.versions]]
-version = "1.3.0"
-url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0276_1.3.0.pdf"
+version = "2.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0276_2.0.0.pdf"
 type = "pdf"
 published = "2025-12-08"
 
@@ -1849,14 +1850,14 @@ type = "pdf"
 published = "2024-06-10"
 
 [[documents.versions]]
-version = "2.0.0"
-url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_2.0.0.pdf"
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_1.3.0.pdf"
 type = "pdf"
 published = "2025-12-08"
 
 [[documents.versions]]
-version = "1.3.0"
-url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_1.3.0.pdf"
+version = "2.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_2.0.0.pdf"
 type = "pdf"
 published = "2025-12-08"
 
