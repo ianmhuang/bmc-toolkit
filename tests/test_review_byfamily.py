@@ -58,8 +58,8 @@ GOLDEN = """# Golden Questions
 """
 
 FLAT_HEADER = "| Family | Document | Access | Latest | Fetch | Verified | Known limit |"
-HEADER = "| Document | Access | Latest | Fetch | Verified | Known limit |"
-RULE = "|---|---|---|---|---|---|"
+HEADER = "| Document | Access | Latest | Verified | Known limit |"
+RULE = "|---|---|---|---|---|"
 
 
 @pytest.fixture
@@ -113,7 +113,7 @@ def _flat_rows(out: str) -> dict[str, list[str]]:
 # ---------------------------------------------------------------- AC-1
 
 
-def test_ac1_one_heading_and_six_column_table_per_family_in_catalog_order(
+def test_ac1_one_heading_and_five_column_table_per_family_in_catalog_order(
     cat_file, capsys
 ):
     code, out, err = run(capsys, "catalog", "--table", "--by-family", catalog_file=cat_file)
@@ -128,10 +128,10 @@ def test_ac1_one_heading_and_six_column_table_per_family_in_catalog_order(
         assert lines[i + 2] == HEADER
         assert lines[i + 3] == RULE
         assert lines[i + 4].startswith("| `")
-    # the Family column is gone: six cells per row
+    # the Family and Fetch columns are gone: five cells per row
     for ln in lines:
         if ln.startswith("| `"):
-            assert len(_cells(ln)) == 6, ln
+            assert len(_cells(ln)) == 5, ln
     assert FLAT_HEADER not in out
 
 
@@ -199,23 +199,25 @@ def test_ac3_golden_fills_verified_as_in_the_flat_table(cat_file, golden_file, c
     assert "G5: unknown document 'NOPE'" in grouped_err
     assert "NOPE" not in grouped
     rows = _by_family_rows(grouped)
-    assert rows["DSP0236"][4] == "G1 (1.3.3); G3 (1.3.2)"
-    assert rows["LATE"][4] == "G2 (1.0)"
-    assert rows["IPMI"][4] == "G2 (2.0 rev 1.1)"
-    for doc_id in ("BUNDLE", "SECRET", "NOVER"):
-        assert rows[doc_id][4] == "-", doc_id
-    # cell for cell the same as the flat table without its Family column
+    # the reader's form says PASS where the flat table lists the questions
     flat_rows = _flat_rows(flat)
+    assert flat_rows["DSP0236"][5] == "G1 (1.3.3); G3 (1.3.2)"
+    for doc_id in ("DSP0236", "LATE", "IPMI"):
+        assert rows[doc_id][3] == "PASS", doc_id
+    for doc_id in ("BUNDLE", "SECRET", "NOVER"):
+        assert rows[doc_id][3] == "-", doc_id
+    # the other cells are the flat table's without Family and Fetch
     assert list(rows) != list(flat_rows)  # grouped order differs ...
     assert set(rows) == set(flat_rows)
     for doc_id, cells in rows.items():
-        assert cells == flat_rows[doc_id][1:], doc_id  # ... the cells do not
+        flat_cells = flat_rows[doc_id]
+        assert cells[:3] == flat_cells[1:4] and cells[4] == flat_cells[6], doc_id
 
 
 def test_ac3_without_golden_nothing_is_verified(cat_file, capsys):
     code, out, err = run(capsys, "catalog", "--table", "--by-family", catalog_file=cat_file)
     assert code == 0 and err == ""
-    assert all(cells[4] == "-" for cells in _by_family_rows(out).values())
+    assert all(cells[3] == "-" for cells in _by_family_rows(out).values())
 
 
 def test_ac3_missing_golden_file_is_cannot_read_exit_1(cat_file, tmp_path, capsys):
@@ -310,6 +312,6 @@ def test_ac5_flat_table_is_unchanged_and_carries_the_same_cells(cat_file, capsys
     assert code == 0
     grouped_rows = _by_family_rows(grouped)
     for doc_id, cells in rows.items():
-        assert grouped_rows[doc_id] == cells[1:], doc_id
+        assert grouped_rows[doc_id] == [*cells[1:4], cells[5], cells[6]], doc_id
     # the pipe in Known limit stays escaped in both forms
     assert "Use find \\| page, not table. |" in grouped

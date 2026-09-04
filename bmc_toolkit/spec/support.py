@@ -24,6 +24,8 @@ COLUMNS = (
     "Known limit",
 )
 
+BY_FAMILY_COLUMNS = ("Document", "Access", "Latest", "Verified", "Known limit")
+
 _QUESTION_RE = re.compile(r"^G\d+$")
 _RULE_RE = re.compile(r"^\|?\s*:?-{3,}")
 
@@ -147,15 +149,25 @@ def support_table(catalog: Catalog, verified: Verified) -> list[str]:
     return _table_lines(COLUMNS, support_rows(catalog, verified))
 
 
+def _family_cells(doc: Document, verified: Verified) -> list[str]:
+    """The document's cells of the per-family table (BY_FAMILY_COLUMNS):
+    no Fetch, and Verified reduced to ``PASS`` or ``-``."""
+    document, access, latest, _fetch, label, limit = _document_cells(doc, verified)
+    return [document, access, latest, "-" if label == "-" else "PASS", limit]
+
+
 def support_by_family(catalog: Catalog, verified: Verified) -> list[str]:
-    """The same table split per family: a ``##`` heading with the family
-    title, then its documents without the Family column. Families come in
-    catalog order (a family without documents is left out), documents in
-    catalog order within their family, so a document whose catalog block
-    sits apart from its family still lands under the family's heading."""
+    """The reader's form of the table, split per family: a ``##`` heading
+    with the family title, then its documents with BY_FAMILY_COLUMNS.
+    Families come in catalog order, documents in catalog order within their
+    family, so a document whose catalog block sits apart from its family
+    still lands under the family's heading. Documents marked ``unlisted``
+    are left out, and so is a family with nothing left to list."""
     grouped: dict[str, list[list[str]]] = {}
     for doc in catalog.documents:
-        grouped.setdefault(doc.family, []).append(_document_cells(doc, verified))
+        if doc.unlisted:
+            continue
+        grouped.setdefault(doc.family, []).append(_family_cells(doc, verified))
     lines: list[str] = []
     for family in catalog.families.values():
         rows = grouped.get(family.id)
@@ -165,11 +177,12 @@ def support_by_family(catalog: Catalog, verified: Verified) -> list[str]:
             lines.append("")
         lines.append(f"## {family.title}")
         lines.append("")
-        lines.extend(_table_lines(COLUMNS[1:], rows))
+        lines.extend(_table_lines(BY_FAMILY_COLUMNS, rows))
     return lines
 
 
 __all__ = [
+    "BY_FAMILY_COLUMNS",
     "COLUMNS",
     "Verified",
     "access_label",

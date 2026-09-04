@@ -24,7 +24,7 @@ MARKER = (
     "<!-- generated below: catalog --table --by-family "
     "--golden docs/golden-questions.md -->"
 )
-HEADER = "| Document | Access | Latest | Fetch | Verified | Known limit |"
+HEADER = "| Document | Access | Latest | Verified | Known limit |"
 
 
 def run(capsys, *argv):
@@ -61,8 +61,9 @@ def test_ac6_support_doc_has_a_header_the_marker_and_the_generated_output(genera
     assert header.startswith("# Support Level")
     assert "catalog --table --by-family --golden docs/golden-questions.md" in header
     assert HEADER not in header and "## " not in header
-    for column in ("Document", "Access", "Latest", "Fetch", "Verified", "Known limit"):
+    for column in ("Document", "Access", "Latest", "Verified", "Known limit"):
         assert f"**{column}**" in header, column
+    assert "**Fetch**" not in header
     # exactly the command's output after the marker line
     assert body.lstrip("\n") == generated
     assert body.startswith("\n## ")
@@ -98,13 +99,16 @@ def test_ac6_support_doc_is_lf_and_would_fail_when_stale(generated):
 def test_ac6_generated_table_covers_every_document_and_family(shipped, generated):
     lines = generated.splitlines()
     headings = [ln[3:] for ln in lines if ln.startswith("## ")]
+    listed = [d for d in shipped.documents if not d.unlisted]
     families_with_docs = [
-        f.title for f in shipped.families.values() if shipped.by_family(f.id)
+        f.title
+        for f in shipped.families.values()
+        if any(d.family == f.id for d in listed)
     ]
     assert headings == families_with_docs
     ids = [ln.split("`")[1] for ln in lines if ln.startswith("| `")]
-    assert sorted(ids) == sorted(d.id for d in shipped.documents)
-    assert len(ids) == len(shipped.documents)
+    assert sorted(ids) == sorted(d.id for d in listed)
+    assert len(ids) == len(listed)
     # each document sits under its own family's heading
     family_of: dict[str, str] = {}
     current = None
@@ -113,7 +117,7 @@ def test_ac6_generated_table_covers_every_document_and_family(shipped, generated
             current = ln[3:]
         elif ln.startswith("| `"):
             family_of[ln.split("`")[1]] = current
-    for doc in shipped.documents:
+    for doc in listed:
         assert family_of[doc.id] == shipped.families[doc.family].title, doc.id
     # the Redfish bundles, whose blocks close the catalog, are under Redfish
     assert family_of["DSP8011"] == family_of["DSP0266"]
@@ -164,9 +168,9 @@ def test_ac7_every_open_document_is_verified_as_the_readme_claims(shipped, gener
         cells = ln[2:-2].split(" | ")
         doc = shipped.get(cells[0].split("`")[1])
         if doc.access == "open":
-            assert re.match(r"^G\d+", cells[4]), doc.id
+            assert cells[3] == "PASS", doc.id
         else:
-            assert cells[4] == "-", doc.id
+            assert cells[3] == "-", doc.id
 
 
 # ---------------------------------------------------------------- AC-8

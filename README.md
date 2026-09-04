@@ -16,8 +16,9 @@ and page in every answer.
 them has been checked against the acceptance questions in
 `docs/golden-questions.md`; the 20 gated, member and NDA documents are
 listed with their tier and registered from your own copy. Which documents,
-what each one's limits are and which questions verified it:
-[docs/SUPPORT.md](docs/SUPPORT.md).
+what each one's limits are and whether it has been verified:
+[docs/SUPPORT.md](docs/SUPPORT.md) (the questions themselves are in
+`docs/golden-questions.md`, and `catalog --table` names them per document).
 
 ## Install
 
@@ -298,9 +299,11 @@ layer); `catalog --table` prints the Support Level table from the catalog
 (family, document, access, latest, fetch, Verified, known limit), and
 `--golden docs/golden-questions.md` fills the Verified column from that
 file's `Document` column with the question ids per version they were
-checked on (`G13, G15 (1.3.1)`); `--by-family` prints the same per family,
-a heading and a table each, which is what `docs/SUPPORT.md` holds. The
-latest version is the one with the newest publication date; same-day
+checked on (`G13, G15 (1.3.1)`); `--by-family` prints the reader's form
+kept in `docs/SUPPORT.md`: a heading and a table per family, without the
+Fetch column, Verified reduced to `PASS` or `-`, and documents marked
+`unlisted = true` in the catalog left out (the BMC SoC datasheets are).
+The latest version is the one with the newest publication date; same-day
 versions are told apart by the numbers in their version strings (`2.0.0`
 over `1.3.0`). A document
 may name companions in `searched_with` (errata, specification updates)
