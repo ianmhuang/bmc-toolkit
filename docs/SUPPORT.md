@@ -1,8 +1,9 @@
 # Support Level
 
-What the tool can tell you about every document in the Source Catalog:
+What the tool can tell you about the documents in the Source Catalog:
 one table per family, generated from `bmc_toolkit/spec/catalog.toml` and
-`docs/golden-questions.md`, never edited by hand.
+`docs/golden-questions.md`, never edited by hand. Documents marked
+`unlisted` in the catalog are left out; `catalog` prints the full list.
 
 - **Document**: the catalog id (what you pass to `fetch`, `find`, `page`
   and the other commands) and the document's title.

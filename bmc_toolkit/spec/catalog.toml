@@ -11,6 +11,8 @@
 # fetch:  direct (publisher URL, then Wayback, then manual) | wayback
 #         (publisher blocks scripts; Internet Archive only) | manual (never
 #         downloaded; the user places the file)
+# unlisted = true leaves a document out of the per-family Support Level
+#         table (docs/SUPPORT.md); every other command ignores it.
 #
 # Comments record when a URL was last confirmed reachable by the fetch code.
 

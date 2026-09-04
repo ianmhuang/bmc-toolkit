@@ -16,8 +16,9 @@ and page in every answer.
 them has been checked against the acceptance questions in
 `docs/golden-questions.md`; the 20 gated, member and NDA documents are
 listed with their tier and registered from your own copy. Which documents,
-what each one's limits are and which questions verified it:
-[docs/SUPPORT.md](docs/SUPPORT.md).
+what each one's limits are and whether it has been verified:
+[docs/SUPPORT.md](docs/SUPPORT.md) (the questions themselves are in
+`docs/golden-questions.md`, and `catalog --table` names them per document).
 
 ## Install
 

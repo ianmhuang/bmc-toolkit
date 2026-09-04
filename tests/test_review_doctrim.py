@@ -10,6 +10,7 @@ without the flag. Derived from the acceptance criteria, not the code.
 """
 
 import re
+import shutil
 import tomllib
 from pathlib import Path
 
@@ -17,6 +18,7 @@ import pytest
 
 from bmc_toolkit.spec.catalog import CatalogError, load_catalog, parse_catalog
 from bmc_toolkit.spec.cli import main
+from bmc_toolkit.spec.library import Library
 from tests.conftest import MINI_CATALOG, PDF_BYTES
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -389,15 +391,31 @@ def test_ac6_catalog_listing_and_catalog_doc_ignore_unlisted(
 
 
 def test_ac6_fetch_and_check_ignore_unlisted(
-    base_file, unlisted_file, library, scripted, capsys
+    base_file, unlisted_file, tmp_path, monkeypatch, scripted, capsys
 ):
+    # every run starts from a fresh Library at the same path: the state one
+    # run leaves behind (the creation banner, the freshness note after a
+    # fetch) must not show up in the other's output, and the path itself is
+    # printed, so it has to be the same one (validation 1)
+    root = tmp_path / "lib"
+    monkeypatch.setenv("BMC_SPEC_LIBRARY", str(root))
+
+    def fresh() -> None:
+        shutil.rmtree(root, ignore_errors=True)
+        Library(root).ensure()
+
     for argv in (["fetch", "SECRET"], ["fetch", "--all"], ["check"], ["check", "SECRET"]):
+        fresh()
         code1, with_flag, err1 = run(capsys, *argv, catalog_file=unlisted_file)
+        fresh()
         code2, without, err2 = run(capsys, *argv, catalog_file=base_file)
         assert (code1, with_flag, err1) == (code2, without, err2), argv
+    fresh()
     # the manual, confidential document is refused with the Drop-in advice
+    # (the message names the file to save and the scan to run; validation 1)
     code, out, _ = run(capsys, "fetch", "SECRET", catalog_file=unlisted_file)
-    assert code == 2 and "Drop-in" in out
+    assert code == 2 and "the tool does not download it" in out
+    assert "Then run: bmcspec scan" in out
     code, out, _ = run(capsys, "check", catalog_file=unlisted_file)
     assert code == 0 and "unchecked (manual): SECRET (confidential)" in out
 

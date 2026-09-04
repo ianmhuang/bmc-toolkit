@@ -152,9 +152,8 @@ def support_table(catalog: Catalog, verified: Verified) -> list[str]:
 def _family_cells(doc: Document, verified: Verified) -> list[str]:
     """The document's cells of the per-family table (BY_FAMILY_COLUMNS):
     no Fetch, and Verified reduced to ``PASS`` or ``-``."""
-    document, access, latest, _fetch, _verified, limit = _document_cells(doc, verified)
-    passed = "PASS" if verified.get(doc.id.lower()) else "-"
-    return [document, access, latest, passed, limit]
+    document, access, latest, _fetch, label, limit = _document_cells(doc, verified)
+    return [document, access, latest, "-" if label == "-" else "PASS", limit]
 
 
 def support_by_family(catalog: Catalog, verified: Verified) -> list[str]:
