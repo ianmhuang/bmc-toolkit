@@ -32,7 +32,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from bmc_toolkit.spec.library import SCHEMAS_DIRNAME
+from bmc_toolkit.spec.library import REGISTRIES_DIRNAME, SCHEMAS_DIRNAME
 
 BUNDLE_VERSION = 1
 SCHEMA_FOLDER = "json-schema"
@@ -168,8 +168,9 @@ def unpack(zip_path: Path, vdir: Path) -> BundleResult:
         if meta_path.exists():
             meta_path.unlink()  # nothing is_current() believes until the end
         target = vdir / SCHEMAS_DIRNAME
-        if target.is_dir():
-            shutil.rmtree(target)
+        for stale in (target, vdir / REGISTRIES_DIRNAME):  # one kind per version
+            if stale.is_dir():
+                shutil.rmtree(stale)
         target.mkdir(parents=True)
         names = set()
         for member in kept:

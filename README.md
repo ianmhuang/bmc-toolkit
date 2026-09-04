@@ -38,8 +38,8 @@ checkout run `pip install -r requirements.txt` yourself.
 - `pypdfium2` 5.x (BSD-3-Clause or Apache-2.0): PDF text with character
   positions and bookmarks; the text layer. Version 5 or newer is required
   (its bookmark API changed in 5.0); `extract` refuses an older install.
-- `pdfplumber` (MIT): cell geometry and cell text of ruled tables, for
-  `table`; loaded only by that command.
+- `pdfplumber` (MIT): cell geometry and cell text of tables (ruled, and
+  drawn as cell boxes), for `table`; loaded only by that command.
 
 ## Library location
 

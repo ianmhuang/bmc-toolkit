@@ -517,6 +517,28 @@ def test_cells_tables_continue_across_pages_and_drop_the_header(tmp_path):
         assert lt.rows == [HEADER, *ROWS_1, *ROWS_2]
 
 
+def test_a_cells_row_cut_by_the_page_break_is_joined(tmp_path):
+    # the last row of page 1 has a two-line cell; the page break puts the
+    # second line into a box of its own at the top of page 2, first cell empty
+    page1 = furniture(1) + [(72, 214, "Table 1 - Codes")]
+    page1 += cell_table(
+        72, 200, WIDTHS, [16] * 3, [HEADER, ROWS_1[0], ["Fan", "04h", "rpm and"]]
+    )
+    page2 = furniture(2) + cell_table(
+        72, 740, WIDTHS, [16] * 3, [HEADER, ["", "", "duty cycle"], ROWS_2[0]]
+    )
+    with reader(tmp_path, [page1, page2]) as r:
+        (lt,) = r.logical_tables(1)
+        assert lt.drawn == T.CELLS
+        assert lt.rows == [
+            HEADER,
+            ROWS_1[0],
+            ["Fan", "04h", "rpm and\nduty cycle"],
+            ROWS_2[0],
+        ]
+        assert lt.row_pages == [1, 1, 1, 2]
+
+
 def test_store_keeps_drawn_and_reads_an_old_store_again(tmp_path):
     t = sample_table()
     t.drawn = T.CELLS

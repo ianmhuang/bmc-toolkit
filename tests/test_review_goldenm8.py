@@ -168,11 +168,11 @@ def test_ac1_support_table_prints_verified_for_every_open_document(catalog, caps
         cells_by_id[cells[1].split("`")[1]] = cells
     for doc in _open_documents(catalog):
         verified = cells_by_id[doc.id][5]
-        if True:  # M9: the ZIP bundles are Verified like every other document
-            assert verified != "-", f"{doc.id} not Verified"
-            # M8 follow-ups: "G1, G3 (1.3.3)", one group per verified version
-            group = r"G\d+(, G\d+)* \([^()]+\)"
-            assert re.fullmatch(rf"{group}(; {group})*", verified), (doc.id, verified)
+        # M9: the ZIP bundles are Verified like every other document
+        assert verified != "-", f"{doc.id} not Verified"
+        # M8 follow-ups: "G1, G3 (1.3.3)", one group per verified version
+        group = r"G\d+(, G\d+)* \([^()]+\)"
+        assert re.fullmatch(rf"{group}(; {group})*", verified), (doc.id, verified)
 
 
 # ------------------------------------------------------------------ AC-2

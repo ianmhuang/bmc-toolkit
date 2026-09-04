@@ -26,7 +26,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from bmc_toolkit.spec.library import REGISTRIES_DIRNAME
+from bmc_toolkit.spec.library import REGISTRIES_DIRNAME, SCHEMAS_DIRNAME
 
 REGISTRY_VERSION = 1
 META_NAME = "extract.json"  # shared with the other extractors; "kind" tells them apart
@@ -137,8 +137,9 @@ def unpack(zip_path: Path, vdir: Path) -> RegistryResult:
         if meta_path.exists():
             meta_path.unlink()  # nothing is_current() believes until the end
         target = vdir / REGISTRIES_DIRNAME
-        if target.is_dir():
-            shutil.rmtree(target)
+        for stale in (target, vdir / SCHEMAS_DIRNAME):  # one kind per version
+            if stale.is_dir():
+                shutil.rmtree(stale)
         target.mkdir(parents=True)
         for member in kept:
             base = PurePosixPath(member).name

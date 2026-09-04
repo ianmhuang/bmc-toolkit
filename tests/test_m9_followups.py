@@ -239,6 +239,14 @@ def test_a_table_longer_than_the_cap_prints_the_pages_rows(
         f"page 3; the table runs over pages 1-{pages}; --all-rows prints them all"
     )
     assert lines[3].startswith("Name")
+    # F2: on the first page the header is not counted as a row
+    code = main(["--catalog", str(catalog_file), "table", "DSP0236", "--page", "1"])
+    first_page = capsys.readouterr().out.splitlines()
+    assert code == 0
+    assert first_page[2].startswith(f"note: rows 1-{per_page} of {total}, ")
+    assert first_page[3].startswith("Name")
+    body_first = [ln for ln in first_page[5:] if ln.startswith("item")]
+    assert body_first[0].startswith("item1 ") and len(body_first) == per_page
     body = [ln for ln in lines[5:] if ln.startswith("item")]
     assert body[0].startswith(f"item{first} ") and len(body) == per_page
     code = main(

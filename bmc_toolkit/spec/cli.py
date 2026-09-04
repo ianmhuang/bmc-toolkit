@@ -1896,7 +1896,7 @@ def cmd_table(args: argparse.Namespace) -> int:
         print(tables_mod.describe(table))
         only = None
         if len(table.rows) > ROW_CAP and not args.all_rows:
-            only = table.rows_on(n)
+            only = [i for i in table.rows_on(n) if i]  # the header is not a row
             shown = f"rows {only[0]}-{only[-1]}" if only else "no rows"
             print(
                 f"note: {shown} of {len(table.rows) - 1}, those starting on page {n}; "

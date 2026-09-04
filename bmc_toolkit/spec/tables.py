@@ -11,7 +11,11 @@ every cell is a filled box, and the boxes tile the table edge to edge. A
 ``cells`` table is read from those boxes: at least two rows of at least two
 boxes, rows touching, the outer edges matching from row to row; each box's
 edges become the cell edges, so a merged cell stays one cell. Boxes that
-lie inside a ruled table (its shaded header) are not a second table.
+lie inside a ruled table (its shaded header) are not a second table. A
+cells table has no rule that could show its last row on a page to be
+complete, so a continuation whose first row has an empty first cell is
+taken as the rest of a row the page break cut, as for an open-bottomed
+ruled table.
 pdfplumber does the cell geometry and the text inside each cell; it is
 imported inside the functions that open a PDF.
 
@@ -93,6 +97,7 @@ class PageTable:
     columns: list[float]  # x of the column edges, one more than the columns
     rows: list[list[str]]
     open_bottom: bool = False  # no rule under the last row: the page break cut it
+    # (a cells table has no rule to look for: every continued part counts as open)
     drawn: str = RULED  # RULED or CELLS
 
     @property
@@ -621,7 +626,8 @@ class Reader:
         for part in parts[1:]:
             more = drop_repeated_header(rows, part.rows)
             more = drop_repeated_header(rows, more)  # a "(continued)" sub-header too
-            if more and rows and previous.open_bottom and _is_cut_row(more[0]):
+            cut = previous.open_bottom or previous.drawn == CELLS
+            if more and rows and cut and _is_cut_row(more[0]):
                 rows[-1] = join_cells(rows[-1], more[0])
                 more = more[1:]
             rows.extend(more)

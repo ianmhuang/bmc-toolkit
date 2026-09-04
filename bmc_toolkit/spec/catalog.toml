@@ -512,7 +512,7 @@ listing = "ocp:Server/MHS/DC-SCM-Specs-and-Designs|OCP DC-SCM"
 title = "Datacenter-ready Secure Control Module (DC-SCM) Specification"
 access = "open"
 fetch = "direct"
-limits = "Tables are images: page and render, not table."
+limits = "Tables are images: use page and render; table finds nothing on those pages."
 notes = "Rev 2.0 Ver 1.0 exists only as a Google Drive link on the OCP wiki: fetch prints the browser instruction for it. The DC-SCI pin list is a spreadsheet on the same wiki page, not a document the tool holds."
 
 [[documents.versions]]

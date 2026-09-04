@@ -403,3 +403,25 @@ def test_a_root_defined_schema_lists_its_properties_and_definitions(
     )
     assert code == 0, out
     assert out.splitlines()[0].split(" | ")[4] == "#/properties/ProfileName"
+
+
+def test_force_extract_as_the_other_kind_leaves_one_directory(
+    held, catalog_file, tmp_path, capsys
+):
+    # F3 of round 1: the same version re-added as a schema bundle must not
+    # keep the registries/ tree of the earlier unpack (and the other way round)
+    v = ("--version", "2026.2", "--force")
+    z = tmp_path / "schemas.zip"
+    z.write_bytes(bundle_bytes())
+    add(capsys, catalog_file, z, "2026.2", "--force")
+    (held / "registries").mkdir()  # a stale tree, as if add had not cleaned
+    code, out = run(capsys, "extract", "BUNDLE", *v, catalog_file=catalog_file)
+    assert code == 0, out
+    assert (held / "schemas").is_dir() and not (held / "registries").exists()
+    z2 = tmp_path / "registries2.zip"
+    z2.write_bytes(registries_bytes())
+    add(capsys, catalog_file, z2, "2026.2", "--force")
+    (held / "schemas").mkdir()
+    code, out = run(capsys, "extract", "BUNDLE", *v, catalog_file=catalog_file)
+    assert code == 0, out
+    assert (held / "registries").is_dir() and not (held / "schemas").exists()
