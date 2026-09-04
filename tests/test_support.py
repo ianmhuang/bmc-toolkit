@@ -249,6 +249,70 @@ def test_add_accepts_any_version_of_a_manual_document(
     assert len(row) == 1 and row[0].split("\t")[2:4] == ["1.2 (2024)", "dropin"]
 
 
+def test_fetch_of_a_manual_document_without_versions_points_at_add(
+    extended_file, library, scripted, capsys
+):
+    for argv in (["fetch", "JEDEC-X"], ["fetch", "JEDEC-X", "--version", "1.2"]):
+        code, out, _ = run(capsys, *argv, catalog_file=extended_file)
+        assert code == 2
+        assert out.strip() == (
+            "JEDEC-X is gated and lists no versions: the tool does not download "
+            "it. Register the file you obtained with: bmcspec add FILE "
+            "--document JEDEC-X --version V"
+        )
+    assert scripted.calls == []
+    assert not library.root.exists()
+
+
+def test_fetch_of_a_manual_document_with_a_version_names_its_tier(
+    extended_file, library, scripted, capsys
+):
+    code, out, _ = run(capsys, "fetch", "SECRET", catalog_file=extended_file)
+    assert code == 2
+    lines = out.splitlines()
+    assert lines[0] == "SECRET 0.9 is confidential: the tool does not download it."
+    assert "example.test/secret.pdf" not in out  # confidential: no URL shown
+    assert "Then run: bmcspec scan" in out
+    assert lines[-1] == "no open version is listed"
+    assert scripted.calls == []
+
+
+def test_check_counts_a_manual_document_with_a_listing_once(
+    extended_file, library, scripted, capsys
+):
+    text = extended_file.read_text(encoding="utf-8")
+    text += (
+        '\n[[documents]]\nid = "DSP9999"\nfamily = "mctp"\ntitle = "A manual DMTF '
+        'document with a listing"\naccess = "member"\nfetch = "manual"\n'
+    )
+    extended_file.write_text(text, encoding="utf-8", newline="")
+    code, out, _ = run(capsys, "check", catalog_file=extended_file)
+    assert code == 0
+    lines = out.splitlines()
+    assert any(ln.startswith("unreachable DSP9999: ") for ln in lines)
+    manual = [ln for ln in lines if ln.startswith("unchecked (manual): ")]
+    assert len(manual) == 1 and "DSP9999" not in manual[0]
+    # DSP0236 (listed, no scripted DMTF page) and DSP9999 are the unreachable two
+    assert lines[-1].endswith("unreachable 2, unchecked 6")
+
+
+def test_table_reports_a_golden_file_in_another_encoding(
+    extended_file, tmp_path, capsys
+):
+    golden = tmp_path / "golden.md"
+    rows = "| # | Question | Document |\n|---|---|---|\n| G1 | é | DSP0236 1.3.3 |\n"
+    golden.write_bytes(rows.encode("cp1252"))
+    code, out, _ = run(
+        capsys,
+        "catalog",
+        "--table",
+        "--golden",
+        str(golden),
+        catalog_file=extended_file,
+    )
+    assert code == 1 and out.startswith(f"cannot read {golden}")
+
+
 def test_check_lists_manual_documents_with_their_tier(
     extended_file, library, scripted, capsys
 ):

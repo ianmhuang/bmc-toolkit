@@ -3,8 +3,9 @@
 Claude Code plugin for BMC firmware developers.
 
 The first skill, `bmc-spec`, answers questions about BMC specifications
-(IPMI, DCMI, DMTF MCTP / PLDM / SPDM / NC-SI / SMBIOS, Redfish, NVMe and
-NVMe-MI, OCP DC-SCM and DC-MHS, I2C, SMBus, CMIS) and about OpenBMC source
+(IPMI, DCMI, LPC, eSPI, PWM fans, DMTF MCTP / PLDM / SPDM / NC-SI / SMBIOS,
+Redfish, NVMe and NVMe-MI, OCP DC-SCM with LTPI and DC-MHS, I2C, SMBus,
+PMBus, SFF-8485 SGPIO, CMIS) and about OpenBMC source
 code. It keeps a local library of the documents and repositories you have
 asked about, defaults to the latest published version of each document,
 serves any specific version on request, and cites document, version, section

@@ -316,7 +316,7 @@ def _catalog_table(catalog: Catalog, golden: Path | None) -> int:
     if golden is not None:
         try:
             verified, problems = support_mod.read_golden(golden, catalog)
-        except OSError as exc:
+        except (OSError, UnicodeDecodeError) as exc:
             print(f"cannot read {golden}: {exc}")
             return EXIT_ERROR
         for problem in problems:
@@ -392,11 +392,20 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         if doc is None:
             print(f"unknown document '{args.document}'; run: bmcspec catalog")
             return EXIT_ACTION
+        if doc.fetch == "manual" and not doc.versions:
+            # No version is listed at all: nothing to resolve, nothing to
+            # download; the user places the file they obtained.
+            print(
+                f"{doc.id} is {doc.access} and lists no versions: the tool does "
+                f"not download it. Register the file you obtained with: "
+                f"bmcspec add FILE --document {doc.id} --version V"
+            )
+            return EXIT_ACTION
         ver, problem = _resolve_version(doc, args.doc_version, args.wip)
         if ver is None:
             print(problem)
             return EXIT_ACTION
-        if not ver.open and doc.fetch != "manual":
+        if not ver.open:
             print(_gated_message(library, doc, ver))
             return EXIT_ACTION
         _announce_library(library)
@@ -665,10 +674,12 @@ def cmd_check(args: argparse.Namespace) -> int:
                 f"newer {doc.id}: catalog latest {check.catalog_latest}, "
                 f"{fresh_mod.publisher_name(doc)} lists {listed}"
             )
+    # A manual document with a listing was checked above like any other;
+    # the manual line is for those nobody can check.
     unchecked = [
         d.id for d in catalog.documents if not d.listing and d.fetch != "manual"
     ]
-    manual = [d for d in catalog.documents if d.fetch == "manual"]
+    manual = [d for d in catalog.documents if d.fetch == "manual" and not d.listing]
     if not args.document and unchecked:
         print(f"unchecked: {', '.join(unchecked)} (no publisher listing)")
     if not args.document and manual:

@@ -68,5 +68,8 @@ finding, not an error.
 `check` against the publishers on 2026-09-04: every DMTF document
 current; NVMe lists Management Interface 2.2 and NVMe over PCIe Transport
 1.4 (added to the catalog with `refresh --write`); the OCP wiki lists
-M-CRPS 1.06 and DC-SCM 2.2 as Google Drive links, which the catalog
-records in the documents' notes until a download URL exists.
+M-CRPS 1.06 as a Google Drive link, which the catalog records in the
+document's notes until a download URL exists. DC-SCM Rev 2.2 Ver 1.0 has
+been in the catalog as a direct opencompute.org PDF since M8a; only Rev
+2.0 Ver 1.0 remains a Google Drive link, listed so that `fetch` prints the
+browser instruction and `check DC-SCM` reports current.

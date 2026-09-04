@@ -713,6 +713,7 @@ version = "Rev 0.7"
 url = "https://members.snia.org/document/dl/25923"
 type = "pdf"
 published = "2006-02-01"
+notes = "Cover dated 1 February 2006; the first of the month is the real date."
 
 # PMBus: revisions up to 1.3.1 are public PDFs in the specification archive;
 # the current revisions are sent on request (getpmbusspec@smiforum.org) or
