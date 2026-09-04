@@ -197,6 +197,21 @@ def test_ac10_without_golden_nothing_is_verified(cat_file, capsys):
     assert all(cells[5] == "-" for cells in _rows(out).values())
 
 
+def test_ac10_golden_file_in_another_encoding_is_reported_not_a_traceback(
+    cat_file, tmp_path, capsys
+):
+    # Round 2 (F6): a file that is not UTF-8 ends in "cannot read", exit 1
+    golden = tmp_path / "golden.md"
+    rows = "| # | Question | Document |\n|---|---|---|\n| G1 | café | DSP0236 1.3.3 |\n"
+    golden.write_bytes(rows.encode("cp1252"))
+    code, out, _ = run(
+        capsys, "catalog", "--table", "--golden", str(golden), catalog_file=cat_file
+    )
+    assert code == 1
+    assert out.startswith(f"cannot read {golden}")
+    assert "| Family" not in out
+
+
 def test_ac10_missing_golden_file_is_an_error_not_a_traceback(cat_file, tmp_path, capsys):
     code, out, _ = run(
         capsys,

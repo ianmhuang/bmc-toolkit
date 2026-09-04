@@ -319,6 +319,38 @@ def test_ac6_fetch_of_a_document_without_open_versions_says_so(
     assert "newest open version" not in out
 
 
+def test_ac6_fetch_of_a_manual_confidential_version_names_the_tier(
+    cat_file, library, scripted, capsys
+):
+    # Round 2 (F2): a manual document's version is "not open" like any other,
+    # so it gets the tier line and the no-open-version line, never a URL
+    code, out, _ = run(capsys, "fetch", "SECRET", catalog_file=cat_file)
+    assert code == 2
+    assert scripted.calls == []
+    _assert_gated_message(out, "SECRET", "0.9", "confidential")
+    assert "no open version is listed" in out
+    assert "newest open version" not in out
+    assert "example.test/secret.pdf" not in out
+    assert "failed SECRET" not in out
+    assert not library.root.exists()
+
+
+def test_ac3_fetch_of_a_manual_document_without_versions_points_at_add(
+    cat_file, library, scripted, capsys
+):
+    # Round 2 (F1): nothing to resolve, so neither "--wip" nor an empty
+    # "Known:" list; the add command that catalog DOC already prints
+    for argv in (["fetch", "NDA-ONLY"], ["fetch", "NDA-ONLY", "--version", "1.0"]):
+        code, out, _ = run(capsys, *argv, catalog_file=cat_file)
+        assert code == 2, argv
+        assert "bmcspec add FILE --document NDA-ONLY --version V" in out, argv
+        assert "member" in out, argv
+        assert "--wip" not in out, argv
+        assert "unknown version" not in out, argv
+    assert scripted.calls == []
+    assert not library.root.exists()
+
+
 def test_ac6_the_named_open_version_then_fetches(cat_file, library, scripted, capsys):
     scripted.responses[BUS_131_URL] = ok(PDF_BYTES)
     code, out, _ = run(
@@ -406,6 +438,33 @@ def test_ac8_check_lists_manual_documents_separately_with_their_tier(
     summary = [ln for ln in lines if ln.startswith("summary: ")]
     assert len(summary) == 1
     assert summary[0].endswith("unchecked 6")  # 4 hand-maintained + 2 manual
+
+
+def test_ac8_manual_document_with_a_listing_is_checked_and_counted_once(
+    cat_file, library, scripted, capsys
+):
+    # Round 2 (F3): a manual document that carries a listing (implied DMTF
+    # here) is checked like any other and not repeated on the manual line
+    text = cat_file.read_text(encoding="utf-8") + (
+        '\n[[documents]]\nid = "DSP9998"\nfamily = "mctp"\n'
+        'title = "A member DMTF document held as a Drop-in"\n'
+        'access = "member"\nfetch = "manual"\n'
+    )
+    cat_file.write_text(text, encoding="utf-8", newline="")
+    code, out, _ = run(capsys, "check", catalog_file=cat_file)
+    assert code == 0
+    lines = out.splitlines()
+    assert any(ln.startswith("unreachable DSP9998: ") for ln in lines)
+    manual = [ln for ln in lines if ln.startswith("unchecked (manual): ")]
+    assert manual == [
+        "unchecked (manual): SECRET (confidential), NDA-ONLY (member) "
+        "(never fetched by the tool)"
+    ]
+    unchecked = [ln for ln in lines if ln.startswith("unchecked: ")]
+    assert len(unchecked) == 1 and "DSP9998" not in unchecked[0]
+    # DSP0236 and DSP9998 are the two unreachable; the unchecked count is
+    # the same six as without DSP9998
+    assert lines[-1] == "summary: current 0, newer 0, unreachable 2, unchecked 6"
 
 
 def test_ac8_check_of_one_document_prints_neither_line(
