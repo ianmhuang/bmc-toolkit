@@ -495,12 +495,9 @@ def test_shipped_golden_questions_verify_every_open_document_but_the_bundles():
         root / "docs" / "golden-questions.md", catalog
     )
     assert problems == []
-    # AC-1 of M8: every open document has a question, except the two ZIP
-    # bundles that extract does not unpack yet (registries and profiles).
-    expected = {d.id.lower() for d in catalog.documents if d.access == "open"} - {
-        "dsp8011",
-        "dsp8013",
-    }
+    # AC-1 of M8: every open document has a question; since M9 that includes
+    # the two ZIP bundles (registries and the profile schema).
+    expected = {d.id.lower() for d in catalog.documents if d.access == "open"}
     assert set(verified) == expected
     assert [q for q, _ in verified["ipmi"]] == ["G1", "G2", "G3", "G4", "G5"]
     assert verified["dsp0248"] == [("G13", "1.3.1"), ("G15", "1.3.1")]

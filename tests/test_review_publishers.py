@@ -362,7 +362,9 @@ def _entries(cell: str) -> list[tuple[str, str]]:
 
 
 def test_ac5_one_new_row_per_new_document_on_the_version_checked(shipped, golden_rows):
-    new_rows = [(qid, cells) for qid, cells in golden_rows if int(qid[1:]) >= 81]
+    new_rows = [
+        (qid, cells) for qid, cells in golden_rows if 81 <= int(qid[1:]) <= 100
+    ]  # M9 added G101 and G102 for the bundles
     assert [qid for qid, _ in new_rows] == [f"G{n}" for n in range(81, 101)]
     covered = {}
     for qid, cells in new_rows:

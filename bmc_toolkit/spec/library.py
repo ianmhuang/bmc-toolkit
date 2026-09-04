@@ -18,7 +18,8 @@ the verbatim string.
 ``catalog_known`` (bool: whether the document id is in the Source Catalog).
 
 Everything derived from the original (the Extract and its companions,
-``tables.json``, rendered pages) goes away when the original is replaced.
+``tables.json``, rendered pages, a bundle's ``schemas/`` or ``registries/``)
+goes away when the original is replaced.
 """
 
 import hashlib
@@ -45,6 +46,7 @@ DERIVED_NAMES = (
 )
 RENDERS_DIRNAME = "renders"  # page images rendered from the original
 SCHEMAS_DIRNAME = "schemas"  # JSON Schema files unpacked from a bundle
+REGISTRIES_DIRNAME = "registries"  # message registry files unpacked from a bundle
 MAGIC = {"pdf": (b"%PDF",), "zip": (b"PK\x03\x04",)}
 
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
@@ -115,13 +117,14 @@ class Holding:
     @property
     def extract_meta(self) -> dict | None:
         """Contents of extract.json when the version has been extracted
-        (a PDF's Extract, or a bundle's schemas directory)."""
+        (a PDF's Extract, or a bundle's schemas or registries directory)."""
         path = self.path / "extract.json"
         if not path.is_file():
             return None
         if (
             not (self.path / "extract.txt").is_file()
             and not (self.path / SCHEMAS_DIRNAME).is_dir()
+            and not (self.path / REGISTRIES_DIRNAME).is_dir()
         ):
             return None
         try:
@@ -203,7 +206,7 @@ class Library:
             p = vdir / name
             if p.exists():
                 p.unlink()
-        for dirname in (RENDERS_DIRNAME, SCHEMAS_DIRNAME):
+        for dirname in (RENDERS_DIRNAME, SCHEMAS_DIRNAME, REGISTRIES_DIRNAME):
             tree = vdir / dirname
             if tree.is_dir():
                 shutil.rmtree(tree)

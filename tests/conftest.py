@@ -99,10 +99,13 @@ PDF_BYTES = b"%PDF-1.7\n%fake\n" + b"x" * 200
 
 
 def _zip_without_schemas() -> bytes:
-    """A real archive with no json-schema folder (a registries bundle)."""
+    """A real archive with neither JSON Schema nor message registries
+    (a privilege registry and a README): extract skips it. Since M9 a
+    registries bundle is unpacked, so it cannot stand in here."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("Base.1.0.0.json", "{}")
+        zf.writestr("Redfish_1.0.0_PrivilegeRegistry.json", "{}")
+        zf.writestr("README.md", "nothing to unpack")
     return buf.getvalue()
 
 

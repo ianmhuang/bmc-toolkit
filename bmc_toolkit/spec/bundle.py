@@ -7,6 +7,13 @@ The archive ships every version every resource ever had (Chassis alone has
 ``PowerState``, and the list of versions) and the newest
 ``<Name>.vX_Y_Z.json`` per resource. Nothing else leaves the ZIP.
 
+An archive with no ``json-schema`` folder that carries versioned
+``<Name>.vX_Y_Z.json`` files anywhere (the profile bundle DSP8013, which
+ships only the profile schema and its PDF) is unpacked the same way from
+those files. A schema whose object is defined at the file's root rather
+than under ``definitions/<Name>`` (the profile schema) is read from the
+root.
+
 Files written next to the original::
 
     schemas/<Name>.json, schemas/<Name>.vX_Y_Z.json
@@ -25,7 +32,7 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from bmc_toolkit.spec.library import SCHEMAS_DIRNAME
+from bmc_toolkit.spec.library import REGISTRIES_DIRNAME, SCHEMAS_DIRNAME
 
 BUNDLE_VERSION = 1
 SCHEMA_FOLDER = "json-schema"
@@ -104,19 +111,28 @@ def select_members(members: list[str]) -> tuple[list[str], int, int]:
     dropped because an earlier one has the same base name).
 
     Kept: every unversioned ``<Name>.json`` under a ``json-schema`` folder
-    and the newest ``<Name>.vX_Y_Z.json`` per name. Raises NoSchemas when
-    no member lies under such a folder.
+    and the newest ``<Name>.vX_Y_Z.json`` per name. Without such a folder,
+    the newest ``<Name>.vX_Y_Z.json`` per name wherever it lies (a profile
+    bundle). Raises NoSchemas when neither yields a file.
     """
+    in_folder = [m for m in members if SCHEMA_FOLDER in PurePosixPath(m).parts[:-1]]
+    if in_folder:
+        return _select(in_folder, with_index=True)
+    loose = [m for m in members if version_key(PurePosixPath(m).name)]
+    if not loose:
+        raise NoSchemas(
+            f"no {SCHEMA_FOLDER}/ folder and no versioned schema files in the archive"
+        )
+    return _select(loose, with_index=False)
+
+
+def _select(members: list[str], *, with_index: bool) -> tuple[list[str], int, int]:
     refused = 0
     repeats: dict[str, int] = {}  # base name -> members beyond the first
     unversioned: list[str] = []
     newest: dict[str, tuple[tuple[int, int, int], str]] = {}
-    seen_folder = False
     for member in members:
         parts = PurePosixPath(member).parts
-        if SCHEMA_FOLDER not in parts[:-1]:
-            continue
-        seen_folder = True
         if not _is_safe(member):
             refused += 1
             continue
@@ -130,10 +146,8 @@ def select_members(members: list[str]) -> tuple[list[str], int, int]:
             name = resource_name(base)
             if name not in newest or key > newest[name][0]:
                 newest[name] = (key, member)
-        elif _UNVERSIONED.match(base):
+        elif with_index and _UNVERSIONED.match(base):
             unversioned.append(member)
-    if not seen_folder:
-        raise NoSchemas(f"no {SCHEMA_FOLDER}/ folder in the archive")
     kept = sorted(unversioned) + sorted(m for _, m in newest.values())
     # a repeated name counts only when the member it shadows is written
     duplicates = sum(repeats[PurePosixPath(m).parts[-1]] for m in kept)
@@ -154,8 +168,9 @@ def unpack(zip_path: Path, vdir: Path) -> BundleResult:
         if meta_path.exists():
             meta_path.unlink()  # nothing is_current() believes until the end
         target = vdir / SCHEMAS_DIRNAME
-        if target.is_dir():
-            shutil.rmtree(target)
+        for stale in (target, vdir / REGISTRIES_DIRNAME):  # one kind per version
+            if stale.is_dir():
+                shutil.rmtree(stale)
         target.mkdir(parents=True)
         names = set()
         for member in kept:
@@ -306,8 +321,15 @@ class Schemas:
 
     def main_definition(self, res: Resource) -> Located | None:
         """The resource's own definition: the newest versioned node when
-        the file has one, else the index entry."""
-        return self.definition(res.file, res.name)
+        the file has one, else the index entry; the file's root when the
+        object is defined there (the profile schema)."""
+        found = self.definition(res.file, res.name)
+        if found is not None:
+            return found
+        root = self.load(res.file)
+        if isinstance(root.get("properties"), dict):
+            return Located(res.file, "#", root)
+        return None
 
     def property(self, where: Located, name: str) -> Located | None:
         props = where.node.get("properties", {})
