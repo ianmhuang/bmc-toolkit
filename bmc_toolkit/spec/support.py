@@ -111,10 +111,10 @@ def fetch_label(doc: Document) -> str:
     return "manual (Drop-in)" if doc.fetch == "manual" else doc.fetch
 
 
-def _row(catalog: Catalog, doc: Document, verified: Verified) -> list[str]:
+def _document_cells(doc: Document, verified: Verified) -> list[str]:
+    """The document's cells without the Family column (COLUMNS[1:])."""
     latest = doc.latest()
     return [
-        catalog.families[doc.family].title,
         f"`{doc.id}` {doc.title}",
         access_label(doc),
         latest.version if latest else "-",
@@ -126,7 +126,10 @@ def _row(catalog: Catalog, doc: Document, verified: Verified) -> list[str]:
 
 def support_rows(catalog: Catalog, verified: Verified) -> list[list[str]]:
     """One row per document, in catalog order."""
-    return [_row(catalog, doc, verified) for doc in catalog.documents]
+    return [
+        [catalog.families[doc.family].title, *_document_cells(doc, verified)]
+        for doc in catalog.documents
+    ]
 
 
 def _table_lines(columns: tuple[str, ...], rows: list[list[str]]) -> list[str]:
@@ -152,7 +155,7 @@ def support_by_family(catalog: Catalog, verified: Verified) -> list[str]:
     sits apart from its family still lands under the family's heading."""
     grouped: dict[str, list[list[str]]] = {}
     for doc in catalog.documents:
-        grouped.setdefault(doc.family, []).append(_row(catalog, doc, verified)[1:])
+        grouped.setdefault(doc.family, []).append(_document_cells(doc, verified))
     lines: list[str] = []
     for family in catalog.families.values():
         rows = grouped.get(family.id)

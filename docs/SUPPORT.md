@@ -8,8 +8,9 @@ one table per family, generated from `bmc_toolkit/spec/catalog.toml` and
   and the other commands) and the document's title.
 - **Access**: `open` (the tool downloads it), `gated` (free registration or
   a request to the publisher), `member`, `confidential` (NDA). `open
-  (latest gated)` means the newest version sits behind a registration and
-  `fetch` takes the newest open one.
+  (latest gated)` means the newest version sits behind a registration:
+  `fetch DOC` refuses it and names the newest open one (`--version X`);
+  `fetch --all` takes that one.
 - **Latest**: the newest published version the catalog lists; `-` when a
   manual document lists none.
 - **Fetch**: `direct` from the publisher, `wayback` from the Internet

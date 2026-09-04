@@ -567,7 +567,7 @@ def test_document_cell_accepts_any_whitespace_between_id_and_version(
     assert verified == {"dsp0236": [("G1", "1.3.3")], "ipmi": [("G2", "2.0 rev 1.1")]}
 
 
-# --------------------------------------------- 1.0.0: the per-family table
+# ------------------------------------ support-doc: the per-family table
 
 
 def test_by_family_groups_documents_under_their_family_in_catalog_order(

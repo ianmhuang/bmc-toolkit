@@ -299,9 +299,10 @@ layer); `catalog --table` prints the Support Level table from the catalog
 `--golden docs/golden-questions.md` fills the Verified column from that
 file's `Document` column with the question ids per version they were
 checked on (`G13, G15 (1.3.1)`); `--by-family` prints the same per family,
-a heading and a table each, which is what `docs/SUPPORT.md` holds. The latest version is the one with the
-newest publication date; same-day versions are told apart by the numbers
-in their version strings (`2.0.0` over `1.3.0`). A document
+a heading and a table each, which is what `docs/SUPPORT.md` holds. The
+latest version is the one with the newest publication date; same-day
+versions are told apart by the numbers in their version strings (`2.0.0`
+over `1.3.0`). A document
 may name companions in `searched_with` (errata, specification updates)
 that `find` searches together with it, and a `listing`
 (`dmtf:<DSP>`, implied for DMTF documents; `nvme:<slug>` of the
