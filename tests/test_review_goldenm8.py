@@ -196,9 +196,9 @@ def test_ac2_every_document_entry_names_a_catalog_id_and_a_listed_version(catalo
 def test_ac2_new_questions_are_asked_on_the_latest_version(catalog, rows):
     """Rows added by M8 (G25 and later) name the catalog's Latest.
 
-    Where Latest is a gated version the tool cannot download (PMBUS-I and
-    PMBUS-II 1.5), the newest open version is accepted: the AC text says
-    Latest, the shipped rows name 1.3.1; see the review findings.
+    Where Latest is gated (no URL, sent on request) the newest open version
+    is accepted, and AC-2 (round 2) says the row then says so: the cell that
+    locates the answer mentions the gated Latest.
     """
     new_rows = [(qid, cells) for qid, cells, _ in rows if _number(qid) > 24]
     assert new_rows, "M8 adds questions numbered from G25"
@@ -206,18 +206,82 @@ def test_ac2_new_questions_are_asked_on_the_latest_version(catalog, rows):
         for doc_id, version in _entries(cells[2]):
             doc = catalog.get(doc_id)
             latest = doc.latest()
+            if version == latest.version:
+                continue
             newest_open = doc.newest_open()
-            accepted = {latest.version}
-            if newest_open is not None:
-                accepted.add(newest_open.version)
-            assert version in accepted, (
+            assert newest_open is not None and version == newest_open.version, (
                 f"{qid}: {doc_id} {version!r} is neither Latest {latest.version!r} "
                 f"nor the newest open version"
+            )
+            assert latest.access == "gated", (
+                f"{qid}: {doc_id} Latest {latest.version!r} is open; name it"
+            )
+            where = cells[3]
+            assert "gated" in where.lower() and latest.version in where, (
+                f"{qid}: {doc_id} is verified on {version} but the row does not say "
+                f"that Latest {latest.version} is gated"
             )
     # every open document new to M8 got its row on Latest or newest open
     covered_new = {doc_id for _, cells in new_rows for doc_id, _ in _entries(cells[2])}
     expected_new = {d.id for d in _open_documents(catalog)} - ZIP_BUNDLES - M8A_VERIFIED
     assert covered_new >= expected_new, sorted(expected_new - covered_new)
+
+
+def test_ac2_rows_on_an_open_latest_do_not_claim_it_is_gated(catalog, rows):
+    """The gated wording is reserved for documents whose Latest is gated."""
+    for qid, cells, _ in rows:
+        if _number(qid) <= 24:
+            continue
+        for doc_id, _ in _entries(cells[2]):
+            latest = catalog.get(doc_id).latest()
+            if latest.access != "gated":
+                assert "is gated" not in cells[3].lower(), (qid, doc_id)
+
+
+def _rows_for(rows, doc_id: str) -> list[tuple[str, list[str]]]:
+    """(id, cells) of every question row whose Document cell names doc_id."""
+    return [
+        (qid, cells)
+        for qid, cells, _ in rows
+        if any(d == doc_id for d, _ in _entries(cells[2]))
+    ]
+
+
+@pytest.mark.parametrize("doc_id", ["PMBUS-I", "PMBUS-II"])
+def test_ac2_pmbus_is_verified_on_the_newest_open_version_and_says_so(
+    catalog, rows, doc_id
+):
+    doc = catalog.get(doc_id)
+    assert doc.latest().access == "gated"
+    newest_open = doc.newest_open().version
+    matching = _rows_for(rows, doc_id)
+    assert matching, f"no row for {doc_id}"
+    for qid, cells in matching:
+        versions = {v for d, v in _entries(cells[2]) if d == doc_id}
+        assert versions == {newest_open}, (qid, versions)
+        assert doc.latest().version in cells[3] and "gated" in cells[3].lower(), qid
+
+
+@pytest.mark.parametrize("doc_id", ["DSP0276", "DSP0277"])
+def test_ac2_secured_messages_latest_is_2_0_0_and_the_row_names_it(
+    catalog, rows, doc_id
+):
+    """Round 2: 1.3.0 and 2.0.0 share a publication date; the catalog's tie
+    rule keeps the later entry, so 2.0.0 must be listed after 1.3.0 and the
+    row must be verified on 2.0.0, the newer line."""
+    doc = catalog.get(doc_id)
+    assert doc.latest().version == "2.0.0"
+    assert doc.find_version("1.3.0") is not None, "1.3.0 stays in the catalog"
+    listed = [v.version for v in doc.versions]
+    assert listed.index("1.3.0") < listed.index("2.0.0"), listed
+    same_day = [v for v in doc.versions if v.version in ("1.3.0", "2.0.0")]
+    assert same_day[0].published == same_day[1].published, "the tie the swap resolves"
+    matching = _rows_for(rows, doc_id)
+    assert matching, f"no row for {doc_id}"
+    for _, cells in matching:
+        versions = {v for d, v in _entries(cells[2]) if d == doc_id}
+        assert versions == {"2.0.0"}, cells[2]
+        assert f"{doc_id} 2.0.0" in cells[3], cells[3]
 
 
 def test_ac2_ipmi_rows_name_both_ipmi_and_the_errata(rows):
@@ -242,6 +306,14 @@ def test_ac3_question_ids_are_unique_gap_free_and_continue_past_g24(rows):
     numbers = sorted(_number(qid) for qid in ids)
     assert numbers == list(range(1, len(numbers) + 1)), "gap in the numbering"
     assert numbers[-1] > 24, "no question numbered past the existing G1-G24"
+
+
+def test_ac3_new_ids_follow_file_order(rows):
+    """Round 2: the introduction says the ids of G25 onwards follow file
+    order, so the Verified column's ids lead a reader to the row."""
+    new_numbers = [_number(qid) for qid, _, _ in rows if _number(qid) > 24]
+    assert new_numbers == sorted(new_numbers), new_numbers
+    assert new_numbers[0] == 25
 
 
 # ------------------------------------------------------------------ AC-4
@@ -289,6 +361,9 @@ def test_ac5_m8a_limits_are_kept_and_defects_named_in_rows_are_limits(catalog, r
         "no ruling lines": "ruling lines",
         "tables are images": "images",
         "bookmarks are anchors": "anchors",
+        # round 2: the two defects the rows named without a limit (F2)
+        "carry no section numbers": "section numbers",
+        "extract as single letters": "single letters",
     }
     for qid, cells, _ in rows:
         blob = (cells[3] + " " + cells[4]).lower()
@@ -300,6 +375,49 @@ def test_ac5_m8a_limits_are_kept_and_defects_named_in_rows_are_limits(catalog, r
                 assert limit_word in doc.limits.lower(), (
                     f"{qid} says {phrase!r} about {doc_id} but its limits do not"
                 )
+
+
+def test_ac5_defects_named_in_the_description_are_catalog_limits(catalog):
+    """The description lists the documents whose defects were recorded; each
+    must carry a limit that names the defect, and the M8a text is intact."""
+    anchors = (
+        "DSP0234",
+        "DSP0235",
+        "DSP0237",
+        "DSP0284",
+        "DSP0253",
+        "DSP0254",
+    )
+    for doc_id in anchors:
+        assert "anchor" in catalog.get(doc_id).limits.lower(), doc_id
+    no_rules = (
+        "DSP0239",
+        "DSP0242",
+        "DSP0245",
+        "DSP0256",
+        "DSP0257",
+        "DSP0266",
+        "DSP0268",
+        "DSP0270",
+        "DSP0272",
+        "DSP0275",
+        "DSP0276",
+        "DSP0277",
+        "DSP0287",
+        "DSP0289",
+        "DSP0291",
+        "DSP0296",
+        "DSP2046",
+        "DSP2053",
+        "DSP2065",
+    )
+    for doc_id in no_rules:
+        assert "ruling lines" in catalog.get(doc_id).limits.lower(), doc_id
+    # round 2 (F2): IPMB's bookmarks and DSP0284's rotated figure labels
+    assert "section numbers" in catalog.get("IPMB").limits
+    assert "single letters" in catalog.get("DSP0284").limits
+    # DSP0239's M8a limit was appended to, not replaced
+    assert catalog.get("DSP0239").limits.startswith(M8A_LIMITS["DSP0239"])
 
 
 def test_ac5_limits_are_not_repeated_in_notes_and_print_in_the_table(catalog, capsys):
