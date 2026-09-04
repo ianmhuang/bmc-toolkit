@@ -25,10 +25,10 @@ the document, not of the tool.
 | G6 | DCMI Group Extension id and Get DCMI Capabilities Info code | DCMI 1.5 | DCMI 1.5, section 6.1.1, Table 6-2, page 26 | `find DCMI "Group Extension"` |
 | G7 | DCMI Get Power Reading / Get Power Limit / Set Power Limit codes | DCMI 1.5 | DCMI 1.5, section 6 command table, page 25; Tables 6-16 to 6-18, pages 42-44 | `table DCMI --page 25` |
 | G8 | MCTP packet header byte by byte | DSP0236 1.3.3 | DSP0236 1.3.3, section 8.2, Table 1 and Figure 4, pages 24-25 | `page DSP0236 24 --to 25`, `render DSP0236 --page 25` (Figure 4 is a box-only diagram) |
-| G9 | MCTP message type values for PLDM, NVMe-MI, SPDM | DSP0239 1.12.0 | DSP0239 1.12.0, section 7, Table 1, pages 13-14 (page 13 extracts without layout: an emoji in a NOTE) | `table DSP0239 --page 13` |
+| G9 | MCTP message type values for PLDM, NVMe-MI, SPDM | DSP0239 1.12.0 | DSP0239 1.12.0, section 7, Table 1, pages 13-14 (page 13 extracts without layout: an emoji in a NOTE) | `page DSP0239 13 --to 14` (the table has no ruling lines) |
 | G10 | SMBus command code carrying MCTP | DSP0237 1.2.0 | DSP0237 1.2.0, section 6.3, page 12 | `find DSP0237 "command code"` |
 | G11 | PLDM message header layout | DSP0240 1.1.1 | DSP0240 1.1.1, section 7.1, page 23 | `page DSP0240 23` |
-| G12 | PLDM type numbers | DSP0245 1.4.0 | DSP0245 1.4.0, section 8, Table 1 (written in binary) | `table DSP0245 --page N` from the `find` hit |
+| G12 | PLDM type numbers | DSP0245 1.4.0 | DSP0245 1.4.0, section 8, Table 1 (written in binary) | `find DSP0245 "PLDM Types"`, `page DSP0245 11` (the table has no ruling lines) |
 | G13 | GetPDR request fields and command code | DSP0248 1.3.1 | DSP0248 1.3.1, section 26.2.1, Table 69, page 122; Table 110, page 200 | `table DSP0248 --page 122` (joins pages 122-123) |
 | G14 | RequestUpdate request fields | DSP0267 1.3.0 | DSP0267 1.3.0 (two fields more than 1.1.0), section 10 command tables | `find DSP0267 RequestUpdate`, `table` on the hit page |
 | G15 | GetSensorReading response, spec and code | DSP0248 1.3.1 | DSP0248 1.3.1 Table 33; libpldm `decode_get_sensor_reading_resp`; pldm `platform-mc` | the two-part workflow |
@@ -38,6 +38,52 @@ the document, not of the tool.
 | G19 | NVMe-MI opcodes of Read NVMe-MI Data Structure, NVM Subsystem Health Status Poll, Controller Health Status Poll | NVME-MI 2.1 | NVMe-MI 2.1, section 5, Figure 68, page 92 | `find NVME-MI "Opcode"` |
 | G20 | What LTPI is in DC-SCM 2.x | DC-SCM Rev 2.1 Ver 1.1 | DC-SCM Rev 2.1 Ver 1.1, LTPI section; the signal details are in the separate LTPI specification, which the catalog does not hold | `find DC-SCM LTPI`, `render` (DC-SCM tables are images) |
 | G21 | I2C speed modes and maximum bit rates | UM10204 Rev. 7.0 | UM10204 Rev. 7.0, section 5, page 33 | `section UM10204 "Bus speeds"` |
+
+## IPMB and FRU
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G71 | IPMB request and response message layout | IPMB 1.0 | IPMB 1.0, section 2.11.1, Figure 2-2, PDF page 25 (printed 19): request rsSA, netFn (even)/rsLUN, checksum, rqSA, rqSeq/rqLUN, cmd, data bytes, checksum; response rqSA, netFn (odd)/rqLUN, checksum, rsSA, rqSeq/rsLUN, cmd, completion code, response data, checksum; checksums are 2's complement (page 10) | `section IPMB "Message Transaction"` (the IPMB bookmarks carry no section numbers), `find IPMB rqSeq`, `render IPMB --page 25` (the format is a figure) |
+| G72 | FRU Common Header layout | IPMI-FRU 1.0 rev 1.3 | IPMI-FRU 1.0 rev 1.3, section 8, Table 8-1, PDF page 11 (printed 5): format version (1h), then starting offsets in multiples of 8 bytes for the Internal Use, Chassis Info, Board, Product Info and MultiRecord areas (00h = absent), a pad byte and a zero checksum; eight bytes in all | `section IPMI-FRU 8`, `table IPMI-FRU --page 11` |
+
+## eSPI, LPC and PWM fans
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G73 | eSPI channel numbers and what each carries | ESPI 1.6 | eSPI 1.6, section 2.2, Figure 9, page 18: channel 0 peripheral (host bridge to endpoint), channel 1 virtual wires (tunneled sideband pins), channel 2 out-of-band tunneled SMBus, channel 3 flash access; all share one chip select and the data and clock pins | `find ESPI "Channel 3"`, `page ESPI 18` |
+| G74 | LPC START field encodings | LPC 1.1 | LPC 1.1, section 4.2.1.1, page 15: 0000 start of a target cycle (memory, I/O, DMA), 0010 and 0011 grant for bus master 0 and 1, 1101 firmware memory read, 1110 firmware memory write, 1111 stop/abort; CYCTYPE + DIR encodings follow in 4.2.1.2 | `section LPC 4.2.1.1`, `table LPC --page 15` |
+| G75 | PWM fan control signal frequency and tachometer output | PWM-FAN Rev 1.3 | 4-Wire PWM Controlled Fans 1.3, sections 2.1.3 and 2.1.4, page 9: PWM target 25 kHz, acceptable 21 to 28 kHz, VIL 0.8 V, pulled up to at most 5.25 V in the fan (3.3 V encouraged); tachometer two pulses per revolution, open collector or open drain, pulled up to 12 V on the motherboard | `find PWM-FAN "PWM Frequency"`, `page PWM-FAN 9` |
+
+## NVM Express
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G54 | Admin command opcodes: Get Log Page, Identify, Set Features, Get Features, Firmware Commit, NVMe-MI Send and Receive | NVME-BASE 2.4 | NVMe Base 2.4, section 5, Figure 143, pages 202-203: Get Log Page 02h, Identify 06h, Abort 08h, Set Features 09h, Get Features 0Ah, Asynchronous Event Request 0Ch, Firmware Commit 10h, Firmware Image Download 11h, NVMe-MI Send 1Dh, NVMe-MI Receive 1Eh | `find NVME-BASE "Opcodes for Admin Commands"`, `table NVME-BASE --page 202` |
+| G55 | NVMe-MI message header: MCTP message type, and the NMIMT values | NVME-MI 2.2 | NVMe-MI 2.2, section 3.1.1, Figure 20, pages 41-42: MCTP message type 4h; NMIMT 0h Control Primitive, 1h NVMe-MI Command, 2h NVMe Admin Command, 4h PCIe Command, 5h Asynchronous Event; ROR bit 7 (0 request, 1 response), CSI bit 0 selects Command Slot 0 or 1 | `find NVME-MI NMIMT --version 2.2`, `page NVME-MI 41 --to 42 --version 2.2` |
+| G56 | PCI configuration header of an NVMe controller: where the memory register BARs and the class code sit | NVME-PCIE 1.4 | NVMe over PCIe 1.4, section 3.8.1, Figure 10, page 17: MLBAR (BAR0) 10h-13h, MUBAR (BAR1) 14h-17h, BAR2 18h index/data pair or vendor specific, CC class code 09h-0Bh (BCC, SCC, PI in Figure 15, page 18) | `find NVME-PCIE MLBAR`, `table NVME-PCIE --page 17` |
+
+## OCP DC-SCM and DC-MHS
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G63 | LTPI frame types, their comma symbols and size | LTPI Rev 1.2 Ver 1.0 | LTPI Rev 1.2 Ver 1.0, section 3, Table 19, PDF page 52 (printed 46): K28.5 Link Detect and Link Speed Selection, K28.6 Capabilities Advertise and Configure/Accept, K28.7 LTPI Operational Frame; every frame is 16 symbols (160 bits in 8b/10b); base frequency 25 MHz SDR (3.1.1.1, page 53) | `find LTPI "Frame Types summary"`, `page LTPI 52 --to 53` |
+| G64 | M-CRPS 73.5 mm form factor dimensions and the sideband signals on its card edge | M-CRPS R1 v1.0 RC4 | M-CRPS v1.00 RC4, section 2.6.1, Tables 2-2 and 2-3, pages 34-35: 40 x 73.5 x 185 mm; signal pins A19-A25 / B19-B25: PMBus SDA, PMBus SCL, PSON#, SMBAlert#, Return Sense / PS_KILL, Remote sense, PWOK, A0 and A1 (SMBus address), +12VSB, Cold Redundancy Bus, 12V load share bus, Imon, VINOK | `section M-CRPS 2.6`, `page M-CRPS 34 --to 35` |
+| G65 | Signals on the M-PIC primary control panel connector | M-PIC R1 v1.11 | M-PIC 1.11, section 11.4.1, Table 23, pages 81-82: 12V_CP and GND, [SMB/I3C]_BMC_SDA/SCL from the DC-SCM BMC, PCP_SB[4:1] sideband GPIOs from the HPM FPGA (SB1 suggested for PRES_N or PESTI, SB2 for PWREN), optional USB 2.0 USB_PCP_DP/DN, SPI from the DC-SCM; 2x10 header pinout in Table 24 | `find M-PIC "Control Panel Pin"`, `page M-PIC 81 --to 82` |
+| G66 | Signals of an M-XIO port | M-XIO R1 v1.04 RC1 | M-XIO 1.04, section 6, Table 2, pages 13-14: PER/PET PCIe lanes, REFCLK_D 100 MHz, SMSCL/SMSDA (SMBus up to 400 kHz or I3C after discovery, BMC domain), PERST_N, CBL_PRES_PESTI_N (cable presence and PESTI), 3p3AUX_MGMT, GND, FLEXIO_[0:6], USB2 | `section M-XIO 6`, `table M-XIO --page 13` |
+| G67 | M-DNO HPM board types and their widths | M-DNO R1 v1.1 RC2 | M-DNO Rev 1.0 Version 1.1, section 9, pages 20-21: Type 2 and Type 3 are half width (210 mm), Type 4 is three-quarter width (295 mm); Type 1 (full width) is defined by M-FLW; DC-SCM and OCP NIC connector locations are common to all types relative to the datum | `section M-DNO 9`, `page M-DNO 20 --to 21` |
+| G68 | M-FLW HPM power zones and their ratings | M-FLW R1 v1.2 RC3 | M-FLW Rev 1.0 Version 1.2 RC3, section 11, Table 5, page 60: Zone A M-CRPS connector ingress up to 3200 W, Zone B 2x6+12s PICPWR egress up to 864 W, Zone C near side riser PICPWR up to 252 W per connector, Zone D DC-SCM R2.x up to 50 W, Zone E OCP NIC R3.0 and Platform Custom Zone up to 160 W | `section M-FLW 11`, `page M-FLW 60` |
+| G69 | PESTI protocol commands and their data byte values | M-PESTI R1 v1.2 RC2 | M-PESTI 1.2 RC2, section 3.4, page 13: Discovery Payload Request 00h, Virtual Wire Exchange 01h (a target without virtual wires answers 00h), Mux Switch Command 02h for fanout devices | `section M-PESTI 3.4`, `page M-PESTI 13` |
+| G70 | M-SDNO HPM classes and their widths | M-SDNO v1.1 RC2 | M-SDNO R1.0 V1.1 RC2, section 8.1, pages 22-23: Class A 19" half width 210 mm, Class B 21" half width 250 mm, Class C 19" full width 426 mm, Class D 21" full width 512 mm, Class E 19" full width 426 mm with M-CRPS direct dock; length is variable up to Common Chassis Intervals | `section M-SDNO 8.1`, `page M-SDNO 22 --to 23` |
+
+## SMBus, CMIS, SGPIO and PMBus
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G76 | SMBus Alert Response Address and Device Default Address | SMBUS 3.3.1 | SMBus 3.3.1, sections 6.2.2.6 and 6.2.2.7, page 35: Alert Response Address 0001 100b (see Appendix A, SMBALERT#); Device Default Address 1100 001b, reserved for the Address Resolution Protocol | `find SMBUS "Alert Response Address"`, `page SMBUS 35` |
+| G77 | CMIS Module State Machine states and exit-condition priority | CMIS 5.4 | OIF-CMIS 5.4, section 6.3.2.2, Figure 6-3 and Table 6-10, page 87: Reset, Resetting, MgmtInit, ModuleLowPwr, ModulePwrUp, ModuleReady, ModulePwrDn, Fault; power-up starts in Reset and moves to MgmtInit when ResetS is false; exit priority ResetS, then FaultS, then all others | `section CMIS 6.3.2.2`, `page CMIS 87`, `render CMIS --page 87` (the diagram is a figure) |
+| G78 | SGPIO bus signals and who drives them | SFF-8485 Rev 0.7 | SFF-8485 Rev 0.7, section 5, Table 2, PDF page 11 (printed 10): SClock, SLoad (last clock of a bit stream) and SDataOut driven by the initiator, SDataIn by the target and optional; all transmitters open drain | `section SFF-8485 5`, `table SFF-8485 --page 11` |
+| G79 | PMBus Group Command Protocol rules | PMBUS-I 1.3.1 | PMBus Part I 1.3.1, section 5.6.1, page 13: mandatory; commands for several devices in one transmission separated by REPEATED START, one command per device, executed when all see the STOP; not for commands that return data (STATUS_BYTE); with PEC each sub-packet has its own PEC | `section PMBUS-I 5.6.1`, `page PMBUS-I 13` |
+| G80 | PMBus command codes for STATUS_BYTE, STATUS_WORD, READ_VIN, READ_VOUT, READ_IOUT, READ_TEMPERATURE_1, PMBUS_REVISION | PMBUS-II 1.3.1 | PMBus Part II 1.3.1, Appendix command summary, page 116: STATUS_BYTE 78h, STATUS_WORD 79h, READ_VIN 88h, READ_VOUT 8Bh, READ_IOUT 8Ch, READ_TEMPERATURE_1 8Dh, READ_FAN_SPEED_1 90h, READ_POUT 96h, PMBUS_REVISION 98h; READ_VOUT itself in 18.4, page 98 | `find PMBUS-II READ_VOUT`, `table PMBUS-II --page 116` (one Logical Table over pages 112-120) |
 
 ## MCTP transport bindings and message types
 
@@ -92,6 +138,17 @@ the document, not of the tool.
 | # | Question | Document | Where the answer is | Commands |
 |---|---|---|---|---|
 | G53 | Which structures a compliant SMBIOS implementation must provide | DSP0134 3.9.0 | DSP0134 3.9.0, section 6.2, Table 4, pages 28-29: Firmware Information (Type 0), System Information (1), System Enclosure (3), Processor Information (4), Cache Information (7), System Slots (9), Physical Memory Array (16), Memory Device (17), Memory Array Mapped Address (19), System Boot Information (32) | `section DSP0134 6.2`, `table DSP0134 --page 28` (one Logical Table over pages 28-29) |
+
+## Redfish documents
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G57 | Properties every Redfish resource carries, and which are required | DSP0268 2026.1 | DSP0268 2026.1, section 3.1.1, page 13: @odata.context, @odata.etag, @odata.id (required), @odata.type (required), Description, Id (required), Name (required), Oem | `section DSP0268 3.1`, `page DSP0268 13` |
+| G58 | Values of the Sensor resource's ReadingType | DSP2046 2026.1 | DSP2046 2026.1, section 6.124.5.7, pages 971-973: AbsoluteHumidity, AirFlow (deprecated v1.7), AirFlowCMM, Altitude, Barometric, ChargeAh, Current, EnergyJoules and the rest of the list through Voltage; the property itself in 6.124.3, page 964 | `section DSP2046 6.124.5.7`, `page DSP2046 971 --to 973` |
+| G59 | How the Redfish host interface is described in SMBIOS and which device types it allows | DSP0270 1.3.1 | DSP0270 1.3.1, sections 7.2 and 7.3.1, pages 15-16: Type 42 with interface type 40h (network host interface); device type 02h USB, 03h PCI/PCIe, 04h USB v2, 05h PCI/PCIe v2, 80h-FFh OEM | `find DSP0270 "Type 42"`, `section DSP0270 7.3.1`, `page DSP0270 15 --to 16` |
+| G60 | ReadRequirement values in an interoperability profile and the default | DSP0272 1.10.0 | DSP0272 1.10.0, section 8.4.3.3, page 28: Mandatory (default), Supported, Recommended, IfImplemented, IfPopulated, Conditional | `section DSP0272 8.4.3.3`, `page DSP0272 28` |
+| G61 | Which schemas define a PowerState property | DSP2053 2026.1 | DSP2053 2026.1, section 3 reference guide, page 216: Chassis, Manager, Processor, Switch, ComputerSystem, Circuit, OutletGroup, Outlet (also as an action parameter of BreakerControl and PowerControl) | `find DSP2053 PowerState`, `page DSP2053 216` |
+| G62 | Severity, message text and resolution of Base.PropertyValueNotInList | DSP2065 2026.1 | DSP2065 2026.1, section 2.3.78, page 63: Warning; "The value '<1>' for the property <2> is not in the list of acceptable values."; resolution: choose a value from the enumeration list and resubmit; version added v1.0 | `find DSP2065 PropertyValueNotInList`, `page DSP2065 63` |
 
 ## OpenBMC
 
