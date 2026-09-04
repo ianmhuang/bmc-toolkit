@@ -4,7 +4,10 @@ Black-box against extract_pdf, the catalog model, the CLI table and the
 refresh writer. Every test here fails on main and passes on the branch.
 Round 2 added the cases for the round-1 findings: many tall glyphs beside a
 two-line cell, the contents-page threshold with repeats, the `catalog DOC`
-listing on a same-day tie, and whitespace in the Document cell.
+listing on a same-day tie, and whitespace in the Document cell. Round 3
+added the round-2 finding: a two-line cell whose lower line starts further
+left than the upper one (outdented, centred, right-aligned), and a
+same-size subscript run that must still ride its line.
 """
 
 import json
@@ -121,6 +124,81 @@ def test_ac1_many_tall_glyphs_still_leave_the_two_line_cell_apart(tmp_path):
     assert "0xE0" in lines[0] and "0xE5" in lines[0]
     assert lines[0].replace(" ", "").endswith("Reservedfor"), lines
     assert lines[1].replace(" ", "") == "vendoruse", lines
+
+
+def test_ac1_outdented_lower_line_stays_whole_and_below(tmp_path):
+    # Round 3 (round-2 F1): the lower line of the cell starts 10 pt further
+    # left than the upper one, so its first glyph has nothing over it. The
+    # line must not lose that glyph to the upper line: two lines, the lower
+    # one complete. On main the tall value bridges both lines into one.
+    items = [
+        (72, 695, "0x0909", 15),
+        (340, 700, "Set Link"),
+        (330, 689.6, "EEE only"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "outdent.pdf", [items]))
+    lines = _page_lines(r.text, 1)
+    assert len(lines) == 2, lines
+    assert "0x0909" in lines[0] and lines[0].endswith("Set Link"), lines
+    assert lines[1].strip() == "EEE only", lines
+
+
+def test_ac1_centred_cell_wider_below_on_both_sides_stays_two_lines(tmp_path):
+    # A centred two-line cell: the lower line sticks out on both sides of
+    # the upper one, and a third body-size column follows on the upper
+    # baseline. Two lines, the third column on the first.
+    items = [
+        (72, 695, "0x0909", 15),
+        (350, 700, "Set Link"),
+        (330, 689.6, "unsupported EEE mode"),
+        (450, 700, "Comment"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "centred.pdf", [items]))
+    lines = _page_lines(r.text, 1)
+    assert len(lines) == 2, lines
+    assert "0x0909" in lines[0] and "Set Link" in lines[0] and "Comment" in lines[0]
+    assert lines[1].strip() == "unsupported EEE mode", lines
+
+
+def test_ac1_right_aligned_cell_with_a_longer_lower_line_stays_two_lines(tmp_path):
+    # A right-aligned two-line cell: both lines end at the same x, the lower
+    # one is longer, so every leading glyph of the lower line lies left of
+    # the upper line's start. Helvetica 10 pt: "EEE configuration" from 330
+    # ends near 410; "Conflict" is 33.3 pt wide and starts at 376.7.
+    items = [
+        (72, 695, "0x0909", 15),
+        (376.7, 700, "Conflict"),
+        (330, 689.6, "EEE configuration"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "right.pdf", [items]))
+    lines = _page_lines(r.text, 1)
+    assert len(lines) == 2, lines
+    assert "0x0909" in lines[0] and lines[0].endswith("Conflict"), lines
+    assert lines[1].strip() == "EEE configuration", lines
+
+
+def test_ac1_same_size_subscript_run_still_rides_its_line_beside_a_split_cell(
+    tmp_path,
+):
+    # Two rows on one page. Row 1: a body-size subscript ("DD" lowered by
+    # 2 pt after "0.7V", then "[1]" back on the baseline) has nothing over
+    # it and must stay on its line, as it always did. Row 2: the outdented
+    # two-line cell beside a tall value must split. Both at once, so the
+    # whole-run rule is checked in both directions.
+    items = [
+        (72, 740, "0.7V"),
+        (93, 738, "DD"),
+        (108, 740, "[1]"),
+        (72, 695, "0x0909", 15),
+        (340, 700, "Set Link"),
+        (330, 689.6, "EEE only"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "vdd.pdf", [items]))
+    lines = _page_lines(r.text, 1)
+    assert len(lines) == 3, lines
+    assert lines[0].replace(" ", "") == "0.7VDD[1]", lines
+    assert lines[1].endswith("Set Link"), lines
+    assert lines[2].strip() == "EEE only", lines
 
 
 def test_ac1_extractor_version_bumped_so_old_extracts_are_stale(tmp_path):
