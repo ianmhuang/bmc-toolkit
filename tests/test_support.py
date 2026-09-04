@@ -277,9 +277,10 @@ def test_fetch_of_a_gated_version_the_user_added_is_skipped_not_refused(
     assert not any(ln.startswith("note: PMB") for ln in lines)
     assert PMB_OPEN_URL not in scripted.calls
     # --force asks for a download, which a gated version cannot have
+    calls_before = list(scripted.calls)
     code, out, _ = run(capsys, "fetch", "PMB", "--force", catalog_file=extended_file)
     assert code == 2 and "PMB Rev 1.1 is gated" in out
-    assert scripted.calls == []
+    assert scripted.calls == calls_before
 
 
 def test_fetch_of_a_manual_document_without_versions_points_at_add(
