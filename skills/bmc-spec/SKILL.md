@@ -26,6 +26,11 @@ names (or the default branch), searched with `grep` and read with `code`.
 - **Drop-in**: a file the user placed into the Library by hand because the
   tool cannot download it (registration, membership, NDA, or a blocked
   download).
+- **Access Tier**: `open` (downloadable), `gated` (free registration or a
+  request to the publisher), `member`, `confidential` (NDA). A document has
+  one; a version may have its own when the newest revisions are gated
+  (PMBus 1.4 and 1.5). Only open versions are fetched; the rest are
+  Drop-ins. A `manual` document may list no versions at all.
 - **Extract**: `extract.txt` next to the original, every page introduced by
   `=== page N ===` (physical page, 1-based), layout preserved so tables read
   column by column. DMTF printed line numbers are removed from the text and
@@ -101,13 +106,14 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | Command | What it does |
 |---|---|
 | `library` | print the Library path |
-| `catalog [DOC] [--family F]` | list documents (one per line, tab-separated: family, id, access, fetch, latest, title, known versions joined by `;`) or show one document with every version, newest first |
-| `fetch DOC [--version V] [--wip] [--force]` | download one version into the Library; latest by default; prints a `skipped` line and stays off the network if already present |
-| `fetch --all [--wip] [--force]` | latest of every downloadable document; ends with a `summary:` line |
+| `catalog [DOC] [--family F]` | list documents (one per line, tab-separated: family, id, access, fetch, latest, title, known versions joined by `;`) or show one document with every version, newest first (version, date, type, published/wip, URL or `-`, access), its `notes:` and `limits:` (Known Limits of the document itself); a manual document without versions prints the `add` command to use |
+| `catalog --table [--golden FILE]` | the Support Level table (Markdown): family, document, access (`open (latest gated)` when the newest version differs), latest, fetch, Verified (the question ids from the Golden Questions file's `Document` column, `-` without `--golden`), known limit. For README and support questions, not for answering a specification question |
+| `fetch DOC [--version V] [--wip] [--force]` | download one version into the Library; latest by default; prints a `skipped` line and stays off the network if already present. A gated, member or confidential version is not downloaded: exit 2 with the Drop-in instruction and `newest open version: X; fetch it with --version X` (or `no open version is listed`), unless the user already registered it with `add` or `scan`, which gives the usual `skipped` line and exit 0 |
+| `fetch --all [--wip] [--force]` | latest open version of every downloadable document (a `note:` per document whose latest is gated); ends with a `summary:` line |
 | `add FILE --document DOC --version V [--force]` | register a file the user obtained themselves (Drop-in); refuses to replace a version already present unless `--force`; the file must really be a PDF or ZIP |
 | `scan` | register files placed by hand under `specs/<family>/<document>/<version>/original.pdf` |
 | `status` | what the Library holds; columns: family, id, version, origin, size, `extracted` / `stale` (extracted by an older extractor: run `extract` again) / `-`, outline source; a final `note:` when held documents are due for a Freshness Check |
-| `check [DOC]` | ask the publisher whether the catalog is behind: `current DOC V`, `newer DOC: catalog latest V, <publisher> lists W (date) URL` (OCP: `(URL to confirm by hand)`), or `unreachable DOC: reason`; without DOC every document with a listing, an `unchecked:` line for the hand-maintained ones, a `release:` line comparing `config.toml`'s release with the newest `openbmc/openbmc` tag (`-> newer` or `-> L is the newest`), and a `summary:`. Nothing is downloaded. Exit 2 for an unknown document or one without a listing |
+| `check [DOC]` | ask the publisher whether the catalog is behind: `current DOC V`, `newer DOC: catalog latest V, <publisher> lists W (date) URL` (OCP: `(URL to confirm by hand)`), or `unreachable DOC: reason`; without DOC every document with a listing, an `unchecked:` line for the hand-maintained ones, an `unchecked (manual):` line naming each manual document with its access tier, a `release:` line comparing `config.toml`'s release with the newest `openbmc/openbmc` tag (`-> newer` or `-> L is the newest`), and a `summary:`. Nothing is downloaded. Exit 2 for an unknown document or one without a listing |
 | `refresh [DOC] [--write]` | maintainer command: what `check` found, per version (`add`, `changed`, `confirm` with the reason: an OCP URL to find, a DMTF Work-in-Progress row); `--write` appends the `add` entries to the catalog file. Not for answering questions |
 | `extract DOC [--version V] [--force]` | write the Extract, Outline, Line Map and figure regions for a PDF version already in the Library (latest held version by default), or unpack a schema bundle's JSON Schema into `schemas/`; skips if current. A ZIP without a `json-schema/` folder (registries, profiles) is skipped with a message |
 | `extract --all [--force]` | every PDF and bundle in the Library; ends with a `summary:` line |
@@ -246,6 +252,11 @@ and the user's release may differ, and `grep` at both is cheap.
 - When a download fails, relay the printed browser URL and the exact save
   path, then ask the user to run `scan` after saving. Never invent an
   alternative URL.
+- When `fetch` exits 2 because the version is gated, member or
+  confidential, relay the `newest open version:` line as it is and offer
+  that version; fetch it only when the user agrees, and never claim the
+  gated version's content from the open one without saying which version
+  the answer comes from.
 - `fetch --all` downloads several hundred megabytes; only run it when the
   user asks for everything. `extract --all` on a full Library takes a couple
   of minutes.

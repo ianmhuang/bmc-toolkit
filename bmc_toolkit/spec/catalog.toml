@@ -74,6 +74,22 @@ publisher = "SBS Implementers Forum"
 title = "Common Management Interface Specification (optical modules)"
 publisher = "OIF"
 
+[families.lpc]
+title = "Low Pin Count interface"
+publisher = "Intel"
+
+[families.fan]
+title = "PWM fan control"
+publisher = "Intel"
+
+[families.sff]
+title = "SFF specifications (SGPIO, module EEPROMs)"
+publisher = "SNIA SFF TA TWG"
+
+[families.pmbus]
+title = "Power Management Bus"
+publisher = "System Management Interface Forum"
+
 # ---------------------------------------------------------------- Intel
 # Intel has no index page; each PDF is a fixed URL on intel.com, mirrored on
 # intel.la. The CDN rejects non-browser TLS fingerprints (curl_cffi needed).
@@ -85,6 +101,7 @@ family = "ipmi"
 title = "Intelligent Platform Management Interface Specification, Second Generation, v2.0"
 access = "open"
 fetch = "direct"
+limits = "Table numbers are missing from the PDF's text layer; tables are cited by title."
 notes = "Latest means this document plus IPMI-UPDATE read together."
 searched_with = ["IPMI-UPDATE"]
 
@@ -159,6 +176,43 @@ version = "1.6"
 url = "https://cdrdv2-public.intel.com/841685/841685_ESPI_IBS_TS_Rev_1_6.pdf"
 type = "pdf"
 published = "2025-03-12"
+
+[[documents]]
+id = "LPC"
+family = "lpc"
+title = "Low Pin Count (LPC) Interface Specification"
+access = "open"
+fetch = "direct"
+notes = "The predecessor of eSPI, still used by many BMCs (SuperIO, KCS, SNOOP). URL confirmed 2026-09-04."
+
+[[documents.versions]]
+version = "1.1"
+url = "https://www.intel.com/content/dam/www/program/design/us/en/documents/low-pin-count-interface-specification.pdf"
+type = "pdf"
+published = "2002-08-01"
+notes = "Cover says August 2002; day approximate."
+
+[[documents]]
+id = "PWM-FAN"
+family = "fan"
+title = "4-Wire Pulse Width Modulation (PWM) Controlled Fans Specification"
+access = "open"
+fetch = "wayback"
+notes = "Intel published it on formfactors.org, which is gone; the Internet Archive holds both revisions (confirmed 2026-09-04). Rev 1.3 is the one fan vendors cite."
+
+[[documents.versions]]
+version = "Rev 1.2"
+url = "http://www.formfactors.org/developer/specs/REV1_2_Public.pdf"
+type = "pdf"
+published = "2004-07-01"
+notes = "Cover says July 2004; day approximate."
+
+[[documents.versions]]
+version = "Rev 1.3"
+url = "http://www.formfactors.org/developer/specs/4_Wire_PWM_Spec.pdf"
+type = "pdf"
+published = "2005-09-01"
+notes = "Cover says September 2005; day approximate."
 
 # ---------------------------------------------------------------- NVMe
 # nvmexpress.org lists specifications through JavaScript; the PDF URLs under
@@ -386,7 +440,8 @@ listing = "ocp:Server/MHS/DC-SCM-Specs-and-Designs|OCP DC-SCM"
 title = "Datacenter-ready Secure Control Module (DC-SCM) Specification"
 access = "open"
 fetch = "direct"
-notes = "Rev 2.0 Ver 1.0 and Rev 2.2 Ver 1.0 (2025-10-16) exist only as Google Drive links on the OCP wiki and are not listed; check reports them."
+limits = "Tables are images: page and render, not table."
+notes = "Rev 2.0 Ver 1.0 exists only as a Google Drive link on the OCP wiki: fetch prints the browser instruction for it. The DC-SCI pin list is a spreadsheet on the same wiki page, not a document the tool holds."
 
 [[documents.versions]]
 version = "Rev 1.0"
@@ -395,11 +450,45 @@ type = "pdf"
 published = "2021-03-26"
 
 [[documents.versions]]
+version = "Rev 2.0 Ver 1.0"
+url = "https://drive.google.com/file/d/13BxuseSrKo647hjIXjp087ei8l5QQVb0/view"
+type = "pdf"
+published = "2022-07-27"
+notes = "Google Drive viewer link from the OCP wiki; not downloadable by the tool, save it from the browser and run scan."
+
+[[documents.versions]]
 version = "Rev 2.1 Ver 1.1"
 url = "https://www.opencompute.org/documents/ocp-dc-scm-rev2-1-ver1-1-pdf-1"
 type = "pdf"
 published = "2025-01-01"
 notes = "Errata release of rev 2.1. Publication date approximate."
+
+[[documents.versions]]
+version = "Rev 2.2 Ver 1.0"
+url = "https://www.opencompute.org/documents/ocp-dc-scm-rev2-2-ver1-0-pdf"
+type = "pdf"
+published = "2025-10-16"
+notes = "Publication date from the OCP wiki table. URL confirmed 2026-09-04."
+
+[[documents]]
+id = "LTPI"
+family = "ocp-dcscm"
+title = "DC-SCM LVDS Tunneling Protocol and Interface (LTPI) Specification"
+access = "open"
+fetch = "direct"
+notes = "Split out of DC-SCM 2.0 in 2022; the signal-level detail DC-SCM refers to. Both URLs confirmed 2026-09-04."
+
+[[documents.versions]]
+version = "Rev 1.0 Ver 1.0"
+url = "https://www.opencompute.org/documents/ocp-dc-scm-2-0-ltpi-ver-1-0-pdf"
+type = "pdf"
+published = "2022-07-27"
+
+[[documents.versions]]
+version = "Rev 1.2 Ver 1.0"
+url = "https://www.opencompute.org/documents/ocp-dc-scm-2-2-ltpi-ver1-0-pdf"
+type = "pdf"
+published = "2025-08-11"
 
 [[documents]]
 id = "M-CRPS"
@@ -586,6 +675,7 @@ family = "cmis"
 title = "Common Management Interface Specification (OIF-CMIS)"
 access = "open"
 fetch = "direct"
+limits = "Tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "5.2"
@@ -605,6 +695,113 @@ url = "https://www.oiforum.com/wp-content/uploads/OIF-CMIS-05.4.pdf"
 type = "pdf"
 published = "2026-05-01"
 notes = "Publication month approximate."
+
+# SNIA SFF: members.snia.org serves published SFF documents by number without
+# a login; snia.org itself sits behind a Cloudflare challenge and has no
+# listing a script can read, so versions are maintained by hand.
+
+[[documents]]
+id = "SFF-8485"
+family = "sff"
+title = "SFF-8485 Specification for Serial GPIO (SGPIO) Bus"
+access = "open"
+fetch = "direct"
+notes = "Backplane LED and drive-presence signalling. snia.org has no listing a script can read; URL confirmed 2026-09-04."
+
+[[documents.versions]]
+version = "Rev 0.7"
+url = "https://members.snia.org/document/dl/25923"
+type = "pdf"
+published = "2006-02-01"
+notes = "Cover dated 1 February 2006; the first of the month is the real date."
+
+# PMBus: revisions up to 1.3.1 are public PDFs in the specification archive;
+# the current revisions are sent on request (getpmbusspec@smiforum.org) or
+# downloaded by registered adopters, so they carry access = "gated" and no URL.
+
+[[documents]]
+id = "PMBUS-I"
+family = "pmbus"
+title = "PMBus Power System Management Protocol Specification Part I: General Requirements, Transport and Electrical Interface"
+access = "open"
+fetch = "direct"
+notes = "Command definitions are in Part II (PMBUS-II). Revisions 1.4 and 1.5 are obtained from SMIF on request; place the file with add. URLs confirmed 2026-09-04."
+
+[[documents.versions]]
+version = "1.2"
+url = "https://pmbus.org/wp-content/uploads/2021/05/PMBus-Specification-Rev-1-2-Part-I-20100906.pdf"
+type = "pdf"
+published = "2010-09-06"
+
+[[documents.versions]]
+version = "1.3"
+url = "https://pmbus.org/wp-content/uploads/2022/01/PMBus-Specification-Rev-1-3-Part-I-20140318.pdf"
+type = "pdf"
+published = "2014-03-18"
+
+[[documents.versions]]
+version = "1.3.1"
+url = "https://pmbus.org/wp-content/uploads/2022/01/PMBus-Specification-Rev-1-3-1-Part-I-20150313.pdf"
+type = "pdf"
+published = "2015-03-13"
+
+[[documents.versions]]
+version = "1.4"
+url = ""
+type = "pdf"
+published = "2021-06-01"
+access = "gated"
+notes = "Publication date approximate (2021). Sent by SMIF on request (getpmbusspec@smiforum.org)."
+
+[[documents.versions]]
+version = "1.5"
+url = ""
+type = "pdf"
+published = "2025-01-01"
+access = "gated"
+notes = "Publication date approximate; the current revision in 2026. Sent by SMIF on request (getpmbusspec@smiforum.org)."
+
+[[documents]]
+id = "PMBUS-II"
+family = "pmbus"
+title = "PMBus Power System Management Protocol Specification Part II: Command Language"
+access = "open"
+fetch = "direct"
+notes = "The command definitions (READ_VOUT, STATUS_WORD, PMBus command codes). Revisions 1.4 and 1.5 are obtained from SMIF on request; place the file with add. URLs confirmed 2026-09-04."
+
+[[documents.versions]]
+version = "1.2"
+url = "https://pmbus.org/wp-content/uploads/2021/05/PMBus-Specification-Rev-1-2-Part-II-20100906.pdf"
+type = "pdf"
+published = "2010-09-06"
+
+[[documents.versions]]
+version = "1.3"
+url = "https://pmbus.org/wp-content/uploads/2022/01/PMBus-Specification-Rev-1-3-Part-II-20140318.pdf"
+type = "pdf"
+published = "2014-03-18"
+
+[[documents.versions]]
+version = "1.3.1"
+url = "https://pmbus.org/wp-content/uploads/2022/01/PMBus-Specification-Rev-1-3-1-Part-II-20150313.pdf"
+type = "pdf"
+published = "2015-03-13"
+
+[[documents.versions]]
+version = "1.4"
+url = ""
+type = "pdf"
+published = "2021-06-01"
+access = "gated"
+notes = "Publication date approximate (2021). Sent by SMIF on request (getpmbusspec@smiforum.org)."
+
+[[documents.versions]]
+version = "1.5"
+url = ""
+type = "pdf"
+published = "2025-01-01"
+access = "gated"
+notes = "Publication date approximate; the current revision in 2026. Sent by SMIF on request (getpmbusspec@smiforum.org)."
 
 # ---------------------------------------------------------------- DMTF
 # Generated from the per-document version pages at https://www.dmtf.org/dsp/DSP<num>
@@ -762,6 +959,7 @@ family = "mctp"
 title = "Management Component Transport Protocol (MCTP) IDs and Codes Specification"
 access = "open"
 fetch = "direct"
+limits = "One page holds an emoji that breaks pdfium's character order; extracted without layout."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1401,6 +1599,7 @@ family = "spdm"
 title = "Security Protocol and Data Model (SPDM) Specification"
 access = "open"
 fetch = "direct"
+limits = "Most tables have no ruling lines: page and render, not table."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -3034,6 +3233,7 @@ family = "redfish"
 title = "Redfish Standard Registries Bundle"
 access = "open"
 fetch = "direct"
+limits = "ZIP of registries: extract skips it until registries are supported."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -3227,6 +3427,7 @@ family = "redfish"
 title = "Redfish Interoperability Profiles Bundle"
 access = "open"
 fetch = "direct"
+limits = "ZIP of profiles: extract skips it until profiles are supported."
 
 [[documents.versions]]
 version = "2017.1"

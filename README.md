@@ -3,18 +3,20 @@
 Claude Code plugin for BMC firmware developers.
 
 The first skill, `bmc-spec`, answers questions about BMC specifications
-(IPMI, DCMI, DMTF MCTP / PLDM / SPDM / NC-SI / SMBIOS, Redfish, NVMe and
-NVMe-MI, OCP DC-SCM and DC-MHS, I2C, SMBus, CMIS) and about OpenBMC source
+(IPMI, DCMI, LPC, eSPI, PWM fans, DMTF MCTP / PLDM / SPDM / NC-SI / SMBIOS,
+Redfish, NVMe and NVMe-MI, OCP DC-SCM with LTPI and DC-MHS, I2C, SMBus,
+PMBus, SFF-8485 SGPIO, CMIS) and about OpenBMC source
 code. It keeps a local library of the documents and repositories you have
 asked about, defaults to the latest published version of each document,
 serves any specific version on request, and cites document, version, section
 and page in every answer.
 
-**Status: pre-release (0.9.0).** The Source Catalog covers Intel IPMI, DMTF,
-Redfish, NVMe, OCP DC-SCM and DC-MHS, I2C, SMBus and CMIS; UEFI and ACPI
-are not in the catalog (uefi.org serves no scripted client) and enter only
-as Drop-ins. Version 1.0.0 follows once the catalog is broader and every
-document has been checked against the acceptance set in
+**Status: pre-release (0.9.0).** The Source Catalog covers Intel IPMI, LPC,
+eSPI and the 4-wire PWM fan specification, DMTF, Redfish, NVMe, OCP DC-SCM
+(with LTPI) and DC-MHS, I2C, SMBus, PMBus, SFF-8485 SGPIO and CMIS; UEFI
+and ACPI are not in the catalog (uefi.org serves no scripted client) and
+enter only as Drop-ins. Version 1.0.0 follows once the catalog is broader
+and every document has been checked against the acceptance set in
 `docs/golden-questions.md`.
 
 ## Install
@@ -73,7 +75,9 @@ yourself:
 ```
 python skills/bmc-spec/scripts/bmcspec.py catalog              # every document, one per line
 python skills/bmc-spec/scripts/bmcspec.py catalog DSP0236      # one document, all versions
+python skills/bmc-spec/scripts/bmcspec.py catalog --table --golden docs/golden-questions.md   # Support Level table
 python skills/bmc-spec/scripts/bmcspec.py fetch DSP0236        # latest published version
+python skills/bmc-spec/scripts/bmcspec.py fetch PMBUS-II --version 1.3.1   # the latest is gated: fetch names this one
 python skills/bmc-spec/scripts/bmcspec.py fetch IPMI --version "2.0 rev 1.1"
 python skills/bmc-spec/scripts/bmcspec.py fetch --all          # several hundred MB
 python skills/bmc-spec/scripts/bmcspec.py add vendor.pdf --document DSP0236 --version 1.1.0   # --force to replace
@@ -224,7 +228,23 @@ reports them with `(URL to confirm by hand)`.
 ## The Source Catalog
 
 `bmc_toolkit/spec/catalog.toml` lists every family, document, version and
-URL; comments in the file record when a URL was last confirmed. A document
+URL; comments in the file record when a URL was last confirmed. Every
+document has an access tier (`open`, `gated`: free registration or a
+request to the publisher, `member`, `confidential`) and a fetch method
+(`direct`, `wayback`, `manual`). A version may carry its own `access` when
+the publisher keeps the newest revisions behind a registration (PMBus 1.4
+and 1.5 are listed that way, with no URL): `fetch` refuses such a version,
+prints the Drop-in instruction and names the newest open one (`newest open
+version: 1.3.1; fetch it with --version 1.3.1`), and `fetch --all` takes
+the newest open version with a `note:`. A `manual` document may list no
+versions at all (member and NDA documents are registered so); `add`
+accepts any version string for it and `check` lists it under
+`unchecked (manual):` with its tier. A document's `limits` records its
+Known Limits (tables drawn as images, no ruling lines, a defective text
+layer); `catalog --table` prints the Support Level table from the catalog
+(family, document, access, latest, fetch, Verified, known limit), and
+`--golden docs/golden-questions.md` fills the Verified column from that
+file's `Document` column. A document
 may name companions in `searched_with` (errata, specification updates)
 that `find` searches together with it, and a `listing`
 (`dmtf:<DSP>`, implied for DMTF documents; `nvme:<slug>` of the

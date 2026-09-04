@@ -14,9 +14,13 @@ Schema (``schema_version = 1``)::
     id = "DSP0236"             unique, matched case-insensitively
     family = "mctp"            must name a family above
     title = "..."
-    access = "open"            open | gated | member | confidential
+    access = "open"            open | gated | member | confidential; the
+                               default for the document's versions
     fetch = "direct"           direct | wayback | manual
     notes = "..."              optional, free text
+    limits = "..."             optional: Known Limits of the document itself
+                               (image tables, unruled tables, a defective
+                               text layer); shown in the Support Level table
     searched_with = ["ID"]     optional: documents searched together with
                                this one (errata, spec updates); their hits
                                are reported first
@@ -27,12 +31,16 @@ Schema (``schema_version = 1``)::
                                slug of the nvmexpress.org API) or ocp (key:
                                "<wiki page title>|<description prefix>")
 
-    [[documents.versions]]     newest last or in any order; dates decide
+    [[documents.versions]]     newest last or in any order; dates decide;
+                               may be absent altogether when fetch = "manual"
     version = "1.3.3"          the publisher's own string, verbatim
-    url = "https://..."        may be "" when fetch = "manual"
+    url = "https://..."        may be "" when fetch = "manual" or the
+                               version's access is not open
     type = "pdf"               pdf | zip
     published = "2024-03-25"   ISO date
     wip = false                optional, default false
+    access = "gated"           optional: this version's tier when it differs
+                               from the document's (newer versions gated)
     notes = "..."              optional
 
     [[repos]]                  one entry per code repository (Code Trees)
@@ -82,6 +90,21 @@ class Version:
     published: str
     wip: bool = False
     notes: str = ""
+    access: str = "open"  # resolved: the version's own tier or the document's
+
+    @property
+    def open(self) -> bool:
+        return self.access == "open"
+
+
+def _newest(versions) -> Version | None:
+    """The version with the latest publication date; ties keep catalog
+    order, the later entry wins."""
+    best = None
+    for v in versions:
+        if best is None or v.published >= best.published:
+            best = v
+    return best
 
 
 @dataclass(frozen=True)
@@ -95,6 +118,7 @@ class Document:
     notes: str = ""
     searched_with: tuple[str, ...] = ()
     listing: str = ""  # "<source>:<key>", "" when no publisher listing exists
+    limits: str = ""  # Known Limits of the document itself, "" when none
 
     @property
     def listing_source(self) -> str:
@@ -110,14 +134,11 @@ class Document:
 
         Ties on the date keep catalog order, later entry wins.
         """
-        candidates = [v for v in self.versions if include_wip or not v.wip]
-        if not candidates:
-            return None
-        best = candidates[0]
-        for v in candidates[1:]:
-            if v.published >= best.published:
-                best = v
-        return best
+        return _newest(v for v in self.versions if include_wip or not v.wip)
+
+    def newest_open(self) -> Version | None:
+        """Newest non-WIP version the tool may download, or None."""
+        return _newest(v for v in self.versions if v.open and not v.wip)
 
     def find_version(self, version: str) -> Version | None:
         for v in self.versions:
@@ -173,9 +194,12 @@ def _expect(table: dict, key: str, kind, where: str, default=None, required=True
     return value
 
 
-def _parse_version(raw: dict, where: str) -> Version:
+def _parse_version(raw: dict, where: str, default_access: str) -> Version:
     if not isinstance(raw, dict):
         raise CatalogError(f"{where}: expected a table")
+    access = _expect(raw, "access", str, where, default=default_access, required=False)
+    if access not in ACCESS_TIERS:
+        raise CatalogError(f"{where}.access: '{access}' not one of {ACCESS_TIERS}")
     version = _expect(raw, "version", str, where).strip()
     if not version:
         raise CatalogError(f"{where}.version: must not be empty")
@@ -194,7 +218,7 @@ def _parse_version(raw: dict, where: str) -> Version:
         ) from None
     wip = _expect(raw, "wip", bool, where, default=False, required=False)
     notes = _expect(raw, "notes", str, where, default="", required=False)
-    return Version(version, url, ftype, published, wip, notes)
+    return Version(version, url, ftype, published, wip, notes, access)
 
 
 def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Document:
@@ -214,20 +238,26 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
     if fetch not in FETCH_METHODS:
         raise CatalogError(f"{where}.fetch: '{fetch}' not one of {FETCH_METHODS}")
     notes = _expect(raw, "notes", str, where, default="", required=False)
-    raw_versions = _expect(raw, "versions", list, where)
-    if not raw_versions:
+    limits = _expect(raw, "limits", str, where, default="", required=False)
+    # A manual document may list no versions at all: the user adds any
+    # version they hold (member and NDA documents are registered this way).
+    raw_versions = _expect(
+        raw, "versions", list, where, default=[], required=fetch != "manual"
+    )
+    if not raw_versions and fetch != "manual":
         raise CatalogError(f"{where}.versions: must list at least one version")
     versions = []
     seen: set[str] = set()
     for i, rv in enumerate(raw_versions):
-        v = _parse_version(rv, f"{where}.versions[{i}]")
+        v = _parse_version(rv, f"{where}.versions[{i}]", access)
         if v.version in seen:
             raise CatalogError(
                 f"{where}.versions[{i}]: duplicate version '{v.version}'"
             )
-        if fetch != "manual" and not v.url:
+        if fetch != "manual" and v.open and not v.url:
             raise CatalogError(
-                f"{where}.versions[{i}].url: required when fetch is '{fetch}'"
+                f"{where}.versions[{i}].url: required for an open version "
+                f"when fetch is '{fetch}'"
             )
         seen.add(v.version)
         versions.append(v)
@@ -260,6 +290,7 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
         notes,
         tuple(s.strip() for s in raw_with),
         listing,
+        limits,
     )
 
 

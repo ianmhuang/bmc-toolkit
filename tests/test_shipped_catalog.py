@@ -75,6 +75,13 @@ V1_DOCUMENTS = [
     "UM10204",
     "SMBUS",
     "CMIS",
+    # M8a
+    "LPC",
+    "PWM-FAN",
+    "LTPI",
+    "SFF-8485",
+    "PMBUS-I",
+    "PMBUS-II",
 ]
 
 
@@ -91,14 +98,26 @@ def test_every_v1_document_is_present_with_a_published_version(shipped):
 
 
 def test_every_fetchable_version_has_an_https_url(shipped):
+    # Wayback documents keep the URL the Internet Archive indexed, which for
+    # a site that died before TLS is http://; gated versions carry no URL.
     bad = [
         (d.id, v.version)
         for d in shipped.documents
         if d.fetch != "manual"
         for v in d.versions
-        if not v.url.startswith("https://")
+        if v.open
+        and not v.url.startswith(
+            "https://" if d.fetch == "direct" else ("https://", "http://")
+        )
     ]
     assert not bad
+
+
+def test_gated_versions_carry_no_url_and_an_open_sibling(shipped):
+    gated = [(d, v) for d in shipped.documents for v in d.versions if not v.open]
+    assert gated, "M8a lists PMBus 1.4 and 1.5 as gated"
+    assert all(v.url == "" for _, v in gated)
+    assert all(d.newest_open() is not None for d, _ in gated)
 
 
 def test_confidential_documents_are_manual(shipped):
