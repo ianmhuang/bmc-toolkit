@@ -104,7 +104,7 @@ on its newest open version and the row says so.
 | G49 | Transport-specific MCTP control commands of the KCS binding | DSP0254 1.0.0 | DSP0254 1.0.0, section 7, Table 6, page 14: Register Endpoint 0xF0, Get MCTP Packet 0xF1, Enable MCTP SMS_ATN 0xF2 | `find DSP0254 "Register Endpoint"`, `table DSP0254 --page 14` |
 | G50 | How a host finds an MCTP Host Interface in the SMBIOS tables | DSP0256 2.0.0 | DSP0256 2.0.0, section 9.1, Table 2, page 18: a Type 42 structure whose Interface Type is in the MCTP Host Interfaces range of DSP0239, with a Protocol Record of type MCTP (03h) carrying MCTP protocol version (WORD, 0x0103 for 1.3.1), link-layer type, instance number and characteristics | `find DSP0256 "Type 42"`, `page DSP0256 18` |
 | G51 | USB interface descriptor values that identify an MCTP over USB interface | DSP0283 1.1.0 | DSP0283 1.1.0, section 6.2.1.1, Table 1, page 13: class 0x14, sub-class 0x0 (MC and managed device, no packet spanning; 0x1 host interface), protocol 0x1 (MCTP 1.x), two bulk endpoints; sub-class 0x2 with packet spanning in 6.2.2.1, page 15 | `find DSP0283 "Class code"`, `page DSP0283 13` |
-| G52 | How an MCTP packet sits in an MMBI packet | DSP0284 1.0.1 | DSP0284 1.0.1, section 5.2, Table 1, page 10: MMBI packet type 0100b, header version 0001b, Null destination and source EIDs, padding to a 4-byte multiple | `find DSP0284 "Packet Type"`, `page DSP0284 10` (Figure 1's rotated labels extract as single letters; the bookmarks are anchors, so `section` finds nothing) |
+| G52 | How an MCTP packet sits in an MMBI packet | DSP0284 1.0.1 | DSP0284 1.0.1, section 5.2, Table 1, page 10: MMBI packet type 0100b, header version 0001b, Null destination and source EIDs, padding to a 4-byte multiple | `find DSP0284 "Packet Type"`, `section DSP0284 5.2`, `page DSP0284 10` (Figure 1's rotated labels extract as single letters) |
 | G53 | Layout of an MCTP message in an Extended PCC subspace | DSP0292 1.0.0 | DSP0292 1.0.0, sections 8.4 and 8.4.1, Figure 2, page 14: 16-byte header (PCC Signature, Flags, Length, Command = "MCTP", little-endian 0x5054434D), MCTP transport header at offset 16, message body from offset 20 | `find DSP0292 Signature`, `page DSP0292 14` |
 | G54 | Which transport bindings NVMe Management Messages over MCTP are defined for, and where the message type number lives | DSP0235 1.0.1 | DSP0235 1.0.1, sections 7.1 and 7.2, page 9: DSP0237 (SMBus) and DSP0238 (PCIe); the number itself is assigned in DSP0239 (0x04, see G9) | `find DSP0235 "transport bindings"`, `page DSP0235 9` |
 | G55 | MCTP message type of CXL FM API messages and their IC and TO bits | DSP0234 1.0.0 | DSP0234 1.0.0, section 7.4.1, Table 1, page 11: 0x07; IC 0b; TO 1b on requests and event notifications, 0b on responses | `find DSP0234 0x07`, `page DSP0234 11` |
@@ -158,6 +158,56 @@ on its newest open version and the row says so.
 | G78 | ReadRequirement values in an interoperability profile and the default | DSP0272 1.10.0 | DSP0272 1.10.0, section 8.4.3.3, page 28: Mandatory (default), Supported, Recommended, IfImplemented, IfPopulated, Conditional | `section DSP0272 8.4.3.3`, `page DSP0272 28` |
 | G79 | Which schemas define a PowerState property | DSP2053 2026.1 | DSP2053 2026.1, section 3 reference guide, page 216: Chassis, Manager, Processor, Switch, ComputerSystem, Circuit, OutletGroup, Outlet (also as an action parameter of BreakerControl and PowerControl) | `find DSP2053 PowerState`, `page DSP2053 216` |
 | G80 | Severity, message text and resolution of Base.PropertyValueNotInList | DSP2065 2026.1 | DSP2065 2026.1, section 2.3.78, page 63: Warning; "The value '<1>' for the property <2> is not in the list of acceptable values."; resolution: choose a value from the enumeration list and resubmit; version added v1.0 | `find DSP2065 PropertyValueNotInList`, `page DSP2065 63` |
+
+## OCP Security and OCP NIC
+
+Rows G81 onwards were added in M10, one per document of the second round
+of publishers (OCP Security and NIC, SNIA SFF, NIST, Arm, TCG, UEFI
+Forum). TCG and UEFI Forum documents come from the Internet Archive; the
+version is the one on the cover of the archived file.
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G81 | Which signature algorithms Caliptra accepts for firmware images | CALIPTRA 2.0 | CALIPTRA 2.0, section 4.5.13, pages 67-68: ECDSA over a SHA-384 image hash, optionally LMS (LMS_SHA256_M24_H15 with LMOTS_SHA256_N24_W4, 32 vendor trees and 1 owner tree) for CNSA 2.0, and from 2.0 optionally ML-DSA-87 (FIPS 204) alongside ECDSA | `find CALIPTRA "ML-DSA"`, `page CALIPTRA 67 --to 68` |
+| G82 | What an attester device must support of SPDM | OCP-ATTEST 1.0 | OCP-ATTEST 1.0, sections 8.5.1 and 8.5.2, page 25: certificate digests and certificates on request, signed challenge responses (optional in SPDM, required here), the capabilities of the "Required Capabilities for SPDM" table, SPDM 1.0 or higher (items 2, 10-13) | `find OCP-ATTEST SPDM`, `page OCP-ATTEST 25` (the PDF has no bookmarks, so `section` has nothing to search) |
+| G83 | SMBus address of the FRU EEPROM on an OCP NIC 3.0 card | OCP-NIC 1.6.0 | OCP-NIC 1.6.0, section 5.9.1, Table 64, page 197, lines 3883-3899: 8-bit addresses 0xA0/0xA1 (slot 0), 0xA4/0xA5 (slot 1), 0xA8/0xA9 (slot 2), 0xAC/0xAD (slot 3); A2 and A1 follow SLOT_ID[1:0] on pins OCP_A6 and OCP_B7, A0 is fixed 0 | `find OCP-NIC "FRU EEPROM"`, `table OCP-NIC --page 197` |
+
+## SFF module management
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G84 | Meaning of the Diagnostic Monitoring Type bits (A0h byte 92) | SFF-8472 Rev 12.5a | SFF-8472 Rev 12.5a, sections 8.8 and 8.9, pages 32-33: bit 6 digital diagnostics implemented (then temperature, supply voltage, bias, transmit and receive power monitors and the A2h thresholds at bytes 0-55 are all mandatory), bit 5 internally calibrated, bit 4 externally calibrated (A/D counts, calibration constants at A2h bytes 56-95), bit 3 received power is average (set) or OMA (clear), bit 2 an address change sequence is needed before A2h | `find SFF-8472 "Byte 92"`, `page SFF-8472 32 --to 33` |
+| G85 | Where the module temperature and supply voltage monitors are | SFF-8636 Rev 2.12 | SFF-8636 Rev 2.12, section 6.2.4 Free Side Device Monitors, page 36: Page 00h bytes 22-23 temperature MSB/LSB, bytes 26-27 supply voltage MSB/LSB | `find SFF-8636 "Temperature MSB"`, `page SFF-8636 36` |
+| G86 | Identifier values of SFP, QSFP, QSFP+, QSFP28, QSFP-DD, OSFP and CMIS modules | SFF-8024 Rev 4.14 | SFF-8024 Rev 4.14, section 4.2 Transceiver References, pages 16-17: 03h SFP/SFP+/SFP28 (SFF-8472), 0Ch QSFP, 0Dh QSFP+ (SFF-8636 or SFF-8436), 11h QSFP28 (SFF-8636), 18h QSFP-DD, 19h OSFP, 1Eh QSFP+ or later with CMIS | `find SFF-8024 "QSFP-DD"`, `page SFF-8024 16 --to 17` |
+
+## NIST and Arm
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G87 | The three roots of trust of SP 800-193 and what each is responsible for | SP800-193 2018 | SP800-193 2018, sections 4.1 to 4.1.4, pages 27-29: the Root of Trust for Update (RTU) authenticates firmware updates, the Root of Trust for Detection (RTD) detects corruption of firmware and critical data, the Root of Trust for Recovery (RTRec) recovers them; each may anchor a Chain of Trust (CTU, CTD, CTRec). The rotated "available free of charge" margin text of this PDF extracts as stray characters at the start of lines | `section SP800-193 4.1`, `page SP800-193 27 --to 28` |
+| G88 | Which in-band host interfaces SBMR lists between the host SoC and the BMC | SBMR 3.0 | SBMR 3.0, section 1.3.1, page 19: IPMI SSIF Host Interface, Redfish Host Interface, MCTP Host Interface over an in-band medium such as MMBI; Table 2 maps the use cases (SMBIOS table, boot progress, event log, BIOS settings) to the three | `find SBMR SSIF`, `page SBMR 19` |
+| G89 | What SBSA requires of the watchdog | SBSA 8.0 | SBSA 8.0, section 1.2.7, page 23: RS_L3WD_01, a base server system must implement a Non-secure Generic Watchdog; RS_L6WD_01, its architecture version must be v1 (W_IIDR[19:16] == 0001b), because v0 at 1 GHz limits the refresh period to about 4 seconds | `find SBSA "Generic Watchdog"`, `page SBSA 23` |
+| G90 | The BBR recipes and which operating systems require SBBR | BBR 2.2 | BBR 2.2, sections 3 to 3.2, pages 8-10: SBBR, EBBR and LBBR; SBBR is sections 4 to 8 (UEFI, ACPI, SMBIOS and the rest) and is required by Windows Server, Windows 11, Windows IoT Enterprise, VMware ESXi, Amazon Linux and Oracle Linux; EBBR is the reduced UEFI environment, typically U-Boot | `find BBR SBBR`, `page BBR 10` |
+
+## TCG
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G91 | Which algorithms the TPM 2.0 Library marks deprecated | TPM2-P0 185 | TPM2-P0 185, section 3.1.1, page 23: TPM_ALG_TDES and TPM_ALG_SHA1, deprecated in version 184 (SHA1 is withdrawn by NIST on 1 January 2031); the four parts are searched together, so `find` lists the other parts' hits as well | `find TPM2-P0 SHA1`, `page TPM2-P0 23` |
+| G92 | Which hierarchy holds sequence objects and sessions, and whether its objects can be persistent | TPM2-P1 185 | TPM2-P1 185, sections 11.4.5 (page 84), 27.2.4 (page 216) and 34.3 (page 254): the NULL hierarchy; its objects cannot be made persistent | `find TPM2-P1 "Null Hierarchy"`, `page TPM2-P1 84` |
+| G93 | TPM_ALG_ID values of RSA, ECC, SHA1, SHA256, SHA384 and SHA512, and the command codes of TPM2_Startup and TPM2_PCR_Extend | TPM2-P2 185 | TPM2-P2 185, section 6.3, page 42: 0x0001, 0x0023, 0x0004 (deprecated, see Part 0), 0x000B, 0x000C, 0x000D; section 6.5.2, pages 49 and 51: TPM_CC_Startup 0x00000144, TPM_CC_PCR_Extend 0x00000182 | `find TPM2-P2 TPM_ALG_SHA256`, `page TPM2-P2 42`, `find TPM2-P2 "TPM_CC_Startup "` |
+| G94 | Layout of the TPM2_PCR_Extend command | TPM2-P3 185 | TPM2-P3 185, section 22.2.2, Tables 130 and 131, page 194: tag TPM_ST_SESSIONS, commandCode TPM_CC_PCR_Extend {NV}, handle @pcrHandle of type TPMI_DH_PCR+ (Auth Index 1, Auth Role USER), parameter digests of type TPML_DIGEST_VALUES; the response carries tag, responseSize and responseCode only | `find TPM2-P3 TPM_CC_PCR_Extend`, `page TPM2-P3 194` |
+| G95 | Event type values of EV_SEPARATOR, EV_S_CRTM_CONTENTS and EV_S_CRTM_VERSION, and which PCRs they go to | TCG-PFP 1.06 Revision 52 | TCG-PFP 1.06 Revision 52, section 10.4.1 Event Types, pages 126-130 (the table spans the pages): 0x00000004 EV_SEPARATOR for PCRs 0 to 7, 0x00000007 EV_S_CRTM_CONTENTS and 0x00000008 EV_S_CRTM_VERSION for PCR[0] only; 0x00000001 EV_POST_CODE is deprecated as of PFP 1.06 | `find TCG-PFP EV_S_CRTM_VERSION`, `page TCG-PFP 128 --to 130` |
+| G96 | How the Compound Device Identifier is derived | DICE-HW 1.0 Revision 0.91 | DICE-HW 1.0 Revision 0.91, section 4, page 8: by a one-way function from the Unique Device Secret and the TCB Component Identifier (the measurement of the First Mutable Code); the DICE alone reads the UDS after reset and before handing control to the FMC, so a change to the UDS or to any measured component changes the CDI (Figure 1 is a figure). The PDF has no bookmarks; the outline comes from the contents page | `find DICE-HW "Unique Device Secret"`, `page DICE-HW 8` |
+| G97 | Fields of the DiceTcbInfo certificate extension | DICE-ATT 1.2 | DICE-ATT 1.2, section 6.1.1, pages 26-27: vendor [0], model [1], version [2], svn [3], layer [4], index [5], fwids [6], flags [7], vendorInfo [8], type [9], all OPTIONAL; an AuthorityKeyIdentifier extension MUST accompany it | `find DICE-ATT DiceTcbInfo`, `page DICE-ATT 26 --to 27` |
+
+## UEFI Forum
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G98 | Numeric values of EFI_SUCCESS, EFI_LOAD_ERROR, EFI_INVALID_PARAMETER, EFI_UNSUPPORTED, EFI_NOT_FOUND and EFI_ACCESS_DENIED | UEFI 2.11 | UEFI 2.11, Appendix D Status Codes, pages 2068-2069: 0, 1, 2, 3, 14, 15 (error codes carry the high bit of EFI_STATUS set) | `find UEFI EFI_LOAD_ERROR`, `page UEFI 2068 --to 2069` |
+| G99 | The PCC subspace structure types | ACPI 6.6 | ACPI 6.6, sections 14.1.2 and 14.1.3, pages 870-871: type 0 Generic Communications Subspace, types 1 and 2 HW-Reduced Communications Subspaces, types 3 and 4 extended PCC subspaces, type 5 Hardware Register-Based PCC Subspace | `find ACPI "Generic Communications Subspace"`, `page ACPI 870` |
+| G100 | HOB type values | PI 1.10 | PI 1.10, section III-5.3 PHIT HOB, page 482: EFI_HOB_TYPE_HANDOFF 0x0001, MEMORY_ALLOCATION 0x0002, RESOURCE_DESCRIPTOR 0x0003, GUID_EXTENSION 0x0004, FV 0x0005, CPU 0x0006, MEMORY_POOL 0x0007, FV2 0x0009, LOAD_PEIM_UNUSED 0x000A, UEFI_CAPSULE 0x000B, FV3 0x000C, RESOURCE_DESCRIPTOR2 0x000D, UNUSED 0xFFFE, END_OF_HOB_LIST 0xFFFF | `find PI EFI_HOB_TYPE_HANDOFF`, `page PI 482` |
 
 ## OpenBMC
 

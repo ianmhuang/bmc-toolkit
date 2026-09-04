@@ -204,7 +204,10 @@ reports them with `(URL to confirm by hand)`.
   order: the publisher's URL (with a browser TLS fingerprint through
   `curl_cffi`, which Intel's and OCP's CDNs require), then the Internet
   Archive's Wayback Machine snapshot of that URL, then it stops and prints
-  the URL and the path to save the file to.
+  the URL and the path to save the file to. Documents whose publisher
+  refuses every scripted client (uefi.org, trustedcomputinggroup.org) are
+  marked `fetch = "wayback"` and go to the Archive straight away. Manual
+  documents are never requested at all.
 - A response that is not the expected PDF or ZIP (an HTML block page, a
   cut-off download) is discarded and never written to the Library. The same
   leading-bytes check applies to files given to `add` or found by `scan`.
@@ -224,14 +227,26 @@ reports them with `(URL to confirm by hand)`.
   escape `schemas/` are refused, and a base name that appears twice is
   written once.
 - `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/w/index.php?title=<page>` for the pages named in the catalog's `listing` keys. They download no document.
-- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed.
+- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed.
 - `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>` directory that is removed on failure. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees and `.tmp-*` leftovers under `code/`, nothing else.
-- `check` writes `freshness.json` at the Library root; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it appends version entries to the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).
+- `check` writes `freshness.json` at the Library root; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it inserts version entries into the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).
 
 ## The Source Catalog
 
 `bmc_toolkit/spec/catalog.toml` lists every family, document, version and
-URL; comments in the file record when a URL was last confirmed. Every
+URL; comments in the file record when a URL was last confirmed. How far
+back the versions go depends on the publisher. DMTF and NVM Express
+documents carry their full version history, kept current by `refresh`.
+Intel, OCP, SNIA SFF, TCG, NIST, Arm and the other publishers carry the
+current version, plus older ones only where the catalog records them by
+hand. UEFI Forum documents (UEFI, ACPI, PI) and TCG documents come from
+the Internet Archive's copy of the publisher's file, since both sites
+refuse scripted downloads, so the versions listed are the ones the
+Archive holds: the newest release and the one before it for the UEFI
+Forum, the current one for TCG. Gated, member and NDA documents (JEDEC,
+MIPI, PCI-SIG, PICMG, CXL, the BMC SoC datasheets, Intel's and AMD's NDA
+interfaces) are listed with their tier and the reason, never downloaded,
+and registered with `add` when the user has a copy. Every
 document has an access tier (`open`, `gated`: free registration or a
 request to the publisher, `member`, `confidential`) and a fetch method
 (`direct`, `wayback`, `manual`). A version may carry its own `access` when
@@ -260,8 +275,9 @@ that the catalog lacks (`add`), catalog URLs that moved (`changed`, for
 DMTF and NVMe) and versions a human has to handle (`confirm`: OCP rows,
 whose download URL has to be found, and DMTF Work-in-Progress rows, which
 the catalog lists only by hand with `wip = true`); `refresh --write`
-appends the `add` entries as `[[documents.versions]]` blocks at the end of
-the document's block, leaving every other line and comment as it was, and
+inserts the `add` entries as `[[documents.versions]]` blocks at their
+place in the document's block (publication order, same-day versions by
+their numbers), leaving every other line and comment as it was, and
 refuses an edit the parser would not accept. If `check` reports a newer version, please open a
 pull request with the `refresh --write` result (and the confirmed OCP
 URL).

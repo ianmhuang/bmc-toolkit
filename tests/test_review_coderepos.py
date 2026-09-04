@@ -95,9 +95,10 @@ def test_shipped_catalog_covers_openbmc_components_and_excludes_tooling():
     assert 60 <= len(ids) <= 164
     for expected in ("openbmc", "bmcweb", "phosphor-host-ipmid", "pldm"):
         assert expected in ids, f"{expected} should be in the catalog"
-    # Forks and tooling are left out on purpose (AC-12).
+    # Forks and tooling are left out on purpose (AC-12). The kernel fork
+    # joined in M10 as a sparse Code Tree for its documentation and the
+    # BMC-facing drivers, so it is no longer in this list.
     for excluded in (
-        "linux",
         "qemu",
         "u-boot",
         "openbmc-build-scripts",
