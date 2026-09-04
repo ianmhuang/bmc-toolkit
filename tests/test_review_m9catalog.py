@@ -155,6 +155,11 @@ def test_ac5_skill_and_readme_describe_both_drawings():
     paragraph = paragraph[: paragraph.index("\n\n")]
     assert "`ruled`" in paragraph and "`cells`" in paragraph
     assert "--all-rows" in paragraph
+    # round 1, F4: the dependency reason for pdfplumber names both drawings
+    reason = readme[readme.index("- `pdfplumber` (MIT)") :]
+    reason = reason[: reason.index("\n\n")]
+    assert "cell boxes" in reason
+    assert "of ruled tables" not in reason
 
 
 def test_ac12_registry_command_and_layout_are_documented():

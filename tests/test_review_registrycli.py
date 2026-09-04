@@ -593,6 +593,55 @@ def test_ac10_root_defined_schema_lists_its_properties_and_definitions(
     ]
 
 
+def test_ac7_unpacking_one_kind_removes_the_other_kinds_directory(tmp_path):
+    """Round 1, F3: a version directory holds schemas/ or registries/, never
+    both, whichever unpacker ran last."""
+    from bmc_toolkit.spec import registry as registry_mod
+
+    vdir = tmp_path / "v"
+    vdir.mkdir()
+    registries_zip(tmp_path / "reg.zip")
+    (tmp_path / "schemas.zip").write_bytes(bundle_bytes())
+    registry_mod.unpack(tmp_path / "reg.zip", vdir)
+    assert (vdir / "registries").is_dir() and registry_mod.is_current(vdir)
+    bundle_mod.unpack(tmp_path / "schemas.zip", vdir)
+    assert (vdir / "schemas").is_dir()
+    assert not (vdir / "registries").exists()
+    assert bundle_mod.is_current(vdir) and not registry_mod.is_current(vdir)
+    registry_mod.unpack(tmp_path / "reg.zip", vdir)
+    assert (vdir / "registries").is_dir()
+    assert not (vdir / "schemas").exists()
+    assert registry_mod.is_current(vdir) and not bundle_mod.is_current(vdir)
+
+
+def test_ac7_force_extract_of_a_re_added_bundle_of_the_other_kind(
+    held, catalog_file, tmp_path, capsys
+):
+    """The same version re-added as a schema bundle and force-extracted is
+    a schema bundle only: registry refuses it, schema reads it."""
+    (tmp_path / "schemas.zip").write_bytes(bundle_bytes())
+    add(capsys, catalog_file, tmp_path / "schemas.zip", "2026.2", "--force")
+    code, out = run(
+        capsys,
+        "extract",
+        "BUNDLE",
+        "--version",
+        "2026.2",
+        "--force",
+        catalog_file=catalog_file,
+    )
+    assert code == 0, out
+    assert out.startswith("extracted BUNDLE 2026.2: ") and "schema files" in out
+    assert (held / "schemas").is_dir() and not (held / "registries").exists()
+    code, out = registry(capsys, catalog_file, "--version", "2026.2")
+    assert code == 2
+    assert "is a schema bundle" in out
+    code, out = run(
+        capsys, "schema", "BUNDLE", "--version", "2026.2", catalog_file=catalog_file
+    )
+    assert code == 0, out
+
+
 def test_ac10_a_schema_bundle_is_unpacked_and_read_as_before(
     schemas_held, catalog_file, capsys
 ):

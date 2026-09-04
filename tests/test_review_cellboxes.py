@@ -8,7 +8,7 @@ import json
 import pytest
 
 from bmc_toolkit.spec import tables as T
-from bmc_toolkit.spec.cli import main
+from bmc_toolkit.spec.cli import ROW_CAP, main
 from tests import pdfgen
 from tests.conftest import ok
 
@@ -131,9 +131,21 @@ def document(tmp_path):
     )
     page6 += [("fill", 72, 684 - 16 * 5, sum(WIDTHS), 16, 0.9)]
     page6 += [(75, 684 - 16 * 5 + 5, "NOTE: below the table")]
+
+    # Page 7: a cell-box table at the foot whose last row has a two-line
+    # cell; page 8: the page break put the second line into a box of its
+    # own (first cell empty) under the repeated header (round 1, F1).
+    page7 = furniture(7) + [(72, 214, "Table 5 - Cut")]
+    page7 += boxes(
+        72, 200, WIDTHS, [16] * 3, [HEADER, ROWS_A[0], ["Fan", "0x06", "rpm and"]]
+    )
+    page8 = furniture(8) + boxes(
+        72, 740, WIDTHS, [16] * 3, [HEADER, ["", "", "duty cycle"], ROWS_B[0]]
+    )
+    page8 += [(72, 600, "Text after the cut table.")]
     return pdfgen.write_pdf(
         tmp_path / "doc.pdf",
-        [page1, page2, page3, page4, page5, page6],
+        [page1, page2, page3, page4, page5, page6, page7, page8],
         bookmarks=[(0, "7 Message types", 0), (0, "8 Nothing tabular here", 4)],
     )
 
@@ -175,6 +187,40 @@ def test_ac1_cells_table_continues_across_pages_and_drops_the_header(reader):
     assert lt.caption == "Table 2 - Split"
     assert lt.rows == [HEADER, *ROWS_A, *ROWS_B]
     assert reader.logical_tables(3) == [lt]
+
+
+def test_ac1_a_cells_row_the_page_break_cut_is_joined(reader):
+    # round 1, F1: a cells table has no rule to show its last row complete,
+    # so the continuation row with an empty first cell is the rest of it
+    (lt,) = reader.logical_tables(7)
+    assert lt.drawn == T.CELLS
+    assert (lt.first, lt.last) == (7, 8)
+    assert lt.caption == "Table 5 - Cut"
+    assert lt.rows == [
+        HEADER,
+        ROWS_A[0],
+        ["Fan", "0x06", "rpm and\nduty cycle"],
+        ROWS_B[0],
+    ]
+    assert lt.row_pages == [7, 7, 7, 8]
+    assert reader.logical_tables(8) == [lt]
+
+
+def test_ac1_cli_prints_the_joined_row_as_one_row(held, catalog_file, capsys):
+    code, out = run(capsys, "table", "DSP0236", "--page", "8", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].split(" | ")[3] == "PDF pages 7-8"
+    assert lines[1] == (
+        "table: Table 5 - Cut | cells (no ruling lines) | pages 7-8 | 3 columns "
+        "| 4 rows"
+    )
+    body = [ln.split(" | ") for ln in lines[4:] if "+" not in ln]
+    cells = [[c.strip() for c in row] for row in body]
+    assert ["Fan", "0x06", "rpm and"] in cells
+    assert ["", "", "duty cycle"] in cells  # the second physical line of the cell
+    assert cells.index(["", "", "duty cycle"]) == cells.index(["Fan", "0x06", "rpm and"]) + 1
+    assert cells[-1] == ROWS_B[0]
 
 
 def test_ac1_a_merged_box_stays_one_cell_and_bars_around_it_are_not_rows(reader):
@@ -288,6 +334,57 @@ def test_ac3_a_page_with_both_kinds_is_listed_in_page_order(held, catalog_file, 
 def test_ac4_lone_boxes_single_rows_and_corner_contacts_are_not_tables(reader):
     assert reader.page(5).tables == []
     assert reader.logical_tables(5) == []
+
+
+def test_row_cap_on_a_cells_table_counts_body_rows_only(
+    catalog_file, library, scripted, tmp_path, capsys
+):
+    """The row cap (declared in What, not an AC) on a cells table: only the
+    rows starting on the page asked for, and on the first page the note
+    does not count the header as row 0 (round 1, F2)."""
+    per_page = 40
+    pages = ROW_CAP // per_page + 2
+    doc = []
+    n = 0
+    for p in range(1, pages + 1):
+        rows = []
+        for _ in range(per_page):
+            n += 1
+            rows.append([f"item{n}", f"{n:03d}"])
+        items = furniture(p)
+        if p == 1:
+            items.append((72, 714, "Table 9 - Long"))
+        items += boxes(72, 700, [120, 80], [12] * (per_page + 1), [["Name", "Code"], *rows])
+        doc.append(items)
+    pdf = pdfgen.write_pdf(tmp_path / "long.pdf", doc)
+    scripted.responses[URL] = ok(pdf.read_bytes())
+    for argv in (["fetch", "DSP0236"], ["extract", "DSP0236"]):
+        code, out = run(capsys, *argv, catalog_file=catalog_file)
+        assert code == 0, out
+    total = per_page * pages
+    code, out = run(capsys, "table", "DSP0236", "--page", "1", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[1] == (
+        f"table: Table 9 - Long | cells (no ruling lines) | pages 1-{pages} | "
+        f"2 columns | {total + 1} rows"
+    )
+    assert lines[2] == (
+        f"note: rows 1-{per_page} of {total}, those starting on page 1; "
+        f"the table runs over pages 1-{pages}; --all-rows prints them all"
+    )
+    body = [ln for ln in lines[3:] if ln.startswith("item")]
+    assert len(body) == per_page and body[0].startswith("item1 ")
+    code, out = run(capsys, "table", "DSP0236", "--page", "3", catalog_file=catalog_file)
+    assert code == 0, out
+    first = 2 * per_page + 1
+    assert out.splitlines()[2].startswith(f"note: rows {first}-{first + per_page - 1} of ")
+    code, out = run(
+        capsys, "table", "DSP0236", "--page", "3", "--all-rows", catalog_file=catalog_file
+    )
+    assert code == 0, out
+    assert "note:" not in out
+    assert len([ln for ln in out.splitlines() if ln.startswith("item")]) == total
 
 
 def test_ac4_no_table_message_names_the_page_and_exits_2(held, catalog_file, capsys):
