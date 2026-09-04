@@ -3,21 +3,21 @@
 Claude Code plugin for BMC firmware developers.
 
 The first skill, `bmc-spec`, answers questions about BMC specifications
-(IPMI, DCMI, LPC, eSPI, PWM fans, DMTF MCTP / PLDM / SPDM / NC-SI / SMBIOS,
-Redfish, NVMe and NVMe-MI, OCP DC-SCM with LTPI and DC-MHS, I2C, SMBus,
-PMBus, SFF-8485 SGPIO, CMIS) and about OpenBMC source
-code. It keeps a local library of the documents and repositories you have
-asked about, defaults to the latest published version of each document,
+(IPMI, DMTF MCTP / PLDM / SPDM / NC-SI / SMBIOS, Redfish, NVMe, OCP DC-SCM
+and DC-MHS, I2C, SMBus, PMBus, eSPI, LPC, SFF, CMIS, TCG, UEFI, ACPI,
+Arm server standards, NIST firmware resiliency and more) and about OpenBMC
+source code. It keeps a local library of the documents and repositories you
+have asked about, defaults to the latest published version of each document,
 serves any specific version on request, and cites document, version, section
 and page in every answer.
 
-**Status: pre-release (0.9.0).** The Source Catalog covers Intel IPMI, LPC,
-eSPI and the 4-wire PWM fan specification, DMTF, Redfish, NVMe, OCP DC-SCM
-(with LTPI) and DC-MHS, I2C, SMBus, PMBus, SFF-8485 SGPIO and CMIS; UEFI
-and ACPI are not in the catalog (uefi.org serves no scripted client) and
-enter only as Drop-ins. Version 1.0.0 follows once the catalog is broader
-and every document has been checked against the acceptance set in
-`docs/golden-questions.md`.
+**Status: pre-release (0.9.0).** The Source Catalog lists 113 documents in
+35 families. The 93 open ones are downloaded by the tool and every one of
+them has been checked against the acceptance questions in
+`docs/golden-questions.md`; the 20 gated, member and NDA documents are
+listed with their tier and registered from your own copy. Which documents,
+what each one's limits are and which questions verified it:
+[docs/SUPPORT.md](docs/SUPPORT.md).
 
 ## Install
 
@@ -82,7 +82,8 @@ yourself:
 ```
 python skills/bmc-spec/scripts/bmcspec.py catalog              # every document, one per line
 python skills/bmc-spec/scripts/bmcspec.py catalog DSP0236      # one document, all versions
-python skills/bmc-spec/scripts/bmcspec.py catalog --table --golden docs/golden-questions.md   # Support Level table
+python skills/bmc-spec/scripts/bmcspec.py catalog --table --golden docs/golden-questions.md   # Support Level table, one flat table
+python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden docs/golden-questions.md   # the same per family (docs/SUPPORT.md)
 python skills/bmc-spec/scripts/bmcspec.py fetch DSP0236        # latest published version
 python skills/bmc-spec/scripts/bmcspec.py fetch PMBUS-II --version 1.3.1   # the latest is gated: fetch names this one
 python skills/bmc-spec/scripts/bmcspec.py fetch IPMI --version "2.0 rev 1.1"
@@ -297,7 +298,8 @@ layer); `catalog --table` prints the Support Level table from the catalog
 (family, document, access, latest, fetch, Verified, known limit), and
 `--golden docs/golden-questions.md` fills the Verified column from that
 file's `Document` column with the question ids per version they were
-checked on (`G13, G15 (1.3.1)`). The latest version is the one with the
+checked on (`G13, G15 (1.3.1)`); `--by-family` prints the same per family,
+a heading and a table each, which is what `docs/SUPPORT.md` holds. The latest version is the one with the
 newest publication date; same-day versions are told apart by the numbers
 in their version strings (`2.0.0` over `1.3.0`). A document
 may name companions in `searched_with` (errata, specification updates)

@@ -111,32 +111,58 @@ def fetch_label(doc: Document) -> str:
     return "manual (Drop-in)" if doc.fetch == "manual" else doc.fetch
 
 
+def _row(catalog: Catalog, doc: Document, verified: Verified) -> list[str]:
+    latest = doc.latest()
+    return [
+        catalog.families[doc.family].title,
+        f"`{doc.id}` {doc.title}",
+        access_label(doc),
+        latest.version if latest else "-",
+        fetch_label(doc),
+        verified_label(verified.get(doc.id.lower(), [])),
+        doc.limits or "-",
+    ]
+
+
 def support_rows(catalog: Catalog, verified: Verified) -> list[list[str]]:
-    rows = []
-    for doc in catalog.documents:
-        latest = doc.latest()
-        rows.append(
-            [
-                catalog.families[doc.family].title,
-                f"`{doc.id}` {doc.title}",
-                access_label(doc),
-                latest.version if latest else "-",
-                fetch_label(doc),
-                verified_label(verified.get(doc.id.lower(), [])),
-                doc.limits or "-",
-            ]
-        )
-    return rows
+    """One row per document, in catalog order."""
+    return [_row(catalog, doc, verified) for doc in catalog.documents]
+
+
+def _table_lines(columns: tuple[str, ...], rows: list[list[str]]) -> list[str]:
+    lines = [
+        "| " + " | ".join(columns) + " |",
+        "|" + "---|" * len(columns),
+    ]
+    for row in rows:
+        lines.append("| " + " | ".join(_escape(c) for c in row) + " |")
+    return lines
 
 
 def support_table(catalog: Catalog, verified: Verified) -> list[str]:
-    """The Markdown lines of the Support Level table."""
-    lines = [
-        "| " + " | ".join(COLUMNS) + " |",
-        "|" + "---|" * len(COLUMNS),
-    ]
-    for row in support_rows(catalog, verified):
-        lines.append("| " + " | ".join(_escape(c) for c in row) + " |")
+    """The Markdown lines of the Support Level table, one flat table."""
+    return _table_lines(COLUMNS, support_rows(catalog, verified))
+
+
+def support_by_family(catalog: Catalog, verified: Verified) -> list[str]:
+    """The same table split per family: a ``##`` heading with the family
+    title, then its documents without the Family column. Families come in
+    catalog order (a family without documents is left out), documents in
+    catalog order within their family, so a document whose catalog block
+    sits apart from its family still lands under the family's heading."""
+    grouped: dict[str, list[list[str]]] = {}
+    for doc in catalog.documents:
+        grouped.setdefault(doc.family, []).append(_row(catalog, doc, verified)[1:])
+    lines: list[str] = []
+    for family in catalog.families.values():
+        rows = grouped.get(family.id)
+        if not rows:
+            continue
+        if lines:
+            lines.append("")
+        lines.append(f"## {family.title}")
+        lines.append("")
+        lines.extend(_table_lines(COLUMNS[1:], rows))
     return lines
 
 
@@ -146,6 +172,7 @@ __all__ = [
     "access_label",
     "fetch_label",
     "read_golden",
+    "support_by_family",
     "support_rows",
     "support_table",
     "verified_label",

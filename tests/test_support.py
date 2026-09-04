@@ -565,3 +565,127 @@ def test_document_cell_accepts_any_whitespace_between_id_and_version(
     verified, problems = support.read_golden(path, extended)
     assert problems == []
     assert verified == {"dsp0236": [("G1", "1.3.3")], "ipmi": [("G2", "2.0 rev 1.1")]}
+
+
+# --------------------------------------------- 1.0.0: the per-family table
+
+
+def test_by_family_groups_documents_under_their_family_in_catalog_order(
+    extended_file, tmp_path, capsys
+):
+    golden = tmp_path / "golden.md"
+    golden.write_text(GOLDEN, encoding="utf-8", newline="")
+    code, out, err = run(
+        capsys,
+        "catalog",
+        "--table",
+        "--by-family",
+        "--golden",
+        str(golden),
+        catalog_file=extended_file,
+    )
+    assert code == 0
+    assert "G5: unknown document 'NOPE'" in err
+    lines = out.splitlines()
+    # families in catalog order; the flat table lists PMB (mctp) after
+    # SECRET (vendor), the grouped one puts it back under MCTP
+    assert [ln for ln in lines if ln.startswith("## ")] == [
+        "## MCTP",
+        "## IPMI",
+        "## Vendor documents",
+    ]
+    header = "| Document | Access | Latest | Fetch | Verified | Known limit |"
+    assert lines.count(header) == 3
+    assert lines[0] == "## MCTP" and lines[1] == "" and lines[2] == header
+    assert lines[3] == "|---|---|---|---|---|---|"
+    ids = [ln.split("`")[1] for ln in lines if ln.startswith("| `")]
+    assert ids == ["DSP0236", "BUNDLE", "PMB", "IPMI", "SECRET", "JEDEC-X", "CLOSED"]
+    pmb = next(ln for ln in lines if ln.startswith("| `PMB`"))
+    assert pmb.split(" | ")[1:] == [
+        "open (latest gated)",
+        "Rev 1.1",
+        "direct",
+        "G2 (1.0)",
+        "Tables are images: page and render, not table. |",
+    ]
+    # one blank line between families, none at the end
+    assert lines[lines.index("## IPMI") - 1] == ""
+    assert not out.endswith("\n\n")
+
+
+def test_by_family_leaves_out_a_family_without_documents(tmp_path, capsys):
+    old = '[families.vendor]\ntitle = "Vendor documents"'
+    assert old in MINI_CATALOG
+    text = MINI_CATALOG.replace(
+        old,
+        '[families.empty]\ntitle = "Nothing here"\npublisher = "Nobody"\n\n' + old,
+    )
+    path = tmp_path / "catalog.toml"
+    path.write_text(text, encoding="utf-8", newline="")
+    code, out, _ = run(capsys, "catalog", "--table", "--by-family", catalog_file=path)
+    assert code == 0
+    assert "Nothing here" not in out
+    assert [ln for ln in out.splitlines() if ln.startswith("## ")] == [
+        "## MCTP",
+        "## IPMI",
+        "## Vendor documents",
+    ]
+
+
+def test_by_family_goes_with_table(extended_file, capsys):
+    code, out, _ = run(capsys, "catalog", "--by-family", catalog_file=extended_file)
+    assert code == 2 and out.strip() == "--by-family goes with --table"
+    code, out, _ = run(
+        capsys, "catalog", "--table", "--by-family", "PMB", catalog_file=extended_file
+    )
+    assert code == 2 and "drop the document id or --family" in out
+
+
+def _shipped_root():
+    from pathlib import Path
+
+    return Path(__file__).resolve().parents[1]
+
+
+def test_support_doc_is_the_generated_table(capsys):
+    """docs/SUPPORT.md holds the --by-family output after its marker line;
+    the test fails when the catalog or the golden file moved on without it."""
+    root = _shipped_root()
+    doc = (root / "docs" / "SUPPORT.md").read_text(encoding="utf-8")
+    marker = (
+        "<!-- generated below: catalog --table --by-family "
+        "--golden docs/golden-questions.md -->\n\n"
+    )
+    assert marker in doc
+    stored = doc.split(marker, 1)[1]
+    code = main(
+        [
+            "catalog",
+            "--table",
+            "--by-family",
+            "--golden",
+            str(root / "docs" / "golden-questions.md"),
+        ]
+    )
+    out = capsys.readouterr().out
+    assert code == 0
+    assert stored == out, "regenerate docs/SUPPORT.md (see its header)"
+
+
+def test_readme_counts_match_the_catalog():
+    import re
+
+    from bmc_toolkit.spec.catalog import load_catalog as load_shipped
+
+    catalog = load_shipped()
+    readme = (_shipped_root() / "README.md").read_text(encoding="utf-8")
+    m = re.search(
+        r"lists (\d+) documents in\s+(\d+) families\. The (\d+) open ones", readme
+    )
+    assert m, "README status paragraph moved"
+    docs = catalog.documents
+    families = {d.family for d in docs}
+    open_docs = [d for d in docs if d.access == "open"]
+    assert tuple(map(int, m.groups())) == (len(docs), len(families), len(open_docs))
+    m = re.search(r"the (\d+) gated, member and NDA documents", readme)
+    assert m and int(m.group(1)) == len(docs) - len(open_docs)
