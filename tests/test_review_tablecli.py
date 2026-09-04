@@ -145,7 +145,7 @@ def test_single_page_table_output_shape(held, catalog_file, capsys):
         URL,
         str(held),
     ]
-    assert lines[1] == "table: Table 1 - Codes | page 1 | 3 columns | 3 rows"
+    assert lines[1] == "table: Table 1 - Codes | ruled | page 1 | 3 columns | 3 rows"
     assert lines[2] == "Name        | Code | Meaning"
     assert lines[3] == "------------+------+--------"
     assert lines[4:] == [
@@ -162,7 +162,7 @@ def test_multi_line_cell_gets_one_physical_line_per_cell_line_and_a_rule(
     code, out = run(capsys, "table", "DSP0236", "--page", "4", catalog_file=catalog_file)
     assert code == 0, out
     lines = out.splitlines()
-    assert lines[1] == "table: - | page 4 | 3 columns | 2 rows"
+    assert lines[1] == "table: - | ruled | page 4 | 3 columns | 2 rows"
     assert lines[2:] == [
         "Name      | Code | Meaning",
         "----------+------+-------------",
@@ -185,7 +185,7 @@ def test_spanning_table_cites_the_page_range_and_page_output_is_unchanged(
         fields = lines[0].split(" | ")
         assert fields[3] == "PDF pages 2-3"
         assert fields[4] == "lines table 1"
-        assert lines[1] == "table: Table 2 - Split | pages 2-3 | 3 columns | 5 rows"
+        assert lines[1] == "table: Table 2 - Split | ruled | pages 2-3 | 3 columns | 5 rows"
         assert lines[2] == "Name    | Code | Meaning"
         assert lines[4:] == [
             "Current | 03h  | amps",
@@ -234,7 +234,7 @@ def test_store_file_has_the_documented_shape(held, catalog_file, capsys):
     code, out = run(capsys, "table", "DSP0236", "--page", "2", catalog_file=catalog_file)
     assert code == 0, out
     data = json.loads((held / "tables.json").read_text("utf-8"))
-    assert data["tables_version"] == 1
+    assert data["tables_version"] == 2
     assert 2 in data["pages_done"]
     (entry,) = [t for t in data["tables"] if t["first"] == 2]
     assert entry["last"] == 3
@@ -346,7 +346,7 @@ def test_error_paths(fetched, catalog_file, capsys):
     assert code == 2 and "cite:" not in out
     code, out = run(capsys, "table", "DSP0236", "--page", "5", catalog_file=catalog_file)
     assert code == 2
-    assert "no ruled table" in out
+    assert "no table on page" in out
     assert "page DSP0236 5" in out and "render DSP0236 --page 5" in out
 
 

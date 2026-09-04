@@ -185,9 +185,11 @@ def bundle_bytes(*, mirror: bool = False) -> bytes:
 
 
 def registries_bytes() -> bytes:
+    """M9 unpacks registries, so this is now an archive with neither
+    schemas nor registries (a privilege registry and a README)."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("DSP8011_2026.1/Base.1.21.0.json", "{}")
+        zf.writestr("DSP8011_2026.1/Redfish_1.4.0_PrivilegeRegistry.json", "{}")
         zf.writestr("DSP8011_2026.1/README.md", "registries")
     return buf.getvalue()
 
@@ -339,7 +341,7 @@ def test_a_zip_without_json_schema_is_skipped_with_the_reason(
     assert code == 0, out
     assert out.startswith("skipped BUNDLE 2026.2")
     assert "json-schema" in out
-    assert "later" in out.lower()
+    assert "registry" in out.lower()  # M9: the message names both kinds
     vdir = library.specs / "mctp" / "BUNDLE" / "2026.2"
     assert not (vdir / "schemas").exists()
     assert not (vdir / "extract.json").exists()

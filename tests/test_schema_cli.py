@@ -81,17 +81,18 @@ def test_extract_unpacks_and_status_shows_schemas(fetched, catalog_file, capsys)
 
 
 def test_extract_all_skips_a_zip_without_schemas(held, catalog_file, tmp_path, capsys):
-    plain = tmp_path / "registries.zip"
+    # M9: a registries bundle is unpacked now; a ZIP with neither is skipped
+    plain = tmp_path / "plain.zip"
     with zipfile.ZipFile(plain, "w") as zf:
-        zf.writestr("Base.1.0.0.json", "{}")
+        zf.writestr("README.md", "nothing to unpack")
     argv = ["add", str(plain), "--document", "BUNDLE", "--version", "2026.2"]
     code, out = run(capsys, *argv, catalog_file=catalog_file)
     assert code == 0, out
     code, out = run(capsys, "extract", "--all", catalog_file=catalog_file)
     assert code == 0, out
     assert (
-        "skipped BUNDLE 2026.2: no json-schema/ folder in the archive "
-        "(registries and profiles come later)"
+        "skipped BUNDLE 2026.2: no json-schema/ folder, no versioned schema files "
+        "and no message registry files in the archive"
     ) in out
     assert "skipped BUNDLE 2026.1: already extracted" in out
     assert out.strip().splitlines()[-1].startswith("summary: ")

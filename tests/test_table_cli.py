@@ -60,7 +60,7 @@ def test_table_prints_cite_table_line_and_grid(held, catalog_file, capsys):
         f"{URL} | "
     )
     assert lines[0].endswith(str(held))
-    assert lines[1] == "table: Table 1 - Codes | pages 1-2 | 3 columns | 5 rows"
+    assert lines[1] == "table: Table 1 - Codes | ruled | pages 1-2 | 3 columns | 5 rows"
     assert lines[2] == "Name        | Code | Meaning"
     assert lines[3] == "------------+------+--------"
     assert lines[4:] == [
@@ -141,7 +141,7 @@ def test_table_without_a_ruled_table_exits_2(held, catalog_file, capsys):
     )
     assert code == 2
     assert out.strip() == (
-        "no ruled table on page 3 of DSP0236 1.3.3; read the page with: "
+        "no table on page 3 of DSP0236 1.3.3; read the page with: "
         "bmcspec page DSP0236 3, or look at it with: bmcspec render DSP0236 --page 3"
     )
     code, out = run(

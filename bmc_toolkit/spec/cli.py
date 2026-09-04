@@ -18,6 +18,7 @@ from bmc_toolkit.spec import fetch as fetch_mod
 from bmc_toolkit.spec import freshness as fresh_mod
 from bmc_toolkit.spec import listing as listing_mod
 from bmc_toolkit.spec import refresh as refresh_mod
+from bmc_toolkit.spec import registry as registry_mod
 from bmc_toolkit.spec import render as render_mod
 from bmc_toolkit.spec import search as search_mod
 from bmc_toolkit.spec import support as support_mod
@@ -54,6 +55,7 @@ __all__ = [
 EXIT_OK = 0
 EXIT_ERROR = 1
 EXIT_ACTION = 2
+ROW_CAP = 300  # a table longer than this is printed one page at a time
 
 MAX_HITS = 50  # find: hits printed per call unless --max says otherwise
 MAX_PAGES = 10  # page: pages printed per call unless --max-pages says otherwise
@@ -124,7 +126,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("document", nargs="?", help="one document id; none does all")
     p.add_argument(
-        "--write", action="store_true", help="append the new entries to the catalog"
+        "--write",
+        action="store_true",
+        help="insert the new entries into the catalog, in publication order",
     )
 
     p = sub.add_parser("extract", help="turn a PDF in the Library into text")
@@ -218,7 +222,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--yes", action="store_true", help="really remove (the default only lists)"
     )
 
-    p = sub.add_parser("table", help="print the ruled tables on a page, whole")
+    p = sub.add_parser(
+        "registry", help="Redfish message registries of a bundle: text, severity, fix"
+    )
+    p.add_argument("document", help="document id of a registries bundle")
+    p.add_argument("registry", nargs="?", help="registry prefix (Base); none lists")
+    p.add_argument("message", nargs="?", help="message key (PropertyMissing)")
+    p.add_argument("--version", dest="doc_version", help="exact version string")
+
+    p = sub.add_parser("table", help="print the tables on a page, whole")
     p.add_argument("document", help="document id")
     p.add_argument("--page", type=int, required=True, help="physical page (1-based)")
     p.add_argument("--version", dest="doc_version", help="exact version string")
@@ -227,6 +239,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--force", action="store_true", help="read the PDF again instead of tables.json"
+    )
+    p.add_argument(
+        "--all-rows",
+        action="store_true",
+        help=f"print every row of a table longer than {ROW_CAP} rows, "
+        "not only the page's",
     )
     return parser
 
@@ -620,6 +638,8 @@ def cmd_status(args: argparse.Namespace) -> int:
             wanted = extract_mod.EXTRACTOR_VERSION
             if em.get("kind") == "schemas":
                 wanted = bundle_mod.BUNDLE_VERSION
+            elif em.get("kind") == registry_mod.KIND:
+                wanted = registry_mod.REGISTRY_VERSION
             current = em.get("extractor_version") == wanted
             extracted = "extracted" if current else "stale"
         outline = em.get("outline_source", "-") if em else "-"
@@ -782,6 +802,12 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         if args.write and to_write:
             try:
                 refresh_mod.append_versions(path, doc.id, to_write)
+            except refresh_mod.UnreadableBlock as exc:
+                print(
+                    f"skipped {doc.id}: a version block cannot be placed ({exc}); "
+                    f"add the entries by hand"
+                )
+                continue
             except refresh_mod.RefreshError as exc:
                 print(f"cannot write {doc.id}: {exc}")
                 return EXIT_ERROR
@@ -835,15 +861,32 @@ def _extract_one(holding, force: bool) -> str:
 
 
 def _unpack_one(holding, force: bool, label: str) -> str:
-    """Unpack a schema bundle; returns extracted | skipped | failed."""
-    if not force and bundle_mod.is_current(holding.path):
+    """Unpack a schema or registries bundle; returns extracted | skipped |
+    failed."""
+    if not force and (
+        bundle_mod.is_current(holding.path) or registry_mod.is_current(holding.path)
+    ):
         print(f"skipped {label}: already extracted")
         return "skipped"
     try:
         result = bundle_mod.unpack(holding.original, holding.path)
-    except bundle_mod.NoSchemas as exc:
-        print(f"skipped {label}: {exc} (registries and profiles come later)")
-        return "skipped"
+        what = f"{result.files} schema files, {result.resources} resources"
+    except bundle_mod.NoSchemas:
+        try:
+            result = registry_mod.unpack(holding.original, holding.path)
+            what = f"{result.files} message registries"
+        except registry_mod.NoRegistries as exc:
+            print(
+                f"skipped {label}: no json-schema/ folder, no versioned schema "
+                f"files and {exc}"
+            )
+            return "skipped"
+        except registry_mod.RegistryError as exc:
+            print(f"failed {label}: {exc}")
+            return "failed"
+        except OSError as exc:  # a write the platform refused must not stop --all
+            print(f"failed {label}: cannot write registries: {exc}")
+            return "failed"
     except bundle_mod.BundleError as exc:
         print(f"failed {label}: {exc}")
         return "failed"
@@ -853,10 +896,7 @@ def _unpack_one(holding, force: bool, label: str) -> str:
     refused = f", {result.refused} unsafe paths refused" if result.refused else ""
     if result.duplicates:
         refused += f", {result.duplicates} duplicate names dropped"
-    print(
-        f"extracted {label}: {result.files} schema files, {result.resources} "
-        f"resources in {result.seconds:.2f}s{refused}"
-    )
+    print(f"extracted {label}: {what} in {result.seconds:.2f}s{refused}")
     return "extracted"
 
 
@@ -943,6 +983,11 @@ def _unreadable(holding) -> str:
     label = f"{holding.document} {holding.version}"
     ext = holding.original.suffix.lower().lstrip(".")
     if ext != "pdf":
+        if registry_mod.read_meta(holding.path):
+            return (
+                f"{label} is a {ext} bundle; its registries are read with: "
+                f"bmcspec registry {holding.document}"
+            )
         return (
             f"{label} is a {ext} bundle; its schemas are read with: "
             f"bmcspec schema {holding.document}"
@@ -1574,6 +1619,12 @@ def cmd_schema(args: argparse.Namespace) -> int:
             f"bmcspec find {doc} PATTERN, or: bmcspec page {doc} N"
         )
         return EXIT_ACTION
+    if registry_mod.is_current(holding.path):
+        print(
+            f"{label} is a registries bundle, not a schema bundle; read it with: "
+            f"bmcspec registry {doc}"
+        )
+        return EXIT_ACTION
     if not bundle_mod.is_current(holding.path):
         print(
             f"{label} is not extracted, or was unpacked by an older version; run: "
@@ -1691,6 +1742,103 @@ def _label(section) -> str | None:
     return section.label if section else None
 
 
+def cmd_registry(args: argparse.Namespace) -> int:
+    catalog = _load(args)
+    library = Library(resolve_library())
+    holding, _, problem = _held_version(
+        catalog, library, args.document, args.doc_version
+    )
+    if holding is None:
+        print(problem)
+        return EXIT_ACTION
+    label = f"{holding.document} {holding.version}"
+    doc = holding.document
+    if holding.original.suffix.lower() != ".zip":
+        print(
+            f"{label} is a PDF document, not a registries bundle; read it with: "
+            f"bmcspec find {doc} PATTERN, or: bmcspec page {doc} N"
+        )
+        return EXIT_ACTION
+    if bundle_mod.is_current(holding.path):
+        print(
+            f"{label} is a schema bundle, not a registries bundle; read it with: "
+            f"bmcspec schema {doc}"
+        )
+        return EXIT_ACTION
+    if not registry_mod.is_current(holding.path):
+        print(
+            f"{label} is not extracted, or was unpacked by an older version; run: "
+            f'bmcspec extract {doc} --version "{holding.version}"'
+        )
+        return EXIT_ACTION
+    registries = registry_mod.Registries(holding.path)
+    try:
+        return _registry_output(args, holding, registries)
+    except registry_mod.RegistryError as exc:
+        print(f"cannot read the registries of {label}: {exc}")
+        return EXIT_ERROR
+
+
+def _registry_output(args, holding, registries: registry_mod.Registries) -> int:
+    doc = holding.document
+    if not args.registry:
+        for reg in registries.registries():
+            print(f"{reg.prefix}\t{reg.version}\t{reg.count} messages")
+        return EXIT_OK
+    reg = registries.registry(args.registry)
+    if reg is None:
+        names = registries.similar(args.registry)
+        if names:
+            print(
+                f"no registry named {args.registry!r}; containing it: "
+                + ", ".join(names)
+            )
+        else:
+            print(
+                f"no registry named {args.registry!r}; "
+                f"bmcspec registry {doc} lists them"
+            )
+        return EXIT_ACTION
+    if not args.message:
+        print(_registry_cite(holding, reg, "#/Messages"))
+        print(f"registry: {reg.label} | {reg.count} messages | ids {reg.id_prefix}.*")
+        for m in registries.messages(reg):
+            print(registry_mod.message_line(m))
+        return EXIT_OK
+    msg = registries.message(reg, args.message)
+    if msg is None:
+        names = registries.similar_messages(reg, args.message)
+        if names:
+            print(
+                f"{reg.label} has no message named {args.message!r}; containing it: "
+                + ", ".join(names)
+            )
+        else:
+            print(
+                f"{reg.label} has no message named {args.message!r}; "
+                f"bmcspec registry {doc} {reg.prefix} lists them"
+            )
+        return EXIT_ACTION
+    print(_registry_cite(holding, reg, msg.pointer))
+    for ln in registry_mod.detail_lines(msg):
+        print(ln)
+    return EXIT_OK
+
+
+def _registry_cite(holding, reg: registry_mod.Registry, pointer: str) -> str:
+    return " | ".join(
+        [
+            f"cite: {holding.family}",
+            f"{holding.document} {holding.version}",
+            reg.label,
+            f"file {reg.file}",
+            pointer,
+            search_mod.origin_of(holding.meta),
+            str(holding.path),
+        ]
+    )
+
+
 def cmd_table(args: argparse.Namespace) -> int:
     version, _, code = _open_version(args)
     if version is None:
@@ -1721,7 +1869,7 @@ def cmd_table(args: argparse.Namespace) -> int:
     if not tables:
         doc = version.document
         print(
-            f"no ruled table on page {n} of {version.label}; read the page with: "
+            f"no table on page {n} of {version.label}; read the page with: "
             f"bmcspec page {doc} {n}, or look at it with: "
             f"bmcspec render {doc} --page {n}"
         )
@@ -1746,7 +1894,16 @@ def cmd_table(args: argparse.Namespace) -> int:
             )
         )
         print(tables_mod.describe(table))
-        for ln in tables_mod.format_table(table):
+        only = None
+        if len(table.rows) > ROW_CAP and not args.all_rows:
+            only = table.rows_on(n)
+            shown = f"rows {only[0]}-{only[-1]}" if only else "no rows"
+            print(
+                f"note: {shown} of {len(table.rows) - 1}, those starting on page {n}; "
+                f"the table runs over pages {table.first}-{table.last}; "
+                f"--all-rows prints them all"
+            )
+        for ln in tables_mod.format_table(table, only):
             print(ln)
     return EXIT_OK
 
@@ -1768,6 +1925,7 @@ COMMANDS = {
     "render": cmd_render,
     "table": cmd_table,
     "schema": cmd_schema,
+    "registry": cmd_registry,
     "repos": cmd_repos,
     "clone": cmd_clone,
     "grep": cmd_grep,

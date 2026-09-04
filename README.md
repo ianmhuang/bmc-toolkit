@@ -64,9 +64,13 @@ images and vector drawings with the paths that overlap them, in PDF points)
 and the indices of the text lines lying inside them; `renders/page-N.png`
 holds pages rendered on request. `tables.json` holds the Logical Tables
 read so far (a format version, `pages_done`, and per table the page range,
-caption, section, column edges, parts and rows). For a ZIP bundle,
-`extract` writes `schemas/` instead: the JSON Schema files, flat, and
-`extract.json` with `"kind": "schemas"` and the file and resource counts.
+caption, section, how it is drawn, column edges, parts, rows and the page
+each row starts on). For a ZIP bundle, `extract` writes `schemas/`
+instead (DSP8010, and the profile schema of DSP8013): the JSON Schema
+files, flat, and `extract.json` with `"kind": "schemas"` and the file and
+resource counts; for the registries bundle DSP8011 it writes
+`registries/`, the newest file of each message registry, and
+`extract.json` with `"kind": "registries"`.
 Code Trees live beside `specs/`, under `code/<repo>/<commit>/`, each with
 a `.bmc-tree.json`.
 
@@ -97,8 +101,12 @@ python skills/bmc-spec/scripts/bmcspec.py page DSP0236 24 --to 25              #
 python skills/bmc-spec/scripts/bmcspec.py page DSP0236 --section 8.2
 python skills/bmc-spec/scripts/bmcspec.py render DSP0236 --page 24             # renders/page-24.png
 python skills/bmc-spec/scripts/bmcspec.py table DSP0236 --page 122             # the table(s) on the page, whole
+python skills/bmc-spec/scripts/bmcspec.py table DSP0239 --page 13              # a table drawn as cell boxes, no rules
 python skills/bmc-spec/scripts/bmcspec.py extract DSP8010                       # unpack the Redfish JSON Schema
 python skills/bmc-spec/scripts/bmcspec.py schema DSP8010 Chassis --property PowerState
+python skills/bmc-spec/scripts/bmcspec.py extract DSP8011                       # unpack the Redfish message registries
+python skills/bmc-spec/scripts/bmcspec.py registry DSP8011 Base PropertyValueTypeError
+python skills/bmc-spec/scripts/bmcspec.py schema DSP8013 RedfishInteroperabilityProfile --definition ReadRequirement
 python skills/bmc-spec/scripts/bmcspec.py repos --topic redfish                # repositories and held Code Trees
 python skills/bmc-spec/scripts/bmcspec.py clone bmcweb                         # default branch, shallow
 python skills/bmc-spec/scripts/bmcspec.py clone pldm --release 2.18.0          # the commit OpenBMC 2.18.0 ships
@@ -120,15 +128,24 @@ line range (or `rendered page`), origin URL or `user-provided`, and the
 Library path. The Skill copies Citations from those lines and never
 composes them.
 
-`table` prints every ruled table touching the page as a Logical Table: the
+`table` prints every table touching the page as a Logical Table: the
 pages it spans are read and joined (a table continues when it is the last
 thing on its page, the next page starts with a table with the same column
 edges, and only running headers, footers and page numbers lie between;
 a repeated header row is dropped), and the result is a `cite:` line with
-`PDF pages A-B` and `table K`, a `table:` line with the caption, and the
-rows as a text grid. Tables are read on demand and kept in `tables.json`
-next to the Extract, so a page is read from the PDF once; `--force` reads
-it again. Tables without ruling lines are not detected.
+`PDF pages A-B` and `table K`, a `table:` line with the caption and how
+the table is drawn, and the rows as a text grid. Two drawings are read:
+`ruled` tables, whose cells are bounded by ruling lines (thin filled
+rectangles or stroked lines), and `cells` tables, which have no rules and
+paint every cell as a filled box tiled edge to edge, the way DMTF's
+current PDFs are made; a box's edges are its cell's edges, so a merged
+cell stays one cell, and boxes inside a ruled table (a shaded header) are
+not a second table. A table laid out with spaces alone is not detected.
+A table longer than 300 rows (DSP2053's property guide is one table over
+the whole document) prints a `note:` line and only the rows that start
+on the page asked for; `--all-rows` prints every row. Tables are read on
+demand and kept in `tables.json` next to the Extract, so a page is read
+from the PDF once; `--force` reads it again.
 
 `schema` reads a Redfish schema bundle (DSP8010): without a resource it
 lists the resources and their newest schema version; with one it prints
@@ -137,7 +154,19 @@ the version that added it, description); `--property` or `--definition`
 prints one property or one named definition in full, including every
 value of an enum with its description, following `$ref` into the file that
 defines it. Each block starts with a `cite:` line naming the bundle
-version, the schema file and the JSON pointer.
+version, the schema file and the JSON pointer. The profile bundle
+(DSP8013) holds only the profile schema and is read the same way; its
+object is defined at the file's root, so the pointer is `#`.
+
+`registry` reads the Redfish message registries bundle (DSP8011): without
+a registry it lists the registries with their version and message count;
+with one it lists the messages (key, severity, text); with a message key
+(or a full MessageId such as `Base.1.23.PropertyValueTypeError`) it prints
+the message in full: a `cite:` line with the file and `#/Messages/<Key>`,
+the MessageId, severity and argument count, the message text verbatim,
+description, resolution, one line per argument, and when the message was
+added or deprecated. Only the newest file of each registry is unpacked;
+an older registry version is read from an older bundle with `--version`.
 
 `clone` brings a repository into the Library as a Code Tree (a catalog
 entry, or any `openbmc/<name>` when the catalog does not list it), a
@@ -225,7 +254,12 @@ reports them with `(URL to confirm by hand)`.
   DSP8010 2026.1's 6890 JSON Schema files and 234 MB); CSDL, OpenAPI,
   dictionaries and the PDFs stay in the ZIP. Member paths that would
   escape `schemas/` are refused, and a base name that appears twice is
-  written once.
+  written once. From the profile bundle (DSP8013, no `json-schema/`
+  folder) the newest `RedfishInteroperabilityProfile.vX_Y_Z.json` is
+  kept. From the registries bundle (DSP8011) only the newest file of each
+  message registry leaves the archive (22 files, about 0.8 MB, out of
+  DSP8011 2026.1's 264 members); the privilege registries, the HTML and
+  the PDF stay in the ZIP.
 - `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/w/index.php?title=<page>` for the pages named in the catalog's `listing` keys. They download no document.
 - Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed.
 - `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>` directory that is removed on failure. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees and `.tmp-*` leftovers under `code/`, nothing else.

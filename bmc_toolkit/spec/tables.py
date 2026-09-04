@@ -1,12 +1,19 @@
-"""Logical Tables: ruled tables read from the PDF on demand, joined across
-pages and stored next to the Extract.
+"""Logical Tables: tables read from the PDF on demand, joined across pages
+and stored next to the Extract.
 
-A specification table is drawn with ruling lines: Word output (Intel, DMTF,
-NVMe) paints them as thin filled rectangles, other producers stroke lines.
-Only those rules define cells here; the shaded backgrounds of header cells
-are ignored, so a header stays one row and the border rectangles do not
-turn into phantom columns. pdfplumber does the cell geometry and the text
-inside each cell; it is imported inside the functions that open a PDF.
+A specification table is drawn in one of two ways. Word output (Intel,
+older DMTF, NVMe) and most other producers draw ruling lines: thin filled
+rectangles or stroked lines. Only those rules define the cells of a
+``ruled`` table; the shaded backgrounds of header cells are ignored, so a
+header stays one row and the border rectangles do not turn into phantom
+columns. DMTF's current PDFs (made from Markdown) draw no rules at all:
+every cell is a filled box, and the boxes tile the table edge to edge. A
+``cells`` table is read from those boxes: at least two rows of at least two
+boxes, rows touching, the outer edges matching from row to row; each box's
+edges become the cell edges, so a merged cell stays one cell. Boxes that
+lie inside a ruled table (its shaded header) are not a second table.
+pdfplumber does the cell geometry and the text inside each cell; it is
+imported inside the functions that open a PDF.
 
 A table that is the last body content of its page continues on the next
 page when that page's first body content is a table with the same column
@@ -16,19 +23,23 @@ continuation page repeats, with or without "(continued)", is dropped.
 
 ``tables.json`` in the version directory::
 
-    {"tables_version": 1,
+    {"tables_version": 2,
      "pages_done": [N, ...],          pages whose tables are all stored:
                                       the pages asked for and every page
                                       a table found there runs onto
      "tables": [{"first": a, "last": b, "index": k, "caption": str | null,
-                 "section": str | null, "columns": [x, ...],
+                 "section": str | null, "drawn": "ruled" | "cells",
+                 "columns": [x, ...],
                  "parts": [[page, index, x0, top, x1, bottom], ...],
-                 "rows": [[cell, ...], ...]}, ...]}
+                 "rows": [[cell, ...], ...],
+                 "row_pages": [page, ...]}, ...]}
 
 ``index`` is the table's 1-based position on its first page, ``columns``
-the x positions of the column edges on that page, ``rows[0]`` the header.
+the x positions of the column edges on that page, ``rows[0]`` the header,
+``row_pages[i]`` the page ``rows[i]`` starts on (so a very long table can
+be printed one page at a time).
 Coordinates are PDF points with the origin top-left, as pdfplumber reports
-them.
+them. Version 1 stores (no ``drawn``, no cells tables) are read again.
 """
 
 import json
@@ -38,8 +49,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-TABLES_VERSION = 1
+TABLES_VERSION = 2
 TABLES_NAME = "tables.json"
+
+RULED = "ruled"
+CELLS = "cells"
+DRAWN_LABEL = {RULED: "ruled", CELLS: "cells (no ruling lines)"}
 
 RULE_PT = 2.5  # a rectangle or line thinner than this is a ruling line
 SNAP_X_PT = 6.0  # vertical rules closer than this are one column edge
@@ -70,7 +85,7 @@ class TextLine:
 
 @dataclass
 class PageTable:
-    """One ruled table as it stands on one page."""
+    """One table as it stands on one page."""
 
     page: int
     index: int  # 0-based, top to bottom on the page
@@ -78,6 +93,7 @@ class PageTable:
     columns: list[float]  # x of the column edges, one more than the columns
     rows: list[list[str]]
     open_bottom: bool = False  # no rule under the last row: the page break cut it
+    drawn: str = RULED  # RULED or CELLS
 
     @property
     def top(self) -> float:
@@ -105,10 +121,19 @@ class LogicalTable:
     columns: list[float]
     parts: list[list[float]]  # [page, index, x0, top, x1, bottom] per page
     rows: list[list[str]]
+    drawn: str = RULED
+    row_pages: list[int] | None = None  # the page each row starts on
 
     @property
     def header(self) -> list[str]:
         return self.rows[0] if self.rows else []
+
+    def rows_on(self, page: int) -> list[int]:
+        """Indices of the rows that start on ``page`` (every row when the
+        store predates ``row_pages``)."""
+        if not self.row_pages or len(self.row_pages) != len(self.rows):
+            return list(range(len(self.rows)))
+        return [i for i, p in enumerate(self.row_pages) if p == page]
 
     @property
     def width(self) -> int:
@@ -130,9 +155,11 @@ class LogicalTable:
             "index": self.index,
             "caption": self.caption,
             "section": self.section,
+            "drawn": self.drawn,
             "columns": self.columns,
             "parts": self.parts,
             "rows": self.rows,
+            "row_pages": self.row_pages,
         }
 
     @classmethod
@@ -146,6 +173,12 @@ class LogicalTable:
             columns=[float(x) for x in data.get("columns", [])],
             parts=[list(p) for p in data.get("parts", [])],
             rows=[[str(c) for c in row] for row in data.get("rows", [])],
+            drawn=str(data.get("drawn", RULED)),
+            row_pages=(
+                [int(p) for p in data["row_pages"]]
+                if isinstance(data.get("row_pages"), list)
+                else None
+            ),
         )
 
 
@@ -218,14 +251,21 @@ def _closing_rules(horizontal: list, vertical: list) -> list[dict]:
 
 
 def page_tables(page, number: int) -> list[PageTable]:
-    """The ruled tables on a pdfplumber page, top to bottom."""
+    """The tables on a pdfplumber page, top to bottom: ruled tables first,
+    then tables drawn as tiled cell boxes outside them."""
     drawn, vertical = page_rules(page)
-    if len(vertical) < 2:  # an underline or a bar, not a grid
-        return []
-    horizontal = drawn + _closing_rules(drawn, vertical)
-    if len(horizontal) < 2:  # pdfplumber wants two explicit lines each way
-        return []
-    settings = {
+    found = _ruled_tables(page, number, drawn, vertical)
+    boxes = page_boxes(page)
+    boxes = [b for b in boxes if not any(_inside(b, t.bbox) for t in found)]
+    found += _cell_tables(page, number, boxes)
+    found.sort(key=lambda t: t.top)
+    for i, t in enumerate(found):
+        t.index = i
+    return found
+
+
+def _settings(horizontal: list, vertical: list) -> dict:
+    return {
         "vertical_strategy": "explicit",
         "horizontal_strategy": "explicit",
         "explicit_vertical_lines": vertical,
@@ -237,6 +277,10 @@ def page_tables(page, number: int) -> list[PageTable]:
         "intersection_x_tolerance": SNAP_X_PT,
         "intersection_y_tolerance": SNAP_Y_PT,
     }
+
+
+def _tables_from(page, number: int, settings: dict, drawn_as: str) -> list[PageTable]:
+    """PageTables for every table pdfplumber finds with ``settings``."""
     found = []
     for table in page.find_tables(settings):
         rows = [[_cell_text(c) for c in row] for row in table.extract()]
@@ -248,7 +292,6 @@ def page_tables(page, number: int) -> list[PageTable]:
             continue  # a framed block of text, not a table
         if not any(cell for row in rows for cell in row):
             continue
-        bottom = float(table.bbox[3])
         found.append(
             PageTable(
                 page=number,
@@ -256,13 +299,133 @@ def page_tables(page, number: int) -> list[PageTable]:
                 bbox=tuple(float(v) for v in table.bbox),
                 columns=columns,
                 rows=rows,
-                open_bottom=not any(abs(h["top"] - bottom) <= SNAP_Y_PT for h in drawn),
+                drawn=drawn_as,
             )
         )
-    found.sort(key=lambda t: t.top)
-    for i, t in enumerate(found):
-        t.index = i
     return found
+
+
+def _ruled_tables(page, number: int, drawn: list, vertical: list) -> list[PageTable]:
+    if len(vertical) < 2:  # an underline or a bar, not a grid
+        return []
+    horizontal = drawn + _closing_rules(drawn, vertical)
+    if len(horizontal) < 2:  # pdfplumber wants two explicit lines each way
+        return []
+    found = _tables_from(page, number, _settings(horizontal, vertical), RULED)
+    for t in found:
+        t.open_bottom = not any(abs(h["top"] - t.bottom) <= SNAP_Y_PT for h in drawn)
+    return found
+
+
+# ------------------------------------------------------ cell boxes
+
+
+def page_boxes(page) -> list[dict]:
+    """The page's filled rectangles that are not ruling lines."""
+    out = []
+    for obj in page.rects:
+        if not obj.get("fill", True):
+            continue
+        if obj["x1"] - obj["x0"] > RULE_PT and obj["bottom"] - obj["top"] > RULE_PT:
+            out.append(obj)
+    return out
+
+
+def _inside(box: dict, bbox: tuple[float, float, float, float]) -> bool:
+    x0, top, x1, bottom = bbox
+    return (
+        box["x0"] >= x0 - SNAP_X_PT
+        and box["x1"] <= x1 + SNAP_X_PT
+        and box["top"] >= top - SNAP_Y_PT
+        and box["bottom"] <= bottom + SNAP_Y_PT
+    )
+
+
+def _box_rows(boxes: list[dict]) -> list[list[dict]]:
+    """Boxes grouped into rows: the same top and bottom, sorted left to
+    right, each row split where two neighbours do not touch."""
+    bands: list[list[dict]] = []
+    for box in sorted(boxes, key=lambda b: (b["top"], b["x0"])):
+        for band in bands:
+            first = band[0]
+            if (
+                abs(box["top"] - first["top"]) <= SNAP_Y_PT
+                and abs(box["bottom"] - first["bottom"]) <= SNAP_Y_PT
+            ):
+                band.append(box)
+                break
+        else:
+            bands.append([box])
+    rows = []
+    for band in bands:
+        band.sort(key=lambda b: b["x0"])
+        run = [band[0]]
+        for box in band[1:]:
+            if abs(box["x0"] - run[-1]["x1"]) <= SNAP_X_PT:
+                run.append(box)
+            else:
+                rows.append(run)
+                run = [box]
+        rows.append(run)
+    rows.sort(key=lambda r: (r[0]["top"], r[0]["x0"]))
+    return rows
+
+
+def box_grids(boxes: list[dict]) -> list[list[list[dict]]]:
+    """Runs of touching box rows that make a table: consecutive rows whose
+    outer edges match and that touch vertically, at least two rows, the
+    first and the last of them with at least two boxes each."""
+    grids: list[list[list[dict]]] = []
+    for row in _box_rows(boxes):
+        x0, x1 = row[0]["x0"], row[-1]["x1"]
+        for grid in grids:
+            last = grid[-1]
+            if (
+                abs(row[0]["top"] - last[-1]["bottom"]) <= SNAP_Y_PT
+                and abs(x0 - last[0]["x0"]) <= COLUMN_TOL_PT
+                and abs(x1 - last[-1]["x1"]) <= COLUMN_TOL_PT
+            ):
+                grid.append(row)
+                break
+        else:
+            grids.append([row])
+    out = []
+    for grid in grids:
+        while grid and len(grid[0]) < 2:
+            grid = grid[1:]
+        while grid and len(grid[-1]) < 2:
+            grid = grid[:-1]
+        if len(grid) >= 2:
+            out.append(grid)
+    return out
+
+
+def _edge(x0: float, top: float, x1: float, bottom: float) -> dict:
+    return {
+        "object_type": "line",
+        "x0": x0,
+        "x1": x1,
+        "top": top,
+        "bottom": bottom,
+        "width": x1 - x0,
+        "height": bottom - top,
+    }
+
+
+def _cell_tables(page, number: int, boxes: list[dict]) -> list[PageTable]:
+    """Tables drawn as tiled boxes: every box's four edges are the cell
+    edges, so pdfplumber sees each box as one cell, merged cells included."""
+    horizontal, vertical = [], []
+    for grid in box_grids(boxes):
+        for row in grid:
+            for b in row:
+                horizontal.append(_edge(b["x0"], b["top"], b["x1"], b["top"]))
+                horizontal.append(_edge(b["x0"], b["bottom"], b["x1"], b["bottom"]))
+                vertical.append(_edge(b["x0"], b["top"], b["x0"], b["bottom"]))
+                vertical.append(_edge(b["x1"], b["top"], b["x1"], b["bottom"]))
+    if not horizontal:
+        return []
+    return _tables_from(page, number, _settings(horizontal, vertical), CELLS)
 
 
 def page_lines(page) -> list[TextLine]:
@@ -453,6 +616,7 @@ class Reader:
     def _assemble(self, parts: list[PageTable], section_of) -> LogicalTable:
         first = parts[0]
         rows: list[list[str]] = [list(r) for r in first.rows]
+        row_pages = [first.page] * len(rows)
         previous = first
         for part in parts[1:]:
             more = drop_repeated_header(rows, part.rows)
@@ -461,6 +625,7 @@ class Reader:
                 rows[-1] = join_cells(rows[-1], more[0])
                 more = more[1:]
             rows.extend(more)
+            row_pages.extend([part.page] * len(more))
             previous = part
         caption = self.caption(first)
         section = section_of(first.page, caption) if section_of else None
@@ -473,6 +638,8 @@ class Reader:
             columns=first.columns,
             parts=[[p.page, p.index, *[round(v, 1) for v in p.bbox]] for p in parts],
             rows=rows,
+            drawn=first.drawn,
+            row_pages=row_pages,
         )
 
 
@@ -611,15 +778,17 @@ def _cell_lines(cell: str) -> list[str]:
     return out or [""]
 
 
-def format_table(table: LogicalTable) -> list[str]:
+def format_table(table: LogicalTable, only: list[int] | None = None) -> list[str]:
     """The table as a text grid: columns padded and joined with `` | ``,
     one physical line per cell line, a rule after the header and after
-    every row that has a multi-line cell."""
+    every row that has a multi-line cell. ``only`` keeps the header and
+    the rows with those indices."""
     width = table.width
-    grid = [
-        [_cell_lines(c) for c in row] + [[""]] * (width - len(row))
-        for row in table.rows
-    ]
+    rows = table.rows
+    if only is not None:
+        wanted = {i for i in only if 0 < i < len(rows)}
+        rows = rows[:1] + [r for i, r in enumerate(rows) if i in wanted]
+    grid = [[_cell_lines(c) for c in row] + [[""]] * (width - len(row)) for row in rows]
     widths = [0] * width
     for row in grid:
         for i, cell in enumerate(row):
@@ -640,7 +809,7 @@ def format_table(table: LogicalTable) -> list[str]:
 
 
 def describe(table: LogicalTable) -> str:
-    """The ``table:`` line: caption, page range, size."""
+    """The ``table:`` line: caption, how it is drawn, page range, size."""
     pages = (
         f"page {table.first}"
         if table.first == table.last
@@ -648,8 +817,9 @@ def describe(table: LogicalTable) -> str:
     )
     cols = table.width
     rows = len(table.rows)
+    drawn = DRAWN_LABEL.get(table.drawn, table.drawn)
     return (
-        f"table: {table.caption or '-'} | {pages} | {cols} column{_s(cols)}"
+        f"table: {table.caption or '-'} | {drawn} | {pages} | {cols} column{_s(cols)}"
         f" | {rows} row{_s(rows)}"
     )
 
@@ -659,6 +829,9 @@ def _s(count: int) -> str:
 
 
 __all__ = [
+    "CELLS",
+    "DRAWN_LABEL",
+    "RULED",
     "TABLES_NAME",
     "TABLES_VERSION",
     "LogicalTable",
@@ -666,11 +839,13 @@ __all__ = [
     "Reader",
     "TableError",
     "TextLine",
+    "box_grids",
     "columns_match",
     "describe",
     "drop_repeated_header",
     "format_table",
     "join_cells",
+    "page_boxes",
     "page_lines",
     "page_rules",
     "page_tables",

@@ -352,12 +352,12 @@ def test_format_table_grid_and_describe():
         rule,
     ]
     assert T.describe(sample_table()) == (
-        "table: Table 1 - Codes | pages 1-2 | 2 columns | 4 rows"
+        "table: Table 1 - Codes | ruled | pages 1-2 | 2 columns | 4 rows"
     )
     single = sample_table()
     single.last = 1
     single.caption = None
-    assert T.describe(single).startswith("table: - | page 1 | ")
+    assert T.describe(single).startswith("table: - | ruled | page 1 | ")
 
 
 def test_store_roundtrip_and_page_bookkeeping(tmp_path):
@@ -401,3 +401,133 @@ def test_sort_on_page_orders_by_position_on_that_page():
         [3, 0, 72.0, 52.0, 452.0, 100.0],
     ]
     assert T.sort_on_page([starting, ending], 2) == [ending, starting]
+
+
+# ------------------------------------------------------------ cell boxes
+
+
+def cell_table(x, top, widths, heights, cells, *, gray=0.9, header_gray=0.8):
+    """pdfgen items for a table drawn the way DMTF's Markdown PDFs draw
+    it: no rules, one filled box per cell, boxes tiled edge to edge. A cell
+    given as None is merged into the box to its left (the row then has
+    fewer, wider boxes)."""
+    items = []
+    xs = [x]
+    for w in widths:
+        xs.append(xs[-1] + w)
+    ys = [top]
+    for h in heights:
+        ys.append(ys[-1] - h)
+    for r, row in enumerate(cells):
+        h = heights[r]
+        c = 0
+        while c < len(row):
+            span = 1
+            while c + span < len(row) and row[c + span] is None:
+                span += 1
+            w = xs[c + span] - xs[c]
+            items.append(
+                ("fill", xs[c], ys[r] - h, w, h, header_gray if r == 0 else gray)
+            )
+            lines = row[c] if isinstance(row[c], list) else [row[c]]
+            for k, text in enumerate(lines):
+                if text:
+                    items.append((xs[c] + 3, ys[r] - 11 - 12 * k, text))
+            c += span
+    return items
+
+
+def test_tiled_boxes_make_a_cells_table(tmp_path):
+    page = furniture(1) + [(72, 714, "Table 3 - Boxes")]
+    page += cell_table(72, 700, WIDTHS, [16] * 3, [HEADER, *ROWS_1])
+    with reader(tmp_path, [page]) as r:
+        (t,) = r.page(1).tables
+        assert t.drawn == T.CELLS
+        assert t.rows == [HEADER, *ROWS_1]
+        assert len(t.columns) == 4
+        (lt,) = r.logical_tables(1)
+        assert lt.drawn == T.CELLS
+        assert lt.caption == "Table 3 - Boxes"
+        assert T.describe(lt) == (
+            "table: Table 3 - Boxes | cells (no ruling lines) | page 1 | 3 columns "
+            "| 3 rows"
+        )
+
+
+def test_a_merged_box_stays_one_cell(tmp_path):
+    rows = [HEADER, ["Group A", None, None], *ROWS_1]
+    page = cell_table(72, 700, WIDTHS, [16] * 4, rows)
+    with reader(tmp_path, [page]) as r:
+        (t,) = r.page(1).tables
+        assert t.drawn == T.CELLS
+        assert t.rows[1][0] == "Group A"
+        assert t.rows[0] == HEADER and t.rows[2] == ROWS_1[0]
+
+
+def test_a_shaded_header_inside_a_ruled_table_is_not_a_second_table(tmp_path):
+    page = ruled_table(72, 700, WIDTHS, [16] * 3, [HEADER, *ROWS_1])
+    # one shaded box per header cell, the way Word paints a shaded header
+    x = 72
+    for w in WIDTHS:
+        page.append(("fill", x, 700 - 16, w, 16, 0.85))
+        x += w
+    page += cell_table(72, 500, WIDTHS, [16] * 2, [HEADER, ROWS_2[0]])
+    with reader(tmp_path, [page]) as r:
+        tables = r.page(1).tables
+        assert [t.drawn for t in tables] == [T.RULED, T.CELLS]
+        assert tables[0].rows == [HEADER, *ROWS_1]
+        assert tables[1].rows == [HEADER, ROWS_2[0]]
+
+
+def test_lone_boxes_and_single_rows_are_not_tables(tmp_path):
+    page = [
+        ("fill", 72, 600, 400, 40, 0.9),  # a NOTE box
+        (75, 620, "NOTE: one shaded block"),
+    ]
+    page += cell_table(72, 500, WIDTHS, [16], [HEADER])  # one row of boxes
+    # two rows of boxes that touch only at a corner
+    page.append(("fill", 72, 300, 100, 16, 0.9))
+    page.append(("fill", 172, 284, 100, 16, 0.9))
+    page.append(("fill", 72, 268, 100, 16, 0.9))
+    page.append(("fill", 172, 252, 100, 16, 0.9))
+    with reader(tmp_path, [page]) as r:
+        assert r.page(1).tables == []
+
+
+def test_a_grid_drops_leading_and_trailing_single_boxes(tmp_path):
+    # a full-width shaded title box right above, and a note box right below,
+    # touching the table: neither is a row of it
+    page = [("fill", 72, 700, sum(WIDTHS), 16, 0.7), (75, 705, "Title bar")]
+    page += cell_table(72, 700 - 16, WIDTHS, [16] * 3, [HEADER, *ROWS_1])
+    page.append(("fill", 72, 700 - 16 * 5, sum(WIDTHS), 16, 0.9))
+    page.append((75, 700 - 16 * 5 + 5, "NOTE: below"))
+    with reader(tmp_path, [page]) as r:
+        (t,) = r.page(1).tables
+        assert t.rows == [HEADER, *ROWS_1]
+
+
+def test_cells_tables_continue_across_pages_and_drop_the_header(tmp_path):
+    page1 = furniture(1) + [(72, 214, "Table 1 - Codes")]
+    page1 += cell_table(72, 200, WIDTHS, [16] * 3, [HEADER, *ROWS_1])
+    page2 = furniture(2) + cell_table(72, 740, WIDTHS, [16] * 3, [HEADER, *ROWS_2])
+    with reader(tmp_path, [page1, page2]) as r:
+        (lt,) = r.logical_tables(1)
+        assert lt.drawn == T.CELLS
+        assert (lt.first, lt.last) == (1, 2)
+        assert lt.rows == [HEADER, *ROWS_1, *ROWS_2]
+
+
+def test_store_keeps_drawn_and_reads_an_old_store_again(tmp_path):
+    t = sample_table()
+    t.drawn = T.CELLS
+    T.store(tmp_path, 2, [t])
+    (got,) = T.stored_for_page(tmp_path, 2)
+    assert got.drawn == T.CELLS
+    data = json.loads((tmp_path / T.TABLES_NAME).read_text("utf-8"))
+    assert data["tables_version"] == 2
+    assert data["tables"][0]["drawn"] == "cells"
+    del data["tables"][0]["drawn"]  # a version 1 entry has no drawn key
+    data["tables_version"] = 1
+    (tmp_path / T.TABLES_NAME).write_text(json.dumps(data), "utf-8")
+    assert T.stored_for_page(tmp_path, 2) is None
+    assert T.LogicalTable.from_dict(data["tables"][0]).drawn == T.RULED

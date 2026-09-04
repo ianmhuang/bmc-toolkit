@@ -33,6 +33,7 @@ SUBCOMMANDS = {
     "table",
     "render",
     "schema",
+    "registry",  # M9
     "grep",
     "code",
     "clone",
@@ -143,12 +144,12 @@ def _open_documents(catalog):
 def test_ac1_every_open_document_but_the_zip_bundles_has_a_question(catalog):
     verified, problems = support.read_golden(GOLDEN, catalog)
     assert problems == []
-    expected = {d.id for d in _open_documents(catalog)} - ZIP_BUNDLES
+    expected = {d.id for d in _open_documents(catalog)}
     missing = sorted(doc_id for doc_id in expected if not verified.get(doc_id.lower()))
     assert missing == [], f"open documents without a Golden Question: {missing}"
-    # the two ZIP bundles stay unverified until M9
+    # M9: the two ZIP bundles are read (registry, schema) and verified too
     for doc_id in ZIP_BUNDLES:
-        assert doc_id.lower() not in verified
+        assert doc_id.lower() in verified
     # the M8a set stays verified
     assert {d.upper() for d in verified} >= M8A_VERIFIED
 
@@ -167,9 +168,7 @@ def test_ac1_support_table_prints_verified_for_every_open_document(catalog, caps
         cells_by_id[cells[1].split("`")[1]] = cells
     for doc in _open_documents(catalog):
         verified = cells_by_id[doc.id][5]
-        if doc.id in ZIP_BUNDLES:
-            assert verified == "-", doc.id
-        else:
+        if True:  # M9: the ZIP bundles are Verified like every other document
             assert verified != "-", f"{doc.id} not Verified"
             # M8 follow-ups: "G1, G3 (1.3.3)", one group per verified version
             group = r"G\d+(, G\d+)* \([^()]+\)"
@@ -322,8 +321,8 @@ def test_ac3_new_ids_follow_file_order(rows):
 
 
 def test_ac4_new_rows_cite_a_page_and_a_locator(rows):
-    locator = re.compile(
-        r"\b(section|sections|table|tables|figure|figures|appendix|clause)\b", re.I
+    locator = re.compile(  # M9: a bundle answer is located by a JSON pointer
+        r"\b(section|sections|table|tables|figure|figures|appendix|clause)\b|#/", re.I
     )
     page = re.compile(r"\bpages?\s+\d+", re.I)
     for qid, cells, _ in rows:
@@ -332,7 +331,8 @@ def test_ac4_new_rows_cite_a_page_and_a_locator(rows):
         where = cells[3]
         assert where.strip() and where.strip() != "-", qid
         assert locator.search(where), f"{qid}: no section, table or figure named"
-        assert page.search(where), f"{qid}: no physical PDF page named"
+        # M9: a bundle answer (JSON pointer) has no PDF page
+        assert page.search(where) or "#/" in where, f"{qid}: no physical PDF page named"
         # the cell starts by naming the document, not with the locator
         assert not locator.match(where.strip()), f"{qid}: cell does not open with the document"
 
@@ -413,8 +413,15 @@ def test_ac5_defects_named_in_the_description_are_catalog_limits(catalog):
         "DSP2053",
         "DSP2065",
     )
+    # M9: table reads cell-box tables, so only the documents whose M8a
+    # wording is kept (CMIS, DSP0274) still mention ruling lines; the rest
+    # of no_rules have no such limit any more
     for doc_id in no_rules:
-        assert "ruling lines" in catalog.get(doc_id).limits.lower(), doc_id
+        limits = catalog.get(doc_id).limits.lower()
+        if doc_id in ("CMIS", "DSP0274"):
+            assert "ruling lines" in limits, doc_id
+        else:
+            assert "ruling lines" not in limits, doc_id
     # round 2 (F2): IPMB's bookmarks and DSP0284's rotated figure labels
     assert "section numbers" in catalog.get("IPMB").limits
     assert "single letters" in catalog.get("DSP0284").limits
@@ -473,9 +480,8 @@ def test_ac6_existing_rows_g1_to_g24_keep_their_content(rows):
     assert by_id["G12"][1] == "PLDM type numbers"
     assert by_id["G24"][1].startswith("Which pldm code sends RequestUpdate")
     assert by_id["G19"][2] == "NVME-MI 2.1"
-    # G9 and G12 no longer name `table` on pages without ruling lines
+    # M9: G9 and G12 name `table` again, their tables being cell boxes
     for qid in ("G9", "G12"):
         commands = re.findall(r"`([^`]+)`", by_id[qid][4])
         heads = {c.split()[0] for c in commands}
-        assert "table" not in heads, (qid, commands)
-        assert "page" in heads, (qid, commands)
+        assert "table" in heads, (qid, commands)

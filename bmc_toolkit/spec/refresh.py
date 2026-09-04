@@ -2,9 +2,13 @@
 
 A maintainer's tool. For every document with a listing it reports the
 versions the publisher lists that the catalog lacks and, with ``--write``,
-appends each as a ``[[documents.versions]]`` block at the end of the
-document's block in the catalog file. The file is edited as text so the
-maintainer comments survive; the result is re-parsed before it is kept.
+inserts each as a ``[[documents.versions]]`` block into the document's
+block in the catalog file, at its place in publication order (see
+``append_versions``). The file is edited as text so the maintainer
+comments survive; the result is re-parsed before it is kept. A version
+block whose ``version`` or ``published`` line the text scan cannot read
+(``UnreadableBlock``) makes the document be skipped rather than edited at
+the wrong place.
 OCP versions are only reported: their links are viewers, not files.
 """
 
@@ -125,7 +129,16 @@ def _document_span(lines: list[str], doc_id: str) -> tuple[int, int]:
 
 
 _VERSION_BLOCK = re.compile(r"^\[\[documents\.versions\]\]\s*$")
-_KEY_LINE = re.compile(r'^(version|published)\s*=\s*"([^"]*)"\s*$')
+_KEY_LINE = re.compile(
+    r"""^(version|published)\s*=\s*(?:"(?P<basic>[^"\\]*)"|'(?P<literal>[^']*)')\s*(?:#.*)?$"""
+)
+_KEY_START = re.compile(r"^(version|published)\s*=")
+
+
+class UnreadableBlock(ValueError):
+    """A version block carries a version or published line the text scan
+    cannot read (an escape sequence, a multi-line string): the document is
+    left alone rather than edited at the wrong place."""
 
 
 def _version_blocks(
@@ -142,10 +155,17 @@ def _version_blocks(
             if _VERSION_BLOCK.match(lines[j]):
                 break
             m = _KEY_LINE.match(lines[j])
-            if m and m.group(1) == "version":
-                version = m.group(2)
-            elif m:
-                published = m.group(2)
+            if m is None:
+                if _KEY_START.match(lines[j]):
+                    raise UnreadableBlock(f"line {j + 1}: {lines[j].strip()}")
+                continue
+            value = (
+                m.group("basic") if m.group("basic") is not None else m.group("literal")
+            )
+            if m.group(1) == "version":
+                version = value
+            else:
+                published = value
         blocks.append((i, published, version))
     return blocks
 
@@ -155,7 +175,8 @@ def append_versions(path: Path, doc_id: str, seen: list[Seen]) -> None:
     order the catalog keeps (publication date, same-day versions ascending
     by their numbers): before the first existing block that sorts after the
     new one, at the end when none does. The file is re-parsed afterwards
-    and restored on a parse failure."""
+    and restored on a parse failure. Raises UnreadableBlock, before any
+    edit, when an existing block cannot be placed."""
     if not seen:
         return
     with open(path, encoding="utf-8", newline="") as fh:  # read_text(newline=) is 3.13+
@@ -203,6 +224,7 @@ def append_versions(path: Path, doc_id: str, seen: list[Seen]) -> None:
 __all__ = [
     "Proposal",
     "RefreshError",
+    "UnreadableBlock",
     "append_versions",
     "proposals",
     "version_block",
