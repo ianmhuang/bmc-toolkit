@@ -430,11 +430,16 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         if doc.fetch == "manual":
             continue
         ver = doc.latest(include_wip=args.wip)
-        if ver is not None and not ver.open and not _held(library, doc, ver, False):
+        if (
+            ver is not None
+            and not ver.open
+            and not _held(library, doc, ver, args.force)
+        ):
             # The latest is gated: take the newest open version instead and
             # say so once; a document with no open version is left alone. A
             # gated latest the user added by hand is held and reported as
-            # skipped like any other held version.
+            # skipped, except under --force, which re-downloads the open
+            # versions and leaves the Drop-in alone (it has no URL to fetch).
             newest = doc.newest_open()
             gated_notes.append(
                 f"note: {doc.id} latest {ver.version} is {ver.access}; "

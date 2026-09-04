@@ -281,6 +281,14 @@ def test_fetch_of_a_gated_version_the_user_added_is_skipped_not_refused(
     code, out, _ = run(capsys, "fetch", "PMB", "--force", catalog_file=extended_file)
     assert code == 2 and "PMB Rev 1.1 is gated" in out
     assert scripted.calls == calls_before
+    # --all --force re-downloads the open versions and leaves the Drop-in alone
+    code, out, _ = run(capsys, "fetch", "--all", "--force", catalog_file=extended_file)
+    lines = out.splitlines()
+    assert "note: PMB latest Rev 1.1 is gated; fetching 1.0 instead" in lines
+    assert "fetched PMB 1.0 via direct" in lines
+    assert not any("PMB Rev 1.1" in ln for ln in lines)
+    assert scripted.calls.count(PMB_OPEN_URL) == 1  # the earlier --all skipped it
+    assert library.find("PMB", "Rev 1.1").dropin
 
 
 def test_fetch_of_a_manual_document_without_versions_points_at_add(
