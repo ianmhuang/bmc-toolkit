@@ -96,6 +96,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Golden Questions file whose Document column marks Verified rows",
     )
+    p.add_argument(
+        "--by-family",
+        action="store_true",
+        help="with --table: one heading and table per family (docs/SUPPORT.md)",
+    )
 
     p = sub.add_parser("fetch", help="download a document version into the Library")
     p.add_argument("document", nargs="?", help="document id, e.g. DSP0236")
@@ -284,9 +289,10 @@ def cmd_catalog(args: argparse.Namespace) -> int:
         if args.document or args.family:
             print("--table prints every document; drop the document id or --family")
             return EXIT_ACTION
-        return _catalog_table(catalog, args.golden)
-    if args.golden:
-        print("--golden goes with --table")
+        return _catalog_table(catalog, args.golden, args.by_family)
+    if args.golden or args.by_family:
+        flag = "--golden" if args.golden else "--by-family"
+        print(f"{flag} goes with --table")
         return EXIT_ACTION
     if args.document:
         doc = catalog.get(args.document)
@@ -334,7 +340,7 @@ def cmd_catalog(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def _catalog_table(catalog: Catalog, golden: Path | None) -> int:
+def _catalog_table(catalog: Catalog, golden: Path | None, by_family: bool) -> int:
     """The Support Level table; Verified from the Golden Questions file."""
     verified: support_mod.Verified = {}
     if golden is not None:
@@ -345,7 +351,8 @@ def _catalog_table(catalog: Catalog, golden: Path | None) -> int:
             return EXIT_ERROR
         for problem in problems:
             print(f"{golden}: {problem}", file=sys.stderr)
-    for line in support_mod.support_table(catalog, verified):
+    render = support_mod.support_by_family if by_family else support_mod.support_table
+    for line in render(catalog, verified):
         print(line)
     return EXIT_OK
 
