@@ -4057,6 +4057,7 @@ title = "ASPEED AST2500 Datasheet"
 access = "confidential"
 fetch = "manual"
 notes = "ASPEED NDA."
+unlisted = true
 
 [[documents]]
 id = "AST2600"
@@ -4065,6 +4066,7 @@ title = "ASPEED AST2600 Datasheet"
 access = "confidential"
 fetch = "manual"
 notes = "ASPEED NDA."
+unlisted = true
 
 [[documents]]
 id = "NPCM7XX"
@@ -4073,6 +4075,7 @@ title = "Nuvoton NPCM7xx (Poleg) Datasheet"
 access = "confidential"
 fetch = "manual"
 notes = "Nuvoton NDA."
+unlisted = true
 
 [[documents]]
 id = "NPCM8XX"
@@ -4081,6 +4084,7 @@ title = "Nuvoton NPCM8xx (Arbel) Datasheet"
 access = "confidential"
 fetch = "manual"
 notes = "Nuvoton NDA."
+unlisted = true
 
 # ------------------------------------------------------------------ repos
 #

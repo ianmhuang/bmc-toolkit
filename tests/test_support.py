@@ -2,6 +2,7 @@
 the gated-version paths of fetch, check's manual line, and the Support
 Level table with its Golden Questions parser."""
 
+import re
 import tomllib
 
 import pytest
@@ -594,20 +595,22 @@ def test_by_family_groups_documents_under_their_family_in_catalog_order(
         "## IPMI",
         "## Vendor documents",
     ]
-    header = "| Document | Access | Latest | Fetch | Verified | Known limit |"
+    header = "| Document | Access | Latest | Verified | Known limit |"
     assert lines.count(header) == 3
     assert lines[0] == "## MCTP" and lines[1] == "" and lines[2] == header
-    assert lines[3] == "|---|---|---|---|---|---|"
+    assert lines[3] == "|---|---|---|---|---|"
     ids = [ln.split("`")[1] for ln in lines if ln.startswith("| `")]
     assert ids == ["DSP0236", "BUNDLE", "PMB", "IPMI", "SECRET", "JEDEC-X", "CLOSED"]
     pmb = next(ln for ln in lines if ln.startswith("| `PMB`"))
     assert pmb.split(" | ")[1:] == [
         "open (latest gated)",
         "Rev 1.1",
-        "direct",
-        "G2 (1.0)",
+        "PASS",
         "Tables are images: page and render, not table. |",
     ]
+    # no Fetch column and no question ids anywhere in the reader's form
+    assert "direct" not in out and "Drop-in" not in out
+    assert not re.search(r"\bG\d+\b", out)
     # one blank line between families, none at the end
     assert lines[lines.index("## IPMI") - 1] == ""
     assert not out.endswith("\n\n")
@@ -689,3 +692,107 @@ def test_readme_counts_match_the_catalog():
     assert tuple(map(int, m.groups())) == (len(docs), len(families), len(open_docs))
     m = re.search(r"the (\d+) gated, member and NDA documents", readme)
     assert m and int(m.group(1)) == len(docs) - len(open_docs)
+
+
+# ------------------------------------------ support-doc-trim: unlisted
+
+
+UNLISTED = EXTRA.replace(
+    'access = "gated"\nfetch = "manual"\n',
+    'access = "gated"\nfetch = "manual"\nunlisted = true\n',
+    1,
+)
+assert UNLISTED != EXTRA
+
+
+@pytest.fixture
+def unlisted_file(tmp_path):
+    path = tmp_path / "catalog.toml"
+    path.write_text(MINI_CATALOG + UNLISTED, encoding="utf-8", newline="")
+    return path
+
+
+def test_unlisted_is_optional_boolean_and_named_when_wrong(extended, unlisted_file):
+    assert extended.get("JEDEC-X").unlisted is False
+    assert load_catalog(unlisted_file).get("JEDEC-X").unlisted is True
+    bad = (MINI_CATALOG + UNLISTED).replace("unlisted = true", 'unlisted = "yes"')
+    with pytest.raises(CatalogError, match=r"documents\[\d+\]\.unlisted"):
+        _parse(bad)
+
+
+def test_by_family_leaves_out_unlisted_documents_but_keeps_the_family(
+    unlisted_file, capsys
+):
+    code, out, _ = run(
+        capsys, "catalog", "--table", "--by-family", catalog_file=unlisted_file
+    )
+    assert code == 0
+    ids = [ln.split("`")[1] for ln in out.splitlines() if ln.startswith("| `")]
+    assert "JEDEC-X" not in ids and "SECRET" in ids and "CLOSED" in ids
+    assert "## Vendor documents" in out
+
+
+def test_by_family_leaves_out_a_family_whose_documents_are_all_unlisted(
+    tmp_path, capsys
+):
+    text = (
+        (MINI_CATALOG + UNLISTED)
+        .replace(
+            'id = "SECRET"\nfamily = "vendor"',
+            'id = "SECRET"\nfamily = "vendor"\nunlisted = true',
+        )
+        .replace(
+            'id = "CLOSED"\nfamily = "vendor"',
+            'id = "CLOSED"\nfamily = "vendor"\nunlisted = true',
+        )
+    )
+    assert text.count("unlisted = true") == 3
+    path = tmp_path / "catalog.toml"
+    path.write_text(text, encoding="utf-8", newline="")
+    code, out, _ = run(capsys, "catalog", "--table", "--by-family", catalog_file=path)
+    assert code == 0
+    assert "## Vendor documents" not in out
+    assert [ln for ln in out.splitlines() if ln.startswith("## ")] == [
+        "## MCTP",
+        "## IPMI",
+    ]
+    assert not out.endswith("\n\n")
+
+
+def test_flat_table_and_the_other_commands_ignore_unlisted(
+    extended_file, unlisted_file, library, scripted, capsys
+):
+    code, flat, _ = run(capsys, "catalog", "--table", catalog_file=unlisted_file)
+    assert code == 0
+    jedec = [ln for ln in flat.splitlines() if "`JEDEC-X`" in ln]
+    assert len(jedec) == 1 and " | manual (Drop-in) | " in jedec[0]
+    # catalog, catalog DOC, fetch and check print the same with or without it
+    for argv in (["catalog"], ["catalog", "JEDEC-X"], ["fetch", "JEDEC-X"], ["check"]):
+        _, with_flag, err1 = run(capsys, *argv, catalog_file=unlisted_file)
+        _, without, err2 = run(capsys, *argv, catalog_file=extended_file)
+        assert with_flag == without and err1 == err2, argv
+
+
+def test_shipped_catalog_unlists_only_the_four_soc_datasheets():
+    from bmc_toolkit.spec.catalog import load_catalog as load_shipped
+
+    catalog = load_shipped()
+    assert sorted(d.id for d in catalog.documents if d.unlisted) == [
+        "AST2500",
+        "AST2600",
+        "NPCM7XX",
+        "NPCM8XX",
+    ]
+    doc = (_shipped_root() / "docs" / "SUPPORT.md").read_text(encoding="utf-8")
+    for token in (
+        "AST2500",
+        "AST2600",
+        "NPCM7XX",
+        "NPCM8XX",
+        "ASPEED",
+        "Nuvoton",
+        "| Fetch |",
+    ):
+        assert token not in doc, token
+    assert not re.search(r"\bG\d+\b", doc.split("-->", 1)[1])
+    assert "| `DSP0236`" in doc and "| PASS |" in doc

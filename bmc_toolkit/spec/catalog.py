@@ -133,6 +133,7 @@ class Document:
     searched_with: tuple[str, ...] = ()
     listing: str = ""  # "<source>:<key>", "" when no publisher listing exists
     limits: str = ""  # Known Limits of the document itself, "" when none
+    unlisted: bool = False  # left out of the per-family Support Level table
 
     @property
     def listing_source(self) -> str:
@@ -253,6 +254,7 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
         raise CatalogError(f"{where}.fetch: '{fetch}' not one of {FETCH_METHODS}")
     notes = _expect(raw, "notes", str, where, default="", required=False)
     limits = _expect(raw, "limits", str, where, default="", required=False)
+    unlisted = _expect(raw, "unlisted", bool, where, default=False, required=False)
     # A manual document may list no versions at all: the user adds any
     # version they hold (member and NDA documents are registered this way).
     raw_versions = _expect(
@@ -305,6 +307,7 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
         tuple(s.strip() for s in raw_with),
         listing,
         limits,
+        unlisted,
     )
 
 
