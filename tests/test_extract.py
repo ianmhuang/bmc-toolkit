@@ -659,3 +659,50 @@ def test_same_size_sub_and_superscripts_beside_their_neighbours_stay_on_the_line
     lines = page_lines(r.text, 1)
     assert len(lines) == 1, lines
     assert lines[0].replace(" ", "") == "0.3VDDandI2Cbus"
+
+
+# ------------------------------------------------- M8 follow-ups: round 2
+
+
+def test_outdented_lower_line_keeps_its_leading_glyphs(tmp_path):
+    # Round-2 F1: the lower line starts further left than the upper one, so
+    # its first glyph has nothing over it; the same-size neighbour to its
+    # right on another baseline marks it as stacked all the same.
+    items = [
+        (72, 695, "0x0909 0x0A0B 0x0C0D 0x0E0F", 15),
+        (340, 700, "Set Link"),
+        (330, 689.6, "EEE only"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "outdent.pdf", [items]))
+    lines = page_lines(r.text, 1)
+    assert len(lines) == 2, lines
+    assert lines[0].endswith("Set Link")
+    assert lines[1].strip() == "EEE only"
+
+
+def test_centred_two_line_cell_wider_below_stays_two_lines(tmp_path):
+    items = [
+        (72, 695, "0x0909", 15),
+        (350, 700, "Set Link"),
+        (330, 689.6, "unsupported EEE mode"),
+        (450, 700, "Comment"),
+    ]
+    r = ex.extract_pdf(pdfgen.write_pdf(tmp_path / "centred.pdf", [items]))
+    lines = page_lines(r.text, 1)
+    assert len(lines) == 2, lines
+    assert "Set Link" in lines[0] and "Comment" in lines[0] and "0x0909" in lines[0]
+    assert lines[1].strip() == "unsupported EEE mode"
+
+
+def test_glyph_heights_at_a_rounding_boundary_are_one_size():
+    # Round-2 F2: one font size, two boxes whose heights differ in the third
+    # decimal across a 0.05 boundary; a tall box bridges the two lines.
+    def box(x0, y0, h, ch, w=5.0):
+        return (x0, y0, x0 + w, y0 + h, ch)
+
+    upper = [box(300 + 6 * i, 700.0, 11.549, ch) for i, ch in enumerate("Set Link")]
+    lower = [box(300 + 6 * i, 689.6, 11.551, ch) for i, ch in enumerate("EEE only")]
+    tall = [box(72 + 9 * i, 695.0, 17.3, ch, 8.0) for i, ch in enumerate("0x0909")]
+    lines = ex._group_lines(upper + lower + tall, unit=5.0)
+    texts = ["".join(s.text for s in ln.segments) for ln in lines]
+    assert texts == ["0x0909Set Link", "EEE only"], texts

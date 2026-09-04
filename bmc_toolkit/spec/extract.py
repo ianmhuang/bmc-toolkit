@@ -72,6 +72,7 @@ STREAM_NEIGHBOUR = 0.6  # of glyph height: how close a stream predecessor must b
 BASELINE_TOL = 0.45  # of the glyph height: stream neighbours share a baseline
 LINE_OVERLAP = 0.5  # of the smaller glyph height: vertical overlap that joins a line
 STACKED = 0.2  # of the narrower glyph width: horizontal overlap that stacks two glyphs
+SIZE_TOL = 0.02  # of the glyph height: boxes this close in height are one size
 NUMBER_BAND_PT = 3.0  # line numbers share an edge within this many points
 MIN_NUMBERED_LINES = 5
 NUMBER_MARGIN = 0.15  # the number column lies within this fraction of the width
@@ -199,11 +200,17 @@ def _group_lines(chars, unit: float) -> list[Line]:
         return []
     ordered = sorted(chars, key=lambda c: (-c[1], c[0]))
     groups: list[_LineGroup] = []
-    for c in ordered:
-        if groups and groups[-1].accepts(c):
-            groups[-1].add(c)
+    for run in _baseline_runs(ordered):
+        # A baseline run joins whole or not at all: the leading glyphs of a
+        # lower line that starts further left than the upper one have
+        # nothing over them, but the glyphs after them do.
+        if groups and all(groups[-1].accepts(c) for c in run):
+            for c in run:
+                groups[-1].add(c)
         else:
-            groups.append(_LineGroup(c))
+            groups.append(_LineGroup(run[0]))
+            for c in run[1:]:
+                groups[-1].add(c)
     lines = []
     for group in groups:
         g = group.chars
@@ -223,6 +230,23 @@ def _group_lines(chars, unit: float) -> list[Line]:
     return lines
 
 
+def _baseline_runs(ordered) -> list[list]:
+    """Consecutive boxes of one baseline and one glyph height, in x order:
+    the glyphs of one line set in one size, as they come out of the sort."""
+    runs: list[list] = []
+    for c in ordered:
+        if runs:
+            prev = runs[-1][-1]
+            height = c[3] - c[1]
+            same_baseline = abs(c[1] - prev[1]) < 0.05
+            same_height = abs(height - (prev[3] - prev[1])) <= SIZE_TOL * height
+            if same_baseline and same_height:
+                runs[-1].append(c)
+                continue
+        runs.append([c])
+    return runs
+
+
 def _same_line(ref, c) -> bool:
     """Same line when the boxes overlap vertically by half the smaller height.
 
@@ -238,6 +262,7 @@ class _SizeRun:
     """The boxes of one glyph height in a line group, searchable by x."""
 
     def __init__(self, first) -> None:
+        self.height = first[3] - first[1]
         self._x0s: list[float] = []
         self._boxes: list[tuple] = []
         self._widest = 0.0
@@ -249,11 +274,12 @@ class _SizeRun:
         self._boxes.insert(i, c)
         self._widest = max(self._widest, c[2] - c[0])
 
-    def over(self, c):
-        """A box of this size lying over ``c`` horizontally by more than
-        STACKED of the narrower width, or None. Touching or kerned
-        neighbours ("I" before a raised "2", "V" before a lowered "DD")
-        do not count."""
+    def stacked_on(self, c):
+        """The box already in the group that the incoming ``c`` is stacked
+        on, or None. Boxes come top-down, so a box found here lies above
+        ``c``, over it horizontally by more than STACKED of the narrower
+        width. Touching or kerned neighbours ("I" before a raised "2", "V"
+        before a lowered "DD") do not count."""
         width = c[2] - c[0]
         i = bisect.bisect_left(self._x0s, c[2])
         while i > 0 and self._x0s[i - 1] > c[0] - self._widest:
@@ -272,27 +298,28 @@ class _LineGroup:
     smaller height (``_same_line``; the tallest box is a fixed anchor, so a
     staircase of slightly offset labels cannot pull the line down step by
     step) and when it is not stacked on a box of its own size: glyphs of
-    one size on one line share a baseline, so a same-size box lying over
+    one size on one line share a baseline, so a same-size box lying under
     another one without overlapping it by half is the next line. The second
     rule keeps two body lines apart when a large glyph in another column (a
     monospace value beside a two-line comment cell) overlaps both by more
-    than half their height and becomes the anchor. Super- and subscripts
-    sit beside their neighbours, not over them, so they join whether or not
-    they are smaller.
+    than half their height and becomes the anchor; ``_group_lines`` applies
+    it to a whole baseline run at once. Super- and subscripts sit beside
+    their neighbours, not over them, so they join whether or not they are
+    smaller.
     """
 
     def __init__(self, first) -> None:
         self.chars = [first]
         self.ref = first  # the tallest box so far
-        self._sizes: dict[float, _SizeRun] = {}  # glyph height -> its boxes
+        self._sizes: list[_SizeRun] = []  # one per glyph height
         self._index(first)
 
     def accepts(self, c) -> bool:
         if not _same_line(self.ref, c):
             return False
-        run = self._sizes.get(round(c[3] - c[1], 1))
-        below = run.over(c) if run is not None else None
-        return below is None or _same_line(below, c)
+        run = self._run(c[3] - c[1])
+        above = run.stacked_on(c) if run is not None else None
+        return above is None or _same_line(above, c)
 
     def add(self, c) -> None:
         self.chars.append(c)
@@ -300,11 +327,18 @@ class _LineGroup:
             self.ref = c
         self._index(c)
 
+    def _run(self, height: float):
+        """The run of this glyph height, within SIZE_TOL: one font size
+        gives one height, but rounding it would split a size at a boundary."""
+        for run in self._sizes:
+            if abs(run.height - height) <= SIZE_TOL * height:
+                return run
+        return None
+
     def _index(self, c) -> None:
-        height = round(c[3] - c[1], 1)
-        run = self._sizes.get(height)
+        run = self._run(c[3] - c[1])
         if run is None:
-            self._sizes[height] = _SizeRun(c)
+            self._sizes.append(_SizeRun(c))
         else:
             run.add(c)
 
