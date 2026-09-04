@@ -489,6 +489,13 @@ def test_shipped_golden_questions_verify_sixteen_documents():
         root / "docs" / "golden-questions.md", catalog
     )
     assert problems == []
-    assert len(verified) == 16
+    # M3-M6 verified these sixteen; M8 adds a row per remaining open document,
+    # so the set only grows. Every id named is one the catalog knows.
+    assert set(verified) >= {
+        "ipmi", "ipmi-update", "dcmi", "dsp0236", "dsp0237", "dsp0239",
+        "dsp0240", "dsp0245", "dsp0248", "dsp0267", "dsp0274", "dsp8010",
+        "dsp0266", "nvme-mi", "dc-scm", "um10204",
+    }  # fmt: skip
+    assert all(catalog.get(doc_id) is not None for doc_id in verified)
     assert verified["ipmi"] == ["G1", "G2", "G3", "G4", "G5"]
     assert verified["dsp0248"] == ["G13", "G15"]

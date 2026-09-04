@@ -232,7 +232,9 @@ def test_ac10_shipped_golden_file_verifies_the_sixteen_documents(capsys):
     assert err == ""
     rows = _rows(out)
     verified = {doc_id for doc_id, cells in rows.items() if cells[5] != "-"}
-    assert verified == {
+    # M8 (feature/golden-m8) adds questions for the remaining open documents;
+    # the sixteen verified at M8a stay verified, so the check is a subset.
+    assert verified >= {
         "IPMI",
         "IPMI-UPDATE",
         "DCMI",
@@ -255,7 +257,10 @@ def test_ac10_shipped_golden_file_verifies_the_sixteen_documents(capsys):
     # every question row of the shipped file names a document or "-"
     text = GOLDEN_SHIPPED.read_text(encoding="utf-8")
     question_rows = [ln for ln in text.splitlines() if re.match(r"^\|\s*G\d+\s*\|", ln)]
-    assert len(question_rows) == 24
+    # M8: G1-G24 plus one row per document added since; ids are unique and gap-free
+    ids = [int(re.match(r"^\|\s*G(\d+)", ln).group(1)) for ln in question_rows]
+    assert len(ids) >= 24
+    assert sorted(ids) == list(range(1, len(ids) + 1))
     assert all(len(ln.split("|")) >= 6 for ln in question_rows)
 
 
@@ -265,8 +270,10 @@ def test_ac10_shipped_golden_file_verifies_the_sixteen_documents(capsys):
 def test_ac4_seven_known_limits_live_in_limits_not_notes(shipped):
     expected = {"IPMI", "DC-SCM", "CMIS", "DSP0274", "DSP0239", "DSP8011", "DSP8013"}
     with_limits = {d.id for d in shipped.documents if d.limits}
-    assert with_limits == expected
-    for doc_id in expected:
+    # M8 (feature/golden-m8) records further document defects found while
+    # answering Golden Questions; the seven from M8a must still be there.
+    assert with_limits >= expected
+    for doc_id in with_limits:
         doc = shipped.get(doc_id)
         assert doc.limits.strip() and doc.limits not in doc.notes
 

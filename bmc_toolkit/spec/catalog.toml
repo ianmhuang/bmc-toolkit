@@ -873,6 +873,7 @@ family = "mctp"
 title = "Management Component Transport Protocol (MCTP) SMBus/I2C Transport Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1094,6 +1095,7 @@ family = "mctp"
 title = "MCTP Serial Transport Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "Some PDF bookmarks are cross-reference anchors; a cite may name one instead of the heading."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1107,6 +1109,7 @@ family = "mctp"
 title = "MCTP KCS Transport Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "Some PDF bookmarks are cross-reference anchors; a cite may name one instead of the heading."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1164,6 +1167,7 @@ family = "mctp"
 title = "Management Component Transport Protocol (MCTP) Memory-Mapped Buffer Interface (MMBI) Transport Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1196,6 +1200,7 @@ family = "mctp"
 title = "NVMe™ (NVMe Express™) Management Messages over MCTP Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -1215,6 +1220,7 @@ family = "mctp"
 title = "CXL™ Fabric Manager API over MCTP Binding Specification"
 access = "open"
 fetch = "direct"
+limits = "PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page."
 
 [[documents.versions]]
 version = "1.0.0"

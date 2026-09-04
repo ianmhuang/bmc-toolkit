@@ -39,6 +39,60 @@ the document, not of the tool.
 | G20 | What LTPI is in DC-SCM 2.x | DC-SCM Rev 2.1 Ver 1.1 | DC-SCM Rev 2.1 Ver 1.1, LTPI section; the signal details are in the separate LTPI specification, which the catalog does not hold | `find DC-SCM LTPI`, `render` (DC-SCM tables are images) |
 | G21 | I2C speed modes and maximum bit rates | UM10204 Rev. 7.0 | UM10204 Rev. 7.0, section 5, page 33 | `section UM10204 "Bus speeds"` |
 
+## MCTP transport bindings and message types
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G25 | PCIe Vendor ID and VDM message code that identify MCTP over PCIe VDM | DSP0238 1.4.0 | DSP0238 1.4.0, section 6.2.1 packet field table, page 12: Vendor ID 0x1AB4 (6836, DMTF), Message Code 0111_1111b (Type 1 VDM), MCTP VDM Code 0000b | `find DSP0238 1AB4`, `page DSP0238 12` |
+| G26 | How an I3C Controller sends an MCTP packet to an I3C Target, and what follows the message data | DSP0233 1.0.1 | DSP0233 1.0.1, section 5.2.1, Figure 4 and Table 1, pages 15-16: a private write to the Target's dynamically assigned address carries the MCTP header and data, followed by a PEC byte (clause 5.3.1) | `section DSP0233 5.2`, `page DSP0233 16`, `render DSP0233 --page 16` |
+| G27 | How an MCTP packet is framed on a serial link | DSP0253 1.0.0 | DSP0253 1.0.0, section 7, page 10: 0x7E flag first and last; 0x7E in the data becomes 0x7D 0x5E and 0x7D becomes 0x7D 0x5D; CRC-16 CCITT frame check; packet size is byte count + 4 | `find DSP0253 0x7E`, `page DSP0253 10` |
+| G28 | Transport-specific MCTP control commands of the KCS binding | DSP0254 1.0.0 | DSP0254 1.0.0, section 7, Table 6, page 14: Register Endpoint 0xF0, Get MCTP Packet 0xF1, Enable MCTP SMS_ATN 0xF2 | `find DSP0254 "Register Endpoint"`, `table DSP0254 --page 14` |
+| G29 | How a host finds an MCTP Host Interface in the SMBIOS tables | DSP0256 2.0.0 | DSP0256 2.0.0, section 9.1, Table 2, page 18: a Type 42 structure whose Interface Type is in the MCTP Host Interfaces range of DSP0239, with a Protocol Record of type MCTP (03h) carrying MCTP protocol version (WORD, 0x0103 for 1.3.1), link-layer type, instance number and characteristics | `find DSP0256 "Type 42"`, `page DSP0256 18` |
+| G30 | USB interface descriptor values that identify an MCTP over USB interface | DSP0283 1.1.0 | DSP0283 1.1.0, section 6.2.1.1, Table 1, page 13: class 0x14, sub-class 0x0 (MC and managed device, no packet spanning; 0x1 host interface), protocol 0x1 (MCTP 1.x), two bulk endpoints; sub-class 0x2 with packet spanning in 6.2.2.1, page 15 | `find DSP0283 "Class code"`, `page DSP0283 13` |
+| G31 | How an MCTP packet sits in an MMBI packet | DSP0284 1.0.1 | DSP0284 1.0.1, section 5.2, Table 1, page 10: MMBI packet type 0100b, header version 0001b, Null destination and source EIDs, padding to a 4-byte multiple | `find DSP0284 "Packet Type"`, `page DSP0284 10` (Figure 1's rotated labels extract as single letters; the bookmarks are anchors, so `section` finds nothing) |
+| G32 | Layout of an MCTP message in an Extended PCC subspace | DSP0292 1.0.0 | DSP0292 1.0.0, sections 8.4 and 8.4.1, Figure 2, page 14: 16-byte header (PCC Signature, Flags, Length, Command = "MCTP", little-endian 0x5054434D), MCTP transport header at offset 16, message body from offset 20 | `find DSP0292 Signature`, `page DSP0292 14` |
+| G33 | Which transport bindings NVMe Management Messages over MCTP are defined for, and where the message type number lives | DSP0235 1.0.1 | DSP0235 1.0.1, sections 7.1 and 7.2, page 9: DSP0237 (SMBus) and DSP0238 (PCIe); the number itself is assigned in DSP0239 (0x04, see G9) | `find DSP0235 "transport bindings"`, `page DSP0235 9` |
+| G34 | MCTP message type of CXL FM API messages and their IC and TO bits | DSP0234 1.0.0 | DSP0234 1.0.0, section 7.4.1, Table 1, page 11: 0x07; IC 0b; TO 1b on requests and event notifications, 0b on responses | `find DSP0234 0x07`, `page DSP0234 11` |
+| G35 | MCTP message type of CXL Type 3 CCI messages and the version reported | DSP0281 1.0.0 | DSP0281 1.0.0, sections 7.1 and 7.2, page 11: 0x08; version 1.0 reported as 0xF1F0FF00 | `find DSP0281 0x08`, `page DSP0281 11` |
+| G36 | MCTP message type of PCIe-MI messages | DSP0291 1.0.0 | DSP0291 1.0.0, sections 9.1 and 9.2, page 13: 0x09; version 1.0 reported as 0xF1F0FF00 | `find DSP0291 "message type number"`, `page DSP0291 13` |
+
+## PLDM companion specifications
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G37 | MCTP message type and IC bit of a PLDM message | DSP0241 1.0.0 | DSP0241 1.0.0, section 6.1, Table 1, page 8: PLDM = 0x01 (000_0001b), IC 0b | `find DSP0241 "Message Type"`, `page DSP0241 8` |
+| G38 | PLDM File Transfer command codes and what DfOpen returns | DSP0242 1.0.1 | DSP0242 1.0.1, section 9, Table 6, page 27: DfOpen 0x01, DfClose 0x02, DfHeartbeat 0x03, DfProperties 0x10, DfGetFileAttribute 0x11, DfSetFileAttribute 0x12, DfRead 0x20 (MultipartReceive), DfFIFOSend 0x21 (MultipartSend); DfOpen returns the FileDescriptor used by DfRead, DfHeartbeat and DfClose (9.2, page 29) | `find DSP0242 "Command Codes"`, `page DSP0242 27` (Table 6 has no ruling lines) |
+| G39 | PLDM for SMBIOS Data Transfer command codes | DSP0246 1.0.1 | DSP0246 1.0.1, section 8.2, Table 3, page 11: GetSMBIOSStructureTableMetadata 0x01, SetSMBIOSStructureTableMetadata 0x02, GetSMBIOSStructureTable 0x03, SetSMBIOSStructureTable 0x04, GetSMBIOSStructureByType 0x05, GetSMBIOSStructureByHandle 0x06 | `find DSP0246 GetSMBIOSStructureTable`, `table DSP0246 --page 11` |
+| G40 | PLDM for BIOS Control and Configuration command codes | DSP0247 1.0.0 | DSP0247 1.0.0, section 8, Table 31, page 35: GetBIOSTable 0x01, SetBIOSTable 0x02, UpdateBIOSTable 0x03, GetBIOSTableTags 0x04, SetBIOSTableTags 0x05, AcceptBIOSAttributesPendingValues 0x06, SetBIOSAttributeCurrentValue 0x07, GetBIOSAttributeCurrentValueByHandle 0x08, GetBIOSAttributePendingValueByHandle 0x09, GetBIOSAttributeCurrentValueByType 0x0a, GetBIOSAttributePendingValueByType 0x0b, GetDateTime 0x0c | `find DSP0247 GetBIOSTable`, `page DSP0247 35` |
+| G41 | State set ID and values of Health State | DSP0249 1.4.0 | DSP0249 1.4.0, section 6.3, Table 1, page 12: set 1; 1 Normal/OK, 2 Non-Critical/Warning, 3 Critical, 4 Fatal, 5 Upper Non-Critical, 6 Lower Non-Critical, 7 Upper Critical, 8 Lower Critical, 9 Upper Fatal, 10 Lower Fatal | `find DSP0249 "Health State"`, `page DSP0249 12` |
+| G42 | PLDM for FRU Data command codes | DSP0257 2.0.0 | DSP0257 2.0.0, section 13, Table 7, page 23: GetFRURecordTableMetadata 0x01, GetFRURecordTable 0x02, SetFRURecordTable 0x03, GetFRURecordByOption 0x04, ReadFRUDataItem 0x10, WriteFRUDataItem 0x11, FindFRUFiles 0x18, GetFRUFileMetadata 0x19 | `find DSP0257 "Command Codes"`, `page DSP0257 23` |
+| G43 | RDE command codes | DSP0218 1.2.0 | DSP0218 1.2.0, section 10, Table 51, pages 111-113: NegotiateRedfishParameters 0x01, NegotiateMediumParameters 0x02, GetSchemaDictionary 0x03, GetSchemaURI 0x04, GetResourceETag 0x05, GetOEMCount 0x06 to GetSchemaFile 0x0C, RDEOperationInit 0x10, SupplyCustomRequestParameters 0x11, RetrieveCustomResponseParameters 0x12, RDEOperationComplete 0x13, RDEOperationStatus 0x14, RDEOperationKill 0x15, RDEOperationEnumerate 0x16, RDEMultipartSend 0x30, RDEMultipartReceive 0x31 | `find DSP0218 NegotiateMediumParameters`, `table DSP0218 --page 111` (one Logical Table over pages 111-113) |
+
+## SPDM companion specifications
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G44 | MCTP message type of SPDM and the version it reports | DSP0275 1.0.2 | DSP0275 1.0.2, sections 4.5.1 and 4.7, page 9: SPDM = 0x05 (000_0101b), IC 0b; version 1.0.2 reported as 0xF1F0F200 | `find DSP0275 "message type"`, `page DSP0275 9` |
+| G45 | MCTP message type of Secured Messages and the size of the Partial Sequence Number | DSP0276 1.3.0 | DSP0276 1.3.0, section 4, Figure 1, page 8: message type 6, IC 0; Partial Sequence Number is 2 bytes, the low 16 bits of the DSP0277 sequence number | `find DSP0276 "message type 6"`, `page DSP0276 8` |
+| G46 | Fields of a Secured Message | DSP0277 1.3.0 | DSP0277 1.3.0, section 5.1, Figure 1 and Table 1, pages 10-13: Session ID (4 bytes), Sequence Number (S bytes, set by the transport binding), Length (4), Application Data Length (4), Application Data, Random Data, MAC | `find DSP0277 "Session ID"`, `page DSP0277 11 --to 13` |
+| G47 | SCSI SECURITY PROTOCOL value for SPDM and how the SPDM operation is passed | DSP0286 1.0.0 | DSP0286 1.0.0, sections 7.2.2.1 and 7.2.2.2, Tables 17 and 18, pages 33-34: SECURITY PROTOCOL 0xE8; SECURITY PROTOCOL SPECIFIC bits [1:0] ConnectionID, bits [7:2] SPDMOperation | `find DSP0286 0xE8`, `page DSP0286 33 --to 34` |
+| G48 | TCP port assigned to SPDM | DSP0287 1.0.0 | DSP0287 1.0.0, section 5, page 9: IANA port 4194; one SPDM communication does not span TCP connections | `find DSP0287 4194` |
+| G49 | Generic Authorization message header and how request and response codes are told apart | DSP0289 1.0.0 | DSP0289 1.0.0, section 9.1.6, Table 15, page 50: byte 0 RequestResponseCode (0x00 to 0x7F responses, 0x80 to 0xFF requests), byte 1 reserved, payload from byte 2; an unsupported request gets AUTH_ERROR with ErrorCode UnsupportedRequest | `section DSP0289 9.1.6`, `page DSP0289 50` |
+
+## NC-SI
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G50 | EtherType of NC-SI Control Packets and the Get Link Status command and response codes | DSP0222 1.2.1 | DSP0222 1.2.1, section 8.1.1, Table 9, page 69: EtherType 0x88F8, destination address broadcast; sections 8.4.23 and 8.4.24, page 98: command 0x0A, response 0x8A | `find DSP0222 0x88F8`, `section DSP0222 8.4.23`, `page DSP0222 98` |
+| G51 | MCTP message types used by NC-SI over MCTP | DSP0261 1.3.1 | DSP0261 1.3.1, section 5.3, Table 1, page 12: NC-SI Control 0x02, Ethernet (Pass-through) 0x03 | `find DSP0261 "Message types"`, `table DSP0261 --page 12` |
+| G52 | How NC-SI is exposed over USB | DSP0296 1.0.0 | DSP0296 1.0.0, sections 8.1 and 8.2, page 11: the NCs are USB functions on a bus whose host controller is the MC, exposed as a CDC ECM or NCM subclass; up to eight packages with 31 channels each; an NC may share a composite device with an MCTP over USB (DSP0283) function | `section DSP0296 8.2`, `page DSP0296 11` |
+
+## SMBIOS
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G53 | Which structures a compliant SMBIOS implementation must provide | DSP0134 3.9.0 | DSP0134 3.9.0, section 6.2, Table 4, pages 28-29: Firmware Information (Type 0), System Information (1), System Enclosure (3), Processor Information (4), Cache Information (7), System Slots (9), Physical Memory Array (16), Memory Device (17), Memory Array Mapped Address (19), System Boot Information (32) | `section DSP0134 6.2`, `table DSP0134 --page 28` (one Logical Table over pages 28-29) |
+
 ## OpenBMC
 
 | # | Question | Document | Where the answer is | Commands |
