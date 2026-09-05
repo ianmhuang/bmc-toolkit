@@ -142,10 +142,12 @@ COMMANDS_VERBATIM = [
     "a registry it lists the registries with their version and message count;",
     "`clone` brings a repository into the Library as a Code Tree (a catalog\n"
     "entry, or any `openbmc/<name>` when the catalog does not list it),",
+    # M13 (locks) reworded this paragraph; the pinned text follows it.
     "`prune` lists every Code Tree marked superseded (an older commit of a\n"
-    "moving name re-fetched with `--force`) and every `.tmp-*` directory a\n"
-    "failed clone left behind, and removes nothing; `prune --yes` removes\n"
-    "them.",
+    "moving name re-fetched with `--force`), every `.tmp-*` directory a failed\n"
+    "clone left behind, every `.part` file or `.lock.takeover` gate older than\n"
+    "five minutes that a failed write or take-over left behind, and every stale\n"
+    "`.lock`, and removes nothing; `prune --yes` removes them,",
     "`config.toml` at the Library root (optional):",
     "[library]\nfreshness_days = 30",
     "[code.checkouts]\nbmcweb = \"/home/me/src/bmcweb\"",
@@ -183,9 +185,10 @@ NETWORK_VERBATIM = [
     "checkout), and `git ls-remote --tags` on the `openbmc` repository for "
     "`check`; `gh search code` for `repos --search`. Nothing else is "
     "executed, and nothing is re-uploaded or redistributed.",
+    # M13 (locks) reworded this bullet; the pinned text follows it.
     "- `clone` writes only under the Library's `code/` directory: "
-    "`code/<repo>/<commit>/` plus a temporary `.tmp-<pid>` directory that is "
-    "removed on failure.",
+    "`code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory "
+    "that is removed on failure, and `code/<repo>/.lock` while it runs.",
     "- `check` writes `freshness.json` at the Library root; `fetch` and "
     "`status` stamp the reminder there (`reminded_at`) when they print the "
     "note. `refresh --write` is the one command that writes outside the "

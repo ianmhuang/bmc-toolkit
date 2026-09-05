@@ -20,13 +20,21 @@ the verbatim string.
 Everything derived from the original (the Extract and its companions,
 ``tables.json``, rendered pages, a bundle's ``schemas/`` or ``registries/``)
 goes away when the original is replaced.
+
+Single files are written through :func:`atomic_write_bytes` and friends: to
+``<name>.<pid>-<token>.part`` next to the target, then renamed into place,
+so a reader never sees a half-written file and two Sessions writing the same
+file do not collide. Multi-file operations hold the directory's lock
+(``lock.py``).
 """
 
 import hashlib
 import json
 import os
 import re
+import secrets
 import shutil
+import time
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -94,6 +102,71 @@ def sha256_of(path: Path) -> str:
 
 def now_iso() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat()
+
+
+PART_SUFFIX = ".part"
+REPLACE_RETRIES = 40  # Windows: renames onto one target can collide
+REPLACE_PAUSE = 0.05  # seconds between retries
+
+
+def temp_path(target: Path) -> Path:
+    """A temporary name beside ``target`` that no other process will pick."""
+    token = f"{os.getpid()}-{secrets.token_hex(4)}"
+    return target.with_name(f"{target.name}.{token}{PART_SUFFIX}")
+
+
+def atomic_write_bytes(target: Path, data: bytes) -> None:
+    """Write ``data`` to a temp file beside ``target`` and rename it into place."""
+    tmp = temp_path(target)
+    try:
+        tmp.write_bytes(data)
+        _replace(tmp, target)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def _replace(tmp: Path, target: Path) -> None:
+    """``os.replace`` that rides out Windows refusing the rename while another
+    process is renaming onto, or has just opened, the same target."""
+    for attempt in range(REPLACE_RETRIES):
+        try:
+            os.replace(tmp, target)
+            return
+        except PermissionError:
+            if attempt == REPLACE_RETRIES - 1:
+                raise
+            time.sleep(REPLACE_PAUSE)
+
+
+def atomic_copy(source: Path, target: Path) -> None:
+    """Copy ``source`` to a temp file beside ``target`` and rename it into place."""
+    tmp = temp_path(target)
+    try:
+        shutil.copyfile(source, tmp)
+        _replace(tmp, target)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def atomic_write_text(target: Path, text: str) -> None:
+    """UTF-8, LF; see :func:`atomic_write_bytes`."""
+    atomic_write_bytes(target, text.encode("utf-8"))
+
+
+def atomic_write_json(
+    target: Path,
+    data,
+    *,
+    indent: int = 4,
+    sort_keys: bool = False,
+    ensure_ascii: bool = True,
+) -> None:
+    text = json.dumps(
+        data, indent=indent, sort_keys=sort_keys, ensure_ascii=ensure_ascii
+    )
+    atomic_write_text(target, text + "\n")
 
 
 @dataclass(frozen=True)
@@ -196,11 +269,19 @@ class Library:
 
     @staticmethod
     def _clear_previous(vdir: Path, keep: str) -> None:
-        """Drop other originals and every derived file before a new original."""
+        """Drop the meta, other originals and every derived file before a
+        new original. The meta goes first and comes back last (``store`` and
+        ``add_dropin`` write it after the original), so a Session killed in
+        between leaves an original without ``meta.json``: not a holding, so
+        the next ``fetch`` redoes it and ``scan`` can still register it,
+        rather than the old meta describing the new file."""
         if not vdir.is_dir():
             return
+        meta = vdir / META_NAME
+        if meta.exists():
+            meta.unlink()
         for p in vdir.glob(ORIGINAL_STEM + ".*"):
-            if p.name != keep and not p.name.endswith(".part"):
+            if p.name != keep and not p.name.endswith(PART_SUFFIX):
                 p.unlink()
         for name in DERIVED_NAMES:
             p = vdir / name
@@ -214,9 +295,7 @@ class Library:
     def write_meta(self, vdir: Path, meta: dict) -> Path:
         vdir.mkdir(parents=True, exist_ok=True)
         path = vdir / META_NAME
-        with open(path, "w", encoding="utf-8", newline="") as fh:
-            json.dump(meta, fh, indent=4, sort_keys=True)
-            fh.write("\n")
+        atomic_write_json(path, meta, indent=4, sort_keys=True)
         return path
 
     def store(
@@ -238,9 +317,7 @@ class Library:
         filename = f"{ORIGINAL_STEM}.{ext}"
         self._clear_previous(vdir, filename)
         target = vdir / filename
-        tmp = vdir / (filename + ".part")
-        tmp.write_bytes(data)
-        os.replace(tmp, target)
+        atomic_write_bytes(target, data)
         self.write_meta(
             vdir,
             {
@@ -268,7 +345,7 @@ class Library:
         filename = f"{ORIGINAL_STEM}.{ext}"
         self._clear_previous(vdir, filename)
         target = vdir / filename
-        shutil.copyfile(source, target)
+        atomic_copy(source, target)
         self.write_meta(
             vdir,
             {
@@ -294,6 +371,6 @@ class Library:
             if (vdir / META_NAME).exists():
                 continue
             originals = sorted(vdir.glob(ORIGINAL_STEM + ".*"))
-            originals = [p for p in originals if not p.name.endswith(".part")]
+            originals = [p for p in originals if not p.name.endswith(PART_SUFFIX)]
             if originals:
                 yield vdir, originals[0]

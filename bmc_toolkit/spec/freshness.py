@@ -33,7 +33,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec import code as code_mod
 from bmc_toolkit.spec.catalog import Catalog, Document
-from bmc_toolkit.spec.library import now_iso
+from bmc_toolkit.spec.library import atomic_write_json, now_iso
 from bmc_toolkit.spec.listing import (
     PUBLISHER_NAMES,
     ListingError,
@@ -194,9 +194,7 @@ class Freshness:
 
     def save(self) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
-        with open(self.path, "w", encoding="utf-8", newline="") as fh:
-            json.dump(self.data, fh, indent=4, sort_keys=True)
-            fh.write("\n")
+        atomic_write_json(self.path, self.data, indent=4, sort_keys=True)
 
     def record(self, check: Check) -> None:
         # a fresh record: any earlier reminder is spent

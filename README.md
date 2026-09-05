@@ -19,6 +19,8 @@ listed with their tier and registered from your own copy. Which documents,
 what each one's limits are and whether it has been verified:
 [docs/SUPPORT.md](docs/SUPPORT.md) (the questions themselves are in
 `docs/golden-questions.md`, and `catalog --table` names them per document).
+How the catalog is kept and which versions it carries per publisher:
+[docs/CATALOG.md](docs/CATALOG.md).
 
 ## Install
 
@@ -77,7 +79,7 @@ sequenceDiagram
     Note over Claude,Lib: OpenBMC questions have the same shape:<br/>repos, clone (GitHub), grep, code, cite:
 ```
 
-Solid arrows are commands and writes, dashed arrows what comes back. The
+Solid arrows are commands and Library access, dashed arrows what comes back. The
 version is the catalog's latest unless the user names one; `--version` on
 `fetch`, `extract` and the reading commands serves that one instead, and a
 version the tool cannot download is registered from your copy with `add`.
@@ -139,8 +141,9 @@ bmcspec code bmcweb redfish-core/lib/chassis.hpp --lines 160-175
 bmcspec prune                # list superseded Code Trees; --yes removes them
 ```
 
-Exit codes: 0 done, 1 error, 2 you need to act (the message says what).
-Flags, output formats and `config.toml`: [docs/COMMANDS.md](docs/COMMANDS.md).
+Exit codes, the `--wait` flag (several Claude Code conversations can share
+one Library), flags, output formats and `config.toml`:
+[docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## What the tool does on the network and on disk
 

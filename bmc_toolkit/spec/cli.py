@@ -1,13 +1,16 @@
 """Command-line entry point for the bmc-spec skill.
 
 Exit codes: 0 done, 1 error (bad catalog, unreadable file), 2 the user must
-act (unknown document or version, download impossible, bad arguments).
-Standard library only; the HTTP client is created lazily by ``fetch``.
+act (unknown document or version, download impossible, bad arguments),
+3 busy (another Session holds the lock the command needs; ``--wait`` says how
+long to wait for it). Standard library only; the HTTP client is created
+lazily by ``fetch``.
 """
 
 import argparse
 import re
 import sys
+import time
 from pathlib import Path
 
 from bmc_toolkit import __version__
@@ -17,6 +20,7 @@ from bmc_toolkit.spec import extract as extract_mod
 from bmc_toolkit.spec import fetch as fetch_mod
 from bmc_toolkit.spec import freshness as fresh_mod
 from bmc_toolkit.spec import listing as listing_mod
+from bmc_toolkit.spec import lock as lock_mod
 from bmc_toolkit.spec import refresh as refresh_mod
 from bmc_toolkit.spec import registry as registry_mod
 from bmc_toolkit.spec import render as render_mod
@@ -35,6 +39,7 @@ from bmc_toolkit.spec.catalog import (
 from bmc_toolkit.spec.library import (
     DEFAULT_LIBRARY_DIRNAME,
     ENV_LIBRARY,
+    PART_SUFFIX,
     Library,
     LibraryError,
     file_matches_type,
@@ -55,6 +60,7 @@ __all__ = [
 EXIT_OK = 0
 EXIT_ERROR = 1
 EXIT_ACTION = 2
+EXIT_BUSY = 3  # another Session holds the lock; retry with --wait
 ROW_CAP = 300  # a table longer than this is printed one page at a time
 
 MAX_HITS = 50  # find: hits printed per call unless --max says otherwise
@@ -78,6 +84,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="alternative Source Catalog file (default: the shipped one)",
+    )
+    parser.add_argument(
+        "--wait",
+        type=float,
+        default=lock_mod.DEFAULT_WAIT,
+        metavar="SECONDS",
+        help="how long to wait for another Session's lock before exiting 3 "
+        f"(default {lock_mod.DEFAULT_WAIT}; 0 returns at once)",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -256,6 +270,34 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _load(args: argparse.Namespace) -> Catalog:
     return load_catalog(args.catalog)
+
+
+def _took_over(holder: lock_mod.Holder) -> None:
+    print(f"note: took over a stale lock from {holder.describe()}")
+
+
+def _left_behind(path: Path) -> None:
+    print(
+        f"note: could not remove {path} (another process has it open); it "
+        f"expires as stale in {int(lock_mod.STALE_SECONDS // 60)} minutes"
+    )
+
+
+def _lock(args: argparse.Namespace, directory: Path, command: str) -> lock_mod.Lock:
+    """The lock a writing command holds on ``directory``; waits ``--wait``."""
+    return lock_mod.Lock(
+        directory,
+        command,
+        wait=args.wait,
+        on_takeover=_took_over,
+        on_leftover=_left_behind,
+    )
+
+
+def _wait_for_extract(args: argparse.Namespace, holding) -> lock_mod.Holder | None:
+    """A reader met a version that is not extracted: if another Session is
+    working on it, wait for it; the holder still there after ``--wait``."""
+    return lock_mod.wait_while_locked(holding.path, args.wait)
 
 
 def _announce_library(library: Library) -> None:
@@ -448,9 +490,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             return EXIT_ACTION
         _announce_library(library)
         client = CLIENT_FACTORY()
-        outcome = fetch_mod.fetch_version(
-            library, doc, ver, force=args.force, client=client
-        )
+        outcome = _fetch_locked(args, library, doc, ver, client)
+        if outcome is None:
+            return EXIT_BUSY
         _report(outcome)
         _freshness_notes(catalog, library, [doc.id])
         return EXIT_OK if outcome.status != "failed" else EXIT_ACTION
@@ -483,24 +525,54 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             ver = newest
         if ver is not None:
             todo.append((doc, ver))
-    counts = {"fetched": 0, "skipped": 0, "failed": 0}
+    counts = {"fetched": 0, "skipped": 0, "failed": 0, "busy": 0}
     if todo:
         _announce_library(library)
         client = CLIENT_FACTORY()
     for note in gated_notes:
         print(note)
     for doc, ver in todo:
-        outcome = fetch_mod.fetch_version(
-            library, doc, ver, force=args.force, client=client
-        )
+        outcome = _fetch_locked(args, library, doc, ver, client)
+        if outcome is None:
+            counts["busy"] += 1
+            continue
         _report(outcome)
         counts[outcome.status] += 1
     _freshness_notes(catalog, library, [doc.id for doc, _ in todo])
     print(
         f"summary: fetched {counts['fetched']}, skipped {counts['skipped']}, "
-        f"failed {counts['failed']}"
+        f"failed {counts['failed']}" + _busy_tail(counts)
     )
-    return EXIT_OK if counts["failed"] == 0 else EXIT_ACTION
+    return _batch_exit(counts)
+
+
+def _fetch_locked(args, library: Library, doc: Document, ver, client):
+    """Fetch one version under its directory's lock; None (after printing
+    the busy line) when another Session holds it past ``--wait``."""
+    vdir = library.version_dir(doc.family, doc.id, ver.version)
+    try:
+        with _lock(args, vdir, f"fetch {doc.id} {ver.version}"):
+            # fetch_version looks for the held original inside the lock, so a
+            # Session that waited for another's download finds it and skips.
+            return fetch_mod.fetch_version(
+                library, doc, ver, force=args.force, client=client
+            )
+    except lock_mod.Busy as exc:
+        print(exc)
+        return None
+
+
+def _busy_tail(counts: dict) -> str:
+    return f", busy {counts['busy']}" if counts.get("busy") else ""
+
+
+def _batch_exit(counts: dict) -> int:
+    """Exit code of an --all run: failures first, then busy, then done."""
+    if counts["failed"]:
+        return EXIT_ACTION
+    if counts.get("busy"):
+        return EXIT_BUSY
+    return EXIT_OK
 
 
 def _freshness_notes(catalog: Catalog, library: Library, doc_ids: list[str]) -> None:
@@ -551,16 +623,25 @@ def cmd_add(args: argparse.Namespace) -> int:
         print(f"unknown document '{args.document}'; run: bmcspec catalog")
         return EXIT_ACTION
     library = Library(resolve_library())
-    existing = library.find(doc.id, args.doc_version)
-    if existing is not None and not args.force:
-        origin = "Drop-in" if existing.dropin else existing.meta.get("url", "?")
-        print(
-            f"{doc.id} {args.doc_version} is already in the Library at "
-            f"{existing.path} (from {origin}); use --force to replace it"
-        )
-        return EXIT_ACTION
     _announce_library(library)
-    vdir = library.add_dropin(source, doc.family, doc.id, args.doc_version, ext)
+    vdir = library.version_dir(doc.family, doc.id, args.doc_version)
+    try:
+        with _lock(args, vdir, f"add {doc.id} {args.doc_version}"):
+            # Decided inside the lock, like fetch and extract: a Session that
+            # waited for another's add sees the finished holding, not the
+            # moment its meta.json was away.
+            existing = library.find(doc.id, args.doc_version)
+            if existing is not None and not args.force:
+                origin = "Drop-in" if existing.dropin else existing.meta.get("url", "?")
+                print(
+                    f"{doc.id} {args.doc_version} is already in the Library at "
+                    f"{existing.path} (from {origin}); use --force to replace it"
+                )
+                return EXIT_ACTION
+            vdir = library.add_dropin(source, doc.family, doc.id, args.doc_version, ext)
+    except lock_mod.Busy as exc:
+        print(exc)
+        return EXIT_BUSY
     verb = "replaced" if existing is not None else "added"
     print(f"{verb} {doc.id} {args.doc_version} as Drop-in at {vdir}")
     return EXIT_OK
@@ -630,12 +711,22 @@ def cmd_scan(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _lock_lines(root: Path) -> list[str]:
+    """One line per lock in the Library, for ``status``."""
+    return [
+        f"lock: {h.path} held by {h.describe()}, {'stale' if h.stale else 'live'}"
+        for h in lock_mod.locks_under(root)
+    ]
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     library = Library(resolve_library())
     print(f"library: {library.root}")
     holdings = list(library.holdings())
     if not holdings:
         print("(empty)")
+        for line in _lock_lines(library.root):
+            print(line)
         return EXIT_OK
     for h in holdings:
         flag = "dropin" if h.dropin else h.meta.get("fetch_method", "")
@@ -655,6 +746,8 @@ def cmd_status(args: argparse.Namespace) -> int:
             f"{h.family}\t{h.document}\t{h.version}\t{flag}\t{size}"
             f"\t{extracted}\t{outline}"
         )
+    for line in _lock_lines(library.root):
+        print(line)
     try:
         catalog = _load(args)
     except CatalogError as exc:
@@ -934,14 +1027,14 @@ def cmd_extract(args: argparse.Namespace) -> int:
         print("--version applies to one document; drop it with --all")
         return EXIT_ACTION
     if args.all:
-        counts = {"extracted": 0, "skipped": 0, "failed": 0}
+        counts = {"extracted": 0, "skipped": 0, "failed": 0, "busy": 0}
         for h in library.holdings():
-            counts[_extract_one(h, args.force)] += 1
+            counts[_extract_locked(args, h)] += 1
         print(
             f"summary: extracted {counts['extracted']}, skipped {counts['skipped']}, "
-            f"failed {counts['failed']}"
+            f"failed {counts['failed']}" + _busy_tail(counts)
         )
-        return EXIT_OK if counts["failed"] == 0 else EXIT_ACTION
+        return _batch_exit(counts)
     catalog = _load(args)
     doc = catalog.get(args.document)
     doc_id = doc.id if doc else args.document
@@ -955,8 +1048,23 @@ def cmd_extract(args: argparse.Namespace) -> int:
     if holding is None:
         print(f"{doc_id} {wanted} is not in the Library; run: bmcspec fetch {doc_id}")
         return EXIT_ACTION
-    outcome = _extract_one(holding, args.force)
+    outcome = _extract_locked(args, holding)
+    if outcome == "busy":
+        return EXIT_BUSY
     return EXIT_OK if outcome != "failed" else EXIT_ACTION
+
+
+def _extract_locked(args: argparse.Namespace, holding) -> str:
+    """``_extract_one`` under the version directory's lock; ``busy`` (after
+    printing the busy line) when another Session holds it past ``--wait``.
+    The already-extracted check runs inside the lock, so a Session that
+    waited for another's extraction reports ``skipped``."""
+    try:
+        with _lock(args, holding.path, f"extract {holding.document} {holding.version}"):
+            return _extract_one(holding, args.force)
+    except lock_mod.Busy as exc:
+        print(exc)
+        return "busy"
 
 
 # ------------------------------------------------------------ reading
@@ -1019,6 +1127,13 @@ def _open_version(args: argparse.Namespace):
         print(problem)
         return None, doc, EXIT_ACTION
     problem = _unreadable(holding)
+    if problem and holding.original.suffix.lower() == ".pdf":
+        # Not extracted: another Session may be doing it right now.
+        holder = _wait_for_extract(args, holding)
+        if holder is not None:
+            print(lock_mod.Busy(holder))
+            return None, doc, EXIT_BUSY
+        problem = _unreadable(holding)
     if problem:
         print(problem)
         return None, doc, EXIT_ACTION
@@ -1276,7 +1391,7 @@ def cmd_repos(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def _openbmc_tree(catalog, library, release: str, force: bool) -> code_mod.Tree:
+def _openbmc_tree(args, catalog, library, release: str, force: bool) -> code_mod.Tree:
     """The openbmc/openbmc Code Tree at the release, fetched if needed."""
     source = catalog.get_repo(code_mod.OPENBMC_REPO)
     if source is None:
@@ -1289,14 +1404,15 @@ def _openbmc_tree(catalog, library, release: str, force: bool) -> code_mod.Tree:
             if t.provenance.kind == "ref" and t.provenance.name == release:
                 if not t.superseded:
                     return t
-    tree, fetched = library.clone(
-        source.id,
-        source.url,
-        code_mod.Provenance("ref", release),
-        ref=release,
-        sparse=source.sparse,
-        force=force,
-    )
+    with _clone_lock(args, library, source.id, release):
+        tree, fetched = library.clone(
+            source.id,
+            source.url,
+            code_mod.Provenance("ref", release),
+            ref=release,
+            sparse=source.sparse,
+            force=force,
+        )
     if fetched:
         print(f"cloned {tree.label} (release {release}) -> {tree.path}")
     return tree
@@ -1321,42 +1437,48 @@ def cmd_clone(args: argparse.Namespace) -> int:
         args.ref, release = release, None  # the release source: the tag or branch
     try:
         if release:
-            source = _openbmc_tree(catalog, library, release, args.force)
+            source = _openbmc_tree(args, catalog, library, release, args.force)
             pin, recipe = code_mod.find_pin_recipe(source.path, repo.id)
             prov = code_mod.Provenance("release", release, source.commit)
-            tree, fetched = library.clone(
-                repo.id,
-                repo.url,
-                prov,
-                commit=pin,
-                sparse=repo.sparse,
-                force=args.force,
-                catalog_known=known,
-            )
+            with _clone_lock(args, library, repo.id, f"release {release}"):
+                tree, fetched = library.clone(
+                    repo.id,
+                    repo.url,
+                    prov,
+                    commit=pin,
+                    sparse=repo.sparse,
+                    force=args.force,
+                    catalog_known=known,
+                )
         elif args.ref:
             prov = code_mod.Provenance("ref", args.ref)
-            tree, fetched = library.clone(
-                repo.id,
-                repo.url,
-                prov,
-                ref=args.ref,
-                sparse=repo.sparse,
-                force=args.force,
-                catalog_known=known,
-            )
+            with _clone_lock(args, library, repo.id, args.ref):
+                tree, fetched = library.clone(
+                    repo.id,
+                    repo.url,
+                    prov,
+                    ref=args.ref,
+                    sparse=repo.sparse,
+                    force=args.force,
+                    catalog_known=known,
+                )
         else:
             prov = code_mod.Provenance("default", "")
-            tree, fetched = library.clone(
-                repo.id,
-                repo.url,
-                prov,
-                sparse=repo.sparse,
-                force=args.force,
-                catalog_known=known,
-            )
+            with _clone_lock(args, library, repo.id, "default branch"):
+                tree, fetched = library.clone(
+                    repo.id,
+                    repo.url,
+                    prov,
+                    sparse=repo.sparse,
+                    force=args.force,
+                    catalog_known=known,
+                )
     except code_mod.CodeError as exc:
         print(str(exc))
         return EXIT_ACTION
+    except lock_mod.Busy as exc:
+        print(exc)
+        return EXIT_BUSY
     what = tree.provenance.label(tree.fetched_at)
     if fetched:
         print(f"cloned {tree.label} ({what}) -> {tree.path}")
@@ -1372,18 +1494,18 @@ def cmd_clone(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _clone_lock(args, library: code_mod.CodeLibrary, repo: str, what: str):
+    return _lock(args, library.repo_dir(repo), f"clone {repo} {what}")
+
+
 def cmd_prune(args: argparse.Namespace) -> int:
     root = resolve_library()
     library = code_mod.CodeLibrary(root)
     doomed = [t for t in library.trees() if t.superseded]
-    leftovers = []
-    if library.code.is_dir():
-        for rdir in sorted(p for p in library.code.iterdir() if p.is_dir()):
-            leftovers += sorted(
-                p for p in rdir.iterdir() if p.is_dir() and p.name.startswith(".tmp-")
-            )
-    if not doomed and not leftovers:
-        print("nothing to prune: no superseded Code Tree, no leftover")
+    stale = [h for h in lock_mod.locks_under(root) if h.stale]
+    leftovers = _leftovers(root, library)
+    if not doomed and not leftovers and not stale:
+        print("nothing to prune: no superseded Code Tree, no leftover, no stale lock")
         return EXIT_OK
     verb = "removed" if args.yes else "would remove"
     failed = 0
@@ -1395,19 +1517,97 @@ def cmd_prune(args: argparse.Namespace) -> int:
         failed += _prune_path(tree.path, f"{verb} {tree.path} ({why})", args.yes)
     for path in leftovers:
         failed += _prune_path(path, f"{verb} {path} (leftover)", args.yes)
+    removed = 0
+    kept = 0
+    for holder in stale:
+        line = f"{verb} {holder.path} (stale lock, {holder.describe()})"
+        if not args.yes:
+            print(line)
+            continue
+        # The same protocol a writer uses to take a stale lock over: the
+        # take-over gate, a re-read inside it, and no removal of a fresh lock.
+        outcome = lock_mod.remove_stale_lock(holder.path)
+        if outcome == "removed":
+            print(line)
+            removed += 1
+        elif outcome == "stuck":
+            print(f"failed {holder.path}: another process has it open")
+            failed += 1
+        else:
+            why = {
+                "fresh": "taken over meanwhile",
+                "gone": "gone meanwhile",
+                "busy": "take-over in progress",
+            }[outcome]
+            print(f"kept {holder.path} ({why})")
+            kept += 1
     tail = "" if args.yes else " (dry run; --yes removes them)"
+    counted = removed if args.yes else len(stale)
+    kept_tail = f", {kept} kept" if kept else ""
     print(
-        f"prune: {len(doomed)} superseded tree(s), {len(leftovers)} leftover(s){tail}"
+        f"prune: {len(doomed)} superseded tree(s), {len(leftovers)} leftover(s), "
+        f"{counted} stale lock(s){kept_tail}{tail}"
     )
     return EXIT_ERROR if failed else EXIT_OK
 
 
+def _leftovers(root: Path, library: code_mod.CodeLibrary) -> list[Path]:
+    """Temporary files and directories nobody is working on: ``.tmp-*``
+    clone directories, ``.part`` files and abandoned take-over files
+    (``.lock.takeover``) under the root, ``specs/`` and ``code/``, skipping
+    any directory whose lock is live, and files younger than the stale age
+    (a lock-free ``render`` may be writing one)."""
+    found = []
+    if library.code.is_dir():
+        for rdir in sorted(p for p in library.code.iterdir() if p.is_dir()):
+            if lock_mod.live_holder(rdir) is not None:
+                continue
+            found += sorted(
+                p for p in rdir.iterdir() if p.is_dir() and p.name.startswith(".tmp-")
+            )
+    candidates = []
+    for pattern in ("*" + PART_SUFFIX, lock_mod.TAKEOVER_NAME):
+        candidates += root.glob(pattern)
+        candidates += (root / "specs").glob("*/*/*/**/" + pattern)
+        candidates += (root / "code").glob("*/**/" + pattern)
+    for path in sorted(set(candidates)):
+        if not path.is_file() or _young(path):
+            continue
+        if lock_mod.live_holder(_locked_dir(root, path)) is not None:
+            continue
+        found.append(path)
+    return found
+
+
+def _locked_dir(root: Path, path: Path) -> Path:
+    """The directory whose lock guards ``path``: the version directory under
+    ``specs/`` (renders included), ``code/<repo>`` under ``code/``."""
+    rel = path.relative_to(root).parts
+    if rel[0] == "specs" and len(rel) >= 4:
+        return root.joinpath(*rel[:4])
+    if rel[0] == "code" and len(rel) >= 2:
+        return root.joinpath(*rel[:2])
+    return path.parent
+
+
+def _young(path: Path) -> bool:
+    try:
+        age = time.time() - path.stat().st_mtime
+    except OSError:
+        return True  # gone already: not ours to list
+    return age <= lock_mod.STALE_SECONDS
+
+
 def _prune_path(path: Path, line: str, really: bool) -> int:
-    """Print the line and, when ``really``, remove the directory; 1 on failure."""
+    """Print the line and, when ``really``, remove the file or directory;
+    1 on failure."""
     if really:
         try:
-            code_mod._rmtree(path)
-        except code_mod.CodeError as exc:
+            if path.is_dir():
+                code_mod._rmtree(path)
+            else:
+                path.unlink(missing_ok=True)
+        except (code_mod.CodeError, OSError) as exc:
             print(f"failed {path}: {exc}")
             return 1
     print(line)
@@ -1633,6 +1833,11 @@ def cmd_schema(args: argparse.Namespace) -> int:
         )
         return EXIT_ACTION
     if not bundle_mod.is_current(holding.path):
+        holder = _wait_for_extract(args, holding)
+        if holder is not None:
+            print(lock_mod.Busy(holder))
+            return EXIT_BUSY
+    if not bundle_mod.is_current(holding.path):
         print(
             f"{label} is not extracted, or was unpacked by an older version; run: "
             f'bmcspec extract {doc} --version "{holding.version}"'
@@ -1773,6 +1978,11 @@ def cmd_registry(args: argparse.Namespace) -> int:
         )
         return EXIT_ACTION
     if not registry_mod.is_current(holding.path):
+        holder = _wait_for_extract(args, holding)
+        if holder is not None:
+            print(lock_mod.Busy(holder))
+            return EXIT_BUSY
+    if not registry_mod.is_current(holding.path):
         print(
             f"{label} is not extracted, or was unpacked by an older version; run: "
             f'bmcspec extract {doc} --version "{holding.version}"'
@@ -1872,7 +2082,15 @@ def cmd_table(args: argparse.Namespace) -> int:
         except tables_mod.TableError as exc:
             print(f"cannot read tables of {version.label}: {exc}")
             return EXIT_ERROR
-        tables_mod.store(version.path, done, found)
+        try:
+            # Only the merge into tables.json is locked, not the PDF reading:
+            # two Sessions reading different tables of one document do not
+            # queue behind each other.
+            with _lock(args, version.path, f"table {version.document} page {n}"):
+                tables_mod.store(version.path, done, found)
+        except lock_mod.Busy as exc:
+            print(exc)
+            return EXIT_BUSY
     if not tables:
         doc = version.document
         print(
@@ -1950,6 +2168,9 @@ def _utf8_stdout() -> None:
 def main(argv: list[str] | None = None) -> int:
     _utf8_stdout()
     args = build_parser().parse_args(argv)
+    if args.wait < 0:
+        print("--wait takes a number of seconds, 0 or more")
+        return EXIT_ACTION
     try:
         return COMMANDS[args.command](args)
     except CatalogError as exc:
@@ -1958,6 +2179,9 @@ def main(argv: list[str] | None = None) -> int:
     except LibraryError as exc:
         print(f"library: {exc}")
         return EXIT_ACTION
+    except lock_mod.Busy as exc:
+        print(exc)
+        return EXIT_BUSY
     except OSError as exc:
         print(f"error: {exc}")
         return EXIT_ERROR

@@ -9,6 +9,7 @@ import zlib
 from pathlib import Path
 
 from bmc_toolkit.spec.extract import _require_pypdfium2
+from bmc_toolkit.spec.library import atomic_write_bytes
 
 DEFAULT_SCALE = 2.0  # times 72 dpi
 
@@ -31,9 +32,7 @@ def write_png(path: Path, width: int, height: int, rows: list[bytes]) -> None:
             chunk(b"IEND", b""),
         ]
     )
-    tmp = path.with_suffix(path.suffix + ".part")
-    tmp.write_bytes(png)
-    tmp.replace(path)
+    atomic_write_bytes(path, png)  # two Sessions rendering one page cannot collide
 
 
 def _rgb_rows(bitmap) -> list[bytes]:

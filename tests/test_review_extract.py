@@ -423,14 +423,16 @@ def test_failed_rewrite_leaves_no_extraction_that_counts_as_current(
     ex.write_result(vdir, result)
     assert ex.is_current(vdir)
 
-    real_open = open
+    real_write = ex.atomic_write_json
 
-    def failing_open(path, *args, **kwargs):
-        if str(path).endswith("outline.json") and args and "w" in args[0]:
+    def failing_write(path, data, **kwargs):
+        # JSON companions are written through the atomic writer since M13;
+        # the failure is injected there, at the same point of the sequence.
+        if path.name == "outline.json":
             raise OSError("disk full")
-        return real_open(path, *args, **kwargs)
+        return real_write(path, data, **kwargs)
 
-    monkeypatch.setattr("builtins.open", failing_open)
+    monkeypatch.setattr(ex, "atomic_write_json", failing_write)
     with pytest.raises(OSError):
         ex.write_result(vdir, result)
     monkeypatch.undo()

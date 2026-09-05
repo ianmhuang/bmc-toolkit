@@ -436,17 +436,16 @@ def test_write_result_leaves_no_current_meta_if_text_write_fails(tmp_path, monke
     ex.write_result(vdir, result)
     assert ex.is_current(vdir)
 
-    real_open = open
+    def failing_write(path, text):
+        # extract.txt is written through the atomic writer since M13; the
+        # failure is injected there, at the same point of the sequence.
+        assert path.name == ex.EXTRACT_NAME
+        raise OSError("disk full")
 
-    def failing_open(path, *args, **kwargs):
-        if str(path).endswith(ex.EXTRACT_NAME) and "w" in args[0:1]:
-            raise OSError("disk full")
-        return real_open(path, *args, **kwargs)
-
-    monkeypatch.setattr("builtins.open", failing_open)
+    monkeypatch.setattr(ex, "atomic_write_text", failing_write)
     with pytest.raises(OSError):
         ex.write_result(vdir, result)
-    monkeypatch.setattr("builtins.open", real_open)
+    monkeypatch.undo()
     assert not ex.is_current(vdir)
     assert not (vdir / ex.META_NAME).exists()
 

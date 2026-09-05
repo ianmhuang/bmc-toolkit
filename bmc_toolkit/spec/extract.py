@@ -44,7 +44,11 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from bmc_toolkit.spec.library import SCHEMAS_DIRNAME
+from bmc_toolkit.spec.library import (
+    SCHEMAS_DIRNAME,
+    atomic_write_json,
+    atomic_write_text,
+)
 from bmc_toolkit.spec.tables import remove_store
 
 EXTRACTOR_VERSION = 4  # 4: stacked same-size glyphs are two lines; anchor bookmarks
@@ -846,18 +850,15 @@ def _extract_open(pdf, raw, started: float) -> ExtractResult:
 
 def write_result(vdir: Path, result: ExtractResult) -> None:
     def dump(name: str, data) -> None:
-        with open(vdir / name, "w", encoding="utf-8", newline="") as fh:
-            json.dump(data, fh, indent=1, ensure_ascii=False)
-            fh.write("\n")
+        atomic_write_json(vdir / name, data, indent=1, ensure_ascii=False)
 
     # The meta file is what marks an extraction as current, so it goes away
     # first and comes back last: a failure in between leaves nothing that
-    # is_current() would believe.
+    # is_current() would believe. The caller holds the directory's lock.
     meta_path = vdir / META_NAME
     if meta_path.exists():
         meta_path.unlink()
-    with open(vdir / EXTRACT_NAME, "w", encoding="utf-8", newline="") as fh:
-        fh.write(result.text)
+    atomic_write_text(vdir / EXTRACT_NAME, result.text)
     dump(OUTLINE_NAME, result.outline)
     linemap_path = vdir / LINEMAP_NAME
     if result.numbered_pages:
