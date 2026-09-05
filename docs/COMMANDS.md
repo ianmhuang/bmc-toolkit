@@ -89,9 +89,10 @@ clone left behind, every `.part` file or `.lock.takeover` gate older than
 five minutes that a failed write or take-over left behind, and every stale
 `.lock`, and removes nothing; `prune --yes` removes them, taking each stale
 lock through the same `.lock.takeover` gate a writer uses and keeping one
-that was taken over meanwhile (`kept <path> (taken over meanwhile)`; the
-summary then says `, N kept`). A directory whose lock is live is skipped
-whole. The current tree of each name, trees reached by a commit, user
+that is no longer stale: `kept <path> (taken over meanwhile)` when a
+Session now holds it, `(take-over in progress)` when a Session is inside the
+gate, `(gone meanwhile)` when it was released; the summary then says
+`, N kept`. A directory whose lock is live is skipped whole. The current tree of each name, trees reached by a commit, user
 checkouts and the documents under `specs/` are never touched.
 
 `config.toml` at the Library root (optional):

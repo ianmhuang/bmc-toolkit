@@ -623,18 +623,21 @@ def cmd_add(args: argparse.Namespace) -> int:
         print(f"unknown document '{args.document}'; run: bmcspec catalog")
         return EXIT_ACTION
     library = Library(resolve_library())
-    existing = library.find(doc.id, args.doc_version)
-    if existing is not None and not args.force:
-        origin = "Drop-in" if existing.dropin else existing.meta.get("url", "?")
-        print(
-            f"{doc.id} {args.doc_version} is already in the Library at "
-            f"{existing.path} (from {origin}); use --force to replace it"
-        )
-        return EXIT_ACTION
     _announce_library(library)
     vdir = library.version_dir(doc.family, doc.id, args.doc_version)
     try:
         with _lock(args, vdir, f"add {doc.id} {args.doc_version}"):
+            # Decided inside the lock, like fetch and extract: a Session that
+            # waited for another's add sees the finished holding, not the
+            # moment its meta.json was away.
+            existing = library.find(doc.id, args.doc_version)
+            if existing is not None and not args.force:
+                origin = "Drop-in" if existing.dropin else existing.meta.get("url", "?")
+                print(
+                    f"{doc.id} {args.doc_version} is already in the Library at "
+                    f"{existing.path} (from {origin}); use --force to replace it"
+                )
+                return EXIT_ACTION
             vdir = library.add_dropin(source, doc.family, doc.id, args.doc_version, ext)
     except lock_mod.Busy as exc:
         print(exc)

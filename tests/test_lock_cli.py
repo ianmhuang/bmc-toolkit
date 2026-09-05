@@ -140,6 +140,41 @@ def test_negative_wait_is_refused(catalog_file, capsys):
 # ----------------------------------------------------------------- AC-6
 
 
+def test_add_decides_existing_inside_the_lock(stored, catalog_file, tmp_path, capsys):
+    # Validation of review round 4: another Session's add has taken meta.json
+    # away for the moment; a Session that waits must see the finished holding
+    # (refuse without --force, say "replaced" with it), not "added".
+    from bmc_toolkit.spec.library import Library
+
+    library = Library(stored.parents[3])
+    src = tmp_path / "mine.pdf"
+    src.write_bytes(PDF_BYTES + b"\nmine")
+    meta = stored / "meta.json"
+    ready = threading.Event()
+
+    def other_add():
+        with Lock(stored, "add DSP0236 1.3.3", wait=0):
+            saved = meta.read_bytes()
+            meta.unlink()  # _clear_previous did this in the other Session
+            ready.set()
+            time.sleep(0.5)
+            library.write_meta(stored, json.loads(saved))
+
+    for force in (False, True):
+        ready.clear()
+        threading.Thread(target=other_add, daemon=True).start()
+        assert ready.wait(5)
+        argv = ["add", str(src), "--document", "DSP0236", "--version", "1.3.3"]
+        if force:
+            argv.append("--force")
+        code, out = run(capsys, "--wait", "10", *argv, catalog_file=catalog_file)
+        if force:
+            assert code == 0 and out.strip().startswith("replaced DSP0236 1.3.3"), out
+        else:
+            assert code == 2 and "already in the Library" in out, out
+    assert not (stored / ".lock").exists()
+
+
 def test_fetch_waits_for_the_other_download_then_skips(
     stored, catalog_file, scripted, capsys
 ):

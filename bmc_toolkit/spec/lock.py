@@ -189,7 +189,10 @@ def remove_stale_lock(
             return "gone"
         if not current.stale:
             return "fresh"
-        if _unlink_retrying(path) != "removed":
+        outcome = _unlink_retrying(path)
+        if outcome == "missing":
+            return "gone"  # vanished between the re-read and the unlink
+        if outcome == "stuck":
             return "stuck"
         if on_takeover is not None:
             on_takeover(current)

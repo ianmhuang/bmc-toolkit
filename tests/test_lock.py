@@ -271,6 +271,25 @@ def test_remove_stale_lock_outcomes(tmp_path):
     assert not path.exists() and not gate.exists()
 
 
+def test_a_lock_vanishing_inside_the_gate_is_gone_not_stuck(tmp_path, monkeypatch):
+    # F1 of review round 4.
+    vdir = tmp_path / "v"
+    path = fake_lock(vdir, age=lock_mod.STALE_SECONDS + 1)
+    real = lock_mod.read_holder
+
+    def read_then_release(p):
+        holder = real(p)
+        if p == path and holder is not None:
+            path.unlink()  # the holder releases right after our re-read
+        return holder
+
+    monkeypatch.setattr(lock_mod, "read_holder", read_then_release)
+    assert lock_mod.remove_stale_lock(path) == "gone"
+    monkeypatch.undo()
+    with Lock(vdir, "x", wait=0):
+        pass
+
+
 def test_unparsable_lock_file_still_counts_by_its_mtime(tmp_path):
     vdir = tmp_path / "v"
     vdir.mkdir()
