@@ -249,16 +249,30 @@ def test_ac5_every_job_has_a_timeout_of_at_most_30_minutes():
 # --- AC-6 --------------------------------------------------------------------
 
 
-def test_ac6_concurrency_group_is_workflow_and_ref_and_cancels_in_progress():
+def test_ac6_concurrency_group_is_workflow_and_ref_and_cancels_only_prs():
     wf = _load_workflow()
     conc = wf.get("concurrency")
     assert isinstance(conc, dict), conc
     group = str(conc.get("group", ""))
     assert "github.workflow" in group and "github.ref" in group, group
-    # Round 1 F2: superseded pull-request runs are cancelled, pushes to main
-    # are not (edited by the author as the finding asked).
-    cancel = str(conc.get("cancel-in-progress", ""))
-    assert "github.event_name == 'pull_request'" in cancel, conc
+    # Round 1 F2 / round 2 AC-6: a superseded pull-request run is cancelled,
+    # a push to main is not. The value must be exactly that expression, not
+    # a literal true (cancels main) or false (never cancels).
+    cancel = conc.get("cancel-in-progress")
+    assert cancel not in (True, False, None), conc
+    expr = str(cancel).replace('"', "'").replace(" ", "")
+    assert expr == "${{github.event_name=='pull_request'}}", cancel
+
+
+def test_ac6_workflow_token_is_read_only_and_no_job_widens_it():
+    wf = _load_workflow()
+    assert wf.get("permissions") == {"contents": "read"}, wf.get("permissions")
+    for name, job in wf["jobs"].items():
+        perms = job.get("permissions")
+        if perms is None:
+            continue
+        assert isinstance(perms, dict), (name, perms)
+        assert "write" not in {str(v) for v in perms.values()}, (name, perms)
 
 
 # --- AC-7 --------------------------------------------------------------------
@@ -286,3 +300,42 @@ def test_ac7_readme_development_has_no_badge():
     assert "![" not in dev
     assert "shields.io" not in dev and "badge" not in dev.lower()
     assert "actions/workflows" not in dev
+
+
+def _development_code_block_lines():
+    dev = _development_section()
+    blocks = re.findall(r"```[^\n]*\n(.*?)```", dev, re.S)
+    assert len(blocks) == 1, blocks
+    return [ln.strip() for ln in blocks[0].splitlines() if ln.strip()]
+
+
+def test_ac7_readme_development_block_lists_ruff_check_and_format_before_pytest():
+    # Round 1 F1: the block must show every command CI runs, in CI's order,
+    # so a contributor who follows it cannot pass locally and fail the lint
+    # step on the pull request.
+    lines = _development_code_block_lines()
+    pytest_line = next(
+        i for i, ln in enumerate(lines) if ln.startswith("python -m pytest")
+    )
+    for cmd in ("ruff check .", "ruff format --check ."):
+        assert cmd in lines, (cmd, lines)
+        assert lines.index(cmd) < pytest_line, (cmd, lines)
+
+
+def test_ac7_readme_development_block_matches_the_workflow_run_steps():
+    lines = _development_code_block_lines()
+    for name, job in _jobs().items():
+        runs = [r.strip() for r in _run_steps(job)]
+        for cmd in ("ruff check .", "ruff format --check .", "python -m pytest -q"):
+            assert cmd in runs, (name, cmd, runs)
+            assert cmd in lines, (cmd, lines)
+
+
+def test_ac7_claude_md_pre_commit_line_names_the_same_three_commands():
+    text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    bullets = re.split(r"\n(?=- )", text)
+    line = [b for b in bullets if b.startswith("- Run ") and "committing" in b]
+    assert len(line) == 1, line
+    line = line[0].replace("\n", " ")
+    for cmd in ("`ruff check .`", "`ruff format --check .`", "`python -m pytest -q`"):
+        assert cmd in line, (cmd, line)
