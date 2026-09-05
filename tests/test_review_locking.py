@@ -390,6 +390,135 @@ def test_stale_lock_over_a_half_written_extraction_is_redone(
     assert not (vdir / ".lock").exists()
 
 
+def test_a_fetch_force_killed_after_the_original_is_replaced_is_redone(
+    stored, catalog_file, scripted, capsys, monkeypatch
+):
+    # Round 2: "from scratch" for a replaced original means the old meta
+    # must not survive over the new file. A fetch --force that dies after
+    # the original landed but before meta.json is written leaves no
+    # holding, so the next fetch downloads again instead of skipping.
+    from bmc_toolkit.spec import library as library_mod
+
+    old_meta = json.loads((stored / "meta.json").read_text(encoding="utf-8"))
+    scripted.responses[URL_133] = ok(PDF_BYTES + b"\n%% second copy")
+
+    def killed(*_args, **_kwargs):
+        raise RuntimeError("killed while writing meta")
+
+    monkeypatch.setattr(library_mod.Library, "write_meta", killed)
+    with pytest.raises(RuntimeError):
+        run(capsys, "fetch", "DSP0236", "--force", catalog_file=catalog_file)
+    monkeypatch.undo()
+    capsys.readouterr()
+    assert (stored / "original.pdf").read_bytes() == PDF_BYTES + b"\n%% second copy"
+    assert not (stored / "meta.json").exists()  # no old meta over the new file
+    assert not (stored / ".lock").exists()  # released although the body raised
+    assert not list(stored.glob("*.part"))
+    # status does not count it as a holding, and a plain fetch redoes it
+    code, out = run(capsys, "status", catalog_file=catalog_file)
+    assert code == 0 and "mctp\tDSP0236\t1.3.3" not in out
+    scripted.responses[URL_133] = ok(PDF_BYTES + b"\n%% third copy")
+    code, out = run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    assert code == 0, out
+    assert "fetched DSP0236 1.3.3" in out
+    meta = json.loads((stored / "meta.json").read_text(encoding="utf-8"))
+    assert meta["sha256"] != old_meta["sha256"]
+    assert (stored / "original.pdf").read_bytes() == PDF_BYTES + b"\n%% third copy"
+
+
+def test_two_sessions_meeting_one_stale_lock_take_it_over_once(tmp_path):
+    # Round 2 (F1): several Sessions that find the same stale lock at the
+    # same moment must never both believe they hold it. Exactly one
+    # take-over is reported, holds never overlap, and nothing is left
+    # behind (no .lock, no take-over gate file).
+    vdir = tmp_path / "v"
+    other_lock(vdir, age=lock_mod.STALE_SECONDS + 1)
+    takeovers = []
+    holds = []
+    gate = threading.Barrier(5)
+
+    def session(name):
+        gate.wait()
+        with lock_mod.Lock(vdir, name, wait=15, on_takeover=takeovers.append):
+            entered = time.monotonic()
+            record = json.loads((vdir / ".lock").read_text(encoding="utf-8"))
+            assert record["command"] == name  # the file is ours while we hold it
+            time.sleep(0.15)
+            holds.append((entered, time.monotonic(), name))
+
+    threads = [threading.Thread(target=session, args=(f"s{i}",)) for i in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(30)
+    assert not any(t.is_alive() for t in threads)
+    assert [h.pid for h in takeovers] == [4242]
+    assert len(holds) == 5
+    holds.sort()
+    for (_, left, _), (entered, _, _) in zip(holds, holds[1:], strict=False):
+        assert left <= entered  # one holder at a time
+    assert sorted(p.name for p in vdir.iterdir()) == []
+
+
+def test_a_session_that_meets_a_take_over_in_progress_waits_for_the_winner(
+    tmp_path,
+):
+    # Round 2 (F1): a gate file left by a Session mid take-over is respected
+    # while fresh, and treated like a stale lock once it is old.
+    vdir = tmp_path / "v"
+    other_lock(vdir, age=lock_mod.STALE_SECONDS + 1)
+    gate = vdir / ".lock.takeover"
+    gate.write_bytes(b"")
+    started = time.monotonic()
+    with pytest.raises(lock_mod.Busy):
+        lock_mod.Lock(vdir, "late", wait=0.4).acquire()
+    assert time.monotonic() - started >= 0.3
+    assert (vdir / ".lock").is_file()  # nobody removed the lock under the gate
+    backdate(gate, lock_mod.STALE_SECONDS + 1)
+    seen = []
+    with lock_mod.Lock(vdir, "late", wait=5, on_takeover=seen.append):
+        assert not gate.exists()
+    assert [h.pid for h in seen] == [4242]
+    assert sorted(p.name for p in vdir.iterdir()) == []
+
+
+def test_a_lock_that_cannot_be_removed_is_reported_not_silent(
+    stored, catalog_file, scripted, capsys, monkeypatch
+):
+    # Round 2 (F5): when the release cannot unlink its own lock (a Windows
+    # sharing violation), the command still succeeds but says so, because
+    # the user's next command will meet that lock and exit 3.
+    from pathlib import Path
+
+    lock = stored / ".lock"
+    monkeypatch.setattr(lock_mod, "RELEASE_RETRIES", 2)
+    monkeypatch.setattr(lock_mod, "RETRY_PAUSE", 0.01)
+    real_unlink = Path.unlink
+
+    def refusing_unlink(self, *args, **kwargs):
+        if self == lock:
+            raise PermissionError(13, "Access is denied")
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", refusing_unlink)
+    scripted.responses[URL_133] = ok(PDF_BYTES)
+    code, out = run(capsys, "fetch", "DSP0236", "--force", catalog_file=catalog_file)
+    monkeypatch.undo()
+    assert code == 0, out
+    lines = out.splitlines()
+    assert any(ln.startswith("fetched DSP0236 1.3.3") for ln in lines)
+    note = [ln for ln in lines if ln.startswith("note: could not remove ")]
+    assert len(note) == 1, out
+    assert str(lock) in note[0] and "5 minutes" in note[0]
+    assert lock.is_file()
+    # the leftover is a live lock (our own pid) until it ages out
+    code, out = run(
+        capsys, "--wait", "0", "extract", "DSP0236", catalog_file=catalog_file
+    )
+    assert code == 3
+    assert out.startswith(f"busy: {lock} is held by pid {os.getpid()} ")
+
+
 # ----------------------------------------------------------------- AC-5
 
 
@@ -635,6 +764,56 @@ def test_single_files_go_through_pid_token_part_names(
         token = tmp[len(f"{name}.{os.getpid()}-") : -len(".part")]
         assert token and token.isalnum()
     assert not list(vdir.glob("*.part"))
+
+
+def test_add_force_replaces_the_original_through_a_temp_name(
+    stored, catalog_file, tmp_path, capsys, monkeypatch
+):
+    # Round 2 (F2): the Drop-in original is a single-file write like any
+    # other: copied to <name>.<pid>-<token>.part and renamed into place,
+    # never truncated and rewritten where a reader may have it open.
+    src = tmp_path / "mine.pdf"
+    src.write_bytes(PDF_BYTES + b"\n%% dropin")
+    renames = []
+    real_replace = os.replace
+
+    def recording_replace(a, b, *args, **kwargs):
+        renames.append((os.path.basename(str(a)), os.path.basename(str(b))))
+        return real_replace(a, b, *args, **kwargs)
+
+    monkeypatch.setattr(os, "replace", recording_replace)
+    opened_for_write = []
+    real_open = open
+
+    def spying_open(file, mode="r", *args, **kwargs):
+        if "w" in str(mode) and os.path.basename(str(file)) == "original.pdf":
+            opened_for_write.append(file)
+        return real_open(file, mode, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", spying_open)
+    code, out = run(
+        capsys,
+        "add",
+        str(src),
+        "--document",
+        "DSP0236",
+        "--version",
+        "1.3.3",
+        "--force",
+        catalog_file=catalog_file,
+    )
+    monkeypatch.undo()
+    assert code == 0, out
+    assert out.startswith("replaced DSP0236 1.3.3 as Drop-in")
+    assert opened_for_write == []  # the target itself is never written
+    sources = [a for a, b in renames if b == "original.pdf"]
+    assert len(sources) == 1
+    assert sources[0].startswith(f"original.pdf.{os.getpid()}-")
+    assert sources[0].endswith(".part")
+    assert (stored / "original.pdf").read_bytes() == PDF_BYTES + b"\n%% dropin"
+    assert not list(stored.glob("*.part"))
+    meta = json.loads((stored / "meta.json").read_text(encoding="utf-8"))
+    assert meta["dropin"] is True and meta["size"] == len(PDF_BYTES + b"\n%% dropin")
 
 
 def test_two_writers_of_one_png_both_succeed_and_leave_one_valid_file(tmp_path):

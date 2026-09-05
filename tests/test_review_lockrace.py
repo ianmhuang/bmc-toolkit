@@ -222,6 +222,50 @@ def test_stale_lock_from_a_dead_process_is_taken_over_without_waiting(
     assert code != 3
 
 
+def test_several_processes_meeting_one_stale_lock_take_turns(
+    stored, library, catalog_file, tmp_path
+):
+    # Round 2 (F1, AC-4): three Sessions start on the same stale lock at
+    # once. Exactly one takes it over; the others wait for it like a live
+    # lock and then do their own work. All succeed, nothing is left behind.
+    src = tmp_path / "mine.pdf"
+    src.write_bytes(PDF_BYTES + b"\n%% race")
+    proc = holder(stored, 20)
+    proc.kill()
+    proc.wait()
+    lock = stored / ".lock"
+    backdate(lock, 600)
+    procs = [
+        cli(
+            library.root,
+            catalog_file,
+            "--wait",
+            "60",
+            "add",
+            str(src),
+            "--document",
+            "DSP0236",
+            "--version",
+            "1.3.3",
+            "--force",
+        )
+        for _ in range(3)
+    ]
+    results = [finish(p) for p in procs]
+    assert all(code == 0 for code, _ in results), results
+    outputs = "\n".join(out for _, out in results)
+    notes = [ln for ln in outputs.splitlines() if ln.startswith("note: took over")]
+    assert len(notes) == 1, outputs
+    assert f"from pid {proc.lock_pid} on host helper-host" in notes[0]
+    assert all("replaced DSP0236 1.3.3 as Drop-in" in out for _, out in results)
+    assert not lock.exists()
+    assert not (stored / ".lock.takeover").exists()
+    assert not list(stored.glob("*.part"))
+    assert (stored / "original.pdf").read_bytes() == PDF_BYTES + b"\n%% race"
+    meta = json.loads((stored / "meta.json").read_text(encoding="utf-8"))
+    assert meta["dropin"] is True and meta["size"] == len(PDF_BYTES + b"\n%% race")
+
+
 # ---------------------------------------------------------------- AC-13
 
 

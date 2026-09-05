@@ -171,6 +171,59 @@ def test_prune_lists_then_removes_stale_locks_and_old_leftovers(
         assert kept.exists(), kept
 
 
+def test_prune_finds_old_part_files_and_gate_files_under_code(
+    stored, catalog_file, library, capsys
+):
+    # Round 2 (F3): AC-10 says "under specs/ and code/". A .bmc-tree.json
+    # write that died between the temp file and the rename leaves a .part
+    # inside a Code Tree; an abandoned take-over gate is a leftover too.
+    # Both are skipped when the repository's lock is live.
+    stale_age = lock_mod.STALE_SECONDS + 1
+    tree = library.root / "code" / "bmcweb" / "0123456789abcdef"
+    tree.mkdir(parents=True)
+    old_part = tree / ".bmc-tree.json.7-abcd.part"
+    old_part.write_bytes(b"x")
+    backdate(old_part, stale_age)
+    young_part = tree / ".bmc-tree.json.8-ef01.part"
+    young_part.write_bytes(b"x")
+    old_gate = library.root / "code" / "bmcweb" / ".lock.takeover"
+    old_gate.write_bytes(b"")
+    backdate(old_gate, stale_age)
+    spec_gate = stored / ".lock.takeover"
+    spec_gate.write_bytes(b"")
+    backdate(spec_gate, stale_age)
+    busy_repo = library.root / "code" / "pldm"
+    busy_tree = busy_repo / "fedcba9876543210"
+    busy_tree.mkdir(parents=True)
+    busy_part = busy_tree / ".bmc-tree.json.9-beef.part"
+    busy_part.write_bytes(b"x")
+    backdate(busy_part, stale_age)
+    busy_lock = other_lock(busy_repo, "clone pldm main")
+
+    code, out = run(capsys, "prune", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    for path in (old_part, old_gate, spec_gate):
+        assert f"would remove {path} (leftover)" in lines, path
+    for kept in (young_part, busy_part, busy_lock):
+        assert not any(str(kept) in ln for ln in lines), kept
+    assert lines[-1] == (
+        "prune: 0 superseded tree(s), 3 leftover(s), 0 stale lock(s) "
+        "(dry run; --yes removes them)"
+    )
+    assert old_part.exists() and old_gate.exists()  # a dry run
+
+    code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.splitlines()[-1] == (
+        "prune: 0 superseded tree(s), 3 leftover(s), 0 stale lock(s)"
+    )
+    for gone in (old_part, old_gate, spec_gate):
+        assert not gone.exists(), gone
+    for kept in (young_part, busy_part, busy_lock, tree, busy_tree):
+        assert kept.exists(), kept
+
+
 def test_prune_leaves_a_live_locked_version_alone(stored, catalog_file, capsys):
     part = stored / "extract.txt.1-2.part"
     part.write_bytes(b"x")
