@@ -1,5 +1,6 @@
 {
     "name": "bmc-toolkit",
+    "description": "Claude Code skills for BMC firmware developers: BMC specifications and OpenBMC source, with citations.",
     "owner": {
         "name": "Muwen Huang (Ian Huang)"
     },

@@ -151,7 +151,10 @@ def test_ac5_skill_and_readme_describe_both_drawings():
     table_row = next(ln for ln in skill.splitlines() if ln.startswith("| `table DOC"))
     assert "cells (no ruling lines)" in table_row and "--all-rows" in table_row
     assert "no table on page N" in table_row
-    paragraph = readme[readme.index("`table` prints every table") :]
+    # since 1.0.0 the command paragraphs live in docs/COMMANDS.md
+    commands = (ROOT / "docs" / "COMMANDS.md").read_text("utf-8")
+    assert "no ruled table" not in commands
+    paragraph = commands[commands.index("`table` prints every table") :]
     paragraph = paragraph[: paragraph.index("\n\n")]
     assert "`ruled`" in paragraph and "`cells`" in paragraph
     assert "--all-rows" in paragraph
@@ -173,10 +176,14 @@ def test_ac12_registry_command_and_layout_are_documented():
     assert "DSP8013" in skill
     cite_rules = skill[skill.index("A registry answer cites") :]
     assert "verbatim" in cite_rules[:400]
-    assert "`registry` reads the Redfish message registries bundle" in readme
-    assert "`registries/`" in readme
+    # since 1.0.0 the command paragraphs and the network list are in
+    # docs/COMMANDS.md and the Library layout in docs/LIBRARY.md
+    commands = (ROOT / "docs" / "COMMANDS.md").read_text("utf-8")
+    layout = (ROOT / "docs" / "LIBRARY.md").read_text("utf-8")
+    assert "`registry` reads the Redfish message registries bundle" in commands
+    assert "`registries/`" in layout
     assert "DSP8013" in readme
-    network = readme[readme.index("From the registries bundle (DSP8011)") :]
+    network = commands[commands.index("From the registries bundle (DSP8011)") :]
     network = network[: network.index("\n- ")]
     assert "privilege registries" in network and "stay in the ZIP" in network
     assert "registry DSP8011 Base" in readme

@@ -20,12 +20,14 @@ Things a linter cannot check; formatting is not listed.
 - Existing tests are not weakened to make a change pass; if an assertion must
   change, the change description says why.
 - Anything the tool downloads, writes outside the Library, or runs as a
-  subprocess is listed in the README.
+  subprocess is listed in the README's network-and-disk section and in
+  full in `docs/COMMANDS.md`.
 
 ## Interfaces
 - CLI subcommands and flags, the Library directory layout, the Source Catalog
   schema, and `config.toml` keys are public interface: a change updates the
-  README and SKILL.md in the same change.
+  README or the `docs/` file that describes it, and SKILL.md, in the same
+  change.
 - Error paths are handled and tested: network failure, a document missing
   from the Library, a version the Catalog does not know.
 

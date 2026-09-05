@@ -718,9 +718,12 @@ def test_a_corrupt_schema_file_is_an_exit_1_message(held, catalog_file, capsys):
 
 
 def test_readme_and_skill_describe_the_command_and_the_schemas_directory():
+    # since 1.0.0 the Library layout lives in docs/LIBRARY.md; the README
+    # keeps the command examples
     readme = (ROOT / "README.md").read_text("utf-8")
-    assert "schemas/" in readme
-    assert "bmcspec.py schema " in readme
+    layout = (ROOT / "docs" / "LIBRARY.md").read_text("utf-8")
+    assert "schemas/" in layout
+    assert "bmcspec schema " in readme
     assert "json-schema" in readme.lower() or "JSON Schema" in readme
     skill = (ROOT / "skills" / "bmc-spec" / "SKILL.md").read_text("utf-8")
     rows = [ln for ln in skill.splitlines() if ln.startswith("| `schema ")]

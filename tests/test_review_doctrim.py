@@ -459,7 +459,10 @@ def _section(text: str, heading: str) -> str:
 
 
 def test_ac7_readme_source_catalog_section_documents_unlisted_and_the_reader_form():
-    section = _section(README.read_text(encoding="utf-8"), "## The Source Catalog")
+    # since 1.0.0 the section is its own file, docs/CATALOG.md
+    section = _section(
+        (ROOT / "docs" / "CATALOG.md").read_text(encoding="utf-8"), "# The Source Catalog"
+    )
     assert "`unlisted = true`" in section or "`unlisted`" in section
     assert "--by-family" in section and "`PASS`" in section
     assert "docs/SUPPORT.md" in section
