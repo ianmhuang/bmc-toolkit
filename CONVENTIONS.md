@@ -1,6 +1,6 @@
 # Project conventions
 
-Read by the author session (via CLAUDE.md) and by the revali reviewer.
+Read by the author session (via CLAUDE.md) and by reviewers.
 Things a linter cannot check; formatting is not listed.
 
 ## Structure
