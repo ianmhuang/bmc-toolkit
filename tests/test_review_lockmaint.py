@@ -238,6 +238,65 @@ def test_prune_leaves_a_live_locked_version_alone(stored, catalog_file, capsys):
     assert part.exists() and live.exists()
 
 
+def test_prune_yes_keeps_a_stale_lock_taken_over_while_it_was_working(
+    stored, catalog_file, library, capsys, monkeypatch
+):
+    # Round 3 (F1 of round 2): prune lists stale locks first and removes
+    # trees and leftovers before it gets to them. A Session that took the
+    # lock over in between holds a fresh lock under the same path; AC-10
+    # says a live lock is never touched, so prune must re-read it and keep
+    # it. The take-over is simulated while prune removes a leftover.
+    from bmc_toolkit.spec import cli
+
+    stale_age = lock_mod.STALE_SECONDS + 1
+    stale = other_lock(stored, "extract DSP0236 1.3.3", age=stale_age)
+    leftover = library.root / "freshness.json.5-6.part"
+    leftover.write_bytes(b"x")
+    backdate(leftover, stale_age)
+    real_prune_path = cli._prune_path
+
+    def prune_path_then_takeover(path, line, really):
+        result = real_prune_path(path, line, really)
+        if path == leftover:
+            # another Session takes the stale lock over right now
+            stale.write_text(
+                json.dumps(
+                    {
+                        "pid": 9999,
+                        "host": "elsewhere",
+                        "command": "extract DSP0236 1.3.3",
+                        "started": "2026-09-05T02:00:00+00:00",
+                    }
+                ),
+                encoding="utf-8",
+            )
+        return result
+
+    monkeypatch.setattr(cli, "_prune_path", prune_path_then_takeover)
+    code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert f"removed {leftover} (leftover)" in lines
+    assert f"kept {stale} (taken over meanwhile)" in lines
+    assert not any(ln.startswith(f"removed {stale}") for ln in lines)
+    assert stale.is_file()
+    assert json.loads(stale.read_text(encoding="utf-8"))["pid"] == 9999
+    assert not leftover.exists()
+
+
+def test_prune_dry_run_lists_a_stale_lock_without_touching_it(
+    stored, catalog_file, capsys
+):
+    stale = other_lock(stored, "extract DSP0236 1.3.3", age=lock_mod.STALE_SECONDS + 1)
+    before = stale.stat().st_mtime
+    code, out = run(capsys, "prune", catalog_file=catalog_file)
+    assert code == 0, out
+    assert (
+        f"would remove {stale} (stale lock, {holder_text('extract DSP0236 1.3.3')})"
+    ) in out.splitlines()
+    assert stale.is_file() and stale.stat().st_mtime == before
+
+
 # ---------------------------------------------------------------- AC-11
 
 
@@ -368,6 +427,9 @@ def test_commands_md_has_the_sharing_section_and_the_disk_names():
     assert ".tmp-<pid>-<token>" in text
     assert "`status` lists every lock" in text
     assert "stale `.lock`" in text  # prune
+    # Round 3 (F3 of round 2): the take-over gate is part of the layout
+    assert "`.lock.takeover`" in text
+    assert "taken over meanwhile" in text  # what prune --yes prints for a kept lock
 
 
 def test_library_md_names_the_lock_and_the_temp_pattern():
@@ -375,6 +437,7 @@ def test_library_md_names_the_lock_and_the_temp_pattern():
     assert "`.lock`" in text
     assert "<name>.<pid>-<token>.part" in text
     assert "code/<repo>/.lock" in text
+    assert "`.lock.takeover`" in text  # round 3 (F3 of round 2)
 
 
 def test_readme_pointer_legend_and_catalog_link():

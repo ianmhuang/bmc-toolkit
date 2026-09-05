@@ -486,6 +486,48 @@ def test_a_session_that_meets_a_take_over_in_progress_waits_for_the_winner(
     assert sorted(p.name for p in vdir.iterdir()) == []
 
 
+def test_a_stale_lock_behind_a_stale_gate_is_taken_over_with_wait_zero(tmp_path):
+    # Round 3 (F2 of round 2): AC-4 says a stale lock is taken over with no
+    # waiting. A stale gate left by a Session that died mid take-over must
+    # not turn that into exit 3 when --wait is 0: the gate is removed, then
+    # the lock, and the command proceeds.
+    vdir = tmp_path / "v"
+    other_lock(vdir, age=lock_mod.STALE_SECONDS + 1)
+    gate = vdir / ".lock.takeover"
+    gate.write_bytes(b"")
+    backdate(gate, lock_mod.STALE_SECONDS + 1)
+    seen = []
+    started = time.monotonic()
+    with lock_mod.Lock(vdir, "now", wait=0, on_takeover=seen.append):
+        assert time.monotonic() - started < 2
+        record = json.loads((vdir / ".lock").read_text(encoding="utf-8"))
+        assert record["command"] == "now"
+        assert not gate.exists()
+    assert [h.pid for h in seen] == [4242]
+    assert sorted(p.name for p in vdir.iterdir()) == []
+
+
+def test_stale_lock_behind_a_stale_gate_is_taken_over_through_the_cli(
+    stored, catalog_file, scripted, capsys
+):
+    # The same through the CLI: fetch --wait 0 on a version whose lock and
+    # gate are both stale exits 0 with the take-over note, not 3.
+    other_lock(stored, age=lock_mod.STALE_SECONDS + 1)
+    gate = stored / ".lock.takeover"
+    gate.write_bytes(b"")
+    backdate(gate, lock_mod.STALE_SECONDS + 1)
+    scripted.responses[URL_133] = ok(PDF_BYTES)
+    code, out = run(
+        capsys, "--wait", "0", "fetch", "DSP0236", catalog_file=catalog_file
+    )
+    assert code == 0, out
+    assert (
+        "note: took over a stale lock from pid 4242 on host elsewhere "
+        f"(extract DSP0236 1.3.3, since {STARTED})"
+    ) in out.splitlines()
+    assert not (stored / ".lock").exists() and not gate.exists()
+
+
 def test_a_lock_that_cannot_be_removed_is_reported_not_silent(
     stored, catalog_file, scripted, capsys, monkeypatch
 ):
