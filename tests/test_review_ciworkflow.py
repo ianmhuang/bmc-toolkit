@@ -255,7 +255,10 @@ def test_ac6_concurrency_group_is_workflow_and_ref_and_cancels_in_progress():
     assert isinstance(conc, dict), conc
     group = str(conc.get("group", ""))
     assert "github.workflow" in group and "github.ref" in group, group
-    assert conc.get("cancel-in-progress") is True, conc
+    # Round 1 F2: superseded pull-request runs are cancelled, pushes to main
+    # are not (edited by the author as the finding asked).
+    cancel = str(conc.get("cancel-in-progress", ""))
+    assert "github.event_name == 'pull_request'" in cancel, conc
 
 
 # --- AC-7 --------------------------------------------------------------------

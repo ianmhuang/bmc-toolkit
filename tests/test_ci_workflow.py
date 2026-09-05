@@ -83,14 +83,20 @@ def test_ac6_concurrency_cancels_superseded_runs():
     text = _text()
     assert re.search(
         r"concurrency:\n  group: \$\{\{ github.workflow \}\}-\$\{\{ github.ref \}\}\n"
-        r"  cancel-in-progress: true",
+        r"  cancel-in-progress: \$\{\{ github.event_name == 'pull_request' \}\}",
         text,
     )
+
+
+def test_ac6_token_is_read_only():
+    assert re.search(r"^permissions:\n  contents: read", _text(), re.M)
 
 
 def test_ac7_readme_development_mentions_actions():
     text = README.read_text(encoding="utf-8")
     dev = text[text.index("## Development") : text.index("## License")]
+    for step in STEPS[1:]:
+        assert step in dev, step
     assert "GitHub Actions" in dev
     assert "Linux" in dev and "Windows" in dev and "macOS" in dev
     assert "badge" not in dev.lower() and "shields.io" not in dev

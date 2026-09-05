@@ -176,6 +176,8 @@ The full list, with file counts and the listing URLs, is in
 
 ```
 pip install -r requirements.txt -r requirements-dev.txt
+ruff check .
+ruff format --check .
 python -m pytest -q
 ```
 
