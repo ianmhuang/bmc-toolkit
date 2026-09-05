@@ -623,6 +623,9 @@ def cmd_add(args: argparse.Namespace) -> int:
         print(f"unknown document '{args.document}'; run: bmcspec catalog")
         return EXIT_ACTION
     library = Library(resolve_library())
+    # Announced before the existence check below: a "Library created" line
+    # cannot precede a refusal, since a held version implies the Library
+    # already existed.
     _announce_library(library)
     vdir = library.version_dir(doc.family, doc.id, args.doc_version)
     try:

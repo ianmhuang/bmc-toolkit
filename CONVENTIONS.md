@@ -23,6 +23,22 @@ Things a linter cannot check; formatting is not listed.
   subprocess is listed in the README's network-and-disk section and in
   full in `docs/COMMANDS.md`.
 
+## Versions
+- `plugin.json`, `pyproject.toml` and `bmc_toolkit/__init__.py` carry one
+  version and are bumped together; `marketplace.json` never carries one.
+  The README status line names the same version (`tests/test_release.py`).
+- The bump is the release: Claude Code offers installed users an update only
+  when the `plugin.json` version changes. Bump in a change that alters what
+  an installed user gets: code under `bmc_toolkit/`, the Source Catalog,
+  SKILL.md, hooks. A change that touches only README, `docs/`, tests or CI
+  does not bump.
+- Major: the Library's disk format is no longer read by the previous version,
+  or a command is removed. Minor: a new command, flag, exit code or catalog
+  document. Patch: fixes and wording.
+- After the merge of a bumping change the maintainer runs
+  `claude plugin tag --push` (tag `bmc-toolkit--v<version>`), once the README
+  describes that version.
+
 ## Interfaces
 - CLI subcommands and flags, the Library directory layout, the Source Catalog
   schema, and `config.toml` keys are public interface: a change updates the
