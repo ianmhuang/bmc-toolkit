@@ -179,6 +179,9 @@ pip install -r requirements.txt -r requirements-dev.txt
 python -m pytest -q
 ```
 
+The same commands run on GitHub Actions for every pull request (Linux and
+Windows) and every push to main (Linux, Windows and macOS).
+
 ## License
 
 MIT. The specifications the tool downloads remain under their publishers'
