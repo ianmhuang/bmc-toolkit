@@ -236,6 +236,41 @@ def test_release_reports_a_lock_it_could_not_remove(tmp_path, monkeypatch):
         Lock(vdir, "again", wait=0.3).acquire()
 
 
+def test_busy_after_a_lost_take_over_names_the_winner(tmp_path, monkeypatch):
+    # F1 of review round 3: the busy line names whoever holds the lock now,
+    # not the dead Session whose stale record was read before the race.
+    vdir = tmp_path / "v"
+    fake_lock(vdir, age=lock_mod.STALE_SECONDS + 1)
+
+    def winner_takes_it(_self):
+        fake_lock(vdir, pid=777, host="winner", command="extract W 2")
+        return False  # nothing removed by us: the lock there is fresh
+
+    monkeypatch.setattr(Lock, "_take_over", winner_takes_it)
+    with pytest.raises(Busy) as info:
+        Lock(vdir, "loser", wait=0).acquire()
+    assert "pid 777 on host winner (extract W 2, " in str(info.value)
+    assert "4242" not in str(info.value)
+
+
+def test_remove_stale_lock_outcomes(tmp_path):
+    vdir = tmp_path / "v"
+    vdir.mkdir()
+    path = vdir / ".lock"
+    gate = vdir / ".lock.takeover"
+    assert lock_mod.remove_stale_lock(path) == "gone"
+    fake_lock(vdir)
+    assert lock_mod.remove_stale_lock(path) == "fresh" and path.exists()
+    gate.write_bytes(b"")
+    assert lock_mod.remove_stale_lock(path) == "busy" and path.exists()
+    gate.unlink()
+    seen = []
+    fake_lock(vdir, age=lock_mod.STALE_SECONDS + 1)
+    assert lock_mod.remove_stale_lock(path, seen.append) == "removed"
+    assert [h.pid for h in seen] == [4242]
+    assert not path.exists() and not gate.exists()
+
+
 def test_unparsable_lock_file_still_counts_by_its_mtime(tmp_path):
     vdir = tmp_path / "v"
     vdir.mkdir()

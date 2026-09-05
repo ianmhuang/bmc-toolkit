@@ -1514,20 +1514,36 @@ def cmd_prune(args: argparse.Namespace) -> int:
         failed += _prune_path(tree.path, f"{verb} {tree.path} ({why})", args.yes)
     for path in leftovers:
         failed += _prune_path(path, f"{verb} {path} (leftover)", args.yes)
+    removed = 0
+    kept = 0
     for holder in stale:
         line = f"{verb} {holder.path} (stale lock, {holder.describe()})"
-        if args.yes:
-            # Re-read right before removing: a Session may have taken the
-            # lock over while the trees above were being removed.
-            now = lock_mod.read_holder(holder.path)
-            if now is None or not now.stale:
-                print(f"kept {holder.path} (taken over meanwhile)")
-                continue
-        failed += _prune_path(holder.path, line, args.yes)
+        if not args.yes:
+            print(line)
+            continue
+        # The same protocol a writer uses to take a stale lock over: the
+        # take-over gate, a re-read inside it, and no removal of a fresh lock.
+        outcome = lock_mod.remove_stale_lock(holder.path)
+        if outcome == "removed":
+            print(line)
+            removed += 1
+        elif outcome == "stuck":
+            print(f"failed {holder.path}: another process has it open")
+            failed += 1
+        else:
+            why = {
+                "fresh": "taken over meanwhile",
+                "gone": "gone meanwhile",
+                "busy": "take-over in progress",
+            }[outcome]
+            print(f"kept {holder.path} ({why})")
+            kept += 1
     tail = "" if args.yes else " (dry run; --yes removes them)"
+    counted = removed if args.yes else len(stale)
+    kept_tail = f", {kept} kept" if kept else ""
     print(
         f"prune: {len(doomed)} superseded tree(s), {len(leftovers)} leftover(s), "
-        f"{len(stale)} stale lock(s){tail}"
+        f"{counted} stale lock(s){kept_tail}{tail}"
     )
     return EXIT_ERROR if failed else EXIT_OK
 

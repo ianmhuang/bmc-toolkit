@@ -550,10 +550,13 @@ def test_prune_keeps_a_stale_lock_taken_over_while_it_worked(
     path = fake_lock(stored, command="extract DSP0236 1.3.3")
     backdate(path, lock_mod.STALE_SECONDS + 1)
     real = cli.lock_mod.locks_under
+    calls = []
 
     def listing_then_takeover(root):
         holders = real(root)
-        os.utime(path, None)  # another Session takes it over right after
+        if not calls:  # only the first prune run is raced
+            os.utime(path, None)  # another Session takes it over right after
+        calls.append(root)
         return holders
 
     monkeypatch.setattr(cli.lock_mod, "locks_under", listing_then_takeover)
@@ -562,7 +565,30 @@ def test_prune_keeps_a_stale_lock_taken_over_while_it_worked(
     lines = out.splitlines()
     assert f"kept {path} (taken over meanwhile)" in lines
     assert not any(ln.startswith("removed") for ln in lines)
+    assert (
+        lines[-1]
+        == "prune: 0 superseded tree(s), 0 leftover(s), 0 stale lock(s), 1 kept"
+    )
     assert path.exists()
+    # A take-over in progress (fresh gate) keeps the lock too (F3, round 3).
+    backdate(path, lock_mod.STALE_SECONDS + 1)
+    gate = stored / ".lock.takeover"
+    gate.write_bytes(b"")
+    code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
+    assert code == 0, out
+    assert f"kept {path} (take-over in progress)" in out.splitlines()
+    assert path.exists() and gate.exists()
+    gate.unlink()
+    code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
+    assert code == 0, out
+    assert any(
+        ln.startswith(f"removed {path} (stale lock, ") for ln in out.splitlines()
+    )
+    assert (
+        out.splitlines()[-1]
+        == "prune: 0 superseded tree(s), 0 leftover(s), 1 stale lock(s)"
+    )
+    assert not path.exists() and not gate.exists()
 
 
 def test_prune_skips_leftovers_in_a_live_locked_version(stored, catalog_file, capsys):

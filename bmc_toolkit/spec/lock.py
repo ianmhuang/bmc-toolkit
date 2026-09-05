@@ -150,6 +150,54 @@ def _unlink_retrying(path: Path) -> str:
     return "stuck"
 
 
+def remove_stale_lock(
+    path: Path, on_takeover: Callable[[Holder], None] | None = None
+) -> str:
+    """Remove the lock at ``path`` if it is stale, so that no process ever
+    removes a fresh one; the one protocol both ``Lock.acquire`` and ``prune``
+    use.
+
+    Only the process that created ``.lock.takeover`` (O_EXCL) beside it may
+    remove the lock, and it re-reads the lock inside that section: while the
+    stale file exists nobody can create a fresh one (O_EXCL fails), and only
+    this section removes it, so what it removes is what it read. A takeover
+    file older than STALE_SECONDS (its owner died inside the section) is
+    removed like a stale lock.
+
+    Returns ``removed`` (``on_takeover`` was called with the old holder),
+    ``gone`` (no lock there any more), ``fresh`` (the lock is live: someone
+    took it over), ``busy`` (another process is inside the section right
+    now) or ``stuck`` (the file could not be removed).
+    """
+    gate = path.with_name(TAKEOVER_NAME)
+    for _attempt in range(3):
+        try:
+            fd = os.open(gate, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except OSError:
+            other = read_holder(gate)
+            if other is not None and other.stale:
+                _unlink_retrying(gate)
+                continue  # the section's owner died: try the gate again
+            return "busy"
+        break
+    else:
+        return "busy"
+    os.close(fd)
+    try:
+        current = read_holder(path)
+        if current is None:
+            return "gone"
+        if not current.stale:
+            return "fresh"
+        if _unlink_retrying(path) != "removed":
+            return "stuck"
+        if on_takeover is not None:
+            on_takeover(current)
+        return "removed"
+    finally:
+        _unlink_retrying(gate)
+
+
 def _unknown_holder(path: Path) -> Holder:
     """For a lock file that vanished or could not be read at the deadline."""
     return Holder(path=path, pid=None, host="?", command="?", started="?", age=0.0)
@@ -213,13 +261,14 @@ class Lock:
                     continue
                 misses = 0
                 if holder.stale:
-                    if self._take_over(holder):
+                    if self._take_over():
                         continue  # progress was made: try the create again
-                    # Another Session is mid take-over (its gate is fresh):
-                    # keep trying, but not past the deadline.
-                    if time.monotonic() < deadline or read_holder(self.path) is None:
+                    # Another Session is mid take-over (its gate is fresh) or
+                    # has just won: keep trying, but not past the deadline.
+                    current = read_holder(self.path)
+                    if time.monotonic() < deadline or current is None:
                         continue
-                    raise Busy(holder) from None
+                    raise Busy(current) from None  # whoever holds it now
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise Busy(holder) from None
@@ -240,42 +289,18 @@ class Lock:
             self._thread.start()
             return self
 
-    def _take_over(self, holder: Holder) -> bool:
-        """Remove a stale lock so that no Session ever removes a fresh one.
-        Returns True when something was removed (the lock, or a stale gate),
-        False when another Session's take-over is in progress.
-
-        Only the Session that created ``.lock.takeover`` (O_EXCL) may remove
-        ``.lock``, and it re-reads the lock inside that section: while the
-        stale file exists nobody can create a fresh one (O_EXCL fails), and
-        only this section removes it, so what it removes is what it read.
-        A Session that finds the takeover file already there goes back to
-        the create, where it meets the winner's fresh lock and waits. A
-        takeover file older than STALE_SECONDS (its owner died inside the
-        section) is removed like a stale lock.
-        """
-        gate = self.path.with_name(TAKEOVER_NAME)
-        try:
-            fd = os.open(gate, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except OSError:
-            other = read_holder(gate)
-            if other is not None and other.stale:
-                return _unlink_retrying(gate) == "removed"
+    def _take_over(self) -> bool:
+        """Try to remove the stale lock through :func:`remove_stale_lock`.
+        True when the create can be tried again at once (the lock was removed
+        or is gone), False when it is fresh, stuck, or another Session is
+        inside the take-over section (a short pause, then the caller decides
+        by its deadline)."""
+        outcome = remove_stale_lock(self.path, self.on_takeover)
+        if outcome in ("removed", "gone"):
+            return True
+        if outcome == "busy":
             time.sleep(RETRY_PAUSE)
-            return False
-        os.close(fd)
-        try:
-            current = read_holder(self.path)
-            if current is None:
-                return True  # gone meanwhile: the create can be tried
-            if not current.stale:
-                return False  # taken over meanwhile: the lock there is fresh
-            removed = _unlink_retrying(self.path) == "removed"
-            if removed and self.on_takeover:
-                self.on_takeover(current)
-            return removed
-        finally:
-            _unlink_retrying(gate)
+        return False
 
     def _beat(self) -> None:
         while not self._stop.wait(self.heartbeat):
