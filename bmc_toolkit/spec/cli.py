@@ -276,9 +276,22 @@ def _took_over(holder: lock_mod.Holder) -> None:
     print(f"note: took over a stale lock from {holder.describe()}")
 
 
+def _left_behind(path: Path) -> None:
+    print(
+        f"note: could not remove {path} (another process has it open); it "
+        f"expires as stale in {int(lock_mod.STALE_SECONDS // 60)} minutes"
+    )
+
+
 def _lock(args: argparse.Namespace, directory: Path, command: str) -> lock_mod.Lock:
     """The lock a writing command holds on ``directory``; waits ``--wait``."""
-    return lock_mod.Lock(directory, command, wait=args.wait, on_takeover=_took_over)
+    return lock_mod.Lock(
+        directory,
+        command,
+        wait=args.wait,
+        on_takeover=_took_over,
+        on_leftover=_left_behind,
+    )
 
 
 def _wait_for_extract(args: argparse.Namespace, holding) -> lock_mod.Holder | None:
@@ -1514,9 +1527,10 @@ def cmd_prune(args: argparse.Namespace) -> int:
 
 def _leftovers(root: Path, library: code_mod.CodeLibrary) -> list[Path]:
     """Temporary files and directories nobody is working on: ``.tmp-*``
-    clone directories and ``.part`` files, skipping any directory whose lock
-    is live, and ``.part`` files younger than the stale age (a lock-free
-    ``render`` may be writing one)."""
+    clone directories, ``.part`` files and abandoned take-over files
+    (``.lock.takeover``) under the root, ``specs/`` and ``code/``, skipping
+    any directory whose lock is live, and files younger than the stale age
+    (a lock-free ``render`` may be writing one)."""
     found = []
     if library.code.is_dir():
         for rdir in sorted(p for p in library.code.iterdir() if p.is_dir()):
@@ -1525,18 +1539,29 @@ def _leftovers(root: Path, library: code_mod.CodeLibrary) -> list[Path]:
             found += sorted(
                 p for p in rdir.iterdir() if p.is_dir() and p.name.startswith(".tmp-")
             )
-    for part in sorted(root.glob("*" + PART_SUFFIX)) + sorted(
-        (root / "specs").glob("*/*/*/**/*" + PART_SUFFIX)
-    ):
-        if not part.is_file() or _young(part):
+    candidates = []
+    for pattern in ("*" + PART_SUFFIX, lock_mod.TAKEOVER_NAME):
+        candidates += root.glob(pattern)
+        candidates += (root / "specs").glob("*/*/*/**/" + pattern)
+        candidates += (root / "code").glob("*/**/" + pattern)
+    for path in sorted(set(candidates)):
+        if not path.is_file() or _young(path):
             continue
-        vdir = part.parent
-        if vdir.name == extract_mod.RENDERS_DIRNAME:
-            vdir = vdir.parent
-        if lock_mod.live_holder(vdir) is not None:
+        if lock_mod.live_holder(_locked_dir(root, path)) is not None:
             continue
-        found.append(part)
+        found.append(path)
     return found
+
+
+def _locked_dir(root: Path, path: Path) -> Path:
+    """The directory whose lock guards ``path``: the version directory under
+    ``specs/`` (renders included), ``code/<repo>`` under ``code/``."""
+    rel = path.relative_to(root).parts
+    if rel[0] == "specs" and len(rel) >= 4:
+        return root.joinpath(*rel[:4])
+    if rel[0] == "code" and len(rel) >= 2:
+        return root.joinpath(*rel[:2])
+    return path.parent
 
 
 def _young(path: Path) -> bool:

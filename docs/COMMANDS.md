@@ -142,9 +142,16 @@ for a clone; it holds the holder's pid, host, command and start time, and
 its modification time is refreshed every 30 seconds while the holder is
 alive. A lock untouched for 5 minutes is stale: the next command removes
 it, prints `note: took over a stale lock from pid P on host H (...)` and
-does the whole operation again from scratch. Pids are never trusted (they
-mean nothing across Windows and WSL and are reused after a reboot); only
-the modification time decides.
+does the whole operation again from scratch: a take-over trusts only state
+whose meta is complete (`meta.json`, `extract.json`, `.bmc-tree.json` are
+written last), and a `fetch --force` or `add --force` killed midway leaves
+an original without `meta.json`, which the next `fetch` redoes and `scan`
+can still register. Pids are never trusted (they mean nothing across
+Windows and WSL and are reused after a reboot); only the modification time
+decides. When two Sessions meet the same stale lock, one takes it over and
+the other waits for it like any live lock. A Session that cannot remove its
+own lock at the end (Windows, when another process has the file open at
+that moment) prints a `note:` naming the path; the lock expires as stale.
 
 A command that meets a live lock waits up to `--wait` seconds (default
 60), then prints one line, `busy: <path> is held by pid P on host H

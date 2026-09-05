@@ -307,6 +307,79 @@ def test_meta_and_original_are_written_through_temp_names(stored):
     assert (stored / "meta.json").is_file() and (stored / "original.pdf").is_file()
 
 
+def test_add_force_copies_through_a_temp_name(stored, catalog_file, tmp_path, capsys):
+    # F2 of review round 1: the Drop-in original is renamed into place too.
+    src = tmp_path / "mine.pdf"
+    src.write_bytes(PDF_BYTES + b"\nnew")
+    seen = []
+    real_replace = lock_mod.os.replace
+
+    def spying_replace(a, b):
+        seen.append((Path(a).name, Path(b).name))
+        return real_replace(a, b)
+
+    from bmc_toolkit.spec import library as library_mod
+
+    monkey = pytest.MonkeyPatch()
+    monkey.setattr(library_mod.os, "replace", spying_replace)
+    try:
+        code, out = run(
+            capsys,
+            "add",
+            str(src),
+            "--document",
+            "DSP0236",
+            "--version",
+            "1.3.3",
+            "--force",
+            catalog_file=catalog_file,
+        )
+    finally:
+        monkey.undo()
+    assert code == 0, out
+    assert (stored / "original.pdf").read_bytes() == PDF_BYTES + b"\nnew"
+    assert not list(stored.glob("*.part"))
+    tmp_names = [a for a, b in seen if b == "original.pdf"]
+    assert tmp_names and all(
+        a.startswith(f"original.pdf.{os.getpid()}-") and a.endswith(".part")
+        for a in tmp_names
+    )
+
+
+def test_a_replace_killed_midway_leaves_no_meta_over_the_new_original(
+    stored, catalog_file, scripted, capsys
+):
+    # F4 of review round 1: "from scratch" after a crash means the old
+    # meta.json must not describe the new original; the next fetch redoes it.
+    from bmc_toolkit.spec.library import Library
+
+    library = Library(stored.parents[3])
+    monkey = pytest.MonkeyPatch()
+
+    def crash(*_args, **_kwargs):
+        raise RuntimeError("killed")
+
+    monkey.setattr(Library, "write_meta", crash)
+    with pytest.raises(RuntimeError):
+        library.store(
+            "mctp",
+            "DSP0236",
+            "1.3.3",
+            PDF_BYTES + b"2",
+            "pdf",
+            url=URL,
+            method="direct",
+        )
+    monkey.undo()
+    assert (stored / "original.pdf").read_bytes() == PDF_BYTES + b"2"
+    assert not (stored / "meta.json").exists()
+    assert library.find("DSP0236", "1.3.3") is None
+    scripted.responses[URL] = ok(PDF_BYTES + b"3")
+    code, out = run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    assert code == 0 and "fetched DSP0236 1.3.3" in out
+    assert (stored / "original.pdf").read_bytes() == PDF_BYTES + b"3"
+
+
 def test_two_writers_of_one_png_both_succeed(tmp_path):
     out = tmp_path / "renders" / "page-1.png"
     out.parent.mkdir()
@@ -436,6 +509,35 @@ def test_prune_removes_stale_locks_and_old_leftovers_only(
         assert not gone.exists(), gone
     for kept in (fresh_part, busy_tmp, live_dir / ".lock", stored / "original.pdf"):
         assert kept.exists(), kept
+
+
+def test_prune_finds_old_parts_and_stale_renames_under_code(
+    catalog_file, library, capsys
+):
+    # F3 of review round 1: .part files under Code Trees are leftovers too.
+    tree = library.root / "code" / "bmcweb" / "0123456789abcdef"
+    tree.mkdir(parents=True)
+    old_part = tree / ".bmc-tree.json.7-abcd.part"
+    old_part.write_bytes(b"x")
+    backdate(old_part, lock_mod.STALE_SECONDS + 1)
+    stale_rename = library.root / "code" / "bmcweb" / ".lock.takeover"
+    stale_rename.write_bytes(b"x")
+    backdate(stale_rename, lock_mod.STALE_SECONDS + 1)
+    busy_tree = library.root / "code" / "pldm" / "fedcba9876543210"
+    busy_tree.mkdir(parents=True)
+    fake_lock(library.root / "code" / "pldm", command="clone pldm main")
+    busy_part = busy_tree / ".bmc-tree.json.8-ef01.part"
+    busy_part.write_bytes(b"x")
+    backdate(busy_part, lock_mod.STALE_SECONDS + 1)
+    code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert f"removed {old_part} (leftover)" in lines
+    assert f"removed {stale_rename} (leftover)" in lines
+    assert not any(str(busy_part) in ln for ln in lines)
+    assert lines[-1] == "prune: 0 superseded tree(s), 2 leftover(s), 0 stale lock(s)"
+    assert not old_part.exists() and not stale_rename.exists()
+    assert busy_part.exists()
 
 
 def test_prune_skips_leftovers_in_a_live_locked_version(stored, catalog_file, capsys):

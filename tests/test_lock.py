@@ -156,6 +156,79 @@ def test_stale_lock_is_taken_over_and_reported(tmp_path):
     )
 
 
+def test_two_sessions_racing_on_one_stale_lock_take_turns(tmp_path):
+    # F1 of review round 1: the take-over must be won by exactly one of them;
+    # the other meets the winner's fresh lock and waits like for any live one.
+    vdir = tmp_path / "v"
+    fake_lock(vdir, age=lock_mod.STALE_SECONDS + 1)
+    takeovers = []
+    intervals = []
+    start = threading.Barrier(4)
+
+    def session(name):
+        start.wait()
+        with Lock(vdir, name, wait=10, on_takeover=takeovers.append):
+            entered = time.monotonic()
+            assert json.loads((vdir / ".lock").read_text("utf-8"))["command"] == name
+            time.sleep(0.2)
+            intervals.append((entered, time.monotonic()))
+
+    threads = [threading.Thread(target=session, args=(f"s{i}",)) for i in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(takeovers) == 1 and takeovers[0].pid == 4242
+    intervals.sort()
+    for (_, end), (begin, _) in zip(intervals, intervals[1:], strict=False):
+        assert end <= begin  # never two holders at once
+    assert not (vdir / ".lock").exists()
+    assert not (vdir / ".lock.takeover").exists()
+
+
+def test_a_stale_takeover_file_does_not_block_forever(tmp_path):
+    vdir = tmp_path / "v"
+    fake_lock(vdir, age=lock_mod.STALE_SECONDS + 1)
+    gate = vdir / ".lock.takeover"
+    gate.write_bytes(b"")
+    backdate(gate, lock_mod.STALE_SECONDS + 1)
+    seen = []
+    with Lock(vdir, "x", wait=5, on_takeover=seen.append):
+        pass
+    assert [h.pid for h in seen] == [4242]
+    assert not gate.exists()
+    # A fresh takeover file means another Session is mid take-over: wait.
+    fake_lock(vdir, age=lock_mod.STALE_SECONDS + 1)
+    gate.write_bytes(b"")
+    with pytest.raises(Busy):
+        Lock(vdir, "y", wait=0.3).acquire()
+
+
+def test_release_reports_a_lock_it_could_not_remove(tmp_path, monkeypatch):
+    # F5 of review round 1: a lock left behind (Windows sharing violation)
+    # is reported through on_leftover instead of silently expiring.
+    vdir = tmp_path / "v"
+    monkeypatch.setattr(lock_mod, "RELEASE_RETRIES", 3)
+    monkeypatch.setattr(lock_mod, "RETRY_PAUSE", 0.01)
+    real_unlink = lock_mod.Path.unlink
+    lock_path = vdir / ".lock"
+
+    def refusing_unlink(self, *args, **kwargs):
+        if self == lock_path:
+            raise PermissionError(13, "Access is denied")
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(lock_mod.Path, "unlink", refusing_unlink)
+    left = []
+    with Lock(vdir, "extract", wait=0, on_leftover=left.append):
+        pass
+    assert left == [lock_path]
+    assert lock_path.exists() and vdir.exists()  # nothing else was cleaned up
+    monkeypatch.undo()
+    with pytest.raises(Busy):  # the leftover is live until it ages out
+        Lock(vdir, "again", wait=0.3).acquire()
+
+
 def test_unparsable_lock_file_still_counts_by_its_mtime(tmp_path):
     vdir = tmp_path / "v"
     vdir.mkdir()

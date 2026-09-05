@@ -31,6 +31,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 LOCK_NAME = ".lock"
+TAKEOVER_NAME = ".lock.takeover"  # whoever creates it may remove a stale .lock
 HEARTBEAT_SECONDS = 30.0  # how often a holder touches its lock
 STALE_SECONDS = 300.0  # untouched this long: the holder is presumed dead
 POLL_SECONDS = 0.2  # how often a waiter looks again
@@ -132,6 +133,23 @@ def wait_while_locked(directory: Path, wait: float) -> Holder | None:
         time.sleep(min(POLL_SECONDS, remaining))
 
 
+def _unlink_retrying(path: Path) -> str:
+    """Remove ``path``, riding out Windows sharing violations: ``removed``,
+    ``missing`` (someone else did), or ``stuck`` after RELEASE_RETRIES."""
+    for attempt in range(RELEASE_RETRIES):
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return "missing"
+        except PermissionError:
+            if attempt == RELEASE_RETRIES - 1:
+                return "stuck"
+            time.sleep(RETRY_PAUSE)
+        else:
+            return "removed"
+    return "stuck"
+
+
 def _unknown_holder(path: Path) -> Holder:
     """For a lock file that vanished or could not be read at the deadline."""
     return Holder(path=path, pid=None, host="?", command="?", started="?", age=0.0)
@@ -157,6 +175,7 @@ class Lock:
         wait: float = DEFAULT_WAIT,
         heartbeat: float | None = None,
         on_takeover: Callable[[Holder], None] | None = None,
+        on_leftover: Callable[[Path], None] | None = None,
     ):
         self.directory = Path(directory)
         self.path = self.directory / LOCK_NAME
@@ -164,6 +183,7 @@ class Lock:
         self.wait = wait
         self.heartbeat = HEARTBEAT_SECONDS if heartbeat is None else heartbeat
         self.on_takeover = on_takeover
+        self.on_leftover = on_leftover
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._created_dir = False
@@ -194,7 +214,11 @@ class Lock:
                 misses = 0
                 if holder.stale:
                     self._take_over(holder)
-                    continue
+                    # Another Session may be mid take-over (its gate file is
+                    # fresh); keep trying, but not past the deadline.
+                    if time.monotonic() < deadline or read_holder(self.path) is None:
+                        continue
+                    raise Busy(holder) from None
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise Busy(holder) from None
@@ -216,12 +240,36 @@ class Lock:
             return self
 
     def _take_over(self, holder: Holder) -> None:
+        """Remove a stale lock so that no Session ever removes a fresh one.
+
+        Only the Session that created ``.lock.takeover`` (O_EXCL) may remove
+        ``.lock``, and it re-reads the lock inside that section: while the
+        stale file exists nobody can create a fresh one (O_EXCL fails), and
+        only this section removes it, so what it removes is what it read.
+        A Session that finds the takeover file already there goes back to
+        the create, where it meets the winner's fresh lock and waits. A
+        takeover file older than STALE_SECONDS (its owner died inside the
+        section) is removed like a stale lock.
+        """
+        gate = self.path.with_name(TAKEOVER_NAME)
         try:
-            self.path.unlink()
+            fd = os.open(gate, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except OSError:
-            return  # someone else took it over first, or is reading it
-        if self.on_takeover is not None:
-            self.on_takeover(holder)
+            other = read_holder(gate)
+            if other is not None and other.stale:
+                _unlink_retrying(gate)
+            else:
+                time.sleep(RETRY_PAUSE)
+            return
+        os.close(fd)
+        try:
+            current = read_holder(self.path)
+            if current is None or not current.stale:
+                return  # taken over meanwhile: the lock there is fresh
+            if _unlink_retrying(self.path) == "removed" and self.on_takeover:
+                self.on_takeover(current)
+        finally:
+            _unlink_retrying(gate)
 
     def _beat(self) -> None:
         while not self._stop.wait(self.heartbeat):
@@ -238,17 +286,11 @@ class Lock:
             self._thread.join()
             self._thread = None
         self.held = False
-        for attempt in range(RELEASE_RETRIES):
-            try:
-                self.path.unlink()
-            except FileNotFoundError:
-                break
-            except PermissionError:
-                if attempt == RELEASE_RETRIES - 1:
-                    return  # a waiter keeps it open: it ages out as stale
-                time.sleep(RETRY_PAUSE)
-            else:
-                break
+        if _unlink_retrying(self.path) == "stuck":
+            # A waiter keeps it open: it ages out as stale.
+            if self.on_leftover is not None:
+                self.on_leftover(self.path)
+            return
         if self._created_dir:
             try:
                 os.rmdir(self.directory)  # only when nothing was written

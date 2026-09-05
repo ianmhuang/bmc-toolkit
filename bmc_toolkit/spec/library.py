@@ -139,6 +139,17 @@ def _replace(tmp: Path, target: Path) -> None:
             time.sleep(REPLACE_PAUSE)
 
 
+def atomic_copy(source: Path, target: Path) -> None:
+    """Copy ``source`` to a temp file beside ``target`` and rename it into place."""
+    tmp = temp_path(target)
+    try:
+        shutil.copyfile(source, tmp)
+        _replace(tmp, target)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def atomic_write_text(target: Path, text: str) -> None:
     """UTF-8, LF; see :func:`atomic_write_bytes`."""
     atomic_write_bytes(target, text.encode("utf-8"))
@@ -258,9 +269,17 @@ class Library:
 
     @staticmethod
     def _clear_previous(vdir: Path, keep: str) -> None:
-        """Drop other originals and every derived file before a new original."""
+        """Drop the meta, other originals and every derived file before a
+        new original. The meta goes first and comes back last (``store`` and
+        ``add_dropin`` write it after the original), so a Session killed in
+        between leaves an original without ``meta.json``: not a holding, so
+        the next ``fetch`` redoes it and ``scan`` can still register it,
+        rather than the old meta describing the new file."""
         if not vdir.is_dir():
             return
+        meta = vdir / META_NAME
+        if meta.exists():
+            meta.unlink()
         for p in vdir.glob(ORIGINAL_STEM + ".*"):
             if p.name != keep and not p.name.endswith(PART_SUFFIX):
                 p.unlink()
@@ -326,7 +345,7 @@ class Library:
         filename = f"{ORIGINAL_STEM}.{ext}"
         self._clear_previous(vdir, filename)
         target = vdir / filename
-        shutil.copyfile(source, target)
+        atomic_copy(source, target)
         self.write_meta(
             vdir,
             {

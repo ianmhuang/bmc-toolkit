@@ -34,11 +34,14 @@ lock.release()
 """
 
 
-def env_for(library_root):
+def env_for(library_root=None):
+    """Environment for a child: the package importable, UTF-8 output, and
+    the Library root when the child is the CLI (the helper does not read it)."""
     env = dict(os.environ)
-    env["BMC_SPEC_LIBRARY"] = str(library_root)
     env["PYTHONUTF8"] = "1"
     env["PYTHONPATH"] = str(ROOT)
+    if library_root is not None:
+        env["BMC_SPEC_LIBRARY"] = str(library_root)
     return env
 
 
@@ -76,7 +79,7 @@ def holder(vdir, seconds):
     proc = subprocess.Popen(
         [sys.executable, "-c", HOLDER, str(vdir), str(seconds)],
         cwd=ROOT,
-        env=env_for(vdir),
+        env=env_for(),
         stdout=subprocess.PIPE,
         text=True,
         encoding="utf-8",
