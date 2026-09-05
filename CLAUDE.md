@@ -6,7 +6,8 @@ Claude Code plugin. Layout: `.claude-plugin/` (manifest, marketplace),
 install), `tests/`.
 
 - Code, comments, commit messages and docs are in English.
-- Run `python -m pytest -q` before committing.
+- Run `ruff check .`, `ruff format --check .` and `python -m pytest -q` before
+  committing; GitHub Actions runs the same three.
 - `bmc_toolkit/` core logic is standard library only; `curl_cffi` and
   `pdfplumber` are imported lazily inside the commands that need them.
 
