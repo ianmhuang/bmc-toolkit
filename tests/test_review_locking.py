@@ -486,6 +486,50 @@ def test_a_session_that_meets_a_take_over_in_progress_waits_for_the_winner(
     assert sorted(p.name for p in vdir.iterdir()) == []
 
 
+def test_busy_after_a_lost_take_over_names_the_session_holding_the_lock_now(
+    tmp_path, monkeypatch
+):
+    # Round 4 (F1 of round 3): AC-3 says the busy line names the holder. A
+    # Session that read a stale record, lost the take-over and ran out of
+    # wait must name whoever holds the lock now, not the dead Session.
+    vdir = tmp_path / "v"
+    other_lock(vdir, age=lock_mod.STALE_SECONDS + 1)
+    real = lock_mod.remove_stale_lock
+
+    def winner_lands_first(path, on_takeover=None):
+        # the other Session completes its take-over before ours gets the gate
+        outcome = real(path, None)
+        assert outcome == "removed"
+        other_lock(vdir, command="extract DSP0236 1.3.3", pid=777)
+        return "fresh"
+
+    monkeypatch.setattr(lock_mod, "remove_stale_lock", winner_lands_first)
+    with pytest.raises(lock_mod.Busy) as info:
+        lock_mod.Lock(vdir, "loser", wait=0).acquire()
+    message = str(info.value)
+    assert message == busy_line(vdir, pid=777)
+    assert "4242" not in message
+    assert json.loads((vdir / ".lock").read_text(encoding="utf-8"))["pid"] == 777
+
+
+def test_a_take_over_happens_inside_the_gate(tmp_path):
+    # Round 4 (F3 of round 3): the stale lock is removed only while the
+    # take-over gate exists, and the gate is gone once the lock is held.
+    vdir = tmp_path / "v"
+    other_lock(vdir, age=lock_mod.STALE_SECONDS + 1)
+    gate = vdir / ".lock.takeover"
+    seen = []
+
+    def during_takeover(holder):
+        seen.append((holder.pid, gate.is_file(), (vdir / ".lock").exists()))
+
+    with lock_mod.Lock(vdir, "taker", wait=0, on_takeover=during_takeover):
+        assert not gate.exists()
+        assert json.loads((vdir / ".lock").read_text("utf-8"))["command"] == "taker"
+    assert seen == [(4242, True, False)]
+    assert sorted(p.name for p in vdir.iterdir()) == []
+
+
 def test_a_stale_lock_behind_a_stale_gate_is_taken_over_with_wait_zero(tmp_path):
     # Round 3 (F2 of round 2): AC-4 says a stale lock is taken over with no
     # waiting. A stale gate left by a Session that died mid take-over must

@@ -282,6 +282,98 @@ def test_prune_yes_keeps_a_stale_lock_taken_over_while_it_was_working(
     assert stale.is_file()
     assert json.loads(stale.read_text(encoding="utf-8"))["pid"] == 9999
     assert not leftover.exists()
+    # Round 4 (F2 of round 3): the summary counts removed locks, and says
+    # how many were kept, instead of counting the kept one as removed.
+    assert lines[-1] == (
+        "prune: 0 superseded tree(s), 1 leftover(s), 0 stale lock(s), 1 kept"
+    )
+
+
+def test_prune_yes_keeps_a_stale_lock_another_session_is_taking_over(
+    stored, catalog_file, capsys
+):
+    # Round 4 (F3 of round 3): a fresh .lock.takeover beside a stale lock
+    # means another Session is inside the take-over section; prune must not
+    # remove the lock (the winner is about to create its own) nor the gate.
+    stale = other_lock(stored, "extract DSP0236 1.3.3", age=lock_mod.STALE_SECONDS + 1)
+    gate = stored / ".lock.takeover"
+    gate.write_bytes(b"")
+    before = stale.stat().st_mtime
+    code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert f"kept {stale} (take-over in progress)" in lines
+    assert not any(ln.startswith("removed") for ln in lines)
+    assert lines[-1] == (
+        "prune: 0 superseded tree(s), 0 leftover(s), 0 stale lock(s), 1 kept"
+    )
+    assert stale.is_file() and stale.stat().st_mtime == before
+    assert gate.is_file()
+
+
+def test_prune_yes_removes_a_stale_lock_only_inside_the_gate(
+    stored, catalog_file, capsys, monkeypatch
+):
+    # Round 4 (F3 of round 3): prune takes a stale lock through the same
+    # gate a writer uses: the gate exists at the moment .lock is unlinked and
+    # is gone afterwards. A stale gate left by a dead Session is a leftover
+    # and does not stop the take-over.
+    stale_age = lock_mod.STALE_SECONDS + 1
+    stale = other_lock(stored, "extract DSP0236 1.3.3", age=stale_age)
+    gate = stored / ".lock.takeover"
+    gate.write_bytes(b"")
+    backdate(gate, stale_age)
+    seen = []
+    real_unlink = Path.unlink
+
+    def watching_unlink(self, *args, **kwargs):
+        if self == stale:
+            seen.append(gate.is_file())
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", watching_unlink)
+    code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
+    monkeypatch.undo()
+    assert code == 0, out
+    lines = out.splitlines()
+    assert f"removed {gate} (leftover)" in lines
+    assert any(ln.startswith(f"removed {stale} (stale lock, ") for ln in lines)
+    assert lines[-1] == "prune: 0 superseded tree(s), 1 leftover(s), 1 stale lock(s)"
+    assert seen == [True]  # unlinked once, with the gate held
+    assert not stale.exists() and not gate.exists()
+    assert (stored / "original.pdf").is_file()
+
+
+def test_prune_yes_reports_a_stale_lock_that_vanished_meanwhile(
+    stored, catalog_file, library, capsys, monkeypatch
+):
+    # Round 4: a stale lock removed by someone else between the listing and
+    # the removal is reported as kept, not as removed and not as a failure.
+    from bmc_toolkit.spec import cli
+
+    stale_age = lock_mod.STALE_SECONDS + 1
+    stale = other_lock(stored, "extract DSP0236 1.3.3", age=stale_age)
+    leftover = library.root / "freshness.json.5-6.part"
+    leftover.write_bytes(b"x")
+    backdate(leftover, stale_age)
+    real_prune_path = cli._prune_path
+
+    def prune_path_then_vanish(path, line, really):
+        result = real_prune_path(path, line, really)
+        if path == leftover:
+            stale.unlink()  # another Session's take-over finished and released
+        return result
+
+    monkeypatch.setattr(cli, "_prune_path", prune_path_then_vanish)
+    code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert f"kept {stale} (gone meanwhile)" in lines
+    assert not any(ln.startswith("failed") for ln in lines)
+    assert lines[-1] == (
+        "prune: 0 superseded tree(s), 1 leftover(s), 0 stale lock(s), 1 kept"
+    )
+    assert not (stored / ".lock.takeover").exists()
 
 
 def test_prune_dry_run_lists_a_stale_lock_without_touching_it(
