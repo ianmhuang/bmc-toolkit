@@ -731,6 +731,46 @@ def test_schema_and_registry_wait_for_the_bundle_extraction(
 # ----------------------------------------------------------------- AC-6
 
 
+def test_add_that_waited_for_another_add_decides_on_the_finished_holding(
+    stored, catalog_file, tmp_path, capsys
+):
+    # Round 5 (validation failure of round 4): the other Session's add is in
+    # progress, so meta.json is away for the moment (it is removed first and
+    # written last). An add that waits for it must judge the finished
+    # holding: refuse without --force (AC-1: a waiter writes nothing over
+    # another Session's work), and say "replaced", not "added", with it.
+    src = tmp_path / "mine.pdf"
+    src.write_bytes(PDF_BYTES + b"\n%% mine")
+    meta = stored / "meta.json"
+    saved = meta.read_bytes()
+
+    def other_add():
+        meta.unlink()  # what _clear_previous does in the other Session
+        time.sleep(0.4)
+        meta.write_bytes(saved)  # its meta.json comes back last
+
+    argv = ["add", str(src), "--document", "DSP0236", "--version", "1.3.3"]
+    hold_from_thread(stored, 0, body=other_add, command="add DSP0236 1.3.3")
+    code, out = run(capsys, "--wait", "10", *argv, catalog_file=catalog_file)
+    assert code == 2, out
+    assert "DSP0236 1.3.3 is already in the Library" in out
+    assert "use --force to replace it" in out
+    assert (stored / "original.pdf").read_bytes() == PDF_BYTES  # untouched
+    assert meta.read_bytes() == saved
+    assert not (stored / ".lock").exists()
+
+    hold_from_thread(stored, 0, body=other_add, command="add DSP0236 1.3.3")
+    code, out = run(
+        capsys, "--wait", "10", *argv, "--force", catalog_file=catalog_file
+    )
+    assert code == 0, out
+    assert out.strip().startswith("replaced DSP0236 1.3.3 as Drop-in")
+    assert (stored / "original.pdf").read_bytes() == PDF_BYTES + b"\n%% mine"
+    assert json.loads(meta.read_text(encoding="utf-8"))["dropin"] is True
+    assert not (stored / ".lock").exists()
+    assert not list(stored.glob("*.part"))
+
+
 def test_fetch_waits_for_the_other_download_and_skips_without_a_request(
     catalog_file, library, scripted, capsys, vdir
 ):

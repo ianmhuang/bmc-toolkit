@@ -376,6 +376,38 @@ def test_prune_yes_reports_a_stale_lock_that_vanished_meanwhile(
     assert not (stored / ".lock.takeover").exists()
 
 
+def test_prune_yes_reports_a_lock_released_inside_the_gate_as_gone(
+    stored, catalog_file, capsys, monkeypatch
+):
+    # Round 5 (F1 of round 4): the lock is re-read inside the take-over gate
+    # and found stale, then its holder releases it before prune unlinks it.
+    # That lock is gone, not stuck: no "failed" line, exit 0, and the gate
+    # does not stay behind.
+    stale = other_lock(stored, "extract DSP0236 1.3.3", age=lock_mod.STALE_SECONDS + 1)
+    gate = stored / ".lock.takeover"
+    real_read = lock_mod.read_holder
+
+    def read_then_holder_releases(path):
+        holder = real_read(path)
+        if path == stale and holder is not None and gate.is_file():
+            stale.unlink()  # released between the re-read and the unlink
+        return holder
+
+    monkeypatch.setattr(lock_mod, "read_holder", read_then_holder_releases)
+    code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
+    monkeypatch.undo()
+    assert code == 0, out
+    lines = out.splitlines()
+    assert f"kept {stale} (gone meanwhile)" in lines
+    assert not any(ln.startswith("failed") for ln in lines)
+    assert not any(ln.startswith("removed") for ln in lines)
+    assert lines[-1] == (
+        "prune: 0 superseded tree(s), 0 leftover(s), 0 stale lock(s), 1 kept"
+    )
+    assert not stale.exists() and not gate.exists()
+    assert (stored / "original.pdf").is_file()
+
+
 def test_prune_dry_run_lists_a_stale_lock_without_touching_it(
     stored, catalog_file, capsys
 ):
@@ -505,6 +537,8 @@ def test_skill_md_documents_exit_3_wait_and_the_retry_rule():
     assert "stop" in text.lower() and "half-written" in text
     assert "lock:" in text  # the status row
     assert "stale `.lock`" in text  # the prune row
+    # Round 5 (F2 of round 4): the prune row says a kept lock is possible
+    assert "kept <path>" in text and ", N kept" in text
 
 
 def test_commands_md_has_the_sharing_section_and_the_disk_names():
@@ -522,6 +556,10 @@ def test_commands_md_has_the_sharing_section_and_the_disk_names():
     # Round 3 (F3 of round 2): the take-over gate is part of the layout
     assert "`.lock.takeover`" in text
     assert "taken over meanwhile" in text  # what prune --yes prints for a kept lock
+    # Round 5 (F2 of round 4): all three kept reasons prune --yes can print
+    assert "take-over in progress" in text
+    assert "gone meanwhile" in text
+    assert ", N kept" in text
 
 
 def test_library_md_names_the_lock_and_the_temp_pattern():
