@@ -37,15 +37,24 @@ Requirements: Python 3.11 or newer on `PATH` as `python` or `python3`, and
 into the plugin's data directory by a `SessionStart` hook; in a development
 checkout run `pip install -r requirements.txt` yourself.
 
-- `curl_cffi` (MIT): HTTP client that presents a browser TLS fingerprint.
-  Without it the tool falls back to `urllib`; Intel documents then come from
-  the Internet Archive instead of the publisher, OCP documents still
-  download directly (both verified).
+- `curl_cffi` (MIT): HTTP client with a browser TLS fingerprint. Without it
+  the tool falls back to `urllib`: Intel documents then come from the
+  Internet Archive instead of the publisher, OCP documents still download
+  directly.
 - `pypdfium2` 5.x (BSD-3-Clause or Apache-2.0): PDF text with character
-  positions and bookmarks; the text layer. Version 5 or newer is required
-  (its bookmark API changed in 5.0); `extract` refuses an older install.
+  positions and bookmarks; `extract` refuses anything older than 5.0.
 - `pdfplumber` (MIT): cell geometry and cell text of tables (ruled, and
   drawn as cell boxes), for `table`; loaded only by that command.
+
+### Updating
+
+Claude Code offers an update when the version in `plugin.json` rises, and
+does not update third-party marketplaces on its own: enable auto-update for
+`bmc-toolkit` in `/plugin` (Marketplaces tab), or run
+`claude plugin update bmc-toolkit@bmc-toolkit`. The Library and the packages
+the hook installed stay in place. When an update changes the extractor,
+`status` marks documents `stale`; `extract --all` re-extracts them without
+downloading anything.
 
 ## How a question is answered
 
@@ -160,10 +169,8 @@ one Library), flags, output formats and `config.toml`:
 - Runs `git` as a subprocess for `clone`, `grep` and `code`, and
   `gh search code` for `repos --search`; `clone` writes only under the
   Library's `code/` directory. Nothing else is executed, and nothing is
-  re-uploaded or redistributed.
-
-The full list, with file counts and the listing URLs, is in
-[docs/COMMANDS.md](docs/COMMANDS.md).
+  re-uploaded or redistributed. The full list, with file counts and the
+  listing URLs, is in [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Further reading
 

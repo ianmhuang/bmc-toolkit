@@ -1,18 +1,25 @@
 """Release metadata: one version everywhere, README status, marketplace
-manifest (release 1.0.0 change, AC-1 to AC-3)."""
+manifest (release 1.0.0 change, AC-1 to AC-3). The expected version is the
+package's own, so a bump that forgets pyproject.toml, plugin.json or the
+README status line fails here (CONVENTIONS.md, Versions)."""
 
 import json
+import re
 import tomllib
 from pathlib import Path
 
 import bmc_toolkit
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "1.0.0"
+VERSION = bmc_toolkit.__version__
+
+
+def test_version_is_a_release_number():
+    assert re.fullmatch(r"\d+\.\d+\.\d+", VERSION), VERSION
 
 
 def test_version_recorded_once_everywhere():
-    """AC-1: the package, pyproject.toml and plugin.json agree on 1.0.0."""
+    """AC-1: the package, pyproject.toml and plugin.json agree."""
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text("utf-8"))
     plugin = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text("utf-8"))
     versions = {
@@ -24,8 +31,8 @@ def test_version_recorded_once_everywhere():
 
 
 def test_readme_status_is_the_release():
-    """AC-2: the status paragraph names 1.0.0 and README no longer calls the
-    plugin a pre-release."""
+    """AC-2: the status paragraph names the package version and README no
+    longer calls the plugin a pre-release."""
     readme = (ROOT / "README.md").read_text("utf-8")
     assert f"**Status: {VERSION}.**" in readme
     assert "pre-release" not in readme.lower()
