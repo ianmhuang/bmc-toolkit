@@ -8,7 +8,11 @@ described in [LIBRARY.md](LIBRARY.md); the documents it knows, in
 
 ## Reading commands
 
-Exit codes: 0 done, 1 error, 2 you need to act (the message says what).
+Exit codes: 0 done, 1 error, 2 you need to act (the message says what),
+3 busy (another Session holds the lock; see [Sessions sharing a
+Library](#sessions-sharing-a-library)). `--wait SECONDS`, given before the
+subcommand, says how long a command waits for that lock (default 60, `0`
+returns at once).
 
 `find` searches the latest held version (or `--version`), case-insensitively
 unless `--case`, as a literal unless `--regex`; `--max` (default 50) caps the
@@ -80,10 +84,12 @@ default-branch tree. Every `code` output starts with a `cite:` line naming
 repository, commit, provenance, path and lines.
 
 `prune` lists every Code Tree marked superseded (an older commit of a
-moving name re-fetched with `--force`) and every `.tmp-*` directory a
-failed clone left behind, and removes nothing; `prune --yes` removes
-them. The current tree of each name, trees reached by a commit, user
-checkouts and `specs/` are never touched.
+moving name re-fetched with `--force`), every `.tmp-*` directory a failed
+clone left behind, every `.part` file older than five minutes that a
+failed write left behind, and every stale `.lock`, and removes nothing;
+`prune --yes` removes them. A directory whose lock is live is skipped
+whole. The current tree of each name, trees reached by a commit, user
+checkouts and the documents under `specs/` are never touched.
 
 `config.toml` at the Library root (optional):
 
@@ -120,6 +126,44 @@ and that note never touches the network.
 OCP versions are mostly Google Drive links on the wiki, so `check`
 reports them with `(URL to confirm by hand)`.
 
+## Sessions sharing a Library
+
+Several Sessions (Claude Code conversations) on one machine share the
+Library, and a Windows Session and a WSL Session may share it through
+`BMC_SPEC_LIBRARY`. Nothing else is shared: there is no daemon and no run
+state. Sharing across machines or through a sync service is unsupported.
+
+The commands that write several files hold a lock while they do: `fetch`
+and `add` (the original and its `meta.json`), `extract` (the Extract and
+its companions, or a bundle's `schemas/` / `registries/`), `table` (the
+merge into `tables.json`; reading the PDF is not locked) and `clone`. The
+lock is the file `.lock` in the version directory, or `code/<repo>/.lock`
+for a clone; it holds the holder's pid, host, command and start time, and
+its modification time is refreshed every 30 seconds while the holder is
+alive. A lock untouched for 5 minutes is stale: the next command removes
+it, prints `note: took over a stale lock from pid P on host H (...)` and
+does the whole operation again from scratch. Pids are never trusted (they
+mean nothing across Windows and WSL and are reused after a reboot); only
+the modification time decides.
+
+A command that meets a live lock waits up to `--wait` seconds (default
+60), then prints one line, `busy: <path> is held by pid P on host H
+(COMMAND, since T); retry with --wait`, writes nothing and exits 3. The
+reading commands (`find`, `section`, `page`, `render`, `table`, `schema`,
+`registry`) take no lock; they consult one only when the version is not
+extracted, wait the same way for the Session that is extracting it, and
+then answer from the finished Extract, or exit 3 if it is still busy. In
+`--all` runs a busy document is counted (`busy N` in the summary) and the
+run exits 3 unless something failed, which exits 2 as before.
+
+Single files (`meta.json`, `extract.json`, `tables.json`, `.bmc-tree.json`,
+`freshness.json`, originals and rendered pages) are written to a temporary
+name beside the target, `<name>.<pid>-<token>.part`, and renamed into
+place, so a reader never sees a half-written file and two Sessions writing
+the same file do not collide. `status` lists every lock with its holder and
+whether it is live or stale; `prune` removes stale locks and abandoned
+temporary files (see above).
+
 ## What the tool does on the network and on disk
 
 - Downloads only URLs listed in `bmc_toolkit/spec/catalog.toml`, in this
@@ -137,7 +181,10 @@ reports them with `(URL to confirm by hand)`.
   as Drop-ins and their origin is recorded as user-provided, never as a URL;
   `scan` also records whether the document id is in the catalog
   (`catalog_known`). Nothing already in the Library is replaced without
-  `--force`.
+  `--force`. `fetch`, `add`, `extract` and `table` hold `.lock` in the
+  version directory while they write (see above), and every single-file
+  write goes through a `<name>.<pid>-<token>.part` temporary beside the
+  target; nothing else is created.
 - Replacing an original (`add --force`, `fetch --force`) removes the
   previous original and everything extracted from it, `tables.json`,
   `schemas/` and rendered pages included; so does `extract --force`.
@@ -155,5 +202,5 @@ reports them with `(URL to confirm by hand)`.
   the PDF stay in the ZIP.
 - `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/w/index.php?title=<page>` for the pages named in the catalog's `listing` keys. They download no document.
 - Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed.
-- `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>` directory that is removed on failure. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees and `.tmp-*` leftovers under `code/`, nothing else.
+- `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory that is removed on failure, and `code/<repo>/.lock` while it runs. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees, `.tmp-*` and `.part` leftovers and stale `.lock` files under `code/` and `specs/`, nothing else.
 - `check` writes `freshness.json` at the Library root; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it inserts version entries into the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).

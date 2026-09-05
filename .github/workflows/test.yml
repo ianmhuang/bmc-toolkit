@@ -8,8 +8,9 @@ on:
   push:
     branches: [main]
 
-# A newer push to a pull request cancels the run for the superseded commit;
-# every push to main keeps its own run, so each commit gets its macOS result.
+# A newer push to a pull request cancels the run for the superseded commit.
+# A run on main is never cancelled, but the group holds at most one pending
+# run: pushing three commits in a row runs the first and the last.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

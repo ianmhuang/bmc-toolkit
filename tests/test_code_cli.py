@@ -412,7 +412,8 @@ def test_prune_lists_then_removes_superseded_trees_and_leftovers(
     code, out = run(capsys, "prune", catalog_file=catalog_file)
     assert (
         code == 0
-        and out.strip() == "nothing to prune: no superseded Code Tree, no leftover"
+        and out.strip()
+        == "nothing to prune: no superseded Code Tree, no leftover, no stale lock"
     )
     run(capsys, "clone", "thing", catalog_file=catalog_file)
     third = commit(work, {"README.md": "thing 3\n"}, "third")
@@ -430,8 +431,8 @@ def test_prune_lists_then_removes_superseded_trees_and_leftovers(
     assert lines[0].endswith(f"superseded by {third[:7]})")
     assert lines[1] == f"would remove {leftover} (leftover)"
     assert (
-        lines[2]
-        == "prune: 1 superseded tree(s), 1 leftover(s) (dry run; --yes removes them)"
+        lines[2] == "prune: 1 superseded tree(s), 1 leftover(s), 0 stale lock(s) "
+        "(dry run; --yes removes them)"
     )
     assert old.is_dir() and leftover.is_dir()  # a dry run
     code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
@@ -439,7 +440,7 @@ def test_prune_lists_then_removes_superseded_trees_and_leftovers(
     lines = out.splitlines()
     assert lines[0].startswith(f"removed {old} (thing {second[:7]}")
     assert lines[1] == f"removed {leftover} (leftover)"
-    assert lines[2] == "prune: 1 superseded tree(s), 1 leftover(s)"
+    assert lines[2] == "prune: 1 superseded tree(s), 1 leftover(s), 0 stale lock(s)"
     assert not old.exists() and not leftover.exists()
     assert (new / "README.md").is_file()  # the current tree stays
     code, out = run(capsys, "repos", "--topic", "state", catalog_file=catalog_file)

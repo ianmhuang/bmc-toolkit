@@ -53,6 +53,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from bmc_toolkit.spec.library import atomic_write_json
+
 TABLES_VERSION = 2
 TABLES_NAME = "tables.json"
 
@@ -732,7 +734,9 @@ def stored_for_page(vdir: Path, page: int) -> list[LogicalTable] | None:
 def store(vdir: Path, pages, tables: list[LogicalTable]) -> Path:
     """Record the tables found while reading ``pages`` (one number or a
     list); a table already stored for the same first page and index is
-    replaced."""
+    replaced. The store is re-read here and written atomically; the caller
+    holds the version directory's lock, so two Sessions that read different
+    pages both keep their tables."""
     if isinstance(pages, int):
         pages = [pages]
     data = _read_store(vdir)
@@ -748,9 +752,7 @@ def store(vdir: Path, pages, tables: list[LogicalTable]) -> Path:
     done.update(int(p) for p in pages)
     data["pages_done"] = sorted(done)
     path = vdir / TABLES_NAME
-    with open(path, "w", encoding="utf-8", newline="") as fh:
-        json.dump(data, fh, indent=1, ensure_ascii=False)
-        fh.write("\n")
+    atomic_write_json(path, data, indent=1, ensure_ascii=False)
     return path
 
 

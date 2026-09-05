@@ -135,7 +135,7 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `fetch --all [--wip] [--force]` | latest open version of every downloadable document (a `note:` per document whose latest is gated); ends with a `summary:` line |
 | `add FILE --document DOC --version V [--force]` | register a file the user obtained themselves (Drop-in); refuses to replace a version already present unless `--force`; the file must really be a PDF or ZIP |
 | `scan` | register files placed by hand under `specs/<family>/<document>/<version>/original.pdf` |
-| `status` | what the Library holds; columns: family, id, version, origin, size, `extracted` / `stale` (extracted by an older extractor: run `extract` again) / `-`, outline source; a final `note:` when held documents are due for a Freshness Check |
+| `status` | what the Library holds; columns: family, id, version, origin, size, `extracted` / `stale` (extracted by an older extractor: run `extract` again) / `-`, outline source; then one `lock:` line per lock another Session holds (path, pid, host, command, since when, `live` or `stale`); a final `note:` when held documents are due for a Freshness Check |
 | `check [DOC]` | ask the publisher whether the catalog is behind: `current DOC V`, `newer DOC: catalog latest V, <publisher> lists W (date) URL` (OCP: `(URL to confirm by hand)`), or `unreachable DOC: reason`; without DOC every document with a listing, an `unchecked:` line for the hand-maintained ones, an `unchecked (manual):` line naming each manual document with its access tier, a `release:` line comparing `config.toml`'s release with the newest `openbmc/openbmc` tag (`-> newer` or `-> L is the newest`), and a `summary:`. Nothing is downloaded. Exit 2 for an unknown document or one without a listing |
 | `refresh [DOC] [--write]` | maintainer command: what `check` found, per version (`add`, `changed`, `confirm` with the reason: an OCP URL to find, a DMTF Work-in-Progress row); `--write` inserts the `add` entries into the catalog file at their place in publication order (a document whose version blocks the text scan cannot read is reported and left alone). Not for answering questions |
 | `extract DOC [--version V] [--force]` | write the Extract, Outline, Line Map and figure regions for a PDF version already in the Library (latest held version by default), or unpack a bundle: a schema bundle's JSON Schema into `schemas/` (DSP8010, and DSP8013's profile schema), a registries bundle's newest registry files into `registries/` (DSP8011); skips if current. A ZIP with neither is skipped with a message |
@@ -151,12 +151,16 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `clone REPO [--ref R \| --release L] [--force]` | bring the repository into the Library as a Code Tree (REPO not in the catalog: `https://github.com/openbmc/REPO.git` is tried, with a `note:` saying so, and `repos` lists it as `(not in catalog)` afterwards): at branch/tag/full commit R, at the Pin of OpenBMC release L (the `openbmc` repository is fetched at L first, recipes only), or at the default branch. Prints `cloned <repo> <commit7> (<provenance>) -> <path>` or `held ...` when already there (no network); `--force` resolves a moving name again and prints `superseded` for the older tree. Uses the `config.toml` default Release when no flag is given, and says `release: L (from config.toml)` |
 | `grep REPO PATTERN [--ref R \| --release L] [--regex] [--glob G] [--context N] [--max N]` | `git grep` over the selected Code Tree (user checkout first, then the named Ref or Release, then the config Release, then the default-branch tree): one hit per line `REPO@commit7 path:line \| text`, context lines as `line N:` with `--` between groups, at most 50 hits unless `--max` (0 = all); `no hits`; exit 2 with the `clone` command when the tree is not held. Case-sensitive, a fixed string unless `--regex` |
 | `code REPO PATH [--lines A-B] [--ref R \| --release L]` | a `cite:` line then the file's lines behind their numbers; a file over 200 lines needs `--lines`. Same tree selection as `grep`; a `note:` line says when a user checkout or the config Release was used |
-| `prune [--yes]` | `would remove <path> (...)` for every superseded Code Tree and `.tmp-*` leftover, then a `prune:` summary; only with `--yes` are they removed (`removed <path>`). Run `--yes` only when the user asked to free space |
+| `prune [--yes]` | `would remove <path> (...)` for every superseded Code Tree, every `.tmp-*` / `.part` leftover nobody is working on and every stale `.lock` (untouched for 5 minutes), then a `prune:` summary; only with `--yes` are they removed (`removed <path>`). A live lock and a fresh temp file are never listed. Run `--yes` only when the user asked to free space |
 | `table DOC --page N [--version V] [--index K] [--force] [--all-rows]` | print every Logical Table touching page N, whole: a `cite:` line (`PDF pages A-B`, `table K`), a `table:` line (caption or `-`, `ruled` or `cells (no ruling lines)`, page range, columns, rows including the header), then the rows as a grid, columns separated by ` \| `, one physical line per cell line, a rule after the header and after every row with a multi-line cell. A table longer than 300 rows prints a `note:` line and only the rows that start on page N; `--all-rows` prints them all. `--index K` keeps only the K-th table on the page. Read from `tables.json` when the page was read before, unless `--force`. Exit 2 with `no table on page N` when the page has neither kind |
 
 Exit codes: 0 done, 1 error (malformed catalog, unreadable file), 2 the
 user must act (unknown document or version, download impossible, document
-not in the Library or not extracted, too many pages asked for).
+not in the Library or not extracted, too many pages asked for), 3 busy
+(another Session is writing the same document version or repository; the
+`busy:` line names its pid, host, command and start time). Every command
+takes `--wait SECONDS` before the subcommand (default 60, `0` returns at
+once): how long to wait for that Session before giving up with 3.
 
 ## Answering workflow
 
@@ -308,6 +312,13 @@ and the user's release may differ, and `grep` at both is cheap.
   command that says whether the catalog is behind; run it when a `note:`
   asks for it or when the user asks whether a newer version exists. It
   never downloads. `prune --yes` deletes directories: only on request.
+- Exit 3 (`busy:`) means another Session (another Claude Code conversation
+  on this machine, or one in WSL sharing the Library) is fetching,
+  extracting or cloning the same thing. Run the same command once more
+  with `--wait 300` before the subcommand; if it is 3 again, tell the user
+  who holds the lock (copy the `busy:` line) and stop. Never read
+  `extract.txt`, `tables.json` or a Code Tree directly to get around it:
+  the files may be half-written.
 - `clone` is one repository at a time (2 to 32 MB each); a Release needs the
   the `openbmc` repository too (the recipe files of every layer, about 20
   MB), so `--release` resolves any repository a layer's recipe pins; a

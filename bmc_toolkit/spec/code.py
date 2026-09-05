@@ -29,6 +29,7 @@ Standard library only; ``git`` and ``gh`` run as subprocesses with UTF-8.
 import json
 import os
 import re
+import secrets
 import shutil
 import stat
 import subprocess
@@ -37,7 +38,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from bmc_toolkit.spec.library import now_iso
+from bmc_toolkit.spec.library import atomic_write_json, now_iso
 
 CODE_DIRNAME = "code"
 TREE_META = ".bmc-tree.json"
@@ -278,9 +279,7 @@ class CodeLibrary:
         )
 
     def write_tree(self, tree: Tree) -> None:
-        with open(tree.path / TREE_META, "w", encoding="utf-8", newline="") as fh:
-            json.dump(tree.to_meta(), fh, indent=4, sort_keys=True)
-            fh.write("\n")
+        atomic_write_json(tree.path / TREE_META, tree.to_meta(), sort_keys=True)
 
     def held(self, repo: str, commit: str) -> Tree | None:
         for t in self.trees(repo):
@@ -317,9 +316,7 @@ class CodeLibrary:
             )
         rdir = self.repo_dir(repo)
         rdir.mkdir(parents=True, exist_ok=True)
-        tmp = rdir / f".tmp-{os.getpid()}"
-        if tmp.exists():
-            _rmtree(tmp)
+        tmp = rdir / f".tmp-{os.getpid()}-{secrets.token_hex(4)}"
         try:
             if commit:
                 _fetch_commit(url, commit, tmp, sparse)
@@ -336,6 +333,18 @@ class CodeLibrary:
                 return existing, False
             if target.exists():  # a directory without its meta: a leftover
                 _rmtree(target)
+            tree = Tree(
+                repo,
+                url,
+                sha,
+                target,
+                provenance,
+                now_iso(),
+                catalog_known=catalog_known,
+            )
+            # The meta goes into the temp directory first, so the rename
+            # publishes a complete tree: a reader never sees one without it.
+            atomic_write_json(tmp / TREE_META, tree.to_meta(), sort_keys=True)
             os.replace(tmp, target)
         except BaseException:
             try:
@@ -343,10 +352,6 @@ class CodeLibrary:
             except CodeError:
                 pass  # the original error matters more
             raise
-        tree = Tree(
-            repo, url, sha, target, provenance, now_iso(), catalog_known=catalog_known
-        )
-        self.write_tree(tree)
         self._supersede(tree)
         return tree, True
 
