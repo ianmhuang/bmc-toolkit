@@ -145,9 +145,9 @@ COMMANDS_VERBATIM = [
     # M13 (locks) reworded this paragraph; the pinned text follows it.
     "`prune` lists every Code Tree marked superseded (an older commit of a\n"
     "moving name re-fetched with `--force`), every `.tmp-*` directory a failed\n"
-    "clone left behind, every `.part` file older than five minutes that a\n"
-    "failed write left behind, and every stale `.lock`, and removes nothing;\n"
-    "`prune --yes` removes them.",
+    "clone left behind, every `.part` file or `.lock.takeover` gate older than\n"
+    "five minutes that a failed write or take-over left behind, and every stale\n"
+    "`.lock`, and removes nothing; `prune --yes` removes them,",
     "`config.toml` at the Library root (optional):",
     "[library]\nfreshness_days = 30",
     "[code.checkouts]\nbmcweb = \"/home/me/src/bmcweb\"",

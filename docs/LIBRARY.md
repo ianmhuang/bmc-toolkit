@@ -37,8 +37,10 @@ While a command writes several files it holds `.lock` in the version
 directory (`code/<repo>/.lock` for a clone): a small JSON file with the
 holder's `pid`, `host`, `command` and `started` time, touched every 30
 seconds while the holder is alive; one untouched for 5 minutes is stale
-and the next command takes it over. Single files are written as
+and the next command takes it over (`.lock.takeover` exists beside it for
+the moment of the take-over). Single files are written as
 `<name>.<pid>-<token>.part` beside their target and renamed into place, and
 a clone is built in `code/<repo>/.tmp-<pid>-<token>/` before it is renamed
-to its commit. A `.part` or `.tmp-*` entry you find is a leftover of a
-failed run; `prune` lists and removes them along with stale locks.
+to its commit. A `.part`, `.tmp-*` or lingering `.lock.takeover` entry you
+find is a leftover of a failed run; `prune` lists and removes them along
+with stale locks.

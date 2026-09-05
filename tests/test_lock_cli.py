@@ -540,6 +540,31 @@ def test_prune_finds_old_parts_and_stale_renames_under_code(
     assert busy_part.exists()
 
 
+def test_prune_keeps_a_stale_lock_taken_over_while_it_worked(
+    stored, catalog_file, monkeypatch, capsys
+):
+    # F1 of review round 2: the lock listed as stale is re-read right before
+    # removal; one refreshed meanwhile (a take-over) is kept.
+    from bmc_toolkit.spec import cli
+
+    path = fake_lock(stored, command="extract DSP0236 1.3.3")
+    backdate(path, lock_mod.STALE_SECONDS + 1)
+    real = cli.lock_mod.locks_under
+
+    def listing_then_takeover(root):
+        holders = real(root)
+        os.utime(path, None)  # another Session takes it over right after
+        return holders
+
+    monkeypatch.setattr(cli.lock_mod, "locks_under", listing_then_takeover)
+    code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert f"kept {path} (taken over meanwhile)" in lines
+    assert not any(ln.startswith("removed") for ln in lines)
+    assert path.exists()
+
+
 def test_prune_skips_leftovers_in_a_live_locked_version(stored, catalog_file, capsys):
     part = stored / "original.pdf.1-2.part"
     part.write_bytes(b"x")

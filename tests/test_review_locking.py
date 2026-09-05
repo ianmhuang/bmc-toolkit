@@ -405,10 +405,14 @@ def test_a_fetch_force_killed_after_the_original_is_replaced_is_redone(
     def killed(*_args, **_kwargs):
         raise RuntimeError("killed while writing meta")
 
-    monkeypatch.setattr(library_mod.Library, "write_meta", killed)
+    # A separate MonkeyPatch: undoing the shared one would also undo the
+    # library and scripted fixtures and send the rest of the test to the
+    # real Library and network (author's fix, review round 2).
+    temporary = pytest.MonkeyPatch()
+    temporary.setattr(library_mod.Library, "write_meta", killed)
     with pytest.raises(RuntimeError):
         run(capsys, "fetch", "DSP0236", "--force", catalog_file=catalog_file)
-    monkeypatch.undo()
+    temporary.undo()
     capsys.readouterr()
     assert (stored / "original.pdf").read_bytes() == PDF_BYTES + b"\n%% second copy"
     assert not (stored / "meta.json").exists()  # no old meta over the new file
@@ -491,8 +495,11 @@ def test_a_lock_that_cannot_be_removed_is_reported_not_silent(
     from pathlib import Path
 
     lock = stored / ".lock"
-    monkeypatch.setattr(lock_mod, "RELEASE_RETRIES", 2)
-    monkeypatch.setattr(lock_mod, "RETRY_PAUSE", 0.01)
+    # A separate MonkeyPatch, see test_a_fetch_force_killed_after_... above
+    # (author's fix, review round 2).
+    temporary = pytest.MonkeyPatch()
+    temporary.setattr(lock_mod, "RELEASE_RETRIES", 2)
+    temporary.setattr(lock_mod, "RETRY_PAUSE", 0.01)
     real_unlink = Path.unlink
 
     def refusing_unlink(self, *args, **kwargs):
@@ -500,10 +507,10 @@ def test_a_lock_that_cannot_be_removed_is_reported_not_silent(
             raise PermissionError(13, "Access is denied")
         return real_unlink(self, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "unlink", refusing_unlink)
+    temporary.setattr(Path, "unlink", refusing_unlink)
     scripted.responses[URL_133] = ok(PDF_BYTES)
     code, out = run(capsys, "fetch", "DSP0236", "--force", catalog_file=catalog_file)
-    monkeypatch.undo()
+    temporary.undo()
     assert code == 0, out
     lines = out.splitlines()
     assert any(ln.startswith("fetched DSP0236 1.3.3") for ln in lines)

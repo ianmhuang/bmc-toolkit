@@ -197,6 +197,13 @@ def test_a_stale_takeover_file_does_not_block_forever(tmp_path):
         pass
     assert [h.pid for h in seen] == [4242]
     assert not gate.exists()
+    # Even with wait=0 a stale gate is no obstacle (F2 of review round 2).
+    fake_lock(vdir, age=lock_mod.STALE_SECONDS + 1)
+    gate.write_bytes(b"")
+    backdate(gate, lock_mod.STALE_SECONDS + 1)
+    with Lock(vdir, "z", wait=0, on_takeover=seen.append):
+        pass
+    assert len(seen) == 2 and not gate.exists()
     # A fresh takeover file means another Session is mid take-over: wait.
     fake_lock(vdir, age=lock_mod.STALE_SECONDS + 1)
     gate.write_bytes(b"")

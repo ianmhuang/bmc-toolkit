@@ -213,9 +213,10 @@ class Lock:
                     continue
                 misses = 0
                 if holder.stale:
-                    self._take_over(holder)
-                    # Another Session may be mid take-over (its gate file is
-                    # fresh); keep trying, but not past the deadline.
+                    if self._take_over(holder):
+                        continue  # progress was made: try the create again
+                    # Another Session is mid take-over (its gate is fresh):
+                    # keep trying, but not past the deadline.
                     if time.monotonic() < deadline or read_holder(self.path) is None:
                         continue
                     raise Busy(holder) from None
@@ -239,8 +240,10 @@ class Lock:
             self._thread.start()
             return self
 
-    def _take_over(self, holder: Holder) -> None:
+    def _take_over(self, holder: Holder) -> bool:
         """Remove a stale lock so that no Session ever removes a fresh one.
+        Returns True when something was removed (the lock, or a stale gate),
+        False when another Session's take-over is in progress.
 
         Only the Session that created ``.lock.takeover`` (O_EXCL) may remove
         ``.lock``, and it re-reads the lock inside that section: while the
@@ -257,17 +260,20 @@ class Lock:
         except OSError:
             other = read_holder(gate)
             if other is not None and other.stale:
-                _unlink_retrying(gate)
-            else:
-                time.sleep(RETRY_PAUSE)
-            return
+                return _unlink_retrying(gate) == "removed"
+            time.sleep(RETRY_PAUSE)
+            return False
         os.close(fd)
         try:
             current = read_holder(self.path)
-            if current is None or not current.stale:
-                return  # taken over meanwhile: the lock there is fresh
-            if _unlink_retrying(self.path) == "removed" and self.on_takeover:
+            if current is None:
+                return True  # gone meanwhile: the create can be tried
+            if not current.stale:
+                return False  # taken over meanwhile: the lock there is fresh
+            removed = _unlink_retrying(self.path) == "removed"
+            if removed and self.on_takeover:
                 self.on_takeover(current)
+            return removed
         finally:
             _unlink_retrying(gate)
 

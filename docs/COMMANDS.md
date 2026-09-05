@@ -85,9 +85,11 @@ repository, commit, provenance, path and lines.
 
 `prune` lists every Code Tree marked superseded (an older commit of a
 moving name re-fetched with `--force`), every `.tmp-*` directory a failed
-clone left behind, every `.part` file older than five minutes that a
-failed write left behind, and every stale `.lock`, and removes nothing;
-`prune --yes` removes them. A directory whose lock is live is skipped
+clone left behind, every `.part` file or `.lock.takeover` gate older than
+five minutes that a failed write or take-over left behind, and every stale
+`.lock`, and removes nothing; `prune --yes` removes them, re-reading each
+stale lock first and keeping one that was taken over meanwhile (`kept
+<path> (taken over meanwhile)`). A directory whose lock is live is skipped
 whole. The current tree of each name, trees reached by a commit, user
 checkouts and the documents under `specs/` are never touched.
 
@@ -141,8 +143,10 @@ lock is the file `.lock` in the version directory, or `code/<repo>/.lock`
 for a clone; it holds the holder's pid, host, command and start time, and
 its modification time is refreshed every 30 seconds while the holder is
 alive. A lock untouched for 5 minutes is stale: the next command removes
-it, prints `note: took over a stale lock from pid P on host H (...)` and
-does the whole operation again from scratch: a take-over trusts only state
+it (through a `.lock.takeover` gate created with `O_EXCL`, so that only one
+Session removes it and never a fresh lock), prints
+`note: took over a stale lock from pid P on host H (...)` and does the
+whole operation again from scratch: a take-over trusts only state
 whose meta is complete (`meta.json`, `extract.json`, `.bmc-tree.json` are
 written last), and a `fetch --force` or `add --force` killed midway leaves
 an original without `meta.json`, which the next `fetch` redoes and `scan`

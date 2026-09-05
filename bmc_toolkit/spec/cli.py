@@ -1516,6 +1516,13 @@ def cmd_prune(args: argparse.Namespace) -> int:
         failed += _prune_path(path, f"{verb} {path} (leftover)", args.yes)
     for holder in stale:
         line = f"{verb} {holder.path} (stale lock, {holder.describe()})"
+        if args.yes:
+            # Re-read right before removing: a Session may have taken the
+            # lock over while the trees above were being removed.
+            now = lock_mod.read_holder(holder.path)
+            if now is None or not now.stale:
+                print(f"kept {holder.path} (taken over meanwhile)")
+                continue
         failed += _prune_path(holder.path, line, args.yes)
     tail = "" if args.yes else " (dry run; --yes removes them)"
     print(
