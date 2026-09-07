@@ -424,7 +424,7 @@ def test_extract_writes_files_then_skips_then_forces(
 ):
     pytest.importorskip("pypdfium2")
     scripted.responses[URL] = ok(_pdf_bytes(tmp_path, numbered=True))
-    run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    run(capsys, "fetch", "DSP0236", "--no-extract", catalog_file=catalog_file)
     code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
     assert code == 0, out
     assert "extracted DSP0236 1.3.3: 1 pages" in out
@@ -465,7 +465,15 @@ def test_extract_specific_version_and_missing(
     scripted.responses["https://example.test/DSP0236_1.3.2.pdf"] = ok(
         _pdf_bytes(tmp_path)
     )
-    run(capsys, "fetch", "DSP0236", "--version", "1.3.2", catalog_file=catalog_file)
+    run(
+        capsys,
+        "fetch",
+        "DSP0236",
+        "--version",
+        "1.3.2",
+        "--no-extract",
+        catalog_file=catalog_file,
+    )
     code, out = run(
         capsys, "extract", "DSP0236", "--version", "1.3.2", catalog_file=catalog_file
     )
@@ -489,8 +497,8 @@ def test_extract_all_skips_zip_and_summarises(
     scripted.responses["https://example.test/bundle_2026.1.zip"] = ok(
         ZIP_BYTES, "application/zip"
     )
-    run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
-    run(capsys, "fetch", "BUNDLE", catalog_file=catalog_file)
+    run(capsys, "fetch", "DSP0236", "--no-extract", catalog_file=catalog_file)
+    run(capsys, "fetch", "BUNDLE", "--no-extract", catalog_file=catalog_file)
     code, out = run(capsys, "extract", "--all", catalog_file=catalog_file)
     assert code == 0, out
     assert (
@@ -529,8 +537,17 @@ def test_extract_picks_the_newest_held_version_by_catalog_date(
     scripted.responses["https://example.test/DSP0236_1.4.0.pdf"] = ok(
         _pdf_bytes(tmp_path)
     )
-    run(capsys, "fetch", "DSP0236", "--version", "1.3.2", catalog_file=catalog_file)
-    run(capsys, "fetch", "DSP0236", "--wip", catalog_file=catalog_file)
+    raw = ["--no-extract"]
+    run(
+        capsys,
+        "fetch",
+        "DSP0236",
+        "--version",
+        "1.3.2",
+        *raw,
+        catalog_file=catalog_file,
+    )
+    run(capsys, "fetch", "DSP0236", "--wip", *raw, catalog_file=catalog_file)
     # latest published (1.3.3) is not held: newest held by date is 1.4.0
     code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
     assert code == 0 and "extracted DSP0236 1.4.0" in out

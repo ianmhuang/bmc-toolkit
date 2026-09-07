@@ -165,7 +165,7 @@ def test_a_failing_figure_pass_is_reported_and_keeps_the_text(
     monkeypatch.setattr(extract_mod, "page_figures", boom)
     pdf = pdfgen.write_pdf(tmp_path / "fail.pdf", [DIAGRAM, [(72, 700, "plain")]])
     scripted.responses[URL] = ok(pdf.read_bytes())
-    run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    run(capsys, "fetch", "DSP0236", "--no-extract", catalog_file=catalog_file)
     code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
     assert code == 0, out
     assert "figure pass failed on 2 pages" in out
@@ -190,11 +190,12 @@ def test_an_extract_from_the_previous_extractor_is_redone(
     meta.pop("figure_pages")
     meta_path.write_text(json.dumps(meta), "utf-8")
     (vdir / "figures.json").unlink()
+    # fewer round trips change: find re-extracts a stale Extract itself
     code, out = run(capsys, "find", "DSP0236", "bus", catalog_file=catalog_file)
-    assert code == 2  # refused until re-extracted
-    code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
     assert code == 0 and out.startswith("extracted")
     assert (vdir / "figures.json").exists()
+    code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
+    assert code == 0 and out.startswith("skipped")
     assert json.loads(meta_path.read_text("utf-8"))["figure_pages"] == 1
 
 

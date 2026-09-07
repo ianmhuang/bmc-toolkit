@@ -172,7 +172,8 @@ def test_extract_in_another_process_waits_then_extracts(
         tmp_path / "d.pdf", [pdfgen.plain_page(["1 Intro", "hello"])]
     )
     scripted.responses[URL] = ok(pdf.read_bytes())
-    assert main(["--catalog", str(catalog_file), "fetch", "DSP0236"]) == 0
+    argv = ["--catalog", str(catalog_file), "fetch", "DSP0236", "--no-extract"]
+    assert main(argv) == 0
     capsys.readouterr()
     vdir = library.specs / "mctp" / "DSP0236" / "1.3.3"
     proc = holder(vdir, 1.5)
@@ -211,7 +212,8 @@ def test_two_extracts_and_two_table_reads_race_to_a_consistent_end(
         pages.append(page)
     pdf = pdfgen.write_pdf(tmp_path / "race.pdf", pages)
     scripted.responses[URL] = ok(pdf.read_bytes())
-    assert main(["--catalog", str(catalog_file), "fetch", "DSP0236"]) == 0
+    argv = ["--catalog", str(catalog_file), "fetch", "DSP0236", "--no-extract"]
+    assert main(argv) == 0
     capsys.readouterr()
     vdir = library.specs / "mctp" / "DSP0236" / "1.3.3"
 

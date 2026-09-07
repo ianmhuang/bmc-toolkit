@@ -595,7 +595,16 @@ def test_a_lock_that_cannot_be_removed_is_reported_not_silent(
 
     temporary.setattr(Path, "unlink", refusing_unlink)
     scripted.responses[URL_133] = ok(PDF_BYTES)
-    code, out = run(capsys, "fetch", "DSP0236", "--force", catalog_file=catalog_file)
+    # --no-extract: the fetch lock is the one under test (fewer round trips
+    # change: fetch would otherwise take the lock again to extract)
+    code, out = run(
+        capsys,
+        "fetch",
+        "DSP0236",
+        "--force",
+        "--no-extract",
+        catalog_file=catalog_file,
+    )
     temporary.undo()
     assert code == 0, out
     lines = out.splitlines()
@@ -668,20 +677,22 @@ def test_reader_unlocked_and_still_not_current_gets_the_extract_hint(
     stored, catalog_file, capsys
 ):
     hold_from_thread(stored, 0.3)  # the other Session leaves without extracting
+    # fewer round trips change: the reader extracts itself once the lock is
+    # free; this fake PDF fails to extract (exit 1, the failed line)
     code, out = run(
         capsys, "--wait", "10", "find", "DSP0236", "x", catalog_file=catalog_file
     )
-    assert code == 2, out
-    assert out.startswith("DSP0236 1.3.3 is not extracted")
-    assert "run: bmcspec extract DSP0236" in out
-    # a stale lock is not in the way either: no waiting, the same message
+    assert code == 1, out
+    assert out.startswith("failed DSP0236 1.3.3: ")
+    # a stale lock is not in the way either: no waiting, taken over
     other_lock(stored, age=lock_mod.STALE_SECONDS + 1)
     started = time.monotonic()
     code, out = run(
         capsys, "--wait", "30", "page", "DSP0236", "1", catalog_file=catalog_file
     )
-    assert code == 2 and time.monotonic() - started < 5
-    assert out.startswith("DSP0236 1.3.3 is not extracted")
+    assert code == 1 and time.monotonic() - started < 5
+    assert out.startswith("note: took over a stale lock from ")
+    assert "failed DSP0236 1.3.3: " in out
 
 
 def test_reader_waits_and_answers_once_the_extraction_lands(
@@ -722,10 +733,12 @@ def test_schema_and_registry_wait_for_the_bundle_extraction(
         assert out.strip() == busy_line(vdir, command="extract BUNDLE 2026.1")
     (vdir / ".lock").unlink()
     hold_from_thread(vdir, 0.3)
+    # fewer round trips change: schema unpacks the bundle itself once the
+    # lock is free; this archive holds nothing to unpack (exit 1)
     code, out = run(
         capsys, "--wait", "10", "schema", "BUNDLE", catalog_file=catalog_file
     )
-    assert code == 2 and "not extracted" in out
+    assert code == 1 and "no json-schema/ folder" in out
 
 
 # ----------------------------------------------------------------- AC-6

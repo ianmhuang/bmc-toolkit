@@ -8,6 +8,8 @@ lazily by ``fetch``.
 """
 
 import argparse
+import contextlib
+import io
 import re
 import sys
 import time
@@ -122,6 +124,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--wip", action="store_true", help="let a WIP version be latest")
     p.add_argument("--force", action="store_true", help="re-download if present")
     p.add_argument("--all", action="store_true", help="latest of every document")
+    p.add_argument(
+        "--no-extract",
+        action="store_true",
+        help="leave the version as downloaded (one document: it is extracted "
+        "afterwards by default)",
+    )
 
     p = sub.add_parser("add", help="place a file you obtained yourself (Drop-in)")
     p.add_argument("file", type=Path)
@@ -292,12 +300,6 @@ def _lock(args: argparse.Namespace, directory: Path, command: str) -> lock_mod.L
         on_takeover=_took_over,
         on_leftover=_left_behind,
     )
-
-
-def _wait_for_extract(args: argparse.Namespace, holding) -> lock_mod.Holder | None:
-    """A reader met a version that is not extracted: if another Session is
-    working on it, wait for it; the holder still there after ``--wait``."""
-    return lock_mod.wait_while_locked(holding.path, args.wait)
 
 
 def _announce_library(library: Library) -> None:
@@ -494,8 +496,26 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         if outcome is None:
             return EXIT_BUSY
         _report(outcome)
+        code = EXIT_OK if outcome.status != "failed" else EXIT_ACTION
+        if code == EXIT_OK and not args.no_extract:
+            # Leave the version Ready: the Extract (or the unpacked bundle)
+            # current, so a hand-run fetch answers at once. A failed
+            # extraction, or a missing dependency, is printed with the
+            # command to run again; the download itself landed, so the
+            # exit code stays 0 in both cases. An archive with nothing to
+            # unpack ends at its `skipped` line: extracting it again would
+            # skip it again.
+            holding = library.find(doc.id, ver.version)
+            if holding is not None and _is_ready(holding):
+                print(f"skipped {doc.id} {ver.version}: already extracted")
+            elif holding is not None:
+                state = _make_current(args, holding)
+                if state == "busy":
+                    return EXIT_BUSY
+                if state in ("failed", "unmet"):
+                    print(_extract_hint(doc.id, args.doc_version))
         _freshness_notes(catalog, library, [doc.id])
-        return EXIT_OK if outcome.status != "failed" else EXIT_ACTION
+        return code
 
     todo = []
     gated_notes = []
@@ -546,16 +566,20 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     return _batch_exit(counts)
 
 
-def _fetch_locked(args, library: Library, doc: Document, ver, client):
+def _fetch_locked(args, library: Library, doc: Document, ver, client, force=None):
     """Fetch one version under its directory's lock; None (after printing
-    the busy line) when another Session holds it past ``--wait``."""
+    the busy line) when another Session holds it past ``--wait``. ``force``
+    defaults to the command's ``--force``; a reading command passes False
+    (its ``--force`` means something else)."""
+    if force is None:
+        force = args.force
     vdir = library.version_dir(doc.family, doc.id, ver.version)
     try:
         with _lock(args, vdir, f"fetch {doc.id} {ver.version}"):
             # fetch_version looks for the held original inside the lock, so a
             # Session that waited for another's download finds it and skips.
             return fetch_mod.fetch_version(
-                library, doc, ver, force=args.force, client=client
+                library, doc, ver, force=force, client=client
             )
     except lock_mod.Busy as exc:
         print(exc)
@@ -925,7 +949,8 @@ def cmd_refresh(args: argparse.Namespace) -> int:
 
 
 def _extract_one(holding, force: bool) -> str:
-    """Extract one holding; returns extracted | skipped | failed."""
+    """Extract one holding; returns extracted | skipped | failed | unmet
+    (a third-party package is missing)."""
     original = holding.original
     label = f"{holding.document} {holding.version}"
     if not original.is_file():
@@ -943,7 +968,7 @@ def _extract_one(holding, force: bool) -> str:
         result = extract_mod.extract_pdf(original)
     except ImportError as exc:
         print(f"failed {label}: {exc}; run: pip install -r requirements.txt")
-        return "failed"
+        return "unmet"
     except Exception as exc:  # noqa: BLE001 - a broken PDF must not stop --all
         print(f"failed {label}: {type(exc).__name__}: {exc}")
         return "failed"
@@ -1032,7 +1057,8 @@ def cmd_extract(args: argparse.Namespace) -> int:
     if args.all:
         counts = {"extracted": 0, "skipped": 0, "failed": 0, "busy": 0}
         for h in library.holdings():
-            counts[_extract_locked(args, h)] += 1
+            outcome = _extract_locked(args, h)
+            counts["failed" if outcome == "unmet" else outcome] += 1
         print(
             f"summary: extracted {counts['extracted']}, skipped {counts['skipped']}, "
             f"failed {counts['failed']}" + _busy_tail(counts)
@@ -1054,97 +1080,255 @@ def cmd_extract(args: argparse.Namespace) -> int:
     outcome = _extract_locked(args, holding)
     if outcome == "busy":
         return EXIT_BUSY
-    return EXIT_OK if outcome != "failed" else EXIT_ACTION
+    return EXIT_OK if outcome not in ("failed", "unmet") else EXIT_ACTION
 
 
-def _extract_locked(args: argparse.Namespace, holding) -> str:
+def _extract_locked(args: argparse.Namespace, holding, force=None) -> str:
     """``_extract_one`` under the version directory's lock; ``busy`` (after
     printing the busy line) when another Session holds it past ``--wait``.
     The already-extracted check runs inside the lock, so a Session that
     waited for another's extraction reports ``skipped``."""
+    if force is None:
+        force = args.force
     try:
         with _lock(args, holding.path, f"extract {holding.document} {holding.version}"):
-            return _extract_one(holding, args.force)
+            return _extract_one(holding, force)
     except lock_mod.Busy as exc:
         print(exc)
         return "busy"
 
 
+def _is_ready(holding) -> bool:
+    """Ready: the Extract of a PDF, or the unpacked schemas or registries of
+    a bundle, are current."""
+    if holding.original.suffix.lower() == ".zip":
+        return bundle_mod.is_current(holding.path) or registry_mod.is_current(
+            holding.path
+        )
+    return extract_mod.is_current(holding.path)
+
+
+_READY_EXIT = {
+    "busy": EXIT_BUSY,
+    "failed": EXIT_ERROR,
+    "unmet": EXIT_ACTION,
+    "nothing": EXIT_ERROR,
+}
+
+
+def _make_current(args: argparse.Namespace, holding) -> str:
+    """Bring a held version to Ready: extract the PDF or unpack the bundle
+    under the version directory's lock when it is not current, printing the
+    ``extracted`` line. Returns ready | busy | failed | unmet | nothing
+    (skipped, and still not Ready: the original is not something the tool
+    extracts, such as an archive without schemas or registries or a file
+    that is neither PDF nor ZIP; the ``skipped`` line said why)."""
+    if _is_ready(holding):
+        return "ready"
+    outcome = _extract_locked(args, holding, force=False)
+    if outcome in _READY_EXIT:
+        return outcome
+    return "ready" if _is_ready(holding) else "nothing"
+
+
+def _not_ready(holding, state: str) -> int:
+    """The exit code of a reading command whose version could not be made
+    Ready; ``nothing`` gets a closing line of its own, the other outcomes
+    were printed by the extraction."""
+    if state == "nothing":
+        print(f"cannot read {holding.document} {holding.version}: nothing to extract")
+    return _READY_EXIT[state]
+
+
 # ------------------------------------------------------------ reading
 
 
-def _held_version(catalog: Catalog, library: Library, doc_id: str, requested):
-    """(holding, document, problem): the held version to read, or why not.
+def _fetch_hint(name: str, version: str | None) -> str:
+    flag = f" --version {_shell_quote(version)}" if version else ""
+    return f"run: bmcspec fetch {name}{flag}"
 
-    ``holding`` is None when ``problem`` (an exit-2 message) is set.
-    """
+
+def _extract_hint(name: str, version: str | None) -> str:
+    flag = f" --version {_shell_quote(version)}" if version else ""
+    return f"run: bmcspec extract {name}{flag}"
+
+
+def _wrong_kind(name: str, version: str, file_type: str, kind: str) -> str:
+    """A command met a catalog version of the other file type, before any
+    download: the command that reads it."""
+    if kind == "pdf":
+        return (
+            f"{name} {version} is a {file_type} bundle; its schemas are read "
+            f"with: bmcspec schema {name}, its registries with: bmcspec "
+            f"registry {name}"
+        )
+    return (
+        f"{name} {version} is a {file_type.upper()} document, not a bundle; "
+        f"read it with: bmcspec find {name} PATTERN, or: bmcspec page {name} N"
+    )
+
+
+def _released(doc: Document, held):
+    """The held versions the catalog does not mark WIP (versions it does not
+    list count as released)."""
+    kept = []
+    for h in held:
+        ver = doc.find_version(h.version)
+        if ver is None or not ver.wip:
+            kept.append(h)
+    return kept
+
+
+def _nothing_to_read(name: str, doc: Document | None) -> str:
+    """Why a document without a catalog Latest and without a held version
+    cannot be read."""
+    if doc is None:
+        return (
+            f"{name} is not in the Library and not in the catalog; run: bmcspec catalog"
+        )
+    if doc.fetch == "manual" and not doc.versions:
+        return (
+            f"{doc.id} is {doc.access} and lists no versions: the tool does "
+            f"not download it. Register the file you obtained with: "
+            f"bmcspec add FILE --document {doc.id} --version V"
+        )
+    return f"{doc.id} has no published version; run: bmcspec fetch {doc.id} --wip"
+
+
+def _unknown_version(name: str, requested: str, doc: Document | None, held) -> str:
+    versions = ", ".join(h.version for h in held) or "-"
+    known = ", ".join(v.version for v in doc.versions) if doc else ""
+    family = doc.family if doc else "<family>"
+    return (
+        f"{name} {requested} is not in the Library; held: {versions}. "
+        f"Known: {known or '-'}.\n"
+        f"If you have the file, place it under specs/{family}/{name}/"
+        f"{safe_name(requested)}/ in the Library and run: bmcspec scan"
+    )
+
+
+def _ready_holding(
+    args: argparse.Namespace, doc_id: str, requested, kind: str | None = None
+):
+    """(holding, document, exit code): the version a reading command answers
+    from, downloaded when the Library lacks it: the version asked for, else
+    the catalog's Latest, else (offline, or the download failed) the newest
+    held version with a note. ``kind`` (pdf or zip) is what the command
+    reads; a catalog version of the other type is refused before any
+    download. ``holding`` is None when a message was printed; the code is
+    then 2 (the user must act) or 3 (busy). Whether the holding is
+    extracted is ``_make_current``'s business."""
+    catalog = _load(args)
+    library = Library(resolve_library())
     doc = catalog.get(doc_id)
     name = doc.id if doc else doc_id
     held = [h for h in library.holdings() if h.document.lower() == name.lower()]
-    if not held:
-        return None, doc, f"{name} is not in the Library; run: bmcspec fetch {name}"
+    try:
+        offline = fresh_mod.offline(library.root)
+    except fresh_mod.FreshnessError as exc:
+        print(exc)
+        return None, doc, EXIT_ACTION
     if requested:
         holding = next((h for h in held if h.version == requested), None)
-        if holding is None:
-            versions = ", ".join(h.version for h in held)
-            return (
-                None,
-                doc,
-                f"{name} {requested} is not in the Library; held: {versions}",
+        if holding is not None:
+            return holding, doc, EXIT_OK
+        ver = doc.find_version(requested) if doc else None
+        if ver is None:
+            print(_unknown_version(name, requested, doc, held))
+            return None, doc, EXIT_ACTION
+        fallback = None
+    else:
+        ver = doc.latest() if doc else None
+        if ver is None:
+            holding = _latest_held(doc, held)
+            if holding is None:
+                print(_nothing_to_read(name, doc))
+                return None, doc, EXIT_ACTION
+            return holding, doc, EXIT_OK
+        holding = next((h for h in held if h.version == ver.version), None)
+        if holding is not None:
+            return holding, doc, EXIT_OK
+        # A held WIP version answers only when nothing released is held.
+        fallback = _latest_held(doc, _released(doc, held)) or _latest_held(doc, held)
+    # The version to read is not held.
+    if kind is not None and (ver.type == "zip") != (kind == "zip"):
+        print(_wrong_kind(name, ver.version, ver.type, kind))
+        return None, doc, EXIT_ACTION
+    if offline:
+        if fallback is not None:
+            print(
+                f"note: {name} {ver.version} is not in the Library and the "
+                f"Library is offline; answering from held {fallback.version}"
             )
-        return holding, doc, ""
-    return _latest_held(doc, held), doc, ""
+            return fallback, doc, EXIT_OK
+        print(
+            f"{name} {ver.version} is not in the Library (config.toml: offline); "
+            + _fetch_hint(name, requested)
+        )
+        return None, doc, EXIT_ACTION
+    if not ver.open:
+        print(_gated_message(library, doc, ver))
+        return None, doc, EXIT_ACTION
+    _announce_library(library)
+    outcome = _fetch_locked(args, library, doc, ver, CLIENT_FACTORY(), force=False)
+    if outcome is None:
+        return None, doc, EXIT_BUSY
+    if outcome.status == "failed":
+        if fallback is not None:
+            reason = "; ".join(outcome.attempts) or "no download URL"
+            print(
+                f"note: could not fetch {name} {ver.version}: {reason}; "
+                f"answering from held {fallback.version}"
+            )
+            return fallback, doc, EXIT_OK
+        _report(outcome)
+        return None, doc, EXIT_ACTION
+    _report(outcome)
+    holding = library.find(name, ver.version)
+    if holding is None:  # the download landed and vanished: another Session
+        print(
+            f"{name} {ver.version} is not in the Library; "
+            + _fetch_hint(name, requested)
+        )
+        return None, doc, EXIT_ACTION
+    return holding, doc, EXIT_OK
 
 
-def _unreadable(holding) -> str:
-    """Why the holding cannot be searched ('' when it can)."""
+def _bundle_pointer(holding) -> str:
+    """A text command met a bundle: the command that reads it."""
     label = f"{holding.document} {holding.version}"
     ext = holding.original.suffix.lower().lstrip(".")
-    if ext != "pdf":
-        if registry_mod.read_meta(holding.path):
-            return (
-                f"{label} is a {ext} bundle; its registries are read with: "
-                f"bmcspec registry {holding.document}"
-            )
+    if registry_mod.read_meta(holding.path):
         return (
-            f"{label} is a {ext} bundle; its schemas are read with: "
-            f"bmcspec schema {holding.document}"
+            f"{label} is a {ext} bundle; its registries are read with: "
+            f"bmcspec registry {holding.document}"
         )
-    if not extract_mod.is_current(holding.path):
-        return (
-            f"{label} is not extracted, or was extracted by an older version of "
-            f'the extractor; run: bmcspec extract {holding.document} --version "'
-            f'{holding.version}"'
-        )
-    return ""
+    return (
+        f"{label} is a {ext} bundle; its schemas are read with: "
+        f"bmcspec schema {holding.document}"
+    )
 
 
 def _open_version(args: argparse.Namespace):
-    """(Version, document, exit code): a loaded version or the code to return."""
-    catalog = _load(args)
-    library = Library(resolve_library())
-    holding, doc, problem = _held_version(
-        catalog, library, args.document, args.doc_version
-    )
+    """(Version, document, exit code): a loaded version or the code to return.
+    The version is brought to Ready first: downloaded when the Library lacks
+    it, extracted when its Extract is not current."""
+    holding, doc, code = _ready_holding(args, args.document, args.doc_version, "pdf")
     if holding is None:
-        print(problem)
+        return None, doc, code
+    if holding.original.suffix.lower() != ".pdf":
+        print(_bundle_pointer(holding))
         return None, doc, EXIT_ACTION
-    problem = _unreadable(holding)
-    if problem and holding.original.suffix.lower() == ".pdf":
-        # Not extracted: another Session may be doing it right now.
-        holder = _wait_for_extract(args, holding)
-        if holder is not None:
-            print(lock_mod.Busy(holder))
-            return None, doc, EXIT_BUSY
-        problem = _unreadable(holding)
-    if problem:
-        print(problem)
-        return None, doc, EXIT_ACTION
+    state = _make_current(args, holding)
+    if state != "ready":
+        return None, doc, _not_ready(holding, state)
     try:
-        return search_mod.load_version(holding), doc, EXIT_OK
+        version = search_mod.load_version(holding)
     except search_mod.SearchError as exc:
         print(f"cannot read {holding.document} {holding.version}: {exc}")
         return None, doc, EXIT_ERROR
+    args.fresh_doc = doc  # main() runs the Freshness Check after the output
+    return version, doc, EXIT_OK
 
 
 def _hit_line(hit: search_mod.Hit, document: str) -> str:
@@ -1172,13 +1356,21 @@ def cmd_find(args: argparse.Namespace) -> int:
         return code
     targets: list[search_mod.Version] = []
     if doc is not None and doc.searched_with and not args.only:
-        catalog = _load(args)
-        library = Library(resolve_library())
         for other in doc.searched_with:
-            holding, _, problem = _held_version(catalog, library, other, None)
-            problem = problem or _unreadable(holding)
-            if problem:
-                print(f"note: {problem}")
+            # A companion is brought to Ready like the document itself;
+            # whatever that prints (fetched, extracted, why not) is a note,
+            # and a companion that cannot be read is left out.
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                holding, _, _ = _ready_holding(args, other, None, "pdf")
+                if holding is not None and holding.original.suffix.lower() != ".pdf":
+                    print(_bundle_pointer(holding))
+                    holding = None
+                elif holding is not None and _make_current(args, holding) != "ready":
+                    holding = None
+            for line in buffer.getvalue().splitlines():
+                print(line if line.startswith("note: ") else f"note: {line}")
+            if holding is None:
                 continue
             try:
                 targets.append(search_mod.load_version(holding))
@@ -1813,14 +2005,11 @@ def cmd_schema(args: argparse.Namespace) -> int:
     if args.property and args.definition:
         print("give --property or --definition, not both")
         return EXIT_ACTION
-    catalog = _load(args)
-    library = Library(resolve_library())
-    holding, _, problem = _held_version(
-        catalog, library, args.document, args.doc_version
+    holding, catalog_doc, code = _ready_holding(
+        args, args.document, args.doc_version, "zip"
     )
     if holding is None:
-        print(problem)
-        return EXIT_ACTION
+        return code
     label = f"{holding.document} {holding.version}"
     doc = holding.document
     if holding.original.suffix.lower() != ".zip":
@@ -1829,23 +2018,16 @@ def cmd_schema(args: argparse.Namespace) -> int:
             f"bmcspec find {doc} PATTERN, or: bmcspec page {doc} N"
         )
         return EXIT_ACTION
-    if registry_mod.is_current(holding.path):
+    state = _make_current(args, holding)
+    if state != "ready":
+        return _not_ready(holding, state)
+    if not bundle_mod.is_current(holding.path):
         print(
             f"{label} is a registries bundle, not a schema bundle; read it with: "
             f"bmcspec registry {doc}"
         )
         return EXIT_ACTION
-    if not bundle_mod.is_current(holding.path):
-        holder = _wait_for_extract(args, holding)
-        if holder is not None:
-            print(lock_mod.Busy(holder))
-            return EXIT_BUSY
-    if not bundle_mod.is_current(holding.path):
-        print(
-            f"{label} is not extracted, or was unpacked by an older version; run: "
-            f'bmcspec extract {doc} --version "{holding.version}"'
-        )
-        return EXIT_ACTION
+    args.fresh_doc = catalog_doc
     schemas = bundle_mod.Schemas(holding.path)
     try:
         return _schema_output(args, holding, schemas)
@@ -1958,14 +2140,11 @@ def _label(section) -> str | None:
 
 
 def cmd_registry(args: argparse.Namespace) -> int:
-    catalog = _load(args)
-    library = Library(resolve_library())
-    holding, _, problem = _held_version(
-        catalog, library, args.document, args.doc_version
+    holding, catalog_doc, code = _ready_holding(
+        args, args.document, args.doc_version, "zip"
     )
     if holding is None:
-        print(problem)
-        return EXIT_ACTION
+        return code
     label = f"{holding.document} {holding.version}"
     doc = holding.document
     if holding.original.suffix.lower() != ".zip":
@@ -1974,23 +2153,16 @@ def cmd_registry(args: argparse.Namespace) -> int:
             f"bmcspec find {doc} PATTERN, or: bmcspec page {doc} N"
         )
         return EXIT_ACTION
-    if bundle_mod.is_current(holding.path):
+    state = _make_current(args, holding)
+    if state != "ready":
+        return _not_ready(holding, state)
+    if not registry_mod.is_current(holding.path):
         print(
             f"{label} is a schema bundle, not a registries bundle; read it with: "
             f"bmcspec schema {doc}"
         )
         return EXIT_ACTION
-    if not registry_mod.is_current(holding.path):
-        holder = _wait_for_extract(args, holding)
-        if holder is not None:
-            print(lock_mod.Busy(holder))
-            return EXIT_BUSY
-    if not registry_mod.is_current(holding.path):
-        print(
-            f"{label} is not extracted, or was unpacked by an older version; run: "
-            f'bmcspec extract {doc} --version "{holding.version}"'
-        )
-        return EXIT_ACTION
+    args.fresh_doc = catalog_doc
     registries = registry_mod.Registries(holding.path)
     try:
         return _registry_output(args, holding, registries)
@@ -2161,6 +2333,46 @@ COMMANDS = {
 }
 
 
+def _check_when_due(args: argparse.Namespace) -> None:
+    """After a reading command's output: the Freshness Check of the document
+    it answered from, when the last one is older than ``freshness_days``,
+    printed as a ``note:`` (nothing when current). Recorded like ``check``,
+    so it runs once per document per period; never a download, never the
+    catalog, never the exit code; off with ``[library] offline``."""
+    doc = getattr(args, "fresh_doc", None)
+    if doc is None or not doc.listing:
+        return
+    library = Library(resolve_library())
+    try:
+        if fresh_mod.offline(library.root):
+            return
+        max_age = fresh_mod.max_age_days(library.root)
+    except fresh_mod.FreshnessError as exc:
+        print(f"note: {exc}")
+        return
+    state = fresh_mod.Freshness(library.root)
+    if not state.stale(doc.id, max_age):
+        return
+    try:
+        check = fresh_mod.check_document(doc, listing_mod.Listings(CLIENT_FACTORY()))
+    except Exception as exc:  # noqa: BLE001 - the note must not fail the answer
+        print(f"note: unreachable {doc.id}: {exc}")
+        return
+    try:
+        state.record(check)
+        state.save()
+    except Exception as exc:  # noqa: BLE001 - a lost stamp is a note of its own
+        print(f"note: could not record the check of {doc.id}: {exc}")
+    if check.status == "newer":
+        listed = "; ".join(_seen_line(doc, s) for s in check.newer)
+        print(
+            f"note: newer {doc.id}: catalog latest {check.catalog_latest}, "
+            f"{fresh_mod.publisher_name(doc)} lists {listed}"
+        )
+    elif check.status == "unreachable":
+        print(f"note: unreachable {doc.id}: {check.problem}")
+
+
 def _utf8_stdout() -> None:
     """Print UTF-8 whatever the console code page; titles carry ® and ™."""
     reconfigure = getattr(sys.stdout, "reconfigure", None)
@@ -2175,7 +2387,10 @@ def main(argv: list[str] | None = None) -> int:
         print("--wait takes a number of seconds, 0 or more")
         return EXIT_ACTION
     try:
-        return COMMANDS[args.command](args)
+        code = COMMANDS[args.command](args)
+        if code == EXIT_OK:
+            _check_when_due(args)
+        return code
     except CatalogError as exc:
         print(f"catalog error: {exc}")
         return EXIT_ERROR

@@ -177,23 +177,23 @@ def test_find_searches_companions_first_and_notes_missing_ones(
     scripted.responses[IPMI_URL] = ok(
         plain_pdf(tmp_path, "ipmi.pdf", ["Get Device ID NetFn App", "other"])
     )
-    scripted.responses[UPDATE_URL] = ok(
-        plain_pdf(tmp_path, "upd.pdf", ["Get Device ID errata", "x"])
-    )
     run(capsys, "fetch", "IPMI", catalog_file=cat)
-    run(capsys, "extract", "IPMI", catalog_file=cat)
+    # the companion has no route: find says so in notes and goes on
     code, out = run(capsys, "find", "IPMI", "get device id", catalog_file=cat)
     assert code == 0
     lines = out.strip().splitlines()
-    assert lines[0] == (
-        "note: IPMI-UPDATE is not in the Library; run: bmcspec fetch IPMI-UPDATE"
+    assert "note: failed IPMI-UPDATE Errata 7" in lines
+    assert lines[-1].startswith("IPMI p.1 | - | Get Device ID NetFn App")
+    # with a route the companion is fetched and extracted by find itself
+    scripted.responses[UPDATE_URL] = ok(
+        plain_pdf(tmp_path, "upd.pdf", ["Get Device ID errata", "x"])
     )
-    assert lines[1].startswith("IPMI p.1 | - | Get Device ID NetFn App")
-    run(capsys, "fetch", "IPMI-UPDATE", catalog_file=cat)
     code, out = run(capsys, "find", "IPMI", "get device id", catalog_file=cat)
     lines = out.strip().splitlines()
-    assert lines[0].startswith("note: IPMI-UPDATE Errata 7 is not extracted")
-    run(capsys, "extract", "IPMI-UPDATE", catalog_file=cat)
+    assert lines[0] == "note: fetched IPMI-UPDATE Errata 7 via direct"
+    assert lines[1].startswith("note: extracted IPMI-UPDATE Errata 7")
+    assert lines[2].startswith("IPMI-UPDATE p.1 | - | Get Device ID errata")
+    assert lines[3].startswith("IPMI p.1 | - | Get Device ID NetFn App")
     code, out = run(capsys, "find", "IPMI", "get device id", catalog_file=cat)
     lines = out.strip().splitlines()
     assert lines[0].startswith("IPMI-UPDATE p.1 | - | Get Device ID errata")
@@ -408,30 +408,35 @@ def test_reading_commands_share_the_error_paths(
         }[command]
         return run(capsys, *argv, *extra, catalog_file=catalog_file)
 
+    # not in the Library and no route: the download fails, exit 2
     code, out = call()
     assert code == 2
-    assert out.strip() == "DSP0236 is not in the Library; run: bmcspec fetch DSP0236"
+    assert "failed DSP0236 1.3.3" in out.splitlines()
+    assert f"Open in a browser: {URL}" in out
+    # a route: the command downloads, extracts and answers in one call
     scripted.responses[URL] = ok(plain_pdf(tmp_path, "a.pdf", ["alpha"]))
-    run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
-    code, out = call()
-    assert code == 2
-    assert out.startswith("DSP0236 1.3.3 is not extracted")
-    assert 'run: bmcspec extract DSP0236 --version "1.3.3"' in out
-    code, out = call("--version", "1.3.2")
-    assert code == 2
-    assert out.strip() == "DSP0236 1.3.2 is not in the Library; held: 1.3.3"
-    run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
     code, out = call()
     assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0] == "fetched DSP0236 1.3.3 via direct"
+    assert lines[1].startswith("extracted DSP0236 1.3.3")
+    # a version asked for that is not held and has no route: exit 2 too
+    code, out = call("--version", "1.3.2")
+    assert code == 2
+    assert "failed DSP0236 1.3.2" in out.splitlines()
+    code, out = call()
+    assert code == 0, out
+    assert "fetched" not in out and "extracted" not in out
     vdir = library.specs / "mctp" / "DSP0236" / "1.3.3"
     meta = json.loads((vdir / "extract.json").read_text("utf-8"))
     meta["extractor_version"] = extract_mod.EXTRACTOR_VERSION - 1
     (vdir / "extract.json").write_text(json.dumps(meta), "utf-8")
-    code, out = call()
-    assert code == 2 and "older version of the extractor" in out
     code, out = run(capsys, "status", catalog_file=catalog_file)
     row = next(ln for ln in out.splitlines() if "DSP0236" in ln).split("\t")
     assert row[5] == "stale"
+    # a stale Extract is redone by the reading command itself
+    code, out = call()
+    assert code == 0 and out.startswith("extracted DSP0236 1.3.3"), out
 
 
 def test_bundles_are_refused(catalog_file, library, scripted, capsys):

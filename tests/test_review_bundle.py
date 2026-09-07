@@ -593,10 +593,10 @@ def test_reading_commands_refuse_a_bundle_and_point_to_schema(
 def test_schema_refuses_a_pdf_and_an_unextracted_bundle(
     fetched, catalog_file, tmp_path, capsys
 ):
+    # fewer round trips change: schema unpacks the bundle itself first
     code, out = schema(capsys, catalog_file, "Widget")
-    assert code == 2, out
-    assert "extract BUNDLE" in out
-    assert "2026.1" in out
+    assert out.splitlines()[0].startswith("extracted BUNDLE 2026.1: "), out
+    assert code == 0 and "schema: Widget v1.10.0" in out, out
     pdf = tmp_path / "doc.pdf"
     pdf.write_bytes(FAKE_PDF)
     add(capsys, catalog_file, pdf, "DSP0236", "1.3.3")
@@ -605,7 +605,9 @@ def test_schema_refuses_a_pdf_and_an_unextracted_bundle(
     assert "find" in out and "page" in out
     code, out = run(capsys, catalog_file, "schema", "IPMI")
     assert code == 2
-    assert "IPMI" in out and "fetch" in out
+    # fewer round trips change (round 1, F7): the catalog says IPMI is a
+    # PDF, so schema points to find/page without a download
+    assert "IPMI" in out and "is a PDF document" in out
 
 
 # ------------------------------------------------------------------- AC-8
@@ -671,10 +673,12 @@ def test_a_write_the_platform_refuses_is_a_failed_line_not_a_traceback(
     assert code == 2, out
     assert "failed BUNDLE 2026.1" in out
     assert out.strip().splitlines()[-1] == "summary: extracted 0, skipped 0, failed 1"
-    # a later schema call says to extract, not something misleading
+    # a later schema call unpacks itself and meets the same failure
+    # (fewer round trips change: exit 1, the failed line, no traceback)
     code, out = schema(capsys, catalog_file, "Widget")
-    assert code == 2, out
-    assert "extract BUNDLE" in out
+    assert code == 1, out
+    assert out.startswith("failed BUNDLE 2026.1")
+    assert "Traceback" not in out
 
 
 def test_a_base_name_seen_twice_is_written_once_and_counted(

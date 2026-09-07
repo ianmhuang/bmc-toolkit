@@ -37,7 +37,9 @@ def table_pdf(tmp_path):
 @pytest.fixture
 def fetched(catalog_file, library, scripted, tmp_path, capsys):
     scripted.responses[URL] = ok(table_pdf(tmp_path))
-    code, out = run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    code, out = run(
+        capsys, "fetch", "DSP0236", "--no-extract", catalog_file=catalog_file
+    )
     assert code == 0, out
     return library.specs / "mctp" / "DSP0236" / "1.3.3"
 
@@ -151,15 +153,17 @@ def test_table_without_a_ruled_table_exits_2(held, catalog_file, capsys):
 
 
 def test_table_shares_the_reading_error_paths(fetched, catalog_file, capsys):
+    # not in the Library: table downloads it itself (no route here)
     code, out = run(capsys, "table", "IPMI", "--page", "1", catalog_file=catalog_file)
-    assert (
-        code == 2
-        and out.strip() == "IPMI is not in the Library; run: bmcspec fetch IPMI"
-    )
+    assert code == 2
+    assert "failed IPMI 2.0 rev 1.1" in out.splitlines()
+    # held but not extracted: table extracts it itself, then reads
     code, out = run(
         capsys, "table", "DSP0236", "--page", "1", catalog_file=catalog_file
     )
-    assert code == 2 and "is not extracted" in out
+    assert code == 0, out
+    assert out.splitlines()[0].startswith("extracted DSP0236 1.3.3")
+    assert "cite: mctp | DSP0236 1.3.3 |" in out
 
 
 def test_table_without_pdfplumber_says_how_to_install(

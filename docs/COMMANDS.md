@@ -14,11 +14,49 @@ Library](#sessions-sharing-a-library)). `--wait SECONDS`, given before the
 subcommand, says how long a command waits for that lock (default 60, `0`
 returns at once).
 
-`find` searches the latest held version (or `--version`), case-insensitively
-unless `--case`, as a literal unless `--regex`; `--max` (default 50) caps the
-hits. A document whose catalog entry lists `searched_with` (IPMI lists its
-Specification Update) is searched together with those, their hits first;
-`--only` skips them. `page` prints at most 10 pages per call
+Every reading command (`section`, `find`, `page`, `render`, `table`,
+`schema`, `registry`) first brings the version it needs to Ready: in the
+Library, with its Extract (or unpacked bundle) current. The version is the
+catalog's latest, or the one `--version` names (exact match; an unknown
+one is exit 2 listing the known versions). When the Library lacks it the
+command downloads it exactly as `fetch` would (same client, same lock,
+`fetched DOC V via ...` as the first output line), extracts it
+(`extracted ...` next) and then answers; a held version whose Extract is
+stale is extracted again first; a Ready version answers at once, with no
+extra lines. A text command on a document the catalog lists as a bundle,
+or `schema` / `registry` on a PDF, is refused before any download with
+the command that reads it. A download that fails while an older version
+of the document is held prints `note: could not fetch DOC V: <reason>;
+answering from held W` and answers from W (exit 0, the Citation names W;
+a held WIP version is used only when no released one is held); with
+nothing held it is exit 2 with the browser URL and the save path, as
+`fetch` prints. A
+gated, member or confidential version is exit 2 with the Drop-in
+instruction, a manual document without versions exit 2 with the `add`
+instruction, and another Session downloading or extracting the same
+version exit 3 (`--wait` applies). `[library] offline = true` in
+`config.toml` keeps the reading commands off the network: a missing
+version is then exit 2 with the `fetch` command to run (or, when an older
+version is held, a note and the answer from that one); extraction still
+happens, it is local work. After its output a reading command runs the
+Freshness Check when it is due, see below.
+
+`fetch DOC` downloads one version (latest, or `--version`) and leaves it
+Ready: after the `fetched` or `skipped` line it extracts the PDF or unpacks
+the bundle and prints the `extracted` line (`skipped ...: already
+extracted` when current); `--no-extract` stops after the download. A
+failed extraction, or a missing dependency, is printed as `failed DOC V:
+...` followed by `run: bmcspec extract DOC`, and the exit code stays 0
+because the download landed. `fetch --all` downloads only, as before. Nothing in the answering workflow needs
+`fetch`; it is for prefetching a document you name, and for `--all`.
+
+`find` searches the catalog's latest version (or `--version`),
+case-insensitively unless `--case`, as a literal unless `--regex`; `--max`
+(default 50) caps the hits. A document whose catalog entry lists
+`searched_with` (IPMI lists its Specification Update) is searched together
+with those, their hits first; they are brought to Ready the same way, with
+every line about that as a `note:`, and one that cannot be read is left
+out; `--only` skips them. `page` prints at most 10 pages per call
 (`--max-pages`). Each printed page and each rendered page comes with a
 `cite:` line: family, document and version, section, PDF page, printed
 line range (or `rendered page`), origin URL or `user-provided`, and the
@@ -101,6 +139,9 @@ documents under `specs/` are never touched.
 ```toml
 [library]
 freshness_days = 30           # how old a Freshness Check may be before a note
+offline = false               # true: the reading commands download nothing
+                               # and skip the check (fetch, check and clone
+                               # still go online when you run them)
 
 [code]
 release = "2.18.0"            # default Release for clone, grep and code
@@ -124,10 +165,17 @@ pins a release, compares it with the newest `X.Y.Z` tag of
 3.0.0 -> newer`). Nothing is downloaded and no version is switched: a
 newer version enters the Library only after the catalog lists it (see
 [CATALOG.md](CATALOG.md)) or as a Drop-in. The outcome and the time go to
-`freshness.json` at the Library root; `fetch` and `status` print a
-`note:` when a document served has not been checked within
-`freshness_days` (default 30), once per document until the next `check`,
-and that note never touches the network.
+`freshness.json` at the Library root. A reading command runs the check
+itself, after its output, when the document it answered from has not
+been checked within `freshness_days` (default 30) and prints the outcome
+as a note: `note: newer DOC: catalog latest V, <publisher> lists W (date)
+URL`, nothing when current, `note: unreachable DOC: <reason>` when the
+publisher could not be read; the outcome is recorded like `check`'s, so
+the next question within that age does not check again, and the note
+never changes the exit code. `fetch` and `status` print a `note:` reminder
+to run `check` instead, once per document until the next check, and that
+reminder never touches the network. `[library] offline = true` turns the
+reading commands' check off.
 OCP versions are mostly Google Drive links on the wiki, so `check`
 reports them with `(URL to confirm by hand)`.
 
@@ -187,7 +235,10 @@ temporary files (see above).
   the URL and the path to save the file to. Documents whose publisher
   refuses every scripted client (uefi.org, trustedcomputinggroup.org) are
   marked `fetch = "wayback"` and go to the Archive straight away. Manual
-  documents are never requested at all.
+  documents are never requested at all. `fetch` downloads on request; the
+  reading commands download the one version they need (the catalog's
+  latest, or `--version`) when the Library lacks it, through the same
+  chain, and `[library] offline = true` in `config.toml` stops them.
 - A response that is not the expected PDF or ZIP (an HTML block page, a
   cut-off download) is discarded and never written to the Library. The same
   leading-bytes check applies to files given to `add` or found by `scan`.
@@ -195,8 +246,9 @@ temporary files (see above).
   as Drop-ins and their origin is recorded as user-provided, never as a URL;
   `scan` also records whether the document id is in the catalog
   (`catalog_known`). Nothing already in the Library is replaced without
-  `--force`. `fetch`, `add`, `extract` and `table` hold `.lock` in the
-  version directory while they write (see above), and every single-file
+  `--force`. `fetch`, `add`, `extract`, `table` and a reading command
+  downloading or extracting hold `.lock` in the version directory while
+  they write (see above), and every single-file
   write goes through a `<name>.<pid>-<token>.part` temporary beside the
   target; nothing else is created.
 - Replacing an original (`add --force`, `fetch --force`) removes the
@@ -214,7 +266,7 @@ temporary files (see above).
   message registry leaves the archive (22 files, about 0.8 MB, out of
   DSP8011 2026.1's 264 members); the privilege registries, the HTML and
   the PDF stay in the ZIP.
-- `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/w/index.php?title=<page>` for the pages named in the catalog's `listing` keys. They download no document.
+- `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/w/index.php?title=<page>` for the pages named in the catalog's `listing` keys. They download no document. A reading command reads the one listing page of the document it answered from when that document's Freshness Check is due (at most once per document per `freshness_days`), never with `[library] offline = true`.
 - Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed.
 - `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory that is removed on failure, and `code/<repo>/.lock` while it runs. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees, `.tmp-*` and `.part` leftovers and stale `.lock` files under `code/` and `specs/`, nothing else.
-- `check` writes `freshness.json` at the Library root; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it inserts version entries into the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).
+- `check` writes `freshness.json` at the Library root, and so does a reading command that ran the due check; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it inserts version entries into the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).

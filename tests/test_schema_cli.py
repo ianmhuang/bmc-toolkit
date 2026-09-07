@@ -30,7 +30,9 @@ def schema(capsys, catalog_file, *argv):
 @pytest.fixture
 def fetched(catalog_file, library, scripted, capsys):
     scripted.responses[URL] = ok(bundle_bytes(), ctype="application/zip")
-    code, out = run(capsys, "fetch", "BUNDLE", catalog_file=catalog_file)
+    code, out = run(
+        capsys, "fetch", "BUNDLE", "--no-extract", catalog_file=catalog_file
+    )
     assert code == 0, out
     return library.specs / "mctp" / "BUNDLE" / "2026.1"
 
@@ -100,7 +102,9 @@ def test_extract_all_skips_a_zip_without_schemas(held, catalog_file, tmp_path, c
 
 def test_a_new_original_removes_the_schemas(held, catalog_file, scripted, capsys):
     assert (held / "schemas").is_dir()
-    code, out = run(capsys, "fetch", "BUNDLE", "--force", catalog_file=catalog_file)
+    code, out = run(
+        capsys, "fetch", "BUNDLE", "--force", "--no-extract", catalog_file=catalog_file
+    )
     assert code == 0, out
     assert not (held / "schemas").exists()
     assert not (held / "extract.json").exists()
@@ -213,20 +217,31 @@ def test_schema_error_paths(held, catalog_file, capsys):
     both = ["Thing", "--property", "a", "--definition", "b"]
     code, out = schema(capsys, catalog_file, *both)
     assert code == 2 and out.strip() == "give --property or --definition, not both"
+    # not in the Library, and the catalog says it is a PDF: schema points
+    # to the text commands without downloading it (round 1, F7)
     code, out = run(capsys, "schema", "IPMI", catalog_file=catalog_file)
     assert code == 2
-    assert out.strip() == "IPMI is not in the Library; run: bmcspec fetch IPMI"
+    assert out.strip() == (
+        "IPMI 2.0 rev 1.1 is a PDF document, not a bundle; read it with: "
+        "bmcspec find IPMI PATTERN, or: bmcspec page IPMI N"
+    )
 
 
 def test_schema_refuses_pdfs_and_unextracted_bundles(
     fetched, catalog_file, scripted, tmp_path, capsys
 ):
+    # not unpacked yet: schema unpacks the bundle itself, then lists
     code, out = schema(capsys, catalog_file)
-    assert code == 2
-    assert out.strip() == (
-        "BUNDLE 2026.1 is not extracted, or was unpacked by an older version; "
-        'run: bmcspec extract BUNDLE --version "2026.1"'
-    )
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith("extracted BUNDLE 2026.1: 6 schema files")
+    assert lines[1:] == [
+        "Common\t-",
+        "Nullable\t-",
+        "odata-v4\t-",
+        "Thing\tv1.10.0",
+        "ThingCollection\t-",
+    ]
     from tests import pdfgen
 
     page = pdfgen.plain_page(["one"])

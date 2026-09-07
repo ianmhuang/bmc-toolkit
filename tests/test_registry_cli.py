@@ -254,12 +254,13 @@ def test_registry_refuses_pdfs_schema_bundles_and_unextracted_bundles(
         "bmcspec find DSP0236 PATTERN, or: bmcspec page DSP0236 N"
     )
     add(capsys, catalog_file, registries_zip, "2026.4")
+    # not unpacked yet: registry unpacks the bundle itself, then lists
     code, out = registry(capsys, catalog_file, "--version", "2026.4")
-    assert code == 2
-    assert out.strip() == (
-        "BUNDLE 2026.4 is not extracted, or was unpacked by an older version; run: "
-        'bmcspec extract BUNDLE --version "2026.4"'
-    )
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith("extracted BUNDLE 2026.4: ")
+    assert " message registries in " in lines[0]
+    assert any(ln.startswith("Base\t") for ln in lines[1:]), out
 
 
 def test_schema_and_reading_commands_point_a_registries_bundle_to_registry(

@@ -405,15 +405,16 @@ def test_error_paths_are_shared_by_the_reading_commands(
         "render": ["render", "DSP0236", "--page", "1"],
     }[command]
 
+    # fewer round trips change: the reading commands download (no route
+    # here: exit 2 with the save path) and extract by themselves
     code, out = run(capsys, *argv, catalog_file=catalog_file)
-    assert code == 2 and "fetch DSP0236" in out
+    assert code == 2 and "failed DSP0236 1.3.3" in out.splitlines()
     scripted.responses[URL] = ok(numbered_doc(tmp_path))
-    run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    run(capsys, "fetch", "DSP0236", "--no-extract", catalog_file=catalog_file)
     code, out = run(capsys, *argv, catalog_file=catalog_file)
-    assert code == 2 and "extract DSP0236" in out
+    assert code == 0 and out.startswith("extracted DSP0236 1.3.3"), out
     code, out = run(capsys, *argv, "--version", "1.3.2", catalog_file=catalog_file)
-    assert code == 2 and "1.3.3" in out
-    run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
+    assert code == 2 and "failed DSP0236 1.3.2" in out.splitlines()
     code, out = run(capsys, *argv, catalog_file=catalog_file)
     assert code == 0, out
     vdir = library.specs / "mctp" / "DSP0236" / "1.3.3"
@@ -421,14 +422,15 @@ def test_error_paths_are_shared_by_the_reading_commands(
     meta = json.loads(meta_path.read_text("utf-8"))
     meta["extractor_version"] = 2  # what M2 wrote
     meta_path.write_text(json.dumps(meta), "utf-8")
-    code, out = run(capsys, *argv, catalog_file=catalog_file)
-    assert code == 2 and "extract DSP0236" in out
     # AC-7: status shows the old Extract as not current (round-1 F1)
     code, out = run(capsys, "status", catalog_file=catalog_file)
     assert code == 0, out
     row = next(ln for ln in out.splitlines() if "DSP0236" in ln)
     cells = [c.strip() for c in row.split("\t")]
     assert "stale" in cells and "extracted" not in cells
+    # and a reading command re-extracts it before answering
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert code == 0 and out.startswith("extracted DSP0236 1.3.3"), out
 
 
 def test_status_shows_a_current_extract_as_extracted(held, catalog_file, capsys):

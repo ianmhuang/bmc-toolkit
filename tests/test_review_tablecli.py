@@ -115,7 +115,9 @@ def document(tmp_path):
 @pytest.fixture
 def fetched(catalog_file, library, scripted, tmp_path, capsys):
     scripted.responses[URL] = ok(document(tmp_path))
-    code, out = run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    code, out = run(
+        capsys, "fetch", "DSP0236", "--no-extract", catalog_file=catalog_file
+    )
     assert code == 0, out
     return library.specs / "mctp" / "DSP0236" / "1.3.3"
 
@@ -334,12 +336,14 @@ def test_store_is_removed_by_extract_force_fetch_force_and_add_force(
 
 
 def test_error_paths(fetched, catalog_file, capsys):
+    # fewer round trips change: table downloads (no route here) and
+    # extracts by itself
     code, out = run(capsys, "table", "IPMI", "--page", "1", catalog_file=catalog_file)
-    assert code == 2 and "fetch IPMI" in out
+    assert code == 2 and "failed IPMI 2.0 rev 1.1" in out.splitlines()
     code, out = run(capsys, "table", "DSP0236", "--page", "1", catalog_file=catalog_file)
-    assert code == 2 and "extract DSP0236" in out
+    assert code in (0, 2) and out.startswith("extracted DSP0236 1.3.3"), out
     code, out = run(capsys, "extract", "DSP0236", catalog_file=catalog_file)
-    assert code == 0, out
+    assert code == 0 and out.startswith("skipped"), out
     code, out = run(capsys, "table", "DSP0236", "--page", "6", catalog_file=catalog_file)
     assert code == 2 and "6" in out and "cite:" not in out
     code, out = run(capsys, "table", "DSP0236", "--page", "0", catalog_file=catalog_file)

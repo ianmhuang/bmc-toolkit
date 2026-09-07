@@ -98,7 +98,8 @@ def backdate(path, seconds):
 @pytest.fixture
 def stored(catalog_file, library, scripted, capsys):
     scripted.responses[URL] = ok(PDF_BYTES)
-    assert main(["--catalog", str(catalog_file), "fetch", "DSP0236"]) == 0
+    argv = ["--catalog", str(catalog_file), "fetch", "DSP0236", "--no-extract"]
+    assert main(argv) == 0
     capsys.readouterr()
     return library.specs / "mctp" / "DSP0236" / "1.3.3"
 
@@ -108,7 +109,8 @@ def real_pdf_stored(catalog_file, library, scripted, tmp_path, capsys, pages):
 
     pdf = pdfgen.write_pdf(tmp_path / "real.pdf", pages)
     scripted.responses[URL] = ok(pdf.read_bytes())
-    assert main(["--catalog", str(catalog_file), "fetch", "DSP0236"]) == 0
+    argv = ["--catalog", str(catalog_file), "fetch", "DSP0236", "--no-extract"]
+    assert main(argv) == 0  # fewer round trips change: fetch extracts by default
     capsys.readouterr()
     return library.specs / "mctp" / "DSP0236" / "1.3.3"
 
