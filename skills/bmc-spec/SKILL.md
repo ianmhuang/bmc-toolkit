@@ -6,9 +6,10 @@ allowed-tools: Bash(python *)
 
 # bmc-spec
 
-Answer spec questions from the documents themselves: bring the document into
-the Library, find the section or the phrase, read only the pages involved,
-and cite what the tool printed. A table is read whole with `table`, even
+Answer spec questions from the documents themselves: find the section or
+the phrase (the reading commands bring the document into the Library and
+extract it on their own), read only the pages involved, and cite what the
+tool printed. A table is read whole with `table`, even
 when the PDF splits it over pages. OpenBMC source questions are answered
 from a Code Tree: the repository at the commit the user's Ref or Release
 names (or the default branch), searched with `grep` and read with `code`.
@@ -24,7 +25,16 @@ names (or the default branch), searched with `grep` and read with `code`.
 - **Latest**: the newest published version in the catalog; versions
   published on the same day are told apart by the numbers in their version
   strings (`2.0.0` over `1.3.0`). Work-in-Progress versions count only when
-  the user asks for WIP.
+  the user asks for WIP. The local catalog changes only when the plugin
+  updates; a publisher's newer version reaches you as a `note: newer` line.
+- **Ready**: a document version that is in the Library and whose Extract
+  (or unpacked bundle) is current, so a question about it is answered
+  without downloading or extracting anything. The reading commands
+  (`section`, `find`, `page`, `render`, `table`, `schema`, `registry`)
+  bring the version they need to Ready by themselves: Latest, or the
+  `--version` given, downloaded and extracted when the Library lacks it,
+  with `fetched ...` and `extracted ...` lines before the answer. You never
+  run `fetch` or `extract` before a reading command.
 - **Drop-in**: a file the user placed into the Library by hand because the
   tool cannot download it (registration, membership, NDA, or a blocked
   download).
@@ -101,11 +111,17 @@ names (or the default branch), searched with `grep` and read with `code`.
   the OCP wiki) what versions it lists and reports one the catalog lacks
   (`newer DOC: ...`). It never downloads or switches versions; the catalog
   stays the authority for Latest until a maintainer updates it. The
-  outcome and the time go to `freshness.json` at the Library root. `fetch`
-  and `status` print a `note:` when a document has not been checked
-  within `freshness_days` (`[library]` in `config.toml`, default 30),
-  once per document until the next `check` (the reminder is stamped in
-  the same file).
+  outcome and the time go to `freshness.json` at the Library root. A
+  reading command runs the check itself, after its output, when the
+  document has not been checked within `freshness_days` (`[library]` in
+  `config.toml`, default 30), and prints the outcome as `note: newer DOC:
+  ...` (nothing when current, `note: unreachable DOC: ...` when the
+  publisher could not be read); the outcome is recorded, so the next
+  question within that age does not check again. `fetch` and `status`
+  print a `note:` reminder to run `check` instead, once per document.
+  `[library] offline = true` in `config.toml` turns the reading commands'
+  downloads and checks off (a held version is still extracted); `fetch`,
+  `check` and `clone` ignore it.
 - **Citation**: a `cite:` line printed by `page`, `render` or `table`. Its
   fields, separated by ` | `: family, document and version, section,
   `PDF page N` (or `PDF pages A-B` for a Logical Table), `lines A-B` (or
@@ -131,7 +147,7 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `library` | print the Library path |
 | `catalog [DOC] [--family F]` | list documents (one per line, tab-separated: family, id, access, fetch, latest, title, known versions joined by `;`) or show one document with every version, newest first (version, date, type, published/wip, URL or `-`, access), its `notes:` and `limits:` (Known Limits of the document itself); a manual document without versions prints the `add` command to use |
 | `catalog --table [--golden FILE] [--by-family]` | the Support Level table (Markdown): family, document, access (`open (latest gated)` when the newest version differs), latest, fetch, Verified (the question ids from the Golden Questions file's `Document` column, grouped by the version they were checked on: `G13, G15 (1.3.1)`; `-` without `--golden`), known limit; `--by-family` prints the reader's form kept in `docs/SUPPORT.md` instead: one heading and table per family, no fetch column, Verified as `PASS` or `-`, documents with `unlisted = true` in the catalog left out. For README and support questions, not for answering a specification question |
-| `fetch DOC [--version V] [--wip] [--force]` | download one version into the Library; latest by default; prints a `skipped` line and stays off the network if already present. A gated, member or confidential version is not downloaded: exit 2 with the Drop-in instruction and `newest open version: X; fetch it with --version X` (or `no open version is listed`), unless the user already registered it with `add` or `scan`, which gives the usual `skipped` line and exit 0 |
+| `fetch DOC [--version V] [--wip] [--force] [--no-extract]` | download one version into the Library and leave it Ready: latest by default; prints a `skipped` line and stays off the network if already present, then the `extracted` line (or `skipped ...: already extracted`); `--no-extract` stops after the download. A failed extraction after a good download prints `failed DOC V: ...` and exit stays 0 (the download landed). A gated, member or confidential version is not downloaded: exit 2 with the Drop-in instruction and `newest open version: X; fetch it with --version X` (or `no open version is listed`), unless the user already registered it with `add` or `scan`, which gives the usual `skipped` line and exit 0. Not needed before a reading command; for prefetching a document the user names |
 | `fetch --all [--wip] [--force]` | latest open version of every downloadable document (a `note:` per document whose latest is gated); ends with a `summary:` line |
 | `add FILE --document DOC --version V [--force]` | register a file the user obtained themselves (Drop-in); refuses to replace a version already present unless `--force`; the file must really be a PDF or ZIP |
 | `scan` | register files placed by hand under `specs/<family>/<document>/<version>/original.pdf` |
@@ -140,19 +156,19 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `refresh [DOC] [--write]` | maintainer command: what `check` found, per version (`add`, `changed`, `confirm` with the reason: an OCP URL to find, a DMTF Work-in-Progress row); `--write` inserts the `add` entries into the catalog file at their place in publication order (a document whose version blocks the text scan cannot read is reported and left alone). Not for answering questions |
 | `extract DOC [--version V] [--force]` | write the Extract, Outline, Line Map and figure regions for a PDF version already in the Library (latest held version by default), or unpack a bundle: a schema bundle's JSON Schema into `schemas/` (DSP8010, and DSP8013's profile schema), a registries bundle's newest registry files into `registries/` (DSP8011); skips if current. A ZIP with neither is skipped with a message |
 | `extract --all [--force]` | every PDF and bundle in the Library; ends with a `summary:` line |
-| `section DOC QUERY [--version V]` | Outline entries matching a section number prefix (`20.1` also matches `20.1.2`) or every word of QUERY; one per line: `LEVEL \| title \| pages FIRST-LAST` (LEVEL 0 is a top-level heading), where LAST is where the next entry of the same or a higher level begins (`~` in front of an approximate page). `no matching section` when nothing matches |
-| `find DOC PATTERN [--version V] [--regex] [--case] [--context N] [--max N] [--only]` | search the Extract; one line per hit: `DOC p.N [line L] \| section \| [figure] text`. Case-insensitive literal unless `--regex` / `--case`; `--context N` adds the surrounding lines (`line L:` or `row I:`) and a `--` separator; at most 50 hits unless `--max N` (`--max 0` prints all), then a `... more hits` line. Documents the catalog lists in `searched_with` (IPMI-UPDATE for IPMI) are searched too, their hits first; a missing one gets a `note:` line with the command to run; `--only` skips them. `no hits` when nothing matches |
-| `page DOC N [--to M]` or `page DOC --section QUERY [--version V] [--max-pages K]` | print pages of the Extract, each starting with a `cite:` line, every line behind its printed line number when there is one, `[figure]` appended to lines inside a figure. Refuses more than 10 pages per call unless `--max-pages` |
-| `render DOC --page N [--version V] [--scale S] [--force]` | write `renders/page-N.png` (S times 72 dpi, default 2) under the version directory; prints `rendered <path>` and a `cite:` line with `rendered page`. Reuses an existing file unless `--force` |
-| `schema DOC [RESOURCE] [--property P \| --definition D] [--version V]` | read a schema bundle. No RESOURCE: every resource, one per line, `Name\tvX.Y.Z` (`-` for an index-only name such as a collection). RESOURCE: a `cite:` line, a `schema:` line (name, version, property count, the file's definitions), then one property per line: `name \| type \| readonly or writable \| added vX.Y.Z or - \| description`; types read `string`, `enum Def`, `object Def`, `array of T`, `odata name`, or the raw `$ref` when its file is not in `schemas/`. `--property P`: its description, longDescription, deprecation and other notes, and when it is an enum, a second `cite:` for the file that defines it (for instance `Resource.json`) followed by `values:` with every value, its description and when it was added. `--definition D`: the same for a named definition of the file (an enum, or an action with its `parameters:`). Names are case-insensitive; an unknown resource lists the names containing the query (exit 2). A schema whose object is defined at the file's root (the profile schema) is read from the root, pointer `#` |
-| `registry DOC [REGISTRY] [MESSAGE] [--version V]` | read a registries bundle. No REGISTRY: every registry, one per line, `Prefix\tversion\tN messages`. REGISTRY: a `cite:` line (`#/Messages`), a `registry:` line (prefix, version, count, the MessageId form `Base.1.23.*`), then one message per line: `Key \| severity \| text`. MESSAGE (a key such as `PropertyMissing`, or a full MessageId): a `cite:` line with `#/Messages/<Key>`, a `message:` line (MessageId, severity, argument count), `text:` (the message verbatim, `%1` and so on for the arguments), `description:`, `longDescription:`, `resolution:`, `args:` (`%n \| type \| what it is`), `added vX.Y.Z` and `deprecated (since vX.Y.Z): ...` when the registry says so. Names are case-insensitive; an unknown registry or key lists the names containing the query (exit 2); a schema bundle is refused with the `schema` command to use |
+| `section DOC QUERY [--version V]` | Outline entries matching a section number prefix (`20.1` also matches `20.1.2`) or every word of QUERY; one per line: `LEVEL \| title \| pages FIRST-LAST` (LEVEL 0 is a top-level heading), where LAST is where the next entry of the same or a higher level begins (`~` in front of an approximate page). `no matching section` when nothing matches. Like every reading command it first brings the version to Ready (Latest, or `--version V`): `fetched DOC V via ...` and `extracted DOC V: ...` lines come before the answer when the Library lacked it; a download that fails with an older version held prints `note: could not fetch DOC V: ...; answering from held W` and answers from W; with nothing held, exit 2 with the browser URL and the save path; a gated version, exit 2 with the Drop-in instruction; an unknown `--version`, exit 2 listing the known ones (exact match); another Session downloading or extracting the same version, exit 3 (`busy:`). After the answer, a due Freshness Check may add `note: newer DOC: ...` or `note: unreachable DOC: ...` |
+| `find DOC PATTERN [--version V] [--regex] [--case] [--context N] [--max N] [--only]` | search the Extract (the version is brought to Ready first, as `section` says); one line per hit: `DOC p.N [line L] \| section \| [figure] text`. Case-insensitive literal unless `--regex` / `--case`; `--context N` adds the surrounding lines (`line L:` or `row I:`) and a `--` separator; at most 50 hits unless `--max N` (`--max 0` prints all), then a `... more hits` line. Documents the catalog lists in `searched_with` (IPMI-UPDATE for IPMI) are searched too, their hits first; they are brought to Ready the same way, with every line about that as a `note:` (`note: fetched IPMI-UPDATE ...`, or why it could not be), and one that cannot be read is left out; `--only` skips them. `no hits` when nothing matches |
+| `page DOC N [--to M]` or `page DOC --section QUERY [--version V] [--max-pages K]` | print pages of the Extract (the version is brought to Ready first, as `section` says), each starting with a `cite:` line, every line behind its printed line number when there is one, `[figure]` appended to lines inside a figure. Refuses more than 10 pages per call unless `--max-pages` |
+| `render DOC --page N [--version V] [--scale S] [--force]` | write `renders/page-N.png` (S times 72 dpi, default 2) under the version directory (the version is brought to Ready first, as `section` says); prints `rendered <path>` and a `cite:` line with `rendered page`. Reuses an existing file unless `--force` |
+| `schema DOC [RESOURCE] [--property P \| --definition D] [--version V]` | read a schema bundle (downloaded and unpacked first when the Library lacks it, as `section` says). No RESOURCE: every resource, one per line, `Name\tvX.Y.Z` (`-` for an index-only name such as a collection). RESOURCE: a `cite:` line, a `schema:` line (name, version, property count, the file's definitions), then one property per line: `name \| type \| readonly or writable \| added vX.Y.Z or - \| description`; types read `string`, `enum Def`, `object Def`, `array of T`, `odata name`, or the raw `$ref` when its file is not in `schemas/`. `--property P`: its description, longDescription, deprecation and other notes, and when it is an enum, a second `cite:` for the file that defines it (for instance `Resource.json`) followed by `values:` with every value, its description and when it was added. `--definition D`: the same for a named definition of the file (an enum, or an action with its `parameters:`). Names are case-insensitive; an unknown resource lists the names containing the query (exit 2). A schema whose object is defined at the file's root (the profile schema) is read from the root, pointer `#` |
+| `registry DOC [REGISTRY] [MESSAGE] [--version V]` | read a registries bundle (downloaded and unpacked first when the Library lacks it, as `section` says). No REGISTRY: every registry, one per line, `Prefix\tversion\tN messages`. REGISTRY: a `cite:` line (`#/Messages`), a `registry:` line (prefix, version, count, the MessageId form `Base.1.23.*`), then one message per line: `Key \| severity \| text`. MESSAGE (a key such as `PropertyMissing`, or a full MessageId): a `cite:` line with `#/Messages/<Key>`, a `message:` line (MessageId, severity, argument count), `text:` (the message verbatim, `%1` and so on for the arguments), `description:`, `longDescription:`, `resolution:`, `args:` (`%n \| type \| what it is`), `added vX.Y.Z` and `deprecated (since vX.Y.Z): ...` when the registry says so. Names are case-insensitive; an unknown registry or key lists the names containing the query (exit 2); a schema bundle is refused with the `schema` command to use |
 | `repos [--topic T]` | the catalog's repositories, one per line, four tab-separated fields: id, held Code Trees (`commit7 provenance`, `superseded` when re-fetched) or `-`, `user checkout: path` or `-`, topics; a first line `release: L (config.toml) -> openbmc <commit7>` when a default Release is set |
 | `repos --search PATTERN` | GitHub code search over the openbmc organisation through `gh` (must be installed and logged in), `repo path` per hit; searches default branches only. For when no topic matches |
 | `clone REPO [--ref R \| --release L] [--force]` | bring the repository into the Library as a Code Tree (REPO not in the catalog: `https://github.com/openbmc/REPO.git` is tried, with a `note:` saying so, and `repos` lists it as `(not in catalog)` afterwards): at branch/tag/full commit R, at the Pin of OpenBMC release L (the `openbmc` repository is fetched at L first, recipes only), or at the default branch. Prints `cloned <repo> <commit7> (<provenance>) -> <path>` or `held ...` when already there (no network); `--force` resolves a moving name again and prints `superseded` for the older tree. Uses the `config.toml` default Release when no flag is given, and says `release: L (from config.toml)` |
 | `grep REPO PATTERN [--ref R \| --release L] [--regex] [--glob G] [--context N] [--max N]` | `git grep` over the selected Code Tree (user checkout first, then the named Ref or Release, then the config Release, then the default-branch tree): one hit per line `REPO@commit7 path:line \| text`, context lines as `line N:` with `--` between groups, at most 50 hits unless `--max` (0 = all); `no hits`; exit 2 with the `clone` command when the tree is not held. Case-sensitive, a fixed string unless `--regex` |
 | `code REPO PATH [--lines A-B] [--ref R \| --release L]` | a `cite:` line then the file's lines behind their numbers; a file over 200 lines needs `--lines`. Same tree selection as `grep`; a `note:` line says when a user checkout or the config Release was used |
 | `prune [--yes]` | `would remove <path> (...)` for every superseded Code Tree, every `.tmp-*` / `.part` leftover nobody is working on and every stale `.lock` (untouched for 5 minutes), then a `prune:` summary; only with `--yes` are they removed (`removed <path>`). A live lock and a fresh temp file are never listed; a stale lock that another Session takes over while `prune` runs is kept (`kept <path> (...)`, counted as `, N kept` in the summary). Run `--yes` only when the user asked to free space |
-| `table DOC --page N [--version V] [--index K] [--force] [--all-rows]` | print every Logical Table touching page N, whole: a `cite:` line (`PDF pages A-B`, `table K`), a `table:` line (caption or `-`, `ruled` or `cells (no ruling lines)`, page range, columns, rows including the header), then the rows as a grid, columns separated by ` \| `, one physical line per cell line, a rule after the header and after every row with a multi-line cell. A table longer than 300 rows prints a `note:` line and only the rows that start on page N; `--all-rows` prints them all. `--index K` keeps only the K-th table on the page. Read from `tables.json` when the page was read before, unless `--force`. Exit 2 with `no table on page N` when the page has neither kind |
+| `table DOC --page N [--version V] [--index K] [--force] [--all-rows]` | print every Logical Table touching page N, whole (the version is brought to Ready first, as `section` says): a `cite:` line (`PDF pages A-B`, `table K`), a `table:` line (caption or `-`, `ruled` or `cells (no ruling lines)`, page range, columns, rows including the header), then the rows as a grid, columns separated by ` \| `, one physical line per cell line, a rule after the header and after every row with a multi-line cell. A table longer than 300 rows prints a `note:` line and only the rows that start on page N; `--all-rows` prints them all. `--index K` keeps only the K-th table on the page. Read from `tables.json` when the page was read before, unless `--force`. Exit 2 with `no table on page N` when the page has neither kind |
 
 Exit codes: 0 done, 1 error (malformed catalog, unreadable file), 2 the
 user must act (unknown document or version, download impossible, document
@@ -166,36 +182,42 @@ once): how long to wait for that Session before giving up with 3.
 
 0. A Redfish data-model question (which properties a resource has, what a
    property means, which values an enum allows, what an action takes) is
-   answered from the schema bundle: `fetch DSP8010`, `extract DSP8010`,
-   then `schema DSP8010 <Resource> --property <P>` and cite the two
-   `cite:` lines it prints. Questions about the protocol itself (HTTP,
-   sessions, eventing) stay with the PDF, DSP0266. A Redfish message
-   question (what a MessageId means, its severity, arguments or
-   resolution) is answered from the registries bundle: `fetch DSP8011`,
-   `extract DSP8011`, then `registry DSP8011 <Registry> <Key>`, quoting
-   the `text:` line verbatim. Profile questions (what a profile may
-   require of a property) use `schema DSP8013 RedfishInteroperabilityProfile
-   --definition <Name>`.
+   answered from the schema bundle: `schema DSP8010 <Resource> --property
+   <P>` (the command downloads and unpacks the bundle itself when needed)
+   and cite the two `cite:` lines it prints. Questions about the protocol
+   itself (HTTP, sessions, eventing) stay with the PDF, DSP0266. A Redfish
+   message question (what a MessageId means, its severity, arguments or
+   resolution) is answered from the registries bundle: `registry DSP8011
+   <Registry> <Key>`, quoting the `text:` line verbatim. Profile questions
+   (what a profile may require of a property) use `schema DSP8013
+   RedfishInteroperabilityProfile --definition <Name>`.
 1. Identify the Family and the Document. Without a named family prefer the
    one the project context suggests (CLAUDE.md, the conversation), else
    answer for the most likely family and say that another family has a
    same-named item. `catalog --family F` lists the candidates.
-2. Make sure the version is there: `fetch DOC` (`skipped` if already held),
-   then `extract DOC` (`skipped` if current). Pass the user's version
-   verbatim with `--version`; on exit 2 relay the message and stop.
-   When `fetch` ends with `note: DOC has not been checked against ...`,
-   run `check DOC` once, then go on answering from the held version. If
-   it printed `newer`, tell the user in one sentence which version the
-   publisher lists and that the answer comes from the catalog's latest;
-   never fetch or add the newer version unless the user asks, and never
-   edit the catalog during a question (`refresh` is for maintainers).
-3. Locate: `section DOC QUERY` when the user names a section or a topic
+2. Locate: `section DOC QUERY` when the user names a section or a topic
    that is a heading; `find DOC PATTERN` for a command name, a field, a
    code, a phrase. Read the section field of each hit to see where it lies.
-4. Read only what you need: `page DOC N` for the hit pages, or
+   This is the first helper call of a question: the reading command brings
+   the document to Ready itself, answering from Latest, or from the
+   version the user named, passed verbatim with `--version`. Repeat its
+   `fetched` and `extracted` lines to the user in one sentence (they say
+   the document was downloaded or extracted just now); on exit 2 relay the
+   message and stop; on exit 3 follow the `busy:` rule below. A `note:
+   could not fetch DOC V: ...; answering from held W` line means the
+   answer comes from W: say so.
+3. Read only what you need: `page DOC N` for the hit pages, or
    `page DOC --section QUERY` for a short section. Never read a whole
    Extract into the conversation; a section longer than ten pages is read a
    few pages at a time.
+4. A reading command may end with a Freshness Check note.
+   `note: newer DOC: catalog latest V, <publisher> lists W (date) URL`:
+   tell the user in one sentence that the publisher lists W and that the
+   answer comes from V; never fetch or add W unless the user asks, and
+   never edit the catalog during a question (`refresh` is for
+   maintainers). `note: unreachable DOC: ...`: say nothing about it.
+   `check` is run only when the user asks whether a newer version exists,
+   never during a question.
 5. When the answer sits in a table (a `Table` caption near the hit, or
    `page` shows columns), run `table DOC --page N` and read the row from
    the grid instead of from the page text: the grid has the header once and
@@ -297,21 +319,23 @@ and the user's release may differ, and `grep` at both is cheap.
 - When the user names a version, pass it verbatim with `--version`; the
   catalog keeps the publisher's own strings (`2.0 rev 1.1`,
   `Rev 2.1 Ver 1.1`). On exit 2 the message lists the known versions.
-- When a download fails, relay the printed browser URL and the exact save
+- When a download fails (a reading command or `fetch` prints `failed DOC
+  V` with a browser URL and a save path), relay the URL and the exact save
   path, then ask the user to run `scan` after saving. Never invent an
   alternative URL.
-- When `fetch` exits 2 because the version is gated, member or
-  confidential, relay the `newest open version:` line as it is and offer
-  that version; fetch it only when the user agrees, and never claim the
-  gated version's content from the open one without saying which version
-  the answer comes from.
+- When a reading command or `fetch` exits 2 because the version is gated,
+  member or confidential, relay the `newest open version:` line as it is
+  and offer that version; read it (`--version X`) only when the user
+  agrees, and never claim the gated version's content from the open one
+  without saying which version the answer comes from.
 - `fetch --all` downloads several hundred megabytes; only run it when the
   user asks for everything. `extract --all` on a full Library takes a couple
   of minutes.
-- `check` goes to the publishers' sites (a few requests) and is the only
-  command that says whether the catalog is behind; run it when a `note:`
-  asks for it or when the user asks whether a newer version exists. It
-  never downloads. `prune --yes` deletes directories: only on request.
+- `check` goes to the publishers' sites (a few requests) and says whether
+  the catalog is behind; run it only when the user asks whether a newer
+  version exists (the reading commands run it themselves when it is due
+  and report the outcome as a `note:`). It never downloads. `prune --yes`
+  deletes directories: only on request.
 - Exit 3 (`busy:`) means another Session (another Claude Code conversation
   on this machine, or one in WSL sharing the Library) is fetching,
   extracting or cloning the same thing. Run the same command once more

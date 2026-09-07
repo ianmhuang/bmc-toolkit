@@ -72,7 +72,10 @@ SCHEMAS = {
                         "longDescription": "This property shall contain the state.",
                     },
                     "Kind": {
-                        "anyOf": [{"$ref": "#/definitions/WidgetType"}, {"type": "null"}],
+                        "anyOf": [
+                            {"$ref": "#/definitions/WidgetType"},
+                            {"type": "null"},
+                        ],
                         "readonly": True,
                         "description": "The kind.",
                     },
@@ -158,7 +161,13 @@ ESCAPES = {
     "/json-schema/abs.json": b"{}",
 }
 
-KEPT = ["Resource.json", "Widget.json", NEWEST, "WidgetCollection.json", "odata-v4.json"]
+KEPT = [
+    "Resource.json",
+    "Widget.json",
+    NEWEST,
+    "WidgetCollection.json",
+    "odata-v4.json",
+]
 
 # A second json-schema folder later in the archive with a base name the first
 # folder already has; the first member must win and the second be counted.
@@ -499,14 +508,18 @@ def test_definitions_of_an_index_file_without_a_main_definition(
     code, out = schema(capsys, catalog_file, "resource", "--definition", "powerstate")
     assert code == 0, out
     lines = out.splitlines()
-    assert lines[0] == cite(held, "Resource", "Resource.json", "#/definitions/PowerState")
+    assert lines[0] == cite(
+        held, "Resource", "Resource.json", "#/definitions/PowerState"
+    )
     assert out.count("cite: ") == 1  # the enum is the definition itself
     assert "values:" in lines
     assert "  On: Powered on." in lines
     assert "  Paused: Paused. (added v1.13.0)" in lines
     code, out = schema(capsys, catalog_file, "odata-v4", "--definition", "id")
     assert code == 0, out
-    assert out.splitlines()[0] == cite(held, "odata-v4", "odata-v4.json", "#/definitions/id")
+    assert out.splitlines()[0] == cite(
+        held, "odata-v4", "odata-v4.json", "#/definitions/id"
+    )
     code, out = schema(capsys, catalog_file, "Resource", "--definition", "Nope")
     assert code == 2, out
     assert "Nope" in out and "schema BUNDLE Resource" in out
@@ -565,7 +578,10 @@ def test_every_block_starts_with_a_cite_line_of_seven_fields(
         assert fields[6] == str(held)
     code, out = schema(capsys, catalog_file, "WidgetCollection")
     assert out.splitlines()[0] == cite(
-        held, "WidgetCollection", "WidgetCollection.json", "#/definitions/WidgetCollection"
+        held,
+        "WidgetCollection",
+        "WidgetCollection.json",
+        "#/definitions/WidgetCollection",
     )
     code, out = schema(capsys, catalog_file, "Widget", "--property", "Ratio")
     assert out.count("cite: ") == 1  # no enum followed: one cite line only
@@ -593,10 +609,10 @@ def test_reading_commands_refuse_a_bundle_and_point_to_schema(
 def test_schema_refuses_a_pdf_and_an_unextracted_bundle(
     fetched, catalog_file, tmp_path, capsys
 ):
+    # fewer round trips change: schema unpacks the bundle itself first
     code, out = schema(capsys, catalog_file, "Widget")
-    assert code == 2, out
-    assert "extract BUNDLE" in out
-    assert "2026.1" in out
+    assert out.splitlines()[0].startswith("extracted BUNDLE 2026.1: "), out
+    assert code == 0 and "schema: Widget v1.10.0" in out, out
     pdf = tmp_path / "doc.pdf"
     pdf.write_bytes(FAKE_PDF)
     add(capsys, catalog_file, pdf, "DSP0236", "1.3.3")
@@ -605,7 +621,9 @@ def test_schema_refuses_a_pdf_and_an_unextracted_bundle(
     assert "find" in out and "page" in out
     code, out = run(capsys, catalog_file, "schema", "IPMI")
     assert code == 2
-    assert "IPMI" in out and "fetch" in out
+    # fewer round trips change: the download is tried (no route) and the
+    # save path printed instead of a fetch hint
+    assert "IPMI" in out and "scan" in out
 
 
 # ------------------------------------------------------------------- AC-8
@@ -671,10 +689,12 @@ def test_a_write_the_platform_refuses_is_a_failed_line_not_a_traceback(
     assert code == 2, out
     assert "failed BUNDLE 2026.1" in out
     assert out.strip().splitlines()[-1] == "summary: extracted 0, skipped 0, failed 1"
-    # a later schema call says to extract, not something misleading
+    # a later schema call unpacks itself and meets the same failure
+    # (fewer round trips change: exit 1, the failed line, no traceback)
     code, out = schema(capsys, catalog_file, "Widget")
-    assert code == 2, out
-    assert "extract BUNDLE" in out
+    assert code == 1, out
+    assert out.startswith("failed BUNDLE 2026.1")
+    assert "Traceback" not in out
 
 
 def test_a_base_name_seen_twice_is_written_once_and_counted(

@@ -132,9 +132,11 @@ LIBRARY_FILE_NAMES = [
 ]
 
 COMMANDS_VERBATIM = [
-    "`find` searches the latest held version (or `--version`), case-insensitively\n"
-    "unless `--case`, as a literal unless `--regex`; `--max` (default 50) caps the\n"
-    "hits.",
+    # The fewer round trips change reworded this sentence (the reading
+    # commands read the catalog's latest, fetching it); the pinned text follows.
+    "`find` searches the catalog's latest version (or `--version`),\n"
+    "case-insensitively unless `--case`, as a literal unless `--regex`; `--max`\n"
+    "(default 50) caps the hits.",
     "`table` prints every table touching the page as a Logical Table:",
     "`schema` reads a Redfish schema bundle (DSP8010): without a resource it\n"
     "lists the resources and their newest schema version;",
@@ -189,8 +191,11 @@ NETWORK_VERBATIM = [
     "- `clone` writes only under the Library's `code/` directory: "
     "`code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory "
     "that is removed on failure, and `code/<repo>/.lock` while it runs.",
-    "- `check` writes `freshness.json` at the Library root; `fetch` and "
-    "`status` stamp the reminder there (`reminded_at`) when they print the "
+    # The fewer round trips change added the reading commands to this
+    # bullet (they run the due check themselves); the pinned text follows.
+    "- `check` writes `freshness.json` at the Library root, and so does a "
+    "reading command that ran the due check; `fetch` and `status` stamp the "
+    "reminder there (`reminded_at`) when they print the "
     "note. `refresh --write` is the one command that writes outside the "
     "Library: it inserts version entries into the catalog file it was given "
     "(`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).",

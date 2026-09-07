@@ -134,9 +134,17 @@ def test_readme_has_the_sequence_diagram():
         "participant Pub",
     ):
         assert participant in diagram, participant
+    # Since the fewer round trips change the skill locates first; the CLI
+    # fetches and extracts on its own, before the search, then page reads.
+    messages = [ln for ln in diagram.splitlines() if "->>" in ln]
+    assert "find DSP0236" in messages[1] and messages[1].startswith("    Claude->>CLI")
     commands = ["fetch DSP0236", "extract DSP0236", "find DSP0236", "page DSP0236"]
-    positions = [diagram.index(c) for c in commands]
-    assert positions == sorted(positions)
+    positions = [
+        next(i for i, ln in enumerate(messages) if re.search(rf":\s*{c}", ln))
+        for c in commands
+    ]
+    assert positions == sorted(positions), positions
+    assert "Claude->>CLI: fetch" not in diagram
     assert "--version" in diagram
     assert "cite:" in diagram
     assert "--version" in section[m.end() :]

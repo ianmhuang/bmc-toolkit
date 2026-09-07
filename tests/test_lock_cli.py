@@ -230,13 +230,20 @@ def test_reader_meets_a_live_lock_on_an_unextracted_version(
         assert out.startswith(f"busy: {stored / '.lock'} is held by pid 4242 "), argv
 
 
-def test_reader_with_a_stale_lock_gets_the_usual_exit_2(stored, catalog_file, capsys):
+def test_reader_with_a_stale_lock_takes_it_over_and_extracts(
+    stored, catalog_file, capsys
+):
+    # Since the reading commands extract themselves (fewer round trips
+    # change, AC-3), a reader is a writer here: the stale lock is taken
+    # over with the usual note, and the fake PDF fails to extract (exit 1).
     fake_lock(stored, age=lock_mod.STALE_SECONDS + 1)
     code, out = run(
         capsys, "--wait", "0", "find", "DSP0236", "x", catalog_file=catalog_file
     )
-    assert code == 2
-    assert out.startswith("DSP0236 1.3.3 is not extracted")
+    assert code == 1, out
+    assert out.startswith("note: took over a stale lock from ")
+    assert "failed DSP0236 1.3.3: " in out
+    assert not (stored / ".lock").exists()
 
 
 def test_reader_waits_and_reads_once_the_extraction_lands(
@@ -282,10 +289,14 @@ def test_schema_and_registry_meet_a_live_lock(catalog_file, library, scripted, c
         code, out = run(capsys, "--wait", "0", cmd, "BUNDLE", catalog_file=catalog_file)
         assert code == 3 and out.startswith("busy: "), (cmd, out)
     backdate(vdir / ".lock", lock_mod.STALE_SECONDS + 1)
+    # a stale lock is taken over and the bundle unpacked by schema itself;
+    # this archive holds nothing to unpack, so that is a failure (exit 1)
     code, out = run(
         capsys, "--wait", "0", "schema", "BUNDLE", catalog_file=catalog_file
     )
-    assert code == 2 and "not extracted" in out
+    assert code == 1, out
+    assert "note: took over a stale lock" in out
+    assert "no json-schema/ folder" in out
 
 
 # ----------------------------------------------------------------- AC-7

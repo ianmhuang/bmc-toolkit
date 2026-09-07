@@ -181,3 +181,21 @@ def scripted(monkeypatch):
     client = ScriptedClient()
     monkeypatch.setattr(cli, "CLIENT_FACTORY", lambda: client)
     return client
+
+
+def _no_network(url):
+    raise OSError(f"the test suite has no network: {url}")
+
+
+@pytest.fixture(autouse=True)
+def _network_off_by_default(monkeypatch):
+    """The reading commands download a missing version and run a due
+    Freshness Check on their own, so a test that never asked for a client
+    could reach the real network: every test starts with a client that
+    refuses, and with the after-output check off. A test that wants either
+    installs its own client (``scripted``, or ``CLIENT_FACTORY``) and
+    restores ``cli._check_when_due`` (see tests/test_ready.py)."""
+    from bmc_toolkit.spec import cli
+
+    monkeypatch.setattr(cli, "CLIENT_FACTORY", lambda: _no_network)
+    monkeypatch.setattr(cli, "_check_when_due", lambda args: None)

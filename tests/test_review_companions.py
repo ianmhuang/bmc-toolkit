@@ -96,8 +96,10 @@ def test_missing_companion_gets_a_note_naming_the_fetch_command(
     assert code == 0, out
     lines = out.strip().splitlines()
     notes = [ln for ln in lines if ln.startswith("note:")]
-    assert len(notes) == 1
-    assert "IPMI-UPDATE" in notes[0] and "fetch IPMI-UPDATE" in notes[0]
+    # fewer round trips change: find tries to fetch the companion itself
+    # (no route here) and reports that as notes, then searches the base
+    assert "note: failed IPMI-UPDATE Errata 7" in notes
+    assert any("IPMI-UPDATE" in n and "Save it as: " in n for n in notes)
     hits = [ln for ln in lines if not ln.startswith("note:")]
     assert hits == ["IPMI p.1 | - | Get Device ID NetFn App"]
 
@@ -112,15 +114,18 @@ def test_held_companion_hits_come_first_prefixed_by_their_id(
         one_page_pdf(tmp_path, "upd.pdf", ["Get Device ID errata", "more"])
     )
     for doc in ("IPMI", "IPMI-UPDATE"):
-        run(capsys, "fetch", doc, catalog_file=cat)
+        run(capsys, "fetch", doc, "--no-extract", catalog_file=cat)
     run(capsys, "extract", "IPMI", catalog_file=cat)
-    # held but not extracted: still a note, and the base document is searched
+    # held but not extracted: find extracts the companion itself (fewer
+    # round trips change), says so in a note, and searches both
     code, out = run(capsys, "find", "IPMI", "get device id", catalog_file=cat)
     assert code == 0, out
     lines = out.strip().splitlines()
-    assert lines[0].startswith("note:") and "extract IPMI-UPDATE" in lines[0]
-    assert lines[1:] == ["IPMI p.1 | - | Get Device ID NetFn App"]
-    run(capsys, "extract", "IPMI-UPDATE", catalog_file=cat)
+    assert lines[0].startswith("note: extracted IPMI-UPDATE Errata 7")
+    assert lines[1:] == [
+        "IPMI-UPDATE p.1 | - | Get Device ID errata",
+        "IPMI p.1 | - | Get Device ID NetFn App",
+    ]
     code, out = run(capsys, "find", "IPMI", "get device id", catalog_file=cat)
     assert code == 0, out
     assert out.strip().splitlines() == [

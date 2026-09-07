@@ -4,10 +4,13 @@
 catalog, reports a newer Version and records the outcome in
 ``freshness.json`` at the Library root. Nothing is downloaded and no
 version is switched: the catalog stays the authority for "latest" until a
-maintainer updates it. Commands that serve a document print a note when
-its last check is older than ``freshness_days`` (``[library]`` in
+maintainer updates it. ``fetch`` and ``status`` print a note when a
+document's last check is older than ``freshness_days`` (``[library]`` in
 ``config.toml``, default 30); the note is printed once (``reminded_at``)
-and not again until the next check, and it never touches the network.
+and not again until the next check, and it never touches the network. The
+reading commands run the check themselves when it is that old, after their
+output, and print its outcome as a ``note:`` (``[library] offline = true``
+turns that off).
 
 ``freshness.json``::
 
@@ -51,11 +54,11 @@ class FreshnessError(Exception):
     """config.toml or freshness.json cannot be used; the message says why."""
 
 
-def max_age_days(root: Path) -> int:
-    """``[library] freshness_days`` of config.toml, or the default."""
+def _library_section(root: Path) -> dict:
+    """The ``[library]`` table of config.toml; empty without the file."""
     path = root / code_mod.CONFIG_NAME
     if not path.is_file():
-        return DEFAULT_MAX_AGE_DAYS
+        return {}
     try:
         with open(path, "rb") as fh:
             data = tomllib.load(fh)
@@ -64,12 +67,31 @@ def max_age_days(root: Path) -> int:
     section = data.get("library", {})
     if not isinstance(section, dict):
         raise FreshnessError(f"{path}: [library] must be a table")
-    days = section.get("freshness_days", DEFAULT_MAX_AGE_DAYS)
+    return section
+
+
+def max_age_days(root: Path) -> int:
+    """``[library] freshness_days`` of config.toml, or the default."""
+    days = _library_section(root).get("freshness_days", DEFAULT_MAX_AGE_DAYS)
     if isinstance(days, bool) or not isinstance(days, int) or days < 1:
         raise FreshnessError(
-            f"{path}: library.freshness_days must be a positive integer"
+            f"{root / code_mod.CONFIG_NAME}: library.freshness_days must be a "
+            "positive integer"
         )
     return days
+
+
+def offline(root: Path) -> bool:
+    """``[library] offline`` of config.toml (default false): the reading
+    commands then download nothing and skip the Freshness Check; ``fetch``,
+    ``check`` and ``clone`` are the user asking for the network and ignore
+    it."""
+    value = _library_section(root).get("offline", False)
+    if not isinstance(value, bool):
+        raise FreshnessError(
+            f"{root / code_mod.CONFIG_NAME}: library.offline must be true or false"
+        )
+    return value
 
 
 @dataclass
@@ -289,6 +311,7 @@ __all__ = [
     "compare",
     "max_age_days",
     "newest_release_tag",
+    "offline",
     "publisher_name",
     "release_is_newer",
 ]

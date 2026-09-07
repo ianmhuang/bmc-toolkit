@@ -67,34 +67,33 @@ sequenceDiagram
     participant Pub as Publisher /<br/>Internet Archive
 
     User->>Claude: What does DSP0236 say about message tags?
-    Claude->>CLI: fetch DSP0236 (latest, or --version 1.2.0 when asked)
-    CLI->>Lib: that version held?
+    Claude->>CLI: locate: section or find DSP0236 "Msg tag" (latest, or --version 1.2.0)
+    CLI->>Lib: that version Ready?
     alt not held
-        CLI->>Pub: GET the version's PDF
+        CLI->>Pub: fetch DSP0236 1.3.1: GET the version's PDF
         Pub-->>CLI: PDF
         CLI->>Lib: original.pdf, meta.json (URL, SHA-256)
     end
-    CLI-->>Claude: fetched DSP0236 1.3.1 / skipped
-    Claude->>CLI: extract DSP0236
-    CLI->>Lib: extract.txt, outline.json, linemap.json, figures.json
-    CLI-->>Claude: extracted / skipped
-    Claude->>CLI: find DSP0236 "Msg tag"
-    CLI->>Lib: search extract.txt
-    CLI-->>Claude: hits: page, line, section
+    CLI->>Lib: extract DSP0236 when not extracted: extract.txt, outline.json, linemap.json, figures.json
+    CLI->>Lib: find DSP0236 "Msg tag" in extract.txt
+    CLI-->>Claude: fetched / extracted lines, then hits: page, line, section
     Claude->>CLI: page DSP0236 24 (or table, render)
     CLI->>Lib: read the pages
     CLI-->>Claude: text + cite: line
+    CLI->>Pub: listing page, when the document's Freshness Check is due (once per 30 days)
+    CLI-->>Claude: note: newer DSP0236 ... (or nothing)
     Claude-->>User: answer, Citation copied from cite:
     Note over Claude,Lib: OpenBMC questions have the same shape:<br/>repos, clone (GitHub), grep, code, cite:
 ```
 
-Solid arrows are commands and Library access, dashed arrows what comes back. The
-version is the catalog's latest unless the user names one; `--version` on
-`fetch`, `extract` and the reading commands serves that one instead, and a
-version the tool cannot download is registered from your copy with `add`.
-The publisher is contacted only when the Library does not hold the
-version. Every printed page carries a `cite:` line and the skill copies its
-Citation from that line rather than composing one. What each command does:
+Solid arrows are commands and Library access, dashed arrows what comes back.
+A reading command brings the version it needs to Ready (held and extracted)
+by itself: the catalog's latest, or the one `--version` names; a version
+the tool cannot download is registered from your copy with `add`. The
+publisher is contacted only when the Library lacks the version, and once
+per document per 30 days to ask whether it lists a newer one (reported,
+never downloaded). Every printed page carries a `cite:` line and the skill
+copies its Citation from that line. What each command does:
 [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Library location
@@ -137,9 +136,7 @@ bmcspec page DSP0236 --section 8.2
 bmcspec render DSP0236 --page 24             # renders/page-24.png
 bmcspec table DSP0236 --page 122             # the table(s) on the page, whole
 bmcspec table DSP0239 --page 13              # a table drawn as cell boxes, no rules
-bmcspec extract DSP8010                       # unpack the Redfish JSON Schema
-bmcspec schema DSP8010 Chassis --property PowerState
-bmcspec extract DSP8011                       # unpack the Redfish message registries
+bmcspec schema DSP8010 Chassis --property PowerState   # the JSON Schema bundle, fetched and unpacked as needed
 bmcspec registry DSP8011 Base PropertyValueTypeError
 bmcspec schema DSP8013 RedfishInteroperabilityProfile --definition ReadRequirement
 bmcspec repos --topic redfish                # repositories and held Code Trees
@@ -159,11 +156,13 @@ one Library), flags, output formats and `config.toml`:
 - Downloads only URLs listed in the Source Catalog, the publisher's first
   and then the Internet Archive's snapshot of it; a manual document is
   never requested, and a response that is not the expected PDF or ZIP is
-  discarded.
+  discarded. A reading command downloads the version it answers from when
+  the Library lacks it (`offline = true` in `config.toml` stops that).
 - Writes only under the Library and replaces nothing there without
   `--force`. From a Redfish ZIP bundle only the schema or registry files an
   answer needs are unpacked.
-- `check` and `refresh` read publisher listing pages and download no
+- `check`, `refresh` and a reading command whose document is due for a
+  check (once per 30 days) read publisher listing pages and download no
   document. `refresh --write` is the one command that writes outside the
   Library: it inserts version entries into the catalog file it was given.
 - Runs `git` as a subprocess for `clone`, `grep` and `code`, and

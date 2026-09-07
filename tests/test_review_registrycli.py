@@ -384,10 +384,13 @@ def test_ac8_full_message_id_arguments_added_and_deprecated(held, catalog_file, 
 def test_ac8_version_picks_the_bundle_and_the_default_is_the_latest_held(
     held, catalog_file, library, tmp_path, capsys
 ):
-    # only 2026.2 is held: it is the default
+    # only 2026.2 is held: the catalog's 2026.1 cannot be fetched (no
+    # route), so 2026.2 answers behind a note (fewer round trips change)
     code, out = registry(capsys, catalog_file)
     assert code == 0, out
-    assert out.splitlines()[0] == "Base\t1.10.0\t4 messages"
+    assert out.splitlines()[0].startswith("note: could not fetch BUNDLE 2026.1: ")
+    assert out.splitlines()[0].endswith("; answering from held 2026.2")
+    assert out.splitlines()[1] == "Base\t1.10.0\t4 messages"
     add(
         capsys,
         catalog_file,
@@ -483,12 +486,11 @@ def test_ac9_pdf_and_unextracted_bundle_get_the_pointers_schema_gives(
     assert code == 2
     assert schema_out.replace("schema bundle", "registries bundle") == out
     add(capsys, catalog_file, registries_zip(tmp_path / "reg.zip"), "2026.5")
+    # fewer round trips change: registry unpacks the bundle itself
     code, out = registry(capsys, catalog_file, "--version", "2026.5")
-    assert code == 2
-    assert out.strip() == (
-        "BUNDLE 2026.5 is not extracted, or was unpacked by an older version; run: "
-        'bmcspec extract BUNDLE --version "2026.5"'
-    )
+    assert code == 0, out
+    assert out.splitlines()[0].startswith("extracted BUNDLE 2026.5: ")
+    assert out.splitlines()[1].startswith("Base\t")
 
 
 def test_ac9_a_registry_file_that_is_not_json_is_exit_1_and_names_the_file(
