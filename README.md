@@ -40,9 +40,9 @@ checkout run `pip install -r requirements.txt` yourself.
 - `curl_cffi` (MIT): HTTP client with a browser TLS fingerprint. Without it
   the tool falls back to `urllib`: Intel documents then come from the
   Internet Archive instead of the publisher, OCP documents still download
-  directly.
+  directly (both verified).
 - `pypdfium2` 5.x (BSD-3-Clause or Apache-2.0): PDF text with character
-  positions and bookmarks; `extract` refuses anything older than 5.0.
+  positions and bookmarks; older than 5.0 is refused (bookmark API change).
 - `pdfplumber` (MIT): cell geometry and cell text of tables (ruled, and
   drawn as cell boxes), for `table`; loaded only by that command.
 

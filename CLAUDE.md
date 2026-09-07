@@ -13,10 +13,10 @@ install), `tests/`.
 
 ## How changes land
 
-The maintainer's changes go through revali: acceptance criteria approved by
-the owner before any code, an independent review with its own tests, and a
-sandbox validation, then a squash merge. Contributors without that tooling
-open a pull request; the checks in `.github/workflows/test.yml` and the
-rules in CONVENTIONS.md are what a review looks for.
+The maintainer's changes go through acceptance criteria approved by the
+owner before any code, an independent review with its own tests, and a
+sandbox validation, then a squash merge. Contributors open a pull request;
+the checks in `.github/workflows/test.yml` and the rules in CONVENTIONS.md
+are what a review looks for.
 
 @CONVENTIONS.md
