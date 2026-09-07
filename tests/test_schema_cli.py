@@ -217,11 +217,14 @@ def test_schema_error_paths(held, catalog_file, capsys):
     both = ["Thing", "--property", "a", "--definition", "b"]
     code, out = schema(capsys, catalog_file, *both)
     assert code == 2 and out.strip() == "give --property or --definition, not both"
-    # not in the Library: schema downloads it itself (no route here)
+    # not in the Library, and the catalog says it is a PDF: schema points
+    # to the text commands without downloading it (round 1, F7)
     code, out = run(capsys, "schema", "IPMI", catalog_file=catalog_file)
     assert code == 2
-    assert "failed IPMI 2.0 rev 1.1" in out.splitlines()
-    assert "Then run: bmcspec scan" in out
+    assert out.strip() == (
+        "IPMI 2.0 rev 1.1 is a PDF document, not a bundle; read it with: "
+        "bmcspec find IPMI PATTERN, or: bmcspec page IPMI N"
+    )
 
 
 def test_schema_refuses_pdfs_and_unextracted_bundles(

@@ -329,7 +329,8 @@ def test_fetch_and_status_print_the_freshness_note(
     code, out = run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
     lines = out.splitlines()  # the fake PDF cannot be extracted; no note
     assert lines[0] == "skipped DSP0236 1.3.3: already in Library"
-    assert lines[1].startswith("failed DSP0236 1.3.3: ") and len(lines) == 2
+    assert lines[1].startswith("failed DSP0236 1.3.3: ")
+    assert lines[2] == "run: bmcspec extract DSP0236" and len(lines) == 3
     code, out = run(capsys, "status", catalog_file=catalog_file)
     assert "note:" not in out
     # 31 days later, with the default age

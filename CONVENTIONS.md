@@ -31,7 +31,8 @@ Things a linter cannot check; formatting is not listed.
   when the `plugin.json` version changes. Bump in a change that alters what
   an installed user gets: code under `bmc_toolkit/`, the Source Catalog,
   SKILL.md, hooks. A change that touches only README, `docs/`, tests or CI
-  does not bump.
+  does not bump. Bumps start with the first tag: until `bmc-toolkit--v1.0.0`
+  exists, every change lands in 1.0.0.
 - Major: the Library's disk format is no longer read by the previous version,
   or a command is removed. Minor: a new command, flag, exit code or catalog
   document. Patch: fixes and wording.

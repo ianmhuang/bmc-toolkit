@@ -17,10 +17,10 @@ from bmc_toolkit.spec import freshness as F
 from bmc_toolkit.spec import listing as L
 from bmc_toolkit.spec.cli import main
 from tests import pdfgen
-from tests.conftest import MINI_CATALOG, PDF_BYTES, ok, wayback_hit
+from tests.conftest import MINI_CATALOG, PDF_BYTES, ZIP_BYTES, ok, wayback_hit
 from tests.test_bundle import bundle_bytes
 from tests.test_listing import DMTF_PUBLISHED_HTML
-from tests.test_lock import fake_lock
+from tests.test_lock import backdate, fake_lock
 
 pytest.importorskip("pypdfium2")
 
@@ -29,6 +29,7 @@ SKILL = ROOT / "skills" / "bmc-spec" / "SKILL.md"
 URL = "https://example.test/DSP0236_1.3.3.pdf"
 OLD_URL = "https://example.test/DSP0236_1.3.2.pdf"
 BUNDLE_URL = "https://example.test/bundle_2026.1.zip"
+WIP_URL = "https://example.test/DSP0236_1.4.0.pdf"
 # The real after-output check, captured before conftest's autouse fixture
 # replaces it for the tests that do not want the network.
 CHECK_WHEN_DUE = cli._check_when_due
@@ -524,6 +525,7 @@ def test_fetch_reports_a_failed_extraction_and_keeps_the_download(
     lines = out.splitlines()
     assert lines[1] == "fetched DSP0236 1.3.3 via direct"
     assert lines[2].startswith("failed DSP0236 1.3.3: ")
+    assert lines[3] == "run: bmcspec extract DSP0236"
     vdir = library.specs / "mctp" / "DSP0236" / "1.3.3"
     assert (vdir / "original.pdf").read_bytes() == PDF_BYTES
     assert not (vdir / "extract.txt").exists()
@@ -579,3 +581,154 @@ def test_docs_describe_ready_and_offline():
     assert "--no-extract" in commands
     assert "note: newer" in commands
     assert "Claude->>CLI: fetch" not in readme  # the diagram starts by locating
+
+
+# ------------------------------------------------- review round 1 findings
+
+
+def test_fetch_prints_the_extract_command_after_a_failed_extraction(
+    catalog_file, library, scripted, capsys, monkeypatch
+):
+    """F1, F2: the failed line is followed by the command to run again; the
+    exit code stays 0 (the owner's call, written into AC-7), for a broken
+    PDF and for a missing dependency alike."""
+    scripted.responses[OLD_URL] = ok(PDF_BYTES)  # not a PDF pypdfium2 can open
+    code, out = run(
+        capsys, "fetch", "DSP0236", "--version", "1.3.2", catalog_file=catalog_file
+    )
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[1] == "fetched DSP0236 1.3.2 via direct"
+    assert lines[2].startswith("failed DSP0236 1.3.2: ")
+    assert lines[3] == "run: bmcspec extract DSP0236 --version 1.3.2"
+    from bmc_toolkit.spec import extract as extract_mod
+
+    def no_package(path):
+        raise ImportError("No module named 'pypdfium2'")
+
+    monkeypatch.setattr(extract_mod, "extract_pdf", no_package)
+    scripted.responses[URL] = ok(PDF_BYTES)
+    code, out = run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0] == "fetched DSP0236 1.3.3 via direct"
+    assert lines[1] == (
+        "failed DSP0236 1.3.3: No module named 'pypdfium2'; "
+        "run: pip install -r requirements.txt"
+    )
+    assert lines[2] == "run: bmcspec extract DSP0236"
+
+
+def test_a_companion_note_is_never_prefixed_twice(library, scripted, tmp_path, capsys):
+    """F3: a companion line that is already a note (a stale lock taken
+    over) keeps a single prefix."""
+    from tests.test_search_cli import COMPANION_CATALOG, IPMI_URL, UPDATE_URL
+
+    cat = tmp_path / "companion.toml"
+    cat.write_text(COMPANION_CATALOG, encoding="utf-8", newline="")
+    scripted.responses[IPMI_URL] = ok(pdf_bytes(tmp_path, "i.pdf", ["Get Device ID"]))
+    scripted.responses[UPDATE_URL] = ok(
+        pdf_bytes(tmp_path, "u.pdf", ["Get Device ID errata"])
+    )
+    code, out = run(capsys, "find", "IPMI", "get device id", catalog_file=cat)
+    assert code == 0, out
+    vdir = next((library.specs / "ipmi" / "IPMI-UPDATE").glob("*"))
+    (vdir / "extract.txt").unlink()  # not Ready any more
+    fake_lock(vdir, command="extract IPMI-UPDATE Errata 7")
+    backdate(vdir / ".lock", 10**6)
+    code, out = run(
+        capsys, "--wait", "0", "find", "IPMI", "get device id", catalog_file=cat
+    )
+    assert code == 0, out
+    lines = out.splitlines()
+    assert any(line.startswith("note: took over a stale lock") for line in lines), out
+    assert any(line.startswith("note: extracted IPMI-UPDATE") for line in lines), out
+    assert "note: note:" not in out
+
+
+def test_the_fallback_prefers_a_released_version_over_a_held_wip(
+    catalog_file, library, scripted, tmp_path, capsys
+):
+    """F4: when Latest cannot be fetched, a held WIP version answers only
+    when nothing released is held."""
+    scripted.responses[OLD_URL] = ok(pdf_bytes(tmp_path, "old.pdf", ["released text"]))
+    scripted.responses[WIP_URL] = ok(pdf_bytes(tmp_path, "wip.pdf", ["wip text"]))
+    run(capsys, "fetch", "DSP0236", "--version", "1.3.2", catalog_file=catalog_file)
+    run(capsys, "fetch", "DSP0236", "--version", "1.4.0", catalog_file=catalog_file)
+    code, out = run(capsys, "page", "DSP0236", "1", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.splitlines()[0].endswith("; answering from held 1.3.2"), out
+    assert "released text" in out and "wip text" not in out
+    for p in (library.specs / "mctp" / "DSP0236" / "1.3.2").rglob("*"):
+        if p.is_file():
+            p.unlink()
+    code, out = run(capsys, "page", "DSP0236", "1", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.splitlines()[0].endswith("; answering from held 1.4.0"), out
+    assert "wip text" in out
+
+
+def test_a_bundle_with_nothing_to_unpack_gets_a_closing_line(
+    catalog_file, library, scripted, capsys
+):
+    """F5: a skipped unpack that leaves nothing to read ends with a line
+    that matches the exit code."""
+    scripted.responses[BUNDLE_URL] = ok(ZIP_BYTES, "application/zip")
+    code, out = run(capsys, "schema", "BUNDLE", catalog_file=catalog_file)
+    assert code == 1, out
+    lines = out.splitlines()
+    assert lines[1] == "fetched BUNDLE 2026.1 via direct"
+    assert lines[2].startswith("skipped BUNDLE 2026.1: no json-schema/ folder")
+    assert lines[3] == "cannot read BUNDLE 2026.1: nothing to extract"
+    assert len(lines) == 4
+
+
+def test_a_command_of_the_other_kind_refuses_before_downloading(
+    catalog_file, library, scripted, capsys
+):
+    """F7: the catalog knows the file type, so a text command on a bundle
+    (or schema/registry on a PDF) points to the right command without a
+    download."""
+    code, out = run(capsys, "schema", "DSP0236", catalog_file=catalog_file)
+    assert code == 2, out
+    assert out.splitlines()[-1] == (
+        "DSP0236 1.3.3 is a PDF document, not a bundle; read it with: "
+        "bmcspec find DSP0236 PATTERN, or: bmcspec page DSP0236 N"
+    )
+    code, out = run(capsys, "registry", "DSP0236", catalog_file=catalog_file)
+    assert code == 2 and "is a PDF document" in out, out
+    text_commands = dict(READING, table=["table", "DSP0236", "--page", "1"])
+    for command, argv in sorted(text_commands.items()):
+        argv = [argv[0], "BUNDLE", *argv[2:]]
+        code, out = run(capsys, *argv, catalog_file=catalog_file)
+        assert code == 2, (command, out)
+        assert out.splitlines()[-1] == (
+            "BUNDLE 2026.1 is a zip bundle; its schemas are read with: "
+            "bmcspec schema BUNDLE, its registries with: bmcspec registry BUNDLE"
+        ), (command, out)
+    assert scripted.calls == []
+    assert not (library.specs / "mctp" / "BUNDLE").exists()
+
+
+def test_a_failed_stamp_does_not_hide_the_check(
+    library, scripted, tmp_path, checking, capsys, monkeypatch
+):
+    """F8: when freshness.json cannot be written, the check's outcome is
+    still printed and the write failure is a note of its own."""
+    cat = tmp_path / "older.toml"
+    cat.write_text(OLDER_CATALOG, encoding="utf-8", newline="")
+    scripted.responses[OLD_URL] = ok(pdf_bytes(tmp_path, "old.pdf", ["old text"]))
+    scripted.responses[L.DMTF_PUBLISHED] = html(DMTF_PUBLISHED_HTML)
+
+    def refuse(self):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(F.Freshness, "save", refuse)
+    code, out = run(capsys, "page", "DSP0236", "1", catalog_file=cat)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[-2] == "note: could not record the check of DSP0236: disk full"
+    assert lines[-1].startswith(
+        "note: newer DSP0236: catalog latest 1.3.2, DMTF lists 1.3.3"
+    )
+    assert not (library.root / F.FRESHNESS_NAME).exists()

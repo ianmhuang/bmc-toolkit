@@ -72,10 +72,7 @@ SCHEMAS = {
                         "longDescription": "This property shall contain the state.",
                     },
                     "Kind": {
-                        "anyOf": [
-                            {"$ref": "#/definitions/WidgetType"},
-                            {"type": "null"},
-                        ],
+                        "anyOf": [{"$ref": "#/definitions/WidgetType"}, {"type": "null"}],
                         "readonly": True,
                         "description": "The kind.",
                     },
@@ -161,13 +158,7 @@ ESCAPES = {
     "/json-schema/abs.json": b"{}",
 }
 
-KEPT = [
-    "Resource.json",
-    "Widget.json",
-    NEWEST,
-    "WidgetCollection.json",
-    "odata-v4.json",
-]
+KEPT = ["Resource.json", "Widget.json", NEWEST, "WidgetCollection.json", "odata-v4.json"]
 
 # A second json-schema folder later in the archive with a base name the first
 # folder already has; the first member must win and the second be counted.
@@ -508,18 +499,14 @@ def test_definitions_of_an_index_file_without_a_main_definition(
     code, out = schema(capsys, catalog_file, "resource", "--definition", "powerstate")
     assert code == 0, out
     lines = out.splitlines()
-    assert lines[0] == cite(
-        held, "Resource", "Resource.json", "#/definitions/PowerState"
-    )
+    assert lines[0] == cite(held, "Resource", "Resource.json", "#/definitions/PowerState")
     assert out.count("cite: ") == 1  # the enum is the definition itself
     assert "values:" in lines
     assert "  On: Powered on." in lines
     assert "  Paused: Paused. (added v1.13.0)" in lines
     code, out = schema(capsys, catalog_file, "odata-v4", "--definition", "id")
     assert code == 0, out
-    assert out.splitlines()[0] == cite(
-        held, "odata-v4", "odata-v4.json", "#/definitions/id"
-    )
+    assert out.splitlines()[0] == cite(held, "odata-v4", "odata-v4.json", "#/definitions/id")
     code, out = schema(capsys, catalog_file, "Resource", "--definition", "Nope")
     assert code == 2, out
     assert "Nope" in out and "schema BUNDLE Resource" in out
@@ -578,10 +565,7 @@ def test_every_block_starts_with_a_cite_line_of_seven_fields(
         assert fields[6] == str(held)
     code, out = schema(capsys, catalog_file, "WidgetCollection")
     assert out.splitlines()[0] == cite(
-        held,
-        "WidgetCollection",
-        "WidgetCollection.json",
-        "#/definitions/WidgetCollection",
+        held, "WidgetCollection", "WidgetCollection.json", "#/definitions/WidgetCollection"
     )
     code, out = schema(capsys, catalog_file, "Widget", "--property", "Ratio")
     assert out.count("cite: ") == 1  # no enum followed: one cite line only
@@ -621,9 +605,9 @@ def test_schema_refuses_a_pdf_and_an_unextracted_bundle(
     assert "find" in out and "page" in out
     code, out = run(capsys, catalog_file, "schema", "IPMI")
     assert code == 2
-    # fewer round trips change: the download is tried (no route) and the
-    # save path printed instead of a fetch hint
-    assert "IPMI" in out and "scan" in out
+    # fewer round trips change (round 1, F7): the catalog says IPMI is a
+    # PDF, so schema points to find/page without a download
+    assert "IPMI" in out and "is a PDF document" in out
 
 
 # ------------------------------------------------------------------- AC-8

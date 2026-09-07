@@ -23,10 +23,14 @@ command downloads it exactly as `fetch` would (same client, same lock,
 `fetched DOC V via ...` as the first output line), extracts it
 (`extracted ...` next) and then answers; a held version whose Extract is
 stale is extracted again first; a Ready version answers at once, with no
-extra lines. A download that fails while an older version of the document
-is held prints `note: could not fetch DOC V: <reason>; answering from held
-W` and answers from W (exit 0, the Citation names W); with nothing held it
-is exit 2 with the browser URL and the save path, as `fetch` prints. A
+extra lines. A text command on a document the catalog lists as a bundle,
+or `schema` / `registry` on a PDF, is refused before any download with
+the command that reads it. A download that fails while an older version
+of the document is held prints `note: could not fetch DOC V: <reason>;
+answering from held W` and answers from W (exit 0, the Citation names W;
+a held WIP version is used only when no released one is held); with
+nothing held it is exit 2 with the browser URL and the save path, as
+`fetch` prints. A
 gated, member or confidential version is exit 2 with the Drop-in
 instruction, a manual document without versions exit 2 with the `add`
 instruction, and another Session downloading or extracting the same
@@ -41,9 +45,9 @@ Freshness Check when it is due, see below.
 Ready: after the `fetched` or `skipped` line it extracts the PDF or unpacks
 the bundle and prints the `extracted` line (`skipped ...: already
 extracted` when current); `--no-extract` stops after the download. A
-failed extraction is printed as `failed DOC V: ...` with the command to
-run again, and the exit code stays 0 because the download landed. `fetch
---all` downloads only, as before. Nothing in the answering workflow needs
+failed extraction, or a missing dependency, is printed as `failed DOC V:
+...` followed by `run: bmcspec extract DOC`, and the exit code stays 0
+because the download landed. `fetch --all` downloads only, as before. Nothing in the answering workflow needs
 `fetch`; it is for prefetching a document you name, and for `--all`.
 
 `find` searches the catalog's latest version (or `--version`),

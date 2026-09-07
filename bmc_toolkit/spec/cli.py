@@ -500,13 +500,18 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         if code == EXIT_OK and not args.no_extract:
             # Leave the version Ready: the Extract (or the unpacked bundle)
             # current, so a hand-run fetch answers at once. A failed
-            # extraction is printed with the command to run again; the
-            # download itself landed, so the exit code stays 0.
+            # extraction, or a missing dependency, is printed with the
+            # command to run again; the download itself landed, so the
+            # exit code stays 0 in both cases.
             holding = library.find(doc.id, ver.version)
             if holding is not None and _is_ready(holding):
                 print(f"skipped {doc.id} {ver.version}: already extracted")
-            elif holding is not None and _make_current(args, holding) == "busy":
-                return EXIT_BUSY
+            elif holding is not None:
+                state = _make_current(args, holding)
+                if state == "busy":
+                    return EXIT_BUSY
+                if state != "ready":
+                    print(_extract_hint(doc.id, args.doc_version))
         _freshness_notes(catalog, library, [doc.id])
         return code
 
@@ -1113,7 +1118,13 @@ def _make_current(args: argparse.Namespace, holding) -> str:
     outcome = _extract_locked(args, holding, force=False)
     if outcome in _READY_EXIT:
         return outcome
-    return "ready" if _is_ready(holding) else "failed"
+    if _is_ready(holding):
+        return "ready"
+    # skipped, and still not Ready: the original is not something the
+    # tool extracts (an archive without schemas or registries, a file that
+    # is neither PDF nor ZIP); the exit code gets a line of its own.
+    print(f"cannot read {holding.document} {holding.version}: nothing to extract")
+    return "failed"
 
 
 # ------------------------------------------------------------ reading
@@ -1122,6 +1133,37 @@ def _make_current(args: argparse.Namespace, holding) -> str:
 def _fetch_hint(name: str, version: str | None) -> str:
     flag = f" --version {_shell_quote(version)}" if version else ""
     return f"run: bmcspec fetch {name}{flag}"
+
+
+def _extract_hint(name: str, version: str | None) -> str:
+    flag = f" --version {_shell_quote(version)}" if version else ""
+    return f"run: bmcspec extract {name}{flag}"
+
+
+def _wrong_kind(name: str, version: str, file_type: str, kind: str) -> str:
+    """A command met a catalog version of the other file type, before any
+    download: the command that reads it."""
+    if kind == "pdf":
+        return (
+            f"{name} {version} is a {file_type} bundle; its schemas are read "
+            f"with: bmcspec schema {name}, its registries with: bmcspec "
+            f"registry {name}"
+        )
+    return (
+        f"{name} {version} is a {file_type.upper()} document, not a bundle; "
+        f"read it with: bmcspec find {name} PATTERN, or: bmcspec page {name} N"
+    )
+
+
+def _released(doc: Document, held):
+    """The held versions the catalog does not mark WIP (versions it does not
+    list count as released)."""
+    kept = []
+    for h in held:
+        ver = doc.find_version(h.version)
+        if ver is None or not ver.wip:
+            kept.append(h)
+    return kept
 
 
 def _nothing_to_read(name: str, doc: Document | None) -> str:
@@ -1152,13 +1194,17 @@ def _unknown_version(name: str, requested: str, doc: Document | None, held) -> s
     )
 
 
-def _ready_holding(args: argparse.Namespace, doc_id: str, requested):
+def _ready_holding(
+    args: argparse.Namespace, doc_id: str, requested, kind: str | None = None
+):
     """(holding, document, exit code): the version a reading command answers
     from, downloaded when the Library lacks it: the version asked for, else
     the catalog's Latest, else (offline, or the download failed) the newest
-    held version with a note. ``holding`` is None when a message was
-    printed; the code is then 2 (the user must act) or 3 (busy). Whether
-    the holding is extracted is ``_make_current``'s business."""
+    held version with a note. ``kind`` (pdf or zip) is what the command
+    reads; a catalog version of the other type is refused before any
+    download. ``holding`` is None when a message was printed; the code is
+    then 2 (the user must act) or 3 (busy). Whether the holding is
+    extracted is ``_make_current``'s business."""
     catalog = _load(args)
     library = Library(resolve_library())
     doc = catalog.get(doc_id)
@@ -1189,8 +1235,12 @@ def _ready_holding(args: argparse.Namespace, doc_id: str, requested):
         holding = next((h for h in held if h.version == ver.version), None)
         if holding is not None:
             return holding, doc, EXIT_OK
-        fallback = _latest_held(doc, held)
+        # A held WIP version answers only when nothing released is held.
+        fallback = _latest_held(doc, _released(doc, held)) or _latest_held(doc, held)
     # The version to read is not held.
+    if kind is not None and (ver.type == "zip") != (kind == "zip"):
+        print(_wrong_kind(name, ver.version, ver.type, kind))
+        return None, doc, EXIT_ACTION
     if offline:
         if fallback is not None:
             print(
@@ -1250,7 +1300,7 @@ def _open_version(args: argparse.Namespace):
     """(Version, document, exit code): a loaded version or the code to return.
     The version is brought to Ready first: downloaded when the Library lacks
     it, extracted when its Extract is not current."""
-    holding, doc, code = _ready_holding(args, args.document, args.doc_version)
+    holding, doc, code = _ready_holding(args, args.document, args.doc_version, "pdf")
     if holding is None:
         return None, doc, code
     if holding.original.suffix.lower() != ".pdf":
@@ -1299,14 +1349,14 @@ def cmd_find(args: argparse.Namespace) -> int:
             # and a companion that cannot be read is left out.
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
-                holding, _, _ = _ready_holding(args, other, None)
+                holding, _, _ = _ready_holding(args, other, None, "pdf")
                 if holding is not None and holding.original.suffix.lower() != ".pdf":
                     print(_bundle_pointer(holding))
                     holding = None
                 elif holding is not None and _make_current(args, holding) != "ready":
                     holding = None
             for line in buffer.getvalue().splitlines():
-                print(f"note: {line}")
+                print(line if line.startswith("note: ") else f"note: {line}")
             if holding is None:
                 continue
             try:
@@ -1942,7 +1992,9 @@ def cmd_schema(args: argparse.Namespace) -> int:
     if args.property and args.definition:
         print("give --property or --definition, not both")
         return EXIT_ACTION
-    holding, catalog_doc, code = _ready_holding(args, args.document, args.doc_version)
+    holding, catalog_doc, code = _ready_holding(
+        args, args.document, args.doc_version, "zip"
+    )
     if holding is None:
         return code
     label = f"{holding.document} {holding.version}"
@@ -2075,7 +2127,9 @@ def _label(section) -> str | None:
 
 
 def cmd_registry(args: argparse.Namespace) -> int:
-    holding, catalog_doc, code = _ready_holding(args, args.document, args.doc_version)
+    holding, catalog_doc, code = _ready_holding(
+        args, args.document, args.doc_version, "zip"
+    )
     if holding is None:
         return code
     label = f"{holding.document} {holding.version}"
@@ -2288,11 +2342,14 @@ def _check_when_due(args: argparse.Namespace) -> None:
         return
     try:
         check = fresh_mod.check_document(doc, listing_mod.Listings(CLIENT_FACTORY()))
-        state.record(check)
-        state.save()
     except Exception as exc:  # noqa: BLE001 - the note must not fail the answer
         print(f"note: unreachable {doc.id}: {exc}")
         return
+    try:
+        state.record(check)
+        state.save()
+    except Exception as exc:  # noqa: BLE001 - a lost stamp is a note of its own
+        print(f"note: could not record the check of {doc.id}: {exc}")
     if check.status == "newer":
         listed = "; ".join(_seen_line(doc, s) for s in check.newer)
         print(
