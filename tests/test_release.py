@@ -34,7 +34,13 @@ def test_readme_status_is_the_release():
     """AC-2: the status paragraph names the package version and README no
     longer calls the plugin a pre-release."""
     readme = (ROOT / "README.md").read_text("utf-8")
-    status = next(ln for ln in readme.splitlines() if ln.startswith("**Status:"))
+    status = next(
+        (ln for ln in readme.splitlines() if ln.startswith("**Status:")), None
+    )
+    assert status is not None, "README has no '**Status:' line"
+    # The bold form is fixed; the number inside it is the package's, so a
+    # pre-release suffix or a second version on the line fails too.
+    assert status.startswith(f"**Status: {VERSION}.**"), status
     assert re.findall(r"\d+\.\d+\.\d+", status) == [VERSION], status
     assert "pre-release" not in readme.lower()
 
