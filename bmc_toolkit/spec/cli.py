@@ -502,7 +502,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             # current, so a hand-run fetch answers at once. A failed
             # extraction, or a missing dependency, is printed with the
             # command to run again; the download itself landed, so the
-            # exit code stays 0 in both cases.
+            # exit code stays 0 in both cases. An archive with nothing to
+            # unpack ends at its `skipped` line: extracting it again would
+            # skip it again.
             holding = library.find(doc.id, ver.version)
             if holding is not None and _is_ready(holding):
                 print(f"skipped {doc.id} {ver.version}: already extracted")
@@ -510,7 +512,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
                 state = _make_current(args, holding)
                 if state == "busy":
                     return EXIT_BUSY
-                if state != "ready":
+                if state in ("failed", "unmet"):
                     print(_extract_hint(doc.id, args.doc_version))
         _freshness_notes(catalog, library, [doc.id])
         return code
@@ -1106,25 +1108,36 @@ def _is_ready(holding) -> bool:
     return extract_mod.is_current(holding.path)
 
 
-_READY_EXIT = {"busy": EXIT_BUSY, "failed": EXIT_ERROR, "unmet": EXIT_ACTION}
+_READY_EXIT = {
+    "busy": EXIT_BUSY,
+    "failed": EXIT_ERROR,
+    "unmet": EXIT_ACTION,
+    "nothing": EXIT_ERROR,
+}
 
 
 def _make_current(args: argparse.Namespace, holding) -> str:
     """Bring a held version to Ready: extract the PDF or unpack the bundle
     under the version directory's lock when it is not current, printing the
-    ``extracted`` line. Returns ready | busy | failed | unmet."""
+    ``extracted`` line. Returns ready | busy | failed | unmet | nothing
+    (skipped, and still not Ready: the original is not something the tool
+    extracts, such as an archive without schemas or registries or a file
+    that is neither PDF nor ZIP; the ``skipped`` line said why)."""
     if _is_ready(holding):
         return "ready"
     outcome = _extract_locked(args, holding, force=False)
     if outcome in _READY_EXIT:
         return outcome
-    if _is_ready(holding):
-        return "ready"
-    # skipped, and still not Ready: the original is not something the
-    # tool extracts (an archive without schemas or registries, a file that
-    # is neither PDF nor ZIP); the exit code gets a line of its own.
-    print(f"cannot read {holding.document} {holding.version}: nothing to extract")
-    return "failed"
+    return "ready" if _is_ready(holding) else "nothing"
+
+
+def _not_ready(holding, state: str) -> int:
+    """The exit code of a reading command whose version could not be made
+    Ready; ``nothing`` gets a closing line of its own, the other outcomes
+    were printed by the extraction."""
+    if state == "nothing":
+        print(f"cannot read {holding.document} {holding.version}: nothing to extract")
+    return _READY_EXIT[state]
 
 
 # ------------------------------------------------------------ reading
@@ -1308,7 +1321,7 @@ def _open_version(args: argparse.Namespace):
         return None, doc, EXIT_ACTION
     state = _make_current(args, holding)
     if state != "ready":
-        return None, doc, _READY_EXIT[state]
+        return None, doc, _not_ready(holding, state)
     try:
         version = search_mod.load_version(holding)
     except search_mod.SearchError as exc:
@@ -2007,7 +2020,7 @@ def cmd_schema(args: argparse.Namespace) -> int:
         return EXIT_ACTION
     state = _make_current(args, holding)
     if state != "ready":
-        return _READY_EXIT[state]
+        return _not_ready(holding, state)
     if not bundle_mod.is_current(holding.path):
         print(
             f"{label} is a registries bundle, not a schema bundle; read it with: "
@@ -2142,7 +2155,7 @@ def cmd_registry(args: argparse.Namespace) -> int:
         return EXIT_ACTION
     state = _make_current(args, holding)
     if state != "ready":
-        return _READY_EXIT[state]
+        return _not_ready(holding, state)
     if not registry_mod.is_current(holding.path):
         print(
             f"{label} is a schema bundle, not a registries bundle; read it with: "

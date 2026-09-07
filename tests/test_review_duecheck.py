@@ -377,4 +377,6 @@ def test_r1_a_failed_stamp_is_a_note_and_the_outcome_is_still_printed(
         "note: newer DSP0236: catalog latest 1.3.2, DMTF lists 1.3.3"
     )
     assert not checked(library)
-    assert not (library.specs / "mctp" / "DSP0236" / "1.3.3").exists()
+    # validation round 2: the `ready` fixture put 1.3.3 in the Library, so
+    # the check made no download is what can be asserted
+    assert URL_133 not in scripted.calls

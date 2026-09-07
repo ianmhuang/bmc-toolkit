@@ -395,7 +395,8 @@ def test_ac7_a_failed_extraction_after_a_good_download_keeps_the_download(
     assert lines[0] == "fetched DSP0236 1.3.3 via direct"
     assert lines[1].startswith("failed DSP0236 1.3.3: ")
     assert lines[2] == "run: bmcspec extract DSP0236"
-    assert len(lines) == 3, out
+    # validation round 2: fetch keeps its "run: bmcspec check" note (AC-5)
+    assert len([ln for ln in lines if not ln.startswith("note:")]) == 3, out
     assert (vdir(library) / "original.pdf").read_bytes() == PDF_BYTES
     assert not (vdir(library) / "extract.txt").exists()
     # a reading command meeting the same file reports the failure with a
@@ -453,7 +454,10 @@ def test_r1_the_fallback_prefers_a_released_held_version_over_a_wip_one(
     assert lines[0].endswith("; answering from held 1.3.2")
     assert cite_version(out) == "DSP0236 1.3.2"
     assert "released" in out and "wip" not in out
-    assert scripted.calls == [URL_133]
+    # validation round 2: a direct fetch that fails goes on to the Wayback
+    # probe, the same chain as `fetch` (AC-1); only 1.3.3 was tried
+    assert scripted.calls[0] == URL_133
+    assert all("DSP0236_1.3.3" in call for call in scripted.calls)
     # with nothing released held, the WIP version is what there is
     for path in vdir(library, "1.3.2").rglob("*"):
         if path.is_file():
@@ -515,13 +519,15 @@ def test_r1_a_bundle_with_nothing_to_unpack_says_why_the_command_failed(
     assert lines[1].startswith("skipped BUNDLE 2026.1: ")
     assert lines[2] == "cannot read BUNDLE 2026.1: nothing to extract"
     assert len(lines) == 3, out
-    # held now: fetch says skipped, then the same closing line, exit 0
+    # held now: fetch says skipped twice and stops there, exit 0 (round 2,
+    # F9: no closing line and no extract hint for an archive that
+    # extracting again would skip again)
     code, out = run(capsys, "fetch", "BUNDLE", catalog_file=catalog_file)
     assert code == 0, out
     lines = [ln for ln in out.splitlines() if not ln.startswith("note:")]
     assert lines[0] == "skipped BUNDLE 2026.1: already in Library"
     assert lines[1].startswith("skipped BUNDLE 2026.1: ")
-    assert "cannot read BUNDLE 2026.1: nothing to extract" in lines
+    assert len(lines) == 2, out
 
 
 def test_r1_a_companion_note_carries_one_prefix(library, scripted, tmp_path, capsys):

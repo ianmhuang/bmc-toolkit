@@ -681,6 +681,14 @@ def test_a_bundle_with_nothing_to_unpack_gets_a_closing_line(
     assert lines[2].startswith("skipped BUNDLE 2026.1: no json-schema/ folder")
     assert lines[3] == "cannot read BUNDLE 2026.1: nothing to extract"
     assert len(lines) == 4
+    # fetch ends at the skipped line: no closing line, no extract hint
+    # (round 2, F9), since extracting again would skip again
+    code, out = run(capsys, "fetch", "BUNDLE", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = [ln for ln in out.splitlines() if not ln.startswith("note:")]
+    assert lines[0] == "skipped BUNDLE 2026.1: already in Library"
+    assert lines[1].startswith("skipped BUNDLE 2026.1: no json-schema/ folder")
+    assert len(lines) == 2, out
 
 
 def test_a_command_of_the_other_kind_refuses_before_downloading(
