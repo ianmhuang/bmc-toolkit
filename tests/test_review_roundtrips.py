@@ -18,14 +18,32 @@ from bmc_toolkit.spec import extract as extract_mod
 from bmc_toolkit.spec import lock as lock_mod
 from bmc_toolkit.spec.cli import main
 from tests import pdfgen
-from tests.conftest import MINI_CATALOG, PDF_BYTES, ok
+from tests.conftest import MINI_CATALOG, PDF_BYTES, ZIP_BYTES, ok
 from tests.test_lock import fake_lock
+from tests.test_search_cli import COMPANION_CATALOG, IPMI_URL, UPDATE_URL
 
 pytest.importorskip("pypdfium2")
 
 URL_133 = "https://example.test/DSP0236_1.3.3.pdf"
 URL_132 = "https://example.test/DSP0236_1.3.2.pdf"
 URL_140 = "https://example.test/DSP0236_1.4.0.pdf"
+BUNDLE_URL = "https://example.test/bundle_2026.1.zip"
+ERRATA_6_URL = "https://example.test/ipmi-update-6.pdf"
+ERRATA_7_URL = UPDATE_URL
+
+# IPMI's companion with two versions: Errata 6 (older) and Errata 7 (Latest).
+TWO_ERRATA_CATALOG = COMPANION_CATALOG.replace(
+    '[[documents.versions]]\nversion = "Errata 7"',
+    "[[documents.versions]]\n"
+    'version = "Errata 6"\n'
+    f'url = "{ERRATA_6_URL}"\n'
+    'type = "pdf"\n'
+    'published = "2014-04-01"\n'
+    "\n"
+    "[[documents.versions]]\n"
+    'version = "Errata 7"',
+)
+assert '"Errata 6"' in TWO_ERRATA_CATALOG
 
 NO_VERSIONS_CATALOG = (
     MINI_CATALOG
@@ -368,16 +386,169 @@ def test_ac7_no_extract_and_fetch_all_stop_after_the_download(
 def test_ac7_a_failed_extraction_after_a_good_download_keeps_the_download(
     catalog_file, library, scripted, capsys
 ):
+    # AC-7 as amended in review round 1: the download landed, so the exit
+    # code is 0; the failure is followed by the extract command to run.
     scripted.responses[URL_133] = ok(PDF_BYTES)  # a PDF no extractor can open
     code, out = run(capsys, "fetch", "DSP0236", catalog_file=catalog_file)
+    assert code == 0, out
     lines = lines_of(out)
     assert lines[0] == "fetched DSP0236 1.3.3 via direct"
     assert lines[1].startswith("failed DSP0236 1.3.3: ")
+    assert lines[2] == "run: bmcspec extract DSP0236"
+    assert len(lines) == 3, out
     assert (vdir(library) / "original.pdf").read_bytes() == PDF_BYTES
     assert not (vdir(library) / "extract.txt").exists()
-    # AC-7 asks for exit 1 and a "run: bmcspec extract DSP0236" line here;
-    # the branch keeps exit 0 and prints no such line (see the review
-    # findings), so neither is asserted. A reading command meeting the
-    # same file reports the failure with a non-zero exit.
+    # a reading command meeting the same file reports the failure with a
+    # non-zero exit and no answer
     code, out = run(capsys, "find", "DSP0236", "x", catalog_file=catalog_file)
-    assert code != 0 and out.startswith("failed DSP0236 1.3.3: ")
+    assert code == 1 and out.startswith("failed DSP0236 1.3.3: "), out
+    assert "DSP0236 p." not in out
+
+
+def test_ac7_a_missing_dependency_after_a_good_download_is_exit_0_with_the_hint(
+    catalog_file, library, scripted, tmp_path, capsys, monkeypatch
+):
+    def no_package(path):
+        raise ImportError("No module named 'pypdfium2'")
+
+    monkeypatch.setattr(extract_mod, "extract_pdf", no_package)
+    scripted.responses[URL_132] = ok(pdf(tmp_path, "b.pdf", "1 Intro", "old"))
+    argv = ["fetch", "DSP0236", "--version", "1.3.2"]
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert code == 0, out
+    lines = lines_of(out)
+    assert lines[0] == "fetched DSP0236 1.3.2 via direct"
+    assert lines[1].startswith("failed DSP0236 1.3.2: No module named 'pypdfium2'")
+    assert "pip install -r requirements.txt" in lines[1]
+    # the hint carries the version the user named
+    assert lines[2] == "run: bmcspec extract DSP0236 --version 1.3.2"
+    assert (vdir(library, "1.3.2") / "original.pdf").is_file()
+    assert not (vdir(library, "1.3.2") / "extract.txt").exists()
+    # the same dependency gap inside a reading command is exit 2, as extract
+    code, out = run(
+        capsys, "page", "DSP0236", "1", "--version", "1.3.2", catalog_file=catalog_file
+    )
+    assert code == 2, out
+    assert out.startswith("failed DSP0236 1.3.2: No module named")
+
+
+# ---------------------------------------------- review round 1 fixes
+
+
+def test_r1_the_fallback_prefers_a_released_held_version_over_a_wip_one(
+    catalog_file, library, scripted, tmp_path, capsys
+):
+    """F4 (AC-4): Latest 1.3.3 has no route; 1.4.0 (WIP, dated newest) and
+    1.3.2 (released) are held: the released one answers."""
+    scripted.responses[URL_132] = ok(pdf(tmp_path, "b.pdf", "1 Intro", "released"))
+    scripted.responses[URL_140] = ok(pdf(tmp_path, "w.pdf", "1 Intro", "wip"))
+    for version in ("1.3.2", "1.4.0"):
+        argv = ["fetch", "DSP0236", "--version", version]
+        assert run(capsys, *argv, catalog_file=catalog_file)[0] == 0
+    scripted.calls.clear()
+    code, out = run(capsys, "page", "DSP0236", "1", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith("note: could not fetch DSP0236 1.3.3: ")
+    assert lines[0].endswith("; answering from held 1.3.2")
+    assert cite_version(out) == "DSP0236 1.3.2"
+    assert "released" in out and "wip" not in out
+    assert scripted.calls == [URL_133]
+    # with nothing released held, the WIP version is what there is
+    for path in vdir(library, "1.3.2").rglob("*"):
+        if path.is_file():
+            path.unlink()
+    code, out = run(capsys, "page", "DSP0236", "1", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.splitlines()[0].endswith("; answering from held 1.4.0")
+    assert cite_version(out) == "DSP0236 1.4.0"
+
+
+def test_r1_a_command_of_the_other_kind_is_refused_before_any_download(
+    catalog_file, library, scripted, tmp_path, capsys
+):
+    """F7: the catalog names the file type, so a text command on a bundle
+    and schema/registry on a PDF point to the right command without
+    downloading anything."""
+    scripted.responses[URL_133] = ok(pdf(tmp_path, "a.pdf", "1 Intro", "alpha"))
+    scripted.responses[BUNDLE_URL] = ok(ZIP_BYTES, "application/zip")
+    for argv in (
+        ["find", "BUNDLE", "x"],
+        ["section", "BUNDLE", "x"],
+        ["page", "BUNDLE", "1"],
+        ["render", "BUNDLE", "--page", "1"],
+    ):
+        code, out = run(capsys, *argv, catalog_file=catalog_file)
+        assert code == 2, (argv, out)
+        last = out.splitlines()[-1]
+        assert last.startswith("BUNDLE 2026.1 is a zip bundle")
+        assert "bmcspec schema BUNDLE" in last and "bmcspec registry BUNDLE" in last
+        assert "fetched" not in out
+    for command in ("schema", "registry"):
+        code, out = run(capsys, command, "DSP0236", catalog_file=catalog_file)
+        assert code == 2, (command, out)
+        last = out.splitlines()[-1]
+        assert last.startswith("DSP0236 1.3.3 is a PDF document, not a bundle")
+        assert "bmcspec find DSP0236" in last and "bmcspec page DSP0236" in last
+        assert "fetched" not in out
+    assert scripted.calls == []
+    assert not (library.specs / "mctp" / "BUNDLE").exists()
+    assert not vdir(library).exists()
+    # the refusal names the version asked for as well
+    code, out = run(
+        capsys, "schema", "DSP0236", "--version", "1.3.2", catalog_file=catalog_file
+    )
+    assert code == 2 and "DSP0236 1.3.2 is a PDF document" in out, out
+    assert scripted.calls == []
+
+
+def test_r1_a_bundle_with_nothing_to_unpack_says_why_the_command_failed(
+    catalog_file, library, scripted, capsys
+):
+    """F5: a skipped unpack that leaves nothing to read is closed by a line
+    that matches the exit code, for a reading command and for fetch."""
+    scripted.responses[BUNDLE_URL] = ok(ZIP_BYTES, "application/zip")
+    code, out = run(capsys, "registry", "BUNDLE", catalog_file=catalog_file)
+    assert code == 1, out
+    lines = lines_of(out)
+    assert lines[0] == "fetched BUNDLE 2026.1 via direct"
+    assert lines[1].startswith("skipped BUNDLE 2026.1: ")
+    assert lines[2] == "cannot read BUNDLE 2026.1: nothing to extract"
+    assert len(lines) == 3, out
+    # held now: fetch says skipped, then the same closing line, exit 0
+    code, out = run(capsys, "fetch", "BUNDLE", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = [ln for ln in out.splitlines() if not ln.startswith("note:")]
+    assert lines[0] == "skipped BUNDLE 2026.1: already in Library"
+    assert lines[1].startswith("skipped BUNDLE 2026.1: ")
+    assert "cannot read BUNDLE 2026.1: nothing to extract" in lines
+
+
+def test_r1_a_companion_note_carries_one_prefix(library, scripted, tmp_path, capsys):
+    """F3: a companion line that is already a note (the held-version
+    fallback after a failed download) is not prefixed a second time."""
+    cat = tmp_path / "companions.toml"
+    cat.write_text(TWO_ERRATA_CATALOG, encoding="utf-8", newline="")
+    scripted.responses[IPMI_URL] = ok(
+        pdf(tmp_path, "i.pdf", "1 Intro", "Get Device ID")
+    )
+    scripted.responses[ERRATA_6_URL] = ok(
+        pdf(tmp_path, "e6.pdf", "1 Intro", "Get Device ID errata six")
+    )
+    argv = ["fetch", "IPMI-UPDATE", "--version", "Errata 6"]
+    assert run(capsys, *argv, catalog_file=cat)[0] == 0
+    # Errata 7 (Latest) has no route: the companion answers from Errata 6
+    code, out = run(capsys, "find", "IPMI", "get device id", catalog_file=cat)
+    assert code == 0, out
+    lines = lines_of(out)
+    assert lines[0] == "fetched IPMI 2.0 rev 1.1 via direct"
+    assert lines[1].startswith("extracted IPMI 2.0 rev 1.1")
+    notes = [ln for ln in lines if ln.startswith("note:")]
+    assert len(notes) == 1, out
+    assert notes[0].startswith("note: could not fetch IPMI-UPDATE Errata 7: ")
+    assert notes[0].endswith("; answering from held Errata 6")
+    assert "note: note:" not in out
+    hits = [ln for ln in lines if " p.1 " in ln]
+    assert hits[0].startswith("IPMI-UPDATE p.1 ") and "errata six" in hits[0]
+    assert hits[1].startswith("IPMI p.1 ")
+    assert ERRATA_7_URL in scripted.calls

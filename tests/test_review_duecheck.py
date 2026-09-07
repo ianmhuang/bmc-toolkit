@@ -86,6 +86,15 @@ def freshness(library):
     return json.loads((library.root / F.FRESHNESS_NAME).read_text("utf-8"))
 
 
+def checked(library, document="DSP0236"):
+    """True when a check of the document is recorded (fetch's reminder
+    stamps only ``reminded_at``, which is not a check)."""
+    path = library.root / F.FRESHNESS_NAME
+    if not path.is_file():
+        return False
+    return "checked_at" in freshness(library)["documents"].get(document, {})
+
+
 @pytest.fixture
 def checking(monkeypatch):
     """The after-output Freshness Check, on."""
@@ -289,3 +298,83 @@ def test_ac6_offline_false_and_a_bad_value(
     code, out = run(capsys, "section", "DSP0236", "Intro", catalog_file=catalog_file)
     assert code == 2, out
     assert "offline" in out and "Traceback" not in out
+
+
+def test_ac6_offline_answers_from_an_older_held_version_with_a_note(
+    catalog_file, library, scripted, tmp_path, checking, capsys
+):
+    # AC-6 as amended in review round 1: offline, Latest (1.3.3) not held,
+    # 1.3.2 held and Ready: a note and the answer from 1.3.2, no network,
+    # no due check, exit 0.
+    scripted.responses[URL_132] = ok(pdf(tmp_path, "b.pdf", "1 Intro", "old text"))
+    argv = ["fetch", "DSP0236", "--version", "1.3.2"]
+    assert run(capsys, *argv, catalog_file=catalog_file)[0] == 0
+    scripted.calls.clear()
+    config(library, "[library]\noffline = true\n")
+    scripted.responses[URL_133] = ok(pdf(tmp_path, "a.pdf", "1 Intro", "alpha"))
+    scripted.responses[L.DMTF_PUBLISHED] = html(DMTF_PUBLISHED_HTML)
+    code, out = run(capsys, "page", "DSP0236", "1", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0] == (
+        "note: DSP0236 1.3.3 is not in the Library and the Library is offline; "
+        "answering from held 1.3.2"
+    )
+    assert lines[1].startswith("cite: mctp | DSP0236 1.3.2 | ")
+    assert "old text" in out and "alpha" not in out
+    assert "newer" not in out and "unreachable" not in out
+    assert scripted.calls == []
+    assert not (library.specs / "mctp" / "DSP0236" / "1.3.3").exists()
+    assert not checked(library)
+    # a version the user named is not replaced: exit 2 with the fetch command
+    code, out = run(
+        capsys, "page", "DSP0236", "1", "--version", "1.3.3", catalog_file=catalog_file
+    )
+    assert code == 2, out
+    assert "run: bmcspec fetch DSP0236 --version 1.3.3" in out
+    assert "answering from" not in out and scripted.calls == []
+
+
+# ---------------------------------------------- review round 1 fixes
+
+
+def test_r1_a_failed_stamp_is_a_note_and_the_outcome_is_still_printed(
+    ready, catalog_file, library, scripted, tmp_path, checking, capsys, monkeypatch
+):
+    """F8 (AC-5): freshness.json cannot be written after a successful
+    check: the outcome is printed all the same, the write failure is a
+    note of its own, the exit code stays 0, and the next question checks
+    again because nothing was stamped."""
+    scripted.responses[L.DMTF_PUBLISHED] = html(DMTF_PUBLISHED_HTML)
+
+    def refuse(self):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(F.Freshness, "save", refuse)
+    # current: the write failure is the only note
+    argv = ["find", "DSP0236", "alpha"]
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith("DSP0236 p.1 ") and "alpha" in lines[0]
+    assert lines[1] == "note: could not record the check of DSP0236: disk full"
+    assert len(lines) == 2, out
+    assert "unreachable" not in out
+    assert not checked(library)
+    assert scripted.calls == [L.DMTF_PUBLISHED]
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert code == 0 and scripted.calls == [L.DMTF_PUBLISHED] * 2
+    # newer: the write failure and then the newer note, in that order
+    cat = tmp_path / "older.toml"
+    cat.write_text(OLDER_CATALOG, encoding="utf-8", newline="")
+    scripted.responses[URL_132] = ok(pdf(tmp_path, "b.pdf", "1 Intro", "old text"))
+    code, out = run(capsys, "page", "DSP0236", "1", catalog_file=cat)
+    assert code == 0, out
+    lines = lines_of(out)
+    assert lines[0] == "fetched DSP0236 1.3.2 via direct"
+    assert lines[-2] == "note: could not record the check of DSP0236: disk full"
+    assert lines[-1].startswith(
+        "note: newer DSP0236: catalog latest 1.3.2, DMTF lists 1.3.3"
+    )
+    assert not checked(library)
+    assert not (library.specs / "mctp" / "DSP0236" / "1.3.3").exists()
