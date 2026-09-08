@@ -63,6 +63,47 @@ line range (or `rendered page`), origin URL or `user-provided`, and the
 Library path. The Skill copies Citations from those lines and never
 composes them.
 
+## Notes
+
+Off by default. With `[library] notes = true` in `config.toml` the
+plugin's Stop hook runs `notes record` at the end of every turn: when
+the turn ran a `bmcspec.py` command and the answer carries a Citation
+(a `cite:` line, or `DOC V, section, PDF page N` in prose), the question,
+the prompt before it, the answer (the first paragraph only and `partial`
+when longer than 4096 characters), the Citations and the document
+versions they name go to `notes.jsonl` at the Library root as one Note,
+with an eight-digit id; the same question about the same versions
+replaces the earlier Note.
+
+`find` and `section` then print, after their `note:` / `fetched` /
+`extracted` lines and before the hits, `notes DOC V: N` and up to ten
+title lines, latest first: `ID DATE | question | DSP0248 1.3.0
+pp.107-108; DSP0240 1.2.0 p.9`. A Note is current while every version
+it cites is still the one answered from (a document not loaded by the
+call only has to be held); otherwise the title line says `superseded`
+after the date. When every identifier in the pattern or query (ASCII
+words of three or more characters) occurs in a current Note's question
+or cited section titles, the latest such Note is printed whole after the
+title lines, from `note: answer from a Note of DATE (ID); ask to re-read
+to verify` to `end of note ID`; one Note per call at most, never a
+`partial` one. `recall ID` prints one Note whole (a superseded one with
+`note: this Note cites V, which the Library no longer holds; read the
+pages again` first). `notes list [DOC]` prints the title lines, `notes
+forget ID` removes one, `notes prune` removes the superseded ones
+(`--days N` also those older than N days, `--all` every one); `status`
+adds `notes: N (size)`. When the file grows past `notes_limit` (default
+`5MB`, a number with `KB` or `MB`, `"0"` never reminds), `find`,
+`section` and `status` start with `note: notes.jsonl holds N Notes
+(size), over notes_limit; run notes prune`; nothing is removed on its
+own. Without a Note that cites the document the output is unchanged.
+
+What you accept by turning it on: an answer served from a Note is as
+right as it was the first time, and it is not read again from the
+document. The tool keys it to the versions so a new version supersedes
+it, marks it every time it is served, and lets you forget it; it cannot
+tell a wrong first answer from a right one. When in doubt ask to re-read,
+and the new answer replaces the Note.
+
 `table` prints every table touching the page as a Logical Table: the
 pages it spans are read and joined (a table continues when it is the last
 thing on its page, the next page starts with a table with the same column
@@ -142,6 +183,9 @@ freshness_days = 30           # how old a Freshness Check may be before a note
 offline = false               # true: the reading commands download nothing
                                # and skip the check (fetch, check and clone
                                # still go online when you run them)
+notes = false                 # true: remember answers in notes.jsonl and
+                               # serve them again (see Notes above)
+notes_limit = "5MB"           # remind to prune above this size; "0" never
 
 [code]
 release = "2.18.0"            # default Release for clone, grep and code
