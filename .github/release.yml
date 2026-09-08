@@ -1,0 +1,21 @@
+# Groups for `gh release create --generate-notes` (CONVENTIONS.md, Versions).
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+  categories:
+    - title: Major Changes
+      labels:
+        - major
+    - title: Minor Changes
+      labels:
+        - minor
+    - title: Patch Changes
+      labels:
+        - patch
+    - title: Docs
+      labels:
+        - docs
+    - title: Other Changes
+      labels:
+        - "*"

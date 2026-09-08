@@ -267,7 +267,10 @@ PROPOSALS = (
 def test_ac3_step_runs_refresh_without_write_and_publishes_the_output(tmp_path):
     proc, summary, outs, argv = _run_refresh_step(tmp_path, PROPOSALS)
     assert proc.returncode == 0, proc.stderr
-    assert argv == [LAUNCHER, "refresh"], argv
+    # Loosened by the refresh --skip-source change (declared in its
+    # change.md): the workflow now leaves OCP out, nothing else changed.
+    assert argv[:2] == [LAUNCHER, "refresh"], argv
+    assert argv[2:] == ["--skip-source", "ocp"], argv
     for line in PROPOSALS.splitlines():
         assert line in summary, line
     assert "proposals" in outs, outs

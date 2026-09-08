@@ -32,6 +32,7 @@ from bmc_toolkit.spec import support as support_mod
 from bmc_toolkit.spec import tables as tables_mod
 from bmc_toolkit.spec.catalog import (
     DEFAULT_CATALOG,
+    LISTING_SOURCES,
     Catalog,
     CatalogError,
     Document,
@@ -159,6 +160,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--write",
         action="store_true",
         help="insert the new entries into the catalog, in publication order",
+    )
+    p.add_argument(
+        "--skip-source",
+        action="append",
+        default=[],
+        choices=LISTING_SOURCES,
+        metavar="SOURCE",
+        help="leave out the documents listed by this publisher (repeatable): "
+        + ", ".join(LISTING_SOURCES),
     )
 
     p = sub.add_parser("extract", help="turn a PDF in the Library into text")
@@ -921,7 +931,16 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     docs, code = _checkable(catalog, args.document)
     if code != EXIT_OK:
         return code
-    listings = listing_mod.Listings(CLIENT_FACTORY())
+    skipped = set(args.skip_source)
+    if args.document and docs[0].listing_source in skipped:
+        print(
+            f"{docs[0].id} is listed by {docs[0].listing_source}, which "
+            f"--skip-source leaves out"
+        )
+        return EXIT_ACTION
+    docs = [d for d in docs if d.listing_source not in skipped]
+    # No client when every source is skipped: nothing will be read.
+    listings = listing_mod.Listings(CLIENT_FACTORY()) if docs else None
     counts = {"add": 0, "confirm": 0, "changed": 0, "unreachable": 0}
     written = 0
     for doc in docs:

@@ -21,7 +21,7 @@ def test_refresh_docs_say_insert_not_append(capsys):
     assert "append" not in R.__doc__.split("``append_versions``")[0].lower()
     with pytest.raises(SystemExit):
         main(["refresh", "--help"])
-    out = capsys.readouterr().out
+    out = " ".join(capsys.readouterr().out.split())  # argparse wraps help text
     assert "insert the new entries into the catalog, in publication order" in out
 
 

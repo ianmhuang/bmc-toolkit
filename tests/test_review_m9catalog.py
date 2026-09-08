@@ -197,7 +197,9 @@ def test_ac13_refresh_says_insert_not_append(capsys):
     assert "appends" not in R.__doc__
     with pytest.raises(SystemExit):
         main(["refresh", "--help"])
-    out = capsys.readouterr().out
+    # Whitespace collapsed by the refresh --skip-source change (declared in
+    # its change.md): the wider option column makes argparse wrap this help.
+    out = " ".join(capsys.readouterr().out.split())
     assert "insert the new entries into the catalog, in publication order" in out
     assert "append" not in out
     skill = SKILL.read_text("utf-8")

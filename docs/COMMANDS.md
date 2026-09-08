@@ -28,6 +28,7 @@ bmcspec status
 bmcspec check DSP0236        # is the catalog behind DMTF? (no download)
 bmcspec check                # every document with a listing, plus the OpenBMC release
 bmcspec refresh --write      # maintainer: add the versions the publishers list
+bmcspec refresh --skip-source ocp   # as the catalog workflow runs it: OCP refreshed locally
 bmcspec extract DSP0236      # text, outline, line map, figures
 bmcspec extract --all
 bmcspec section DSP0236 8.1  # level | title | pages, per matching entry
@@ -281,7 +282,12 @@ to run `check` instead, once per document until the next check, and that
 reminder never touches the network. `[library] offline = true` turns the
 reading commands' check off.
 OCP versions are mostly Google Drive links on the wiki, so `check`
-reports them with `(URL to confirm by hand)`.
+reports them with `(URL to confirm by hand)`. `refresh --skip-source
+SOURCE` (repeatable; `dmtf`, `nvme` or `ocp`) leaves that publisher's
+documents out, neither read nor reported; the catalog workflow runs
+`refresh --skip-source ocp` because opencompute.org refuses GitHub's
+runners ([CATALOG.md](CATALOG.md)). Naming a document whose publisher is
+skipped exits 2.
 
 ## Sessions sharing a Library
 
