@@ -303,6 +303,109 @@ def test_exact_and_well_placed_entries_are_unchanged():
     assert v.placed_page(se.Section("9 Gone", 0, approximate=True)) == 0
 
 
+def test_ranges_run_between_placed_pages_and_never_start_on_a_contents_page():
+    # round 2: match_sections starts an approximate entry where its heading
+    # is and ends the one before it there too, as owning_section does
+    pages = [
+        ["1 Intro", "intro text"],
+        ["still intro", "more intro"],
+        ["2 Scope", "scope text"],
+        ["3 Next", "next text"],
+    ]
+    # placed one page early: 2 Scope starts on page 3 and 1 Intro ends on
+    # page 2 (2 Scope opens page 3)
+    v = make_version(
+        pages,
+        [
+            {"level": 0, "title": "1 Intro", "page": 1},
+            {"level": 0, "title": "2 Scope", "page": 2, "approximate": True},
+            {"level": 0, "title": "3 Next", "page": 4},
+        ],
+    )
+    got = {s.label: (s.page, end) for _, s, end in v.match_sections("2")}
+    assert got == {"~2 Scope": (3, 3)}
+    got = {s.label: (s.page, end) for _, s, end in v.match_sections("1")}
+    assert got == {"1 Intro": (1, 2)}
+    # placed one page late: 2 Scope starts on page 3, the page before
+    v = make_version(
+        pages,
+        [
+            {"level": 0, "title": "1 Intro", "page": 1},
+            {"level": 0, "title": "2 Scope", "page": 4, "approximate": True},
+            {"level": 0, "title": "3 Next", "page": 4},
+        ],
+    )
+    got = {s.label: (s.page, end) for _, s, end in v.match_sections("2")}
+    assert got == {"~2 Scope": (3, 3)}
+    got = {s.label: (s.page, end) for _, s, end in v.match_sections("1")}
+    assert got == {"1 Intro": (1, 2)}
+    # a contents line naming the entry on the page before is not its
+    # heading: the entry stays on its Outline page and no range starts on
+    # the contents page
+    v = make_version(
+        pages=[["Contents", "1 Intro ...... 1", "2 Overview ...... 2"], ["body"]],
+        outline=[
+            {"level": 0, "title": "1 Intro", "page": 2, "approximate": True},
+            {"level": 0, "title": "2 Overview", "page": 2, "approximate": True},
+        ],
+    )
+    assert v.placed_page(se.Section("2 Overview", 2, approximate=True)) == 2
+    got = {s.label: (s.page, end) for _, s, end in v.match_sections("overview")}
+    assert got == {"~2 Overview": (2, 2)}
+    assert v.spanned_sections(1) == []
+    assert v.cite(1, "-").split(" | ")[2] == "-"
+
+
+def test_the_cli_section_and_page_agree_with_cite_on_an_approximate_entry(
+    held, catalog_file, capsys
+):
+    # round 2: a contents page put 4 Transport on page 2; its heading opens
+    # page 3. section and page --section start it on page 3, and 3 Commands
+    # ends on page 2, the page before the one 4 Transport opens
+    set_outline_page(held, "4 Transport", 2, approximate=True)
+    code, out = run(capsys, "section", "DSP0236", "4", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.strip() == "0 | 4 Transport | pages ~3-4"
+    code, out = run(capsys, "section", "DSP0236", "3", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.strip().splitlines() == [
+        "0 | 3 Commands | pages 2-2",
+        "1 | 3.1 Get Device ID | pages 2-2",
+    ]
+    code, out = run(
+        capsys, "page", "DSP0236", "--section", "4", catalog_file=catalog_file
+    )
+    assert code == 0, out
+    assert cite_pages(out) == ["PDF page 3", "PDF page 4"]
+    assert cite_fields(out, 0)[2] == "~4 Transport"
+    assert "3.1 Get Device ID" not in out  # page 2 is not printed
+    code, out = run(
+        capsys, "page", "DSP0236", "--section", "3", catalog_file=catalog_file
+    )
+    assert code == 0, out
+    assert cite_pages(out) == ["PDF page 2"]
+    assert cite_fields(out)[2] == "3 Commands"
+    # placed one page late: 3 Commands' heading is the second line of page
+    # 2, so it starts there and 2 Scope keeps page 2
+    set_outline_page(held, "4 Transport", 3, approximate=False)
+    set_outline_page(held, "3 Commands", 3, approximate=True)
+    code, out = run(capsys, "section", "DSP0236", "3", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.strip().splitlines() == [
+        "0 | 3 Commands | pages ~2-2",
+        "1 | 3.1 Get Device ID | pages 2-2",
+    ]
+    code, out = run(capsys, "section", "DSP0236", "2", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.strip() == "0 | 2 Scope | pages 1-2"
+    code, out = run(
+        capsys, "page", "DSP0236", "--section", "3", catalog_file=catalog_file
+    )
+    assert code == 0, out
+    assert cite_pages(out) == ["PDF page 2"]
+    assert cite_fields(out)[2] == "~3 Commands"
+
+
 def test_the_cli_cites_an_approximate_entry_where_its_heading_is(
     held, catalog_file, capsys
 ):
