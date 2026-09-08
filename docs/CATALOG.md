@@ -49,6 +49,16 @@ the catalog lists only by hand with `wip = true`); `refresh --write`
 inserts the `add` entries as `[[documents.versions]]` blocks at their
 place in the document's block (publication order, same-day versions by
 their numbers), leaving every other line and comment as it was, and
-refuses an edit the parser would not accept. If `check` reports a newer version, please open a
-pull request with the `refresh --write` result (and the confirmed OCP
-URL).
+refuses an edit the parser would not accept.
+
+Once a month, and on demand from the Actions tab (`catalog`, Run
+workflow), `.github/workflows/catalog.yml` runs `refresh` without
+`--write` on a GitHub runner and puts the output in the run's summary.
+When it reports anything to add, confirm or change, it opens an issue
+labelled `catalog` with that output, or comments on the open one; a run
+that finds nothing, or only unreachable listings, opens nothing. The
+catalog itself changes only through a pull request: run `refresh --write`
+locally, confirm any OCP URL by hand, verify each new version against
+`docs/golden-questions.md`, and bump `plugin.json` as CONVENTIONS.md says.
+If `check` reports a newer version before the workflow does, please open
+that pull request yourself.
