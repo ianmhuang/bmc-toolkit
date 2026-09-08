@@ -16,11 +16,34 @@ and page in every answer.
 them has been checked against the acceptance questions in
 `docs/golden-questions.md`; the 20 gated, member and NDA documents are
 listed with their tier and registered from your own copy. Which documents,
-what each one's limits are and whether it has been verified:
-[docs/SUPPORT.md](docs/SUPPORT.md) (the questions themselves are in
-`docs/golden-questions.md`, and `catalog --table` names them per document).
-How the catalog is kept and which versions it carries per publisher:
-[docs/CATALOG.md](docs/CATALOG.md).
+their limits and whether each is verified: [docs/SUPPORT.md](docs/SUPPORT.md);
+how the catalog is kept: [docs/CATALOG.md](docs/CATALOG.md).
+
+What the plugin is made of and where the data flows (a double arrow: read and write):
+
+```mermaid
+flowchart LR
+    S["«component»<br/><b>Claude Code session</b><br/>bmc-spec Skill · Stop hook"]
+    T["«component»<br/><b>bmcspec.py</b><br/>catalog · fetch · extract · search · tables"]
+    N["«add-on, default off»<br/><b>Notes</b><br/>remembers cited answers"]
+    W["«external»<br/><b>Publishers · Internet Archive · GitHub</b>"]
+    subgraph L["Library  ~/.bmc-specs"]
+        direction TB
+        D[("specs/ · code/<br/>originals · Extracts · Code Trees")]
+        J[("notes.jsonl")]
+    end
+    S <-->|"Bash: command in,<br/>answer with cite: out"| T
+    W -->|"download,<br/>once per version"| T
+    T <-->|"read;<br/>write under .lock"| D
+    N -->|"Notes into the output<br/>of find / section"| T
+    N <-->|"record · recall"| J
+    classDef read fill:#E1EBF2,stroke:#2F5D7C,color:#1C242B
+    classDef mem fill:#F6E6DD,stroke:#B4552C,color:#1C242B
+    classDef disk fill:#ECEFF2,stroke:#8A96A0,color:#1C242B
+    class S,T read
+    class N,J mem
+    class D,W disk
+```
 
 ## Install
 
@@ -33,27 +56,25 @@ The same two steps from a terminal: `claude plugin marketplace add
 ianmhuang/bmc-toolkit`, then `claude plugin install bmc-toolkit@bmc-toolkit`.
 
 Requirements: Python 3.11 or newer on `PATH` as `python` or `python3`, and
-`git`. Third-party packages listed in `requirements.txt` are installed once
-into the plugin's data directory by a `SessionStart` hook; in a development
-checkout run `pip install -r requirements.txt` yourself.
+`git`. A `SessionStart` hook installs the packages in `requirements.txt`
+once; in a development checkout run `pip install -r requirements.txt` yourself.
 
-- `curl_cffi` (MIT): HTTP client with a browser TLS fingerprint. Without it
-  the tool falls back to `urllib`: Intel documents then come from the
-  Internet Archive instead of the publisher, OCP documents still download
-  directly (both verified).
+- `curl_cffi` (MIT): HTTP client with a browser TLS fingerprint; without it
+  Intel documents come from the Internet Archive instead of the publisher,
+  OCP documents still download directly (both verified).
 - `pypdfium2` 5.x (BSD-3-Clause or Apache-2.0): PDF text with character
-  positions and bookmarks; older than 5.0 is refused (bookmark API change).
+  positions and bookmarks; older than 5.0 is refused.
 - `pdfplumber` (MIT): cell geometry and cell text of tables (ruled, and
   drawn as cell boxes), for `table`; loaded only by that command.
 
 ### Updating
 
-Claude Code offers an update when the version in `plugin.json` rises, and
+Claude Code offers an update when the version in `plugin.json` rises but
 does not update third-party marketplaces on its own: enable auto-update for
 `bmc-toolkit` in `/plugin` (Marketplaces tab), or run `claude plugin update
-bmc-toolkit@bmc-toolkit`. The Library and the packages the hook installed
-stay in place. When an update changes the extractor, `status` marks documents
-`stale`; `extract --all` re-extracts them without downloading anything.
+bmc-toolkit@bmc-toolkit`. The Library and the installed packages stay; after
+an update that changes the extractor, `status` marks documents `stale` and
+`extract --all` re-extracts them, downloading nothing.
 
 ## How a question is answered
 
@@ -64,7 +85,6 @@ sequenceDiagram
     participant CLI as bmcspec.py
     participant Lib as Library<br/>~/.bmc-specs
     participant Pub as Publisher /<br/>Internet Archive
-
     User->>Claude: What does DSP0236 say about message tags?
     Claude->>CLI: locate: section or find DSP0236 "Msg tag" (latest, or --version 1.2.0)
     CLI->>Lib: that version Ready?
@@ -76,24 +96,26 @@ sequenceDiagram
     CLI->>Lib: extract DSP0236 when not extracted: extract.txt, outline.json, linemap.json, figures.json
     CLI->>Lib: find DSP0236 "Msg tag" in extract.txt
     CLI-->>Claude: fetched / extracted lines, then hits: page, line, section
+    opt Notes on
+        CLI-->>Claude: notes DSP0236 1.3.1: N title lines, or one earlier Note whole (unverified, marked)
+    end
     Claude->>CLI: page DSP0236 24 (or table, render)
     CLI->>Lib: read the pages
     CLI-->>Claude: text + cite: line
     CLI->>Pub: listing page, when the document's Freshness Check is due (once per 30 days)
     CLI-->>Claude: note: newer DSP0236 ... (or nothing)
     Claude-->>User: answer, Citation copied from cite:
+    Claude->>CLI: Stop hook, every turn: notes record (writes notes.jsonl only when Notes is on)
     Note over Claude,Lib: OpenBMC questions have the same shape:<br/>repos, clone (GitHub), grep, code, cite:
 ```
 
 Solid arrows are commands and Library access, dashed arrows what comes back.
 A reading command brings the version it needs to Ready (held and extracted)
-by itself: the catalog's latest, or the one `--version` names; a version
-the tool cannot download is registered from your copy with `add`. The
-publisher is contacted only when the Library lacks the version, and once
-per document per 30 days to ask whether it lists a newer one (reported,
-never downloaded). Every printed page carries a `cite:` line and the skill
-copies its Citation from that line. What each command does:
-[docs/COMMANDS.md](docs/COMMANDS.md).
+by itself: the catalog's latest, or the one `--version` names. The publisher
+is contacted only when the Library lacks the version, and once per document
+per 30 days to ask whether it lists a newer one (reported, never downloaded).
+The skill copies its Citation from the `cite:` line of every printed page.
+What each command does: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Library location
 
@@ -111,42 +133,24 @@ yourself. The examples use a shell alias for it:
 alias bmcspec='python skills/bmc-spec/scripts/bmcspec.py'
 
 bmcspec catalog              # every document, one per line
-bmcspec catalog DSP0236      # one document, all versions
-bmcspec catalog --table --golden docs/golden-questions.md   # Support Level table, one flat table
-bmcspec catalog --table --by-family --golden docs/golden-questions.md   # the same per family (docs/SUPPORT.md)
-bmcspec fetch DSP0236        # latest published version
-bmcspec fetch DSP0236 --version 1.2.0
-bmcspec fetch PMBUS-II --version 1.3.1   # the latest is gated: fetch names this one
-bmcspec fetch IPMI --version "2.0 rev 1.1"
-bmcspec fetch --all          # several hundred MB
-bmcspec add vendor.pdf --document DSP0236 --version 1.1.0   # --force to replace
-bmcspec scan                 # register hand-placed files
-bmcspec status
+bmcspec catalog --table --by-family --golden docs/golden-questions.md   # Support Level table per family (docs/SUPPORT.md)
+bmcspec fetch DSP0236 --version 1.2.0   # without --version: the latest published version
+bmcspec add vendor.pdf --document DSP0236 --version 1.1.0   # a gated or NDA document, from your copy
 bmcspec check DSP0236        # is the catalog behind DMTF? (no download)
-bmcspec check                # every document with a listing, plus the OpenBMC release
-bmcspec refresh --write      # maintainer: add the versions the publishers list
-bmcspec extract DSP0236      # text, outline, line map, figures
-bmcspec extract --all
-bmcspec section DSP0236 8.1  # level | title | pages, per matching entry
 bmcspec find DSP0236 "Msg tag" --context 1   # hits with page, line, section
 bmcspec page DSP0236 24 --to 25              # the pages, with a cite: line each
-bmcspec page DSP0236 --section 8.2
-bmcspec render DSP0236 --page 24             # renders/page-24.png
 bmcspec table DSP0236 --page 122             # the table(s) on the page, whole
-bmcspec table DSP0239 --page 13              # a table drawn as cell boxes, no rules
-bmcspec schema DSP8010 Chassis --property PowerState   # the JSON Schema bundle, fetched and unpacked as needed
-bmcspec registry DSP8011 Base PropertyValueTypeError
-bmcspec schema DSP8013 RedfishInteroperabilityProfile --definition ReadRequirement
+bmcspec schema DSP8010 Chassis --property PowerState   # the Redfish JSON Schema bundle (DSP8013 profiles alike)
+bmcspec registry DSP8011 Base PropertyValueTypeError   # the message registries bundle
 bmcspec repos --topic redfish                # repositories and held Code Trees
-bmcspec clone bmcweb                         # default branch, shallow
 bmcspec clone pldm --release 2.18.0          # the commit OpenBMC 2.18.0 ships
 bmcspec grep bmcweb CurrentPowerState --context 2
 bmcspec code bmcweb redfish-core/lib/chassis.hpp --lines 160-175
-bmcspec prune                # list superseded Code Trees; --yes removes them
 ```
 
 Exit codes, `--wait` (several conversations can share one Library), flags,
-output formats and `config.toml`: [docs/COMMANDS.md](docs/COMMANDS.md).
+output formats, `config.toml` and every command with an example:
+[docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## What the tool does on the network and on disk
 
@@ -158,14 +162,14 @@ output formats and `config.toml`: [docs/COMMANDS.md](docs/COMMANDS.md).
 - Writes only under the Library and replaces nothing there without
   `--force`. From a Redfish ZIP bundle only the schema or registry files an
   answer needs are unpacked.
-- `check`, `refresh` and a reading command whose document is due for a
-  check (once per 30 days) read publisher listing pages and download no
-  document. `refresh --write` is the one command that writes outside the
-  Library: it inserts version entries into the catalog file it was given.
-- Runs `notes record` from a Stop hook at the end of every turn; it reads
-  `config.toml` and exits unless `notes = true`, and then keeps the answer
-  in `notes.jsonl` and serves it again, unverified and marked as such; the
-  trade is in [docs/COMMANDS.md](docs/COMMANDS.md#notes).
+- `check`, `refresh` and a reading command due for its Freshness Check read
+  publisher listing pages and download nothing. `refresh --write` is the one
+  command that writes outside the Library: version entries into the catalog
+  file it was given.
+- Runs `notes record` from a Stop hook at the end of every turn; it exits
+  unless `config.toml` says `notes = true`, then keeps the answer in
+  `notes.jsonl` and serves it again, unverified and marked as such
+  ([docs/COMMANDS.md](docs/COMMANDS.md#notes)).
 - Runs `git` as a subprocess for `clone`, `grep` and `code`, and
   `gh search code` for `repos --search`; `clone` writes only under the
   Library's `code/` directory. Nothing else is executed, and nothing is
@@ -173,12 +177,9 @@ output formats and `config.toml`: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Further reading
 
-- [docs/COMMANDS.md](docs/COMMANDS.md): every command in detail,
-  `config.toml`, the Freshness Check, network and disk behaviour.
-- [docs/LIBRARY.md](docs/LIBRARY.md): the files under the Library and what
-  each one holds.
-- [docs/CATALOG.md](docs/CATALOG.md): how the Source Catalog is kept, which
-  versions it carries per publisher, and how to add one.
+- [docs/COMMANDS.md](docs/COMMANDS.md): every command, `config.toml`, Notes, the Freshness Check.
+- [docs/LIBRARY.md](docs/LIBRARY.md): the files under the Library.
+- [docs/CATALOG.md](docs/CATALOG.md): how the Source Catalog is kept and extended.
 - [docs/SUPPORT.md](docs/SUPPORT.md): the Support Level table per family.
 
 ## Development
