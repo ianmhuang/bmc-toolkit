@@ -50,11 +50,10 @@ checkout run `pip install -r requirements.txt` yourself.
 
 Claude Code offers an update when the version in `plugin.json` rises, and
 does not update third-party marketplaces on its own: enable auto-update for
-`bmc-toolkit` in `/plugin` (Marketplaces tab), or run
-`claude plugin update bmc-toolkit@bmc-toolkit`. The Library and the packages
-the hook installed stay in place. When an update changes the extractor,
-`status` marks documents `stale`; `extract --all` re-extracts them without
-downloading anything.
+`bmc-toolkit` in `/plugin` (Marketplaces tab), or run `claude plugin update
+bmc-toolkit@bmc-toolkit`. The Library and the packages the hook installed
+stay in place. When an update changes the extractor, `status` marks documents
+`stale`; `extract --all` re-extracts them without downloading anything.
 
 ## How a question is answered
 
@@ -98,11 +97,10 @@ copies its Citation from that line. What each command does:
 
 ## Library location
 
-Documents and code checkouts live under `~/.bmc-specs/` by default. Set
-`BMC_SPEC_LIBRARY` to move it. The path is shared by every project on the
-machine. Documents sit at `specs/<family>/<document>/<version>/`, Code
-Trees at `code/<repo>/<commit>/`; what each directory holds is in
-[docs/LIBRARY.md](docs/LIBRARY.md).
+Documents and code checkouts live under `~/.bmc-specs/` by default; set
+`BMC_SPEC_LIBRARY` to move it. Every project on the machine shares the path.
+Documents sit at `specs/<family>/<document>/<version>/`, Code Trees at
+`code/<repo>/<commit>/`; what each holds: [docs/LIBRARY.md](docs/LIBRARY.md).
 
 ## Command line
 
@@ -147,9 +145,8 @@ bmcspec code bmcweb redfish-core/lib/chassis.hpp --lines 160-175
 bmcspec prune                # list superseded Code Trees; --yes removes them
 ```
 
-Exit codes, the `--wait` flag (several Claude Code conversations can share
-one Library), flags, output formats and `config.toml`:
-[docs/COMMANDS.md](docs/COMMANDS.md).
+Exit codes, `--wait` (several conversations can share one Library), flags,
+output formats and `config.toml`: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## What the tool does on the network and on disk
 
@@ -165,11 +162,14 @@ one Library), flags, output formats and `config.toml`:
   check (once per 30 days) read publisher listing pages and download no
   document. `refresh --write` is the one command that writes outside the
   Library: it inserts version entries into the catalog file it was given.
+- Runs `notes record` from a Stop hook at the end of every turn; it reads
+  `config.toml` and exits unless `notes = true`, and then keeps the answer
+  in `notes.jsonl` and serves it again, unverified and marked as such; the
+  trade is in [docs/COMMANDS.md](docs/COMMANDS.md#notes).
 - Runs `git` as a subprocess for `clone`, `grep` and `code`, and
   `gh search code` for `repos --search`; `clone` writes only under the
   Library's `code/` directory. Nothing else is executed, and nothing is
-  re-uploaded or redistributed. The full list, with file counts and the
-  listing URLs, is in [docs/COMMANDS.md](docs/COMMANDS.md).
+  re-uploaded or redistributed. Full list: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Further reading
 

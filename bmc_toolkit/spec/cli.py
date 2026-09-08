@@ -23,6 +23,7 @@ from bmc_toolkit.spec import fetch as fetch_mod
 from bmc_toolkit.spec import freshness as fresh_mod
 from bmc_toolkit.spec import listing as listing_mod
 from bmc_toolkit.spec import lock as lock_mod
+from bmc_toolkit.spec import notes as notes_mod
 from bmc_toolkit.spec import refresh as refresh_mod
 from bmc_toolkit.spec import registry as registry_mod
 from bmc_toolkit.spec import render as render_mod
@@ -257,6 +258,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("message", nargs="?", help="message key (PropertyMissing)")
     p.add_argument("--version", dest="doc_version", help="exact version string")
 
+    notes_mod.add_parsers(sub)  # recall, notes
     p = sub.add_parser("table", help="print the tables on a page, whole")
     p.add_argument("document", help="document id")
     p.add_argument("--page", type=int, required=True, help="physical page (1-based)")
@@ -748,11 +750,15 @@ def _lock_lines(root: Path) -> list[str]:
 
 def cmd_status(args: argparse.Namespace) -> int:
     library = Library(resolve_library())
+    for line in notes_mod.status_reminder(library.root):
+        print(line)  # the size reminder leads, as in find and section
     print(f"library: {library.root}")
     holdings = list(library.holdings())
     if not holdings:
         print("(empty)")
         for line in _lock_lines(library.root):
+            print(line)
+        for line in notes_mod.status_lines(library.root):
             print(line)
         return EXIT_OK
     for h in holdings:
@@ -774,6 +780,8 @@ def cmd_status(args: argparse.Namespace) -> int:
             f"\t{extracted}\t{outline}"
         )
     for line in _lock_lines(library.root):
+        print(line)
+    for line in notes_mod.status_lines(library.root):
         print(line)
     try:
         catalog = _load(args)
@@ -1328,6 +1336,7 @@ def _open_version(args: argparse.Namespace):
         print(f"cannot read {holding.document} {holding.version}: {exc}")
         return None, doc, EXIT_ERROR
     args.fresh_doc = doc  # main() runs the Freshness Check after the output
+    args.answered = [version]  # the Notes are served by it
     return version, doc, EXIT_OK
 
 
@@ -1377,6 +1386,7 @@ def cmd_find(args: argparse.Namespace) -> int:
             except search_mod.SearchError as exc:
                 print(f"note: cannot read {other}: {exc}")
     targets.append(version)
+    args.answered = [version, *targets[:-1]]  # the Notes are served by them
     try:
         hits = [
             (v, h)
@@ -2330,6 +2340,7 @@ COMMANDS = {
     "clone": cmd_clone,
     "grep": cmd_grep,
     "code": cmd_code,
+    **notes_mod.COMMANDS,
 }
 
 
@@ -2387,7 +2398,7 @@ def main(argv: list[str] | None = None) -> int:
         print("--wait takes a number of seconds, 0 or more")
         return EXIT_ACTION
     try:
-        code = COMMANDS[args.command](args)
+        code = notes_mod.run(COMMANDS[args.command], args)
         if code == EXIT_OK:
             _check_when_due(args)
         return code

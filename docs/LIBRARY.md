@@ -33,6 +33,14 @@ resource counts; for the registries bundle DSP8011 it writes
 Code Trees live beside `specs/`, under `code/<repo>/<commit>/`, each with
 a `.bmc-tree.json`.
 
+`notes.jsonl` at the Library root exists only with `[library] notes =
+true` in `config.toml`: one JSON object per line for each answer the Stop
+hook remembered (`id`, `question`, `context`, `answer`, `partial`,
+`cites`, `documents` as `[document, version]` pairs, `time` in UTC).
+`find`, `section`, `recall` and `notes` read it; nothing else does, and
+deleting the file only forgets the answers. A line that is not a complete
+JSON object is skipped.
+
 While a command writes several files it holds `.lock` in the version
 directory (`code/<repo>/.lock` for a clone): a small JSON file with the
 holder's `pid`, `host`, `command` and `started` time, touched every 30

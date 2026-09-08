@@ -206,6 +206,18 @@ once): how long to wait for that Session before giving up with 3.
    message and stop; on exit 3 follow the `busy:` rule below. A `note:
    could not fetch DOC V: ...; answering from held W` line means the
    answer comes from W: say so.
+   A `notes DOC V: N` line followed by `ID DATE | question | pages` lines
+   means the Library remembers earlier answers that cite this document
+   (Notes; only when the user turned them on). A Note printed whole right
+   there, from `note: answer from a Note of DATE (ID); ask to re-read to
+   verify` to `end of note ID`, is the answer: give it, with its
+   Citations, and repeat that first line to the user in one sentence.
+   When no Note is printed whole but a title line's question is the
+   user's question in other words, run `recall ID` before reading pages;
+   a title line marked `superseded` cites a version the Library no longer
+   answers from: use its pages as a place to start reading, never its
+   answer. When the user asks to re-read, or doubts a Note, read the
+   pages as usual; the new answer replaces the Note.
 3. Read only what you need: `page DOC N` for the hit pages, or
    `page DOC --section QUERY` for a short section. Never read a whole
    Extract into the conversation; a section longer than ten pages is read a
