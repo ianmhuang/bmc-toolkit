@@ -192,7 +192,7 @@ python -m pytest -q
 ```
 
 The same commands run on GitHub Actions for every pull request (Linux and
-Windows) and every push to main (Linux, Windows and macOS).
+Windows) and every push to main or develop (Linux, Windows and macOS).
 
 ## License
 

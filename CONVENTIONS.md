@@ -22,27 +22,43 @@ Things a linter cannot check; formatting is not listed.
 - Anything the tool downloads, writes outside the Library, or runs as a
   subprocess is listed in the README's network-and-disk section and in
   full in `docs/COMMANDS.md`.
+- A change that settles an issue says `Closes #N` in its description. A
+  pull request into `develop` closes nothing (GitHub closes from the
+  default branch only), so the release pull request repeats the `Closes`
+  lines of the changes it ships, and the issue closes when that merges. A
+  change that settles part of an issue comments on it: the cause, what the
+  change did, what is left.
 
 ## Versions
 - `plugin.json`, `pyproject.toml` and `bmc_toolkit/__init__.py` carry one
   version and are bumped together; `marketplace.json` never carries one.
   The README status line names the same version (`tests/test_release.py`).
 - The bump is the release: Claude Code offers installed users an update only
-  when the `plugin.json` version changes. Bump in a change that alters what
-  an installed user gets: code under `bmc_toolkit/`, the Source Catalog,
-  SKILL.md, hooks. A change that touches only README, `docs/`, tests or CI
-  does not bump. Bumps started with the first tag, `v1.0.0` (2026-09-08).
-  A bump also moves the pin `RELEASE` in `tests/test_review_release.py`.
-- Major: the Library's disk format is no longer read by the previous version,
-  or a command is removed. Minor: a new command, flag, exit code or catalog
-  document. Patch: fixes and wording.
-- After the merge of a bumping change, once the README describes that
-  version, the maintainer labels the pull requests merged since the last
-  tag (`major`, `minor`, `patch` or `docs`), tags main `v<version>`
-  (annotated) and pushes the tag, then publishes a GitHub Release:
+  when the `plugin.json` version changes, and users install `main`. So
+  `main` only ever holds released versions: a feature pull request targets
+  `develop`, never changes the version records, and carries one label,
+  `major`, `minor`, `patch` or `docs`. Major: the Library's disk format is
+  no longer read by the previous version, or a command is removed. Minor: a
+  new command, flag, exit code or catalog document. Patch: fixes and
+  wording. Docs: README, `docs/`, tests or CI only.
+- A release is due once `develop` holds something an installed user gets:
+  code under `bmc_toolkit/`, the Source Catalog, SKILL.md, hooks. The
+  maintainer opens a `develop` to `main` pull request titled
+  `Release v<version>`, labelled `skip-changelog`, that changes only the
+  version records (`plugin.json`, `pyproject.toml`,
+  `bmc_toolkit/__init__.py`, the README status line) and the pin `RELEASE`
+  in `tests/test_review_release.py`, and repeats the `Closes #N` lines of
+  the changes it ships; the bump is the highest label since the last tag.
+  It does not go through revali. It is merged with a merge commit, never
+  squashed: `develop` and `main` must share their commits, or the next
+  release lists them again.
+- After that merge the maintainer tags `main` `v<version>` (annotated),
+  pushes the tag and publishes a GitHub Release:
   `gh release create v<version> --generate-notes`, with one lead line above
   the generated list saying why the version exists. `.github/release.yml`
-  groups that list by the labels.
+  groups that list by the labels. Bumps started with the first tag,
+  `v1.0.0` (2026-09-08); `v1.1.0` was the last bump made inside a feature
+  pull request.
 
 ## Interfaces
 - CLI subcommands and flags, the Library directory layout, the Source Catalog
