@@ -356,6 +356,34 @@ def test_ranges_run_between_placed_pages_and_never_start_on_a_contents_page():
     assert v.cite(1, "-").split(" | ")[2] == "-"
 
 
+def test_a_contents_line_with_a_wide_gap_is_not_a_heading_either():
+    # round 3: the contents-line rule is the extractor's own (a section
+    # number, a title, dot leaders or a wide gap, then a page number), so a
+    # contents page without dot leaders is refused the same way, while a
+    # heading that merely ends in a number is still a heading
+    pages = [["Contents", "1 Intro      1", "2 Overview      2"], ["body"]]
+    outline = [
+        {"level": 0, "title": "1 Intro", "page": 2, "approximate": True},
+        {"level": 0, "title": "2 Overview", "page": 2, "approximate": True},
+    ]
+    v = make_version(pages, outline)
+    assert v.placed_page(se.Section("2 Overview", 2, approximate=True)) == 2
+    assert v.spanned_sections(1) == []
+    assert v.cite(1, "-").split(" | ")[2] == "-"
+    # "2 Overview 2" has neither leaders nor a gap: a heading ending in a
+    # number, found on the page before, places the entry there
+    v = make_version(
+        pages=[["1 Intro", "2 Overview 2", "text"], ["body"]],
+        outline=[
+            {"level": 0, "title": "1 Intro", "page": 1},
+            {"level": 0, "title": "2 Overview", "page": 2, "approximate": True},
+        ],
+    )
+    assert v.placed_page(se.Section("2 Overview", 2, approximate=True)) == 1
+    assert [s.label for s in v.spanned_sections(1)] == ["1 Intro", "~2 Overview"]
+    assert v.owning_section(2, 0).label == "~2 Overview"
+
+
 def test_the_cli_section_and_page_agree_with_cite_on_an_approximate_entry(
     held, catalog_file, capsys
 ):
