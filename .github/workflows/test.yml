@@ -1,12 +1,13 @@
 # Lint and test on every pull request (Linux and Windows) and on every push
-# to main (Linux, Windows and macOS). macOS runners cost ten times the
-# minutes of Linux ones on a private repository, so they only confirm main.
+# to main or develop (Linux, Windows and macOS). macOS runners cost ten
+# times the minutes of Linux ones on a private repository, so they only
+# confirm what a merge produced.
 name: test
 
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, develop]
 
 # A newer push to a pull request cancels the run for the superseded commit.
 # A run on main is never cancelled, but the group holds at most one pending

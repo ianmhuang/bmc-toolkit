@@ -33,7 +33,7 @@ def test_ac1_triggers_on_pull_request_and_push_to_main():
     text = _text()
     on = text[text.index("\non:") : text.index("\nconcurrency:")]
     assert "pull_request:" in on
-    assert re.search(r"push:\n\s+branches: \[main\]", on)
+    assert re.search(r"push:\n\s+branches: \[main, develop\]", on)
     assert "tags" not in on and "schedule" not in on
 
 
