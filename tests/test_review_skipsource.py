@@ -361,6 +361,48 @@ def test_skipping_every_source_with_write_leaves_the_catalog_untouched(
     assert catalog_file.read_bytes() == before
 
 
+def test_skipping_every_source_builds_no_client_at_all(
+    catalog_file, lib_root, monkeypatch, capsys
+):
+    """Round 2: when nothing will be read, ``refresh`` does not ask the
+    client factory for a client (the real factory probes for curl_cffi);
+    when one source remains, exactly one client is built."""
+    built = []
+
+    def factory():
+        built.append(1)
+        return ScriptedClient({})
+
+    monkeypatch.setattr(cli, "CLIENT_FACTORY", factory)
+    code, out = run(
+        capsys,
+        "refresh",
+        "--skip-source",
+        "dmtf",
+        "--skip-source",
+        "nvme",
+        "--skip-source",
+        "ocp",
+        catalog_file=catalog_file,
+    )
+    assert code == 0, out
+    assert built == [], "a client was built although every source is skipped"
+    assert counts_of(out) == {"add": 0, "confirm": 0, "changed": 0, "unreachable": 0}
+
+    code, out = run(
+        capsys,
+        "refresh",
+        "--skip-source",
+        "dmtf",
+        "--skip-source",
+        "nvme",
+        catalog_file=catalog_file,
+    )
+    assert code == 0, out
+    assert built == [1], built  # one client for the one publisher left
+    assert kinds_by_document(out) == {"M-CRPS": {"unreachable"}}, out
+
+
 def test_skipped_publisher_is_not_counted_as_unreachable_when_the_network_is_down(
     catalog_file, dead_client, capsys
 ):
