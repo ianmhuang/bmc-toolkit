@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from bmc_toolkit.spec.freshness import FreshnessError, _library_section
+from bmc_toolkit.spec.freshness import FreshnessError, library_section
 from bmc_toolkit.spec.library import (
     Library,
     atomic_write_text,
@@ -64,9 +64,14 @@ _NORM = re.compile(
     r"^(?P<doc>\S+) (?P<ver>.+?) \| (?P<section>.*?) \| "
     r"PDF pages? (?P<first>\d+)(?:-(?P<last>\d+))?$"
 )
-_PREAMBLE = re.compile(r"^(note: |fetched |extracted )")
+# The first line of the answer proper: a section line, a find hit, or the
+# no-match line; everything before it is the preamble (note:, fetched,
+# extracted, Library created, the attempt lines of a download, skipped).
+_BODY = re.compile(r"^(\d+ \| |no hits$|no matching section$|\S+ p\.\d+)")
 _TOKEN = re.compile(r"[A-Za-z0-9_]{3,}")
-_SIZE = re.compile(r"^(?P<n>\d+(?:\.\d+)?)\s*(?P<unit>KB|MB)?$", re.IGNORECASE)
+_SIZE = re.compile(r"^(?:(?P<n>\d+)\s*(?P<unit>KB|MB)|0)$", re.IGNORECASE)
+# Messages Claude Code injects as user turns; not prompts.
+_INJECTED = re.compile(r"^<(command-|local-command|system-reminder)")
 
 
 class NotesError(Exception):
@@ -227,7 +232,7 @@ def config_path(root: Path) -> Path:
 def enabled(root: Path) -> bool:
     """``[library] notes`` of config.toml, default false."""
     try:
-        value = _library_section(root).get("notes", False)
+        value = library_section(root).get("notes", False)
     except FreshnessError as exc:
         raise NotesError(str(exc)) from exc
     if not isinstance(value, bool):
@@ -236,10 +241,10 @@ def enabled(root: Path) -> bool:
 
 
 def limit_bytes(root: Path) -> int:
-    """``[library] notes_limit``, a number with KB or MB (default 5MB);
-    0 never reminds."""
+    """``[library] notes_limit``, an integer with KB or MB (default 5MB),
+    or ``"0"`` which never reminds; any other form is refused."""
     try:
-        value = _library_section(root).get("notes_limit", DEFAULT_LIMIT)
+        value = library_section(root).get("notes_limit", DEFAULT_LIMIT)
     except FreshnessError as exc:
         raise NotesError(str(exc)) from exc
     m = _SIZE.match(str(value).strip()) if isinstance(value, (str, int)) else None
@@ -248,9 +253,10 @@ def limit_bytes(root: Path) -> int:
             f"{config_path(root)}: library.notes_limit must be a size such as "
             '"5MB", "512KB" or "0"'
         )
-    unit = (m.group("unit") or "").upper()
-    factor = {"KB": 1024, "MB": 1024 * 1024}.get(unit, 1)
-    return int(float(m.group("n")) * factor)
+    if m.group("n") is None:
+        return 0
+    factor = {"KB": 1024, "MB": 1024 * 1024}[m.group("unit").upper()]
+    return int(m.group("n")) * factor
 
 
 # ------------------------------------------------------------ the file
@@ -318,21 +324,28 @@ def reminder(root: Path) -> str | None:
     )
 
 
-def status_lines(root: Path) -> list[str]:
-    """What ``status`` adds: the reminder and the count; nothing when off."""
+def status_reminder(root: Path) -> list[str]:
+    """What ``status`` prints first: the size reminder, or a note when the
+    config cannot be read; nothing when off. Never raises."""
     try:
         if not enabled(root):
             return []
-        lines = []
         line = reminder(root)
-        if line:
-            lines.append(line)
-        path = notes_path(root)
-        if path.is_file():
-            lines.append(f"notes: {len(load(path))} ({_kb(size_of(path))})")
-        return lines
+        return [line] if line else []
     except Exception as exc:  # noqa: BLE001 - status must not fail on this
         return [f"note: notes: {exc}"]
+
+
+def status_lines(root: Path) -> list[str]:
+    """What ``status`` adds after the holdings: ``notes: N (size)`` when the
+    file exists; nothing when off or unreadable (the reminder said so)."""
+    try:
+        path = notes_path(root)
+        if not enabled(root) or not path.is_file():
+            return []
+        return [f"notes: {len(load(path))} ({_kb(size_of(path))})"]
+    except Exception:  # noqa: BLE001 - status must not fail on this
+        return []
 
 
 # ------------------------------------------------------------ serving
@@ -400,7 +413,7 @@ def serve(query: str, output: str, answered: list, notes: list[Note], held) -> s
     out: list[str] = []
     inserted = False
     for line in lines:
-        if not inserted and not _PREAMBLE.match(line):
+        if not inserted and _BODY.match(line):
             out.extend(added)
             inserted = True
         out.append(line)
@@ -459,8 +472,8 @@ def read_turn(transcript: Path) -> Turn:
                 if event.get("isMeta"):
                     continue
                 text = _prompt_text(content)
-                if text is None or text.lstrip().startswith("<"):
-                    continue
+                if text is None or _INJECTED.match(text.lstrip()):
+                    continue  # not a prompt; the turn goes on
                 prompts.append(text)
                 turn = Turn(
                     question=text, context=prompts[-2] if len(prompts) > 1 else ""
@@ -504,10 +517,41 @@ def _off_message(root: Path) -> str:
     return f"notes are off: set [library] notes = true in {config_path(root)}"
 
 
+def _switch(root: Path) -> bool | None:
+    """``enabled`` for a command: prints the refusal (a bad value, or a
+    config.toml that does not parse) or the off message and returns None
+    when the command must stop with exit 2."""
+    try:
+        if enabled(root):
+            return True
+    except NotesError as exc:
+        print(exc)
+        return None
+    print(_off_message(root))
+    return None
+
+
+def superseded_line(note: Note, held: set[tuple[str, str]]) -> str:
+    """``note: this Note cites DSP0236 1.2.0, the Library answers from
+    1.3.3; read the pages again``: per cited version no longer held, the
+    versions of that document the Library holds instead."""
+    parts = []
+    for document, version in note.documents:
+        if (document, version) in held:
+            continue
+        others = sorted(v for d, v in held if d == document)
+        if not others:
+            parts.append(f"{document} {version}, which the Library no longer holds")
+        elif len(others) == 1:
+            parts.append(f"{document} {version}, the Library answers from {others[0]}")
+        else:
+            parts.append(f"{document} {version}, the Library holds {', '.join(others)}")
+    return f"note: this Note cites {'; '.join(parts)}; read the pages again"
+
+
 def cmd_recall(args: argparse.Namespace) -> int:
     root = resolve_library()
-    if not enabled(root):
-        print(_off_message(root))
+    if _switch(root) is None:
         return EXIT_ACTION
     notes = [n for n in load(notes_path(root)) if n.id == args.id]
     if not notes:
@@ -518,11 +562,7 @@ def cmd_recall(args: argparse.Namespace) -> int:
     if is_current(note, {}, held):
         first = served_first_line(note)
     else:
-        cited = ", ".join(f"{d} {v}" for d, v in note.documents if (d, v) not in held)
-        first = (
-            f"note: this Note cites {cited}, which the Library no longer holds; "
-            "read the pages again"
-        )
+        first = superseded_line(note, held)
     print(f"{title_line(note, is_current(note, {}, held))}")
     for line in block(note, first):
         print(line)
@@ -533,8 +573,7 @@ def cmd_notes(args: argparse.Namespace) -> int:
     root = resolve_library()
     if args.action == "record":
         return _cmd_record(args, root)
-    if not enabled(root):
-        print(_off_message(root))
+    if _switch(root) is None:
         return EXIT_ACTION
     path = notes_path(root)
     notes = load(path)

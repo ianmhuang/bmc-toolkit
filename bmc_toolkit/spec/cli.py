@@ -750,11 +750,15 @@ def _lock_lines(root: Path) -> list[str]:
 
 def cmd_status(args: argparse.Namespace) -> int:
     library = Library(resolve_library())
+    for line in notes_mod.status_reminder(library.root):
+        print(line)  # the size reminder leads, as in find and section
     print(f"library: {library.root}")
     holdings = list(library.holdings())
     if not holdings:
         print("(empty)")
         for line in _lock_lines(library.root):
+            print(line)
+        for line in notes_mod.status_lines(library.root):
             print(line)
         return EXIT_OK
     for h in holdings:

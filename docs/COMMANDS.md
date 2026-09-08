@@ -65,8 +65,9 @@ composes them.
 
 ## Notes
 
-Off by default. With `[library] notes = true` in `config.toml` the
-plugin's Stop hook runs `notes record` at the end of every turn: when
+Off by default. The plugin's Stop hook runs `notes record` at the end of
+every turn whether the feature is on or off; off, the command reads
+`config.toml` and exits at once. With `[library] notes = true`: when
 the turn ran a `bmcspec.py` command and the answer carries a Citation
 (a `cite:` line, or `DOC V, section, PDF page N` in prose), the question,
 the prompt before it, the answer (the first paragraph only and `partial`
@@ -87,15 +88,21 @@ or cited section titles, the latest such Note is printed whole after the
 title lines, from `note: answer from a Note of DATE (ID); ask to re-read
 to verify` to `end of note ID`; one Note per call at most, never a
 `partial` one. `recall ID` prints one Note whole (a superseded one with
-`note: this Note cites V, which the Library no longer holds; read the
-pages again` first). `notes list [DOC]` prints the title lines, `notes
-forget ID` removes one, `notes prune` removes the superseded ones
-(`--days N` also those older than N days, `--all` every one); `status`
-adds `notes: N (size)`. When the file grows past `notes_limit` (default
-`5MB`, a number with `KB` or `MB`, `"0"` never reminds), `find`,
-`section` and `status` start with `note: notes.jsonl holds N Notes
-(size), over notes_limit; run notes prune`; nothing is removed on its
-own. Without a Note that cites the document the output is unchanged.
+`note: this Note cites DOC V, the Library answers from W; read the pages
+again` first; `the Library holds W1, W2` with several versions held,
+`which the Library no longer holds` with none). `notes list [DOC]`
+prints the title lines, `notes forget ID` removes one, `notes prune`
+removes the superseded ones (`--days N` also those older than N days,
+`--all` every one); `status` adds `notes: N (size)` after the holdings.
+When the file grows past `notes_limit` (default `"5MB"`: an integer with
+`KB` or `MB`, or `"0"` which never reminds; any other form is refused),
+`find`, `section` and `status` start with `note: notes.jsonl holds N
+Notes (size), over notes_limit; run notes prune`; nothing is removed on
+its own. Without a Note that cites the document the output is unchanged.
+A `notes` value that is not `true` or `false`, or a `notes_limit` that
+is not a size, is refused the way `library.offline` is: `find` and
+`section` add one `note: notes: ...` line, `recall` and `notes` print
+the message and exit 2.
 
 What you accept by turning it on: an answer served from a Note is as
 right as it was the first time, and it is not read again from the

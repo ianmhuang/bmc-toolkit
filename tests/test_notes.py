@@ -173,11 +173,14 @@ def test_limit_bytes_takes_kb_mb_and_zero_and_refuses_the_rest(library):
     for value, expected in [('"512KB"', 512 * 1024), ('"2mb"', 2 * 1024 * 1024)]:
         config(library, f"[library]\nnotes_limit = {value}\n")
         assert N.limit_bytes(library.root) == expected
-    config(library, '[library]\nnotes_limit = "0"\n')
-    assert N.limit_bytes(library.root) == 0
-    config(library, "[library]\nnotes_limit = true\n")
-    with pytest.raises(N.NotesError, match="notes_limit must be a size"):
-        N.limit_bytes(library.root)
+    for value in ('"0"', "0"):
+        config(library, f"[library]\nnotes_limit = {value}\n")
+        assert N.limit_bytes(library.root) == 0
+    # only the documented forms: no bare byte count, no fraction, no bool
+    for value in ("true", '"100"', "100", '"0.5MB"', '"five"', '"1GB"'):
+        config(library, f"[library]\nnotes_limit = {value}\n")
+        with pytest.raises(N.NotesError, match="notes_limit must be a size"):
+            N.limit_bytes(library.root)
 
 
 # ----------------------------------------------------------- recording
@@ -400,10 +403,65 @@ def test_the_size_reminder_leads_find_and_status(held, library, capsys, catalog_
     )
     code, out = run(capsys, "status", catalog_file=catalog_file)
     assert code == 0
-    assert "over notes_limit; run notes prune" in out and "notes: 1 (2 KB)" in out
+    assert out.splitlines()[0] == (
+        "note: notes.jsonl holds 1 Notes (2 KB), over notes_limit; run notes prune"
+    )
+    assert out.splitlines()[1].startswith("library: ") and "notes: 1 (2 KB)" in out
     on(library, 'notes_limit = "0"\n')
     code, out = run(capsys, "status", catalog_file=catalog_file)
     assert "over notes_limit" not in out and "notes: 1 (2 KB)" in out
+
+
+def test_status_reports_notes_of_an_empty_library_too(library, capsys, catalog_file):
+    on(library, 'notes_limit = "1KB"\n')
+    write_notes(library, note("q", answer="y" * 2000 + "\n" + CITE))
+    code, out = run(capsys, "status", catalog_file=catalog_file)
+    assert code == 0
+    lines = out.splitlines()
+    assert lines[0].startswith("note: notes.jsonl holds 1 Notes")
+    assert lines[1].startswith("library: ") and lines[2] == "(empty)"
+    assert lines[-1] == "notes: 1 (2 KB)"
+
+
+def test_recall_and_notes_refuse_a_bad_config_like_offline_does(
+    held, library, capsys, catalog_file
+):
+    config(library, '[library]\nnotes = "yes"\n')
+    for argv in (["recall", "abcd1234"], ["notes", "list"], ["notes", "prune"]):
+        code, out = run(capsys, *argv, catalog_file=catalog_file)
+        assert (code, out) == (
+            2,
+            f"{library.root / 'config.toml'}: library.notes must be true or false\n",
+        )
+    config(library, "[library\nnotes = true\n")  # does not parse
+    code, out = run(capsys, "notes", "list", catalog_file=catalog_file)
+    assert code == 2 and out.startswith(str(library.root / "config.toml"))
+    code, out = run(capsys, "status", catalog_file=catalog_file)
+    assert code == 0 and out.splitlines()[0].startswith("note: notes: ")
+
+
+def test_record_takes_a_prompt_starting_with_a_bracket_and_skips_injected_ones(
+    library, tmp_path
+):
+    on(library)
+    pasted = "<Error code=0x05> what does this mean in DSP0236?"
+    lines = [
+        event("user", "first question", promptId="p1"),
+        event("assistant", [{"type": "text", "text": "first answer, no helper"}]),
+        event("user", pasted, promptId="p2"),
+        event("user", "<command-name>/compact</command-name>", isMeta=True),
+        event("user", "<local-command-stdout>done</local-command-stdout>"),
+        event("assistant", [{"type": "tool_use", "input": {"command": HELPER}}]),
+        event("user", [{"type": "tool_result", "content": "..."}]),
+        event("assistant", [{"type": "text", "text": ANSWER}]),
+    ]
+    path = tmp_path / "t.jsonl"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    turn = N.read_turn(path)
+    assert turn.question == pasted and turn.context == "first question"
+    assert turn.helper_calls == 1 and turn.answer == ANSWER
+    assert N.record(library.root, path).startswith("noted ")
+    assert N.load(library.root / N.NOTES_NAME)[0].question == pasted
 
 
 # ------------------------------------------------------- recall, notes
@@ -429,7 +487,14 @@ def test_recall_prints_a_note_whole_and_a_superseded_one_as_a_pointer(
     code, out = run(capsys, "recall", old.id, catalog_file=catalog_file)
     assert code == 0
     assert out.splitlines()[1] == (
-        "note: this Note cites DSP0236 1.2.0, which the Library no longer holds; "
+        "note: this Note cites DSP0236 1.2.0, the Library answers from 1.3.3; "
+        "read the pages again"
+    )
+    gone = note("gone", answer="cite: x | DSP0999 1.0 | 1 A | PDF page 1 | l | u | p")
+    write_notes(library, current, old, gone)
+    code, out = run(capsys, "recall", gone.id, catalog_file=catalog_file)
+    assert out.splitlines()[1] == (
+        "note: this Note cites DSP0999 1.0, which the Library no longer holds; "
         "read the pages again"
     )
     code, out = run(capsys, "recall", "00000000", catalog_file=catalog_file)

@@ -54,7 +54,7 @@ class FreshnessError(Exception):
     """config.toml or freshness.json cannot be used; the message says why."""
 
 
-def _library_section(root: Path) -> dict:
+def library_section(root: Path) -> dict:
     """The ``[library]`` table of config.toml; empty without the file."""
     path = root / code_mod.CONFIG_NAME
     if not path.is_file():
@@ -72,7 +72,7 @@ def _library_section(root: Path) -> dict:
 
 def max_age_days(root: Path) -> int:
     """``[library] freshness_days`` of config.toml, or the default."""
-    days = _library_section(root).get("freshness_days", DEFAULT_MAX_AGE_DAYS)
+    days = library_section(root).get("freshness_days", DEFAULT_MAX_AGE_DAYS)
     if isinstance(days, bool) or not isinstance(days, int) or days < 1:
         raise FreshnessError(
             f"{root / code_mod.CONFIG_NAME}: library.freshness_days must be a "
@@ -86,7 +86,7 @@ def offline(root: Path) -> bool:
     commands then download nothing and skip the Freshness Check; ``fetch``,
     ``check`` and ``clone`` are the user asking for the network and ignore
     it."""
-    value = _library_section(root).get("offline", False)
+    value = library_section(root).get("offline", False)
     if not isinstance(value, bool):
         raise FreshnessError(
             f"{root / code_mod.CONFIG_NAME}: library.offline must be true or false"

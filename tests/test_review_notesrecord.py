@@ -291,7 +291,7 @@ def test_hooks_json_runs_notes_record_on_stop_through_the_plugin_root():
 
 
 def test_the_notes_module_is_imported_by_cli_alone_inside_the_package():
-    importer = re.compile(r"(import|spec\.)notes\b")
+    importer = re.compile(r"(import\s+|spec\.)notes\b")
     importers = {
         p.relative_to(ROOT).as_posix()
         for p in ROOT.glob("bmc_toolkit/**/*.py")
