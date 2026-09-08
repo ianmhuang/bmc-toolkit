@@ -16,9 +16,13 @@ from tests.test_search_cli import URL, mctp_pdf
 
 pytest.importorskip("pypdfium2")
 
+OLD_URL = "https://example.test/DSP0236_1.3.2.pdf"
 CITE = (
     "cite: mctp | DSP0236 1.3.3 | 8.1 Overview | PDF page 1 | lines 1-2 | "
     "https://example.test/DSP0236_1.3.3.pdf | /lib"
+)
+REMINDER = re.compile(
+    r"^note: notes\.jsonl holds 1 Notes \(\d+ KB\), over notes_limit; run notes prune$"
 )
 
 
@@ -243,6 +247,33 @@ def test_a_broken_line_in_the_file_is_skipped_and_never_stops_a_command(
     assert code == 0 and len(out.splitlines()) == 1
 
 
+def test_the_notes_block_sits_between_the_download_preamble_and_the_hits(
+    library, scripted, tmp_path, capsys, catalog_file
+):
+    """Round 1 F6: a reading command that downloads on the fly prints
+    fetched / extracted lines first; the Notes come after all of them and
+    right before the first hit."""
+    on(library)
+    write_notes(library, a_note("f6f60001", "packet"))
+    scripted.responses[URL] = ok(mctp_pdf(tmp_path))
+    code, out = find(capsys, catalog_file)  # nothing held: find fetches first
+    assert code == 0, out
+    lines = out.splitlines()
+    start = lines.index("notes DSP0236 1.3.3: 1")
+    preamble = lines[:start]
+    assert any(ln.startswith("fetched DSP0236 1.3.3") for ln in preamble), out
+    assert any(ln.startswith("extracted DSP0236 1.3.3") for ln in preamble), out
+    assert not any(ln.startswith("DSP0236 p.") for ln in preamble)
+    end = lines.index("end of note f6f60001")
+    assert lines[start + 1].startswith("f6f60001 2026-09-08 | packet | ")
+    assert not any(ln.startswith("DSP0236 p.") for ln in lines[start:end])
+    assert lines[end + 1].startswith("DSP0236 p.")
+    # the same call again, now with the document held, prints no preamble
+    code, again = find(capsys, catalog_file)
+    assert code == 0 and again.splitlines()[0] == "notes DSP0236 1.3.3: 1"
+    assert again == "\n".join(lines[start:]) + "\n"
+
+
 # ---------------------------------------------------------------- AC-5
 
 
@@ -315,12 +346,64 @@ def test_recall_prints_a_note_whole_and_a_superseded_one_as_a_pointer(
     code, out = run(capsys, "recall", "3333bbbb", catalog_file=catalog_file)
     assert code == 0
     lines = out.splitlines()
-    pointer = [ln for ln in lines if ln.startswith("note: this Note cites DSP0236 1.3.2")]
-    assert len(pointer) == 1 and pointer[0].endswith("read the pages again")
+    # round 1 F5: the pointer names the version the Library answers from
+    assert lines[1] == (
+        "note: this Note cites DSP0236 1.3.2, the Library answers from 1.3.3; "
+        "read the pages again"
+    )
     assert "ask to re-read to verify" not in out
     assert "old answer" in lines and lines[-1] == "end of note 3333bbbb"
     code, out = run(capsys, "recall", "00000000", catalog_file=catalog_file)
     assert code == 2 and "00000000" in out
+
+
+def test_recall_names_every_held_version_or_says_none_is_held(
+    held, library, scripted, tmp_path, capsys, catalog_file
+):
+    """AC-6: `the Library holds W1, W2` with several versions held, `which
+    the Library no longer holds` with none; one part per missing version."""
+    on(library)
+    gone = a_note(
+        "3333cccc",
+        "gone",
+        cites=("DSP0999 1.0 | 1 A | PDF page 1",),
+        answer="an answer about a document the Library never held",
+    )
+    both = a_note(
+        "3333dddd",
+        "two missing",
+        cites=(
+            "DSP0236 1.2.0 | 8.1 Overview | PDF page 1",
+            "DSP0999 1.0 | 1 A | PDF page 1",
+        ),
+        answer="an answer citing two versions",
+    )
+    write_notes(library, gone, both)
+    code, out = run(capsys, "recall", "3333cccc", catalog_file=catalog_file)
+    assert code == 0
+    assert out.splitlines()[1] == (
+        "note: this Note cites DSP0999 1.0, which the Library no longer holds; "
+        "read the pages again"
+    )
+    assert out.splitlines()[-1] == "end of note 3333cccc"
+    code, out = run(capsys, "recall", "3333dddd", catalog_file=catalog_file)
+    assert code == 0
+    assert out.splitlines()[1] == (
+        "note: this Note cites DSP0236 1.2.0, the Library answers from 1.3.3; "
+        "DSP0999 1.0, which the Library no longer holds; read the pages again"
+    )
+    # a second version of DSP0236 held: both are named
+    scripted.responses[OLD_URL] = ok(mctp_pdf(tmp_path))
+    code, out = run(
+        capsys, "fetch", "DSP0236", "--version", "1.3.2", catalog_file=catalog_file
+    )
+    assert code == 0, out
+    code, out = run(capsys, "recall", "3333dddd", catalog_file=catalog_file)
+    assert code == 0
+    assert out.splitlines()[1] == (
+        "note: this Note cites DSP0236 1.2.0, the Library holds 1.3.2, 1.3.3; "
+        "DSP0999 1.0, which the Library no longer holds; read the pages again"
+    )
 
 
 # ---------------------------------------------------------------- AC-7
@@ -396,6 +479,28 @@ def test_status_counts_the_notes(held, library, capsys, catalog_file):
     assert re.search(r"^notes: 2 \(\d+ KB\)$", out, re.MULTILINE)
 
 
+def test_status_of_an_empty_library_prints_the_reminder_first_and_the_count(
+    library, capsys, catalog_file
+):
+    """Round 1 F3: with no document held, `status` still leads with the
+    size reminder (AC-8, before `library:`) and ends with the count (AC-7)."""
+    on(library, 'notes_limit = "1KB"\n')
+    write_notes(library, a_note("6666cccc", "packet", answer="y" * 3000 + "\n" + CITE))
+    code, out = run(capsys, "status", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert REMINDER.match(lines[0]), lines[0]
+    assert lines[1].startswith("library: ") and lines[2] == "(empty)"
+    assert re.fullmatch(r"notes: 1 \(\d+ KB\)", lines[-1]), lines[-1]
+    # under the limit: no reminder, `library:` first, the count still there
+    on(library, 'notes_limit = "1MB"\n')
+    code, out = run(capsys, "status", catalog_file=catalog_file)
+    assert code == 0
+    lines = out.splitlines()
+    assert lines[0].startswith("library: ") and lines[1] == "(empty)"
+    assert re.fullmatch(r"notes: 1 \(\d+ KB\)", lines[-1]), lines[-1]
+
+
 # ---------------------------------------------------------------- AC-8
 
 
@@ -413,7 +518,8 @@ def test_the_size_reminder_leads_find_section_and_status(
             out.splitlines()[0],
         )
     code, out = run(capsys, "status", catalog_file=catalog_file)
-    assert code == 0 and "over notes_limit; run notes prune" in out
+    assert code == 0 and REMINDER.match(out.splitlines()[0]), out
+    assert out.splitlines()[1].startswith("library: ")
     assert (library.root / "notes.jsonl").stat().st_size > 3000  # nothing removed
     on(library, 'notes_limit = "0"\n')
     code, out = run(capsys, "find", "DSP0236", "packet", catalog_file=catalog_file)
@@ -433,6 +539,35 @@ def test_a_bad_notes_limit_is_one_note_line_and_exit_zero(
     last = out.splitlines()[-1]
     assert last.startswith("note: notes: ") and "notes_limit" in last
     assert out.splitlines()[0].startswith("DSP0236 p.")  # the answer is intact
+
+
+def test_notes_limit_takes_only_an_integer_with_kb_or_mb_or_zero(
+    held, library, capsys, catalog_file
+):
+    """Round 1 F8: the documented forms are accepted, case-insensitively;
+    a bare number (string or integer), a fraction, a boolean and an unknown
+    unit are refused with one note line, the answer intact."""
+    write_notes(library, a_note("8888bbbb", "tag", answer="y" * 3000 + "\n" + CITE))
+    for value in ('"2KB"', '"2kb"', '"1 KB"'):
+        on(library, f"notes_limit = {value}\n")
+        code, out = find(capsys, catalog_file)
+        assert code == 0 and REMINDER.match(out.splitlines()[0]), (value, out)
+    for value in ('"1MB"', '"5mb"', '"0"'):
+        on(library, f"notes_limit = {value}\n")
+        code, out = find(capsys, catalog_file)
+        assert code == 0 and out.splitlines()[0] == "notes DSP0236 1.3.3: 1", value
+        assert "note: notes" not in out, value
+    for value in ("true", "100", '"100"', '"0.5MB"', '"1GB"', '"five"', '""'):
+        on(library, f"notes_limit = {value}\n")
+        code, out = find(capsys, catalog_file)
+        assert code == 0, value
+        lines = out.splitlines()
+        assert lines[0].startswith("DSP0236 p."), (value, out)
+        assert lines[-1].startswith("note: notes: ") and "notes_limit" in lines[-1], (
+            value,
+            out,
+        )
+        assert sum(ln.startswith("note: notes: ") for ln in lines) == 1, value
 
 
 # ---------------------------------------------------------------- AC-9
@@ -472,6 +607,44 @@ def test_a_switch_that_is_not_a_boolean_is_refused_like_offline(
         f"note: notes: {library.root / 'config.toml'}: library.notes must be true or false"
     )
     assert "answer from a Note" not in out
+
+
+def test_recall_and_notes_refuse_a_bad_switch_or_an_unparsable_config(
+    held, library, capsys, catalog_file
+):
+    """Round 1 F2: the managing commands print the refusal in the
+    library.offline form and exit 2 instead of a traceback; the file is
+    left alone; `status` turns the same failure into one note line."""
+    path = write_notes(library, a_note("f2f20001", "packet"))
+    before = path.read_text("utf-8")
+    config(library, "[library]\nnotes = 1\n")
+    message = f"{library.root / 'config.toml'}: library.notes must be true or false\n"
+    for argv in (
+        ["recall", "f2f20001"],
+        ["notes", "list"],
+        ["notes", "list", "DSP0236"],
+        ["notes", "forget", "f2f20001"],
+        ["notes", "prune"],
+        ["notes", "prune", "--all"],
+    ):
+        code, out = run(capsys, *argv, catalog_file=catalog_file)
+        assert (code, out) == (2, message), argv
+    config(library, "[library\nnotes = true\n")  # does not parse
+    for argv in (["recall", "f2f20001"], ["notes", "list"], ["notes", "prune"]):
+        code, out = run(capsys, *argv, catalog_file=catalog_file)
+        assert code == 2, (argv, out)
+        assert len(out.splitlines()) == 1 and "Traceback" not in out, (argv, out)
+        assert out.startswith(str(library.root / "config.toml")), (argv, out)
+    assert path.read_text("utf-8") == before
+    code, out = run(capsys, "status", catalog_file=catalog_file)
+    assert code == 0
+    assert out.splitlines()[0].startswith("note: notes: "), out
+    assert out.splitlines()[0].startswith(
+        f"note: notes: {library.root / 'config.toml'}"
+    )
+    # `notes record`, the hook's command, never exits non-zero on it
+    code, out = run(capsys, "notes", "record", "--transcript", "x", catalog_file=catalog_file)
+    assert code == 0 and len(out.splitlines()) == 1 and out.startswith("note: notes: ")
 
 
 # --------------------------------------------------------------- AC-13

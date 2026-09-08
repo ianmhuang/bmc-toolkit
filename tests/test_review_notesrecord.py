@@ -221,6 +221,91 @@ def test_record_never_fails_the_hook(library, tmp_path, capsys, catalog_file):
     code, out = record(capsys, catalog_file, garbage)
     assert code == 0 and len(out.splitlines()) == 1
     assert stored(library) == []
+    # a switch that is not a boolean: one line, exit 0, nothing stored
+    (library.root / "config.toml").write_text("[library]\nnotes = 1\n", encoding="utf-8")
+    path = transcript(tmp_path, [("packet fields?", [HELPER], ANSWER)])
+    code, out = record(capsys, catalog_file, path)
+    assert code == 0 and len(out.splitlines()) == 1 and "Traceback" not in out
+    assert stored(library) == []
+
+
+def test_a_prompt_starting_with_a_bracket_is_a_prompt_and_injected_messages_do_not_reset(
+    library, tmp_path, capsys, catalog_file
+):
+    """Round 1 F4: a pasted fragment beginning with `<` is the question of
+    its turn; the `<command-...>`, `<local-command-...>` and
+    `<system-reminder>` messages Claude Code injects are neither prompts nor
+    turn boundaries, wherever they fall in the turn."""
+    on(library)
+    pasted = "<Error code=0x05> what does this mean in DSP0236?"
+    tool_use = [{"type": "tool_use", "name": "Bash", "input": {"command": HELPER}}]
+    tool_result = [{"type": "tool_result", "content": "..."}]
+    lines = [
+        event("user", "first question"),
+        event("assistant", tool_use),
+        event("user", tool_result),
+        event("assistant", [{"type": "text", "text": "first answer " + CITE}]),
+        event("user", pasted),
+        event("user", "<command-name>/compact</command-name>", isMeta=True),
+        event("user", "<local-command-stdout>done</local-command-stdout>"),
+        event("assistant", tool_use),
+        event("user", tool_result),
+        event("user", "<system-reminder>injected context</system-reminder>"),
+        event("assistant", [{"type": "text", "text": ANSWER}]),
+    ]
+    path = tmp_path / "t.jsonl"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    code, out = record(capsys, catalog_file, path)
+    assert code == 0 and out.startswith("noted "), out
+    notes = stored(library)
+    assert len(notes) == 1
+    assert notes[0]["question"] == pasted
+    assert notes[0]["context"] == "first question"
+    assert notes[0]["answer"] == ANSWER.strip()
+    assert notes[0]["cites"] == ["DSP0236 1.3.3 | 8.1 Overview | PDF page 1"]
+    # the helper call belongs to the pasted prompt's turn, not to a turn
+    # opened by the injected message: with the call moved before it the
+    # Note is the same
+    lines[7], lines[6] = lines[6], lines[7]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    code, out = record(capsys, catalog_file, path)
+    assert code == 0 and out.startswith("replaced "), out
+    assert stored(library)[0]["question"] == pasted
+    # an injected message alone after the last real prompt does not make a
+    # turn without helper calls look like one that ran them
+    tail = [
+        event("user", "no helper here"),
+        event("assistant", [{"type": "text", "text": ANSWER}]),
+        event("user", "<system-reminder>late</system-reminder>"),
+    ]
+    path.write_text("\n".join(lines + tail) + "\n", encoding="utf-8")
+    code, out = record(capsys, catalog_file, path)
+    assert code == 0 and out.startswith("nothing to note"), out
+    assert len(stored(library)) == 1
+
+
+def test_a_prompt_given_as_text_blocks_is_joined(library, tmp_path, capsys, catalog_file):
+    """AC-1: the question is the user prompt of the turn; a prompt Claude
+    Code stores as content blocks (text beside a pasted image) is the text."""
+    on(library)
+    blocks = [
+        {"type": "image", "source": {"type": "base64", "data": "AAAA"}},
+        {"type": "text", "text": "what is this packet?"},
+    ]
+    lines = [
+        event("user", blocks),
+        event(
+            "assistant",
+            [{"type": "tool_use", "name": "Bash", "input": {"command": HELPER}}],
+        ),
+        event("user", [{"type": "tool_result", "content": "..."}]),
+        event("assistant", [{"type": "text", "text": ANSWER}]),
+    ]
+    path = tmp_path / "t.jsonl"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    code, out = record(capsys, catalog_file, path)
+    assert code == 0 and out.startswith("noted "), out
+    assert stored(library)[0]["question"] == "what is this packet?"
 
 
 # ---------------------------------------------------------- AC-2, AC-3
