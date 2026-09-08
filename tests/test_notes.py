@@ -599,15 +599,17 @@ def test_other_commands_print_straight(library, capsys, catalog_file):
     assert code == 0 and out == f"{library.root}\n"
 
 
-def test_notes_is_imported_only_by_cli_and_this_test():
+def test_notes_is_imported_only_by_cli_in_the_package():
+    """The add-on stays one module behind ``cli.main``: no other package
+    module imports it. Test files may (this one and the review tests)."""
     importers = set()
-    for path in list(ROOT.glob("bmc_toolkit/**/*.py")) + list(ROOT.glob("tests/*.py")):
+    for path in ROOT.glob("bmc_toolkit/**/*.py"):
         text = path.read_text("utf-8")
         if re.search(r"from bmc_toolkit\.spec import notes\b", text) or re.search(
             r"bmc_toolkit\.spec\.notes\b", text
         ):
             importers.add(path.relative_to(ROOT).as_posix())
-    assert importers == {"bmc_toolkit/spec/cli.py", "tests/test_notes.py"}
+    assert importers == {"bmc_toolkit/spec/cli.py"}
 
 
 def test_hooks_json_registers_the_stop_hook():
