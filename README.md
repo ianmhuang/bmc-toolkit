@@ -19,7 +19,7 @@ listed with their tier and registered from your own copy. Which documents,
 their limits and whether each is verified: [docs/SUPPORT.md](docs/SUPPORT.md);
 how the catalog is kept: [docs/CATALOG.md](docs/CATALOG.md).
 
-What the plugin is made of and where the data flows (a double arrow: read and write):
+What the plugin is made of and where the data flows; a double arrow reads and writes:
 
 ```mermaid
 flowchart LR
@@ -57,7 +57,8 @@ ianmhuang/bmc-toolkit`, then `claude plugin install bmc-toolkit@bmc-toolkit`.
 
 Requirements: Python 3.11 or newer on `PATH` as `python` or `python3`, and
 `git`. A `SessionStart` hook installs the packages in `requirements.txt`
-once; in a development checkout run `pip install -r requirements.txt` yourself.
+once, into the plugin's data directory; in a development checkout run
+`pip install -r requirements.txt` yourself.
 
 - `curl_cffi` (MIT): HTTP client with a browser TLS fingerprint; without it
   Intel documents come from the Internet Archive instead of the publisher,
@@ -97,7 +98,7 @@ sequenceDiagram
     CLI->>Lib: find DSP0236 "Msg tag" in extract.txt
     CLI-->>Claude: fetched / extracted lines, then hits: page, line, section
     opt Notes on
-        CLI-->>Claude: notes DSP0236 1.3.1: N title lines, or one earlier Note whole (unverified, marked)
+        CLI-->>Claude: notes DSP0236 1.3.1: N title lines, then the matching Note whole (unverified, marked)
     end
     Claude->>CLI: page DSP0236 24 (or table, render)
     CLI->>Lib: read the pages
@@ -126,8 +127,7 @@ Documents sit at `specs/<family>/<document>/<version>/`, Code Trees at
 
 ## Command line
 
-The skill drives `skills/bmc-spec/scripts/bmcspec.py`; you can run it
-yourself. The examples use a shell alias for it:
+The skill drives `skills/bmc-spec/scripts/bmcspec.py`; you can too, here through a shell alias:
 
 ```
 alias bmcspec='python skills/bmc-spec/scripts/bmcspec.py'
@@ -177,7 +177,7 @@ output formats, `config.toml` and every command with an example:
 
 ## Further reading
 
-- [docs/COMMANDS.md](docs/COMMANDS.md): every command, `config.toml`, Notes, the Freshness Check.
+- [docs/COMMANDS.md](docs/COMMANDS.md): every command, `config.toml`, Notes.
 - [docs/LIBRARY.md](docs/LIBRARY.md): the files under the Library.
 - [docs/CATALOG.md](docs/CATALOG.md): how the Source Catalog is kept and extended.
 - [docs/SUPPORT.md](docs/SUPPORT.md): the Support Level table per family.
