@@ -303,7 +303,8 @@ def test_page_prints_cite_header_then_numbered_lines(held, catalog_file, capsys)
     assert lines[0].split(" | ") == [
         "cite: mctp",
         "DSP0236 1.3.3",
-        "2 Scope",
+        # the page starts inside 2 Scope and holds the next headings
+        "2 Scope; 3 Commands; 3.1 Frobnicate; 3.2 Reset",
         "PDF page 2",
         "lines 106-111",
         URL,

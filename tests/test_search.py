@@ -203,12 +203,78 @@ def test_find_escapes_literal_metacharacters():
 def test_cite_line_fields_in_order():
     v = make_version()
     assert v.cite(2) == (
-        "cite: mctp | DSP0236 1.3.3 | 2 Scope | PDF page 2 | lines 40-43 | "
+        "cite: mctp | DSP0236 1.3.3 | 2 Scope; 3 Commands; 3.1 Get Device ID | "
+        "PDF page 2 | lines 40-43 | "
         "https://example.test/DSP0236_1.3.3.pdf | " + str(v.path)
     )
-    assert v.cite(1).split(" | ")[2:5] == ["-", "PDF page 1", "lines -"]
+    assert v.cite(1).split(" | ")[2:5] == [
+        "1 Introduction; 2 Scope",
+        "PDF page 1",
+        "lines -",
+    ]
     assert v.cite(3).split(" | ")[2] == "~A Annex"
     assert v.cite(3, lines="rendered page").split(" | ")[4] == "lines rendered page"
+
+
+def test_spanned_sections_lists_the_owner_then_every_heading_on_the_page():
+    v = make_version()
+    # page 1: no owner at the top (running header), two headings on the page
+    assert [s.title for s in v.spanned_sections(1)] == ["1 Introduction", "2 Scope"]
+    # page 2 starts inside 2 Scope and holds the headings of 3 and 3.1
+    assert [s.title for s in v.spanned_sections(2)] == [
+        "2 Scope",
+        "3 Commands",
+        "3.1 Get Device ID",
+    ]
+    # page 3: the approximate entry owns the top and is listed once
+    assert [s.label for s in v.spanned_sections(3)] == ["~A Annex"]
+
+
+def test_spanned_sections_of_a_page_within_one_section_is_that_section():
+    v = make_version(
+        outline=[
+            {"level": 0, "title": "1 Introduction", "page": 1},
+            {"level": 0, "title": "2 Scope", "page": 1},
+        ]
+    )
+    assert [s.title for s in v.spanned_sections(2)] == ["2 Scope"]
+    assert v.cite(2).split(" | ")[2] == "2 Scope"
+
+
+def test_spanned_sections_skips_an_entry_whose_heading_is_not_on_the_page():
+    # two contents-page entries claim page 3 and neither heading is there:
+    # the last one owns the top, the other is not "on the page"
+    v = make_version(
+        outline=[
+            {"level": 0, "title": "1 Introduction", "page": 1},
+            {"level": 0, "title": "2 Overview", "page": 3, "approximate": True},
+            {"level": 1, "title": "2.1 Arch", "page": 3, "approximate": True},
+        ]
+    )
+    assert [s.label for s in v.spanned_sections(3)] == ["~2.1 Arch"]
+    assert v.cite(3).split(" | ")[2] == "~2.1 Arch"
+
+
+def test_cite_over_a_page_range_spans_every_heading_in_the_range():
+    v = make_version()
+    assert [s.title for s in v.spanned_sections(1, 2)] == [
+        "1 Introduction",
+        "2 Scope",
+        "3 Commands",
+        "3.1 Get Device ID",
+    ]
+    fields = v.cite(2, lines="table 1", last=3).split(" | ")
+    assert fields[2:4] == ["2 Scope; 3 Commands; 3.1 Get Device ID", "PDF pages 2-3"]
+    # a range that ends past the document is clipped, not an error
+    assert v.spanned_sections(3, 9) == v.spanned_sections(3)
+
+
+def test_cite_with_an_explicit_section_prints_that_section_only():
+    v = make_version()
+    assert v.cite(2, section="7 Custom").split(" | ")[2] == "7 Custom"
+    entry = se.Section("2 Scope", 1)
+    assert v.cite(2, section=entry).split(" | ")[2] == "2 Scope"
+    assert v.cite(2, last=3, section=entry).split(" | ")[2] == "2 Scope"
 
 
 def test_cite_marks_dropins_as_user_provided(tmp_path):

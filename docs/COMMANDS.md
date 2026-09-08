@@ -58,7 +58,9 @@ with those, their hits first; they are brought to Ready the same way, with
 every line about that as a `note:`, and one that cannot be read is left
 out; `--only` skips them. `page` prints at most 10 pages per call
 (`--max-pages`). Each printed page and each rendered page comes with a
-`cite:` line: family, document and version, section, PDF page, printed
+`cite:` line: family, document and version, the sections the page spans
+(the one in force at its top, then every one whose heading is on the
+page, joined by `; `; `page --section X` names X only), PDF page, printed
 line range (or `rendered page`), origin URL or `user-provided`, and the
 Library path. The Skill copies Citations from those lines and never
 composes them.
@@ -95,7 +97,8 @@ prints the title lines, `notes forget ID` removes one, `notes prune`
 removes the superseded ones (`--days N` also those older than N days,
 `--all` every one); `status` adds `notes: N (size)` after the holdings.
 When the file grows past `notes_limit` (default `"5MB"`: an integer with
-`KB` or `MB`, or `"0"` which never reminds; any other form is refused),
+`KB` or `MB`, or `"0"` or the bare integer `0` which never reminds; any
+other form is refused),
 `find`, `section` and `status` start with `note: notes.jsonl holds N
 Notes (size), over notes_limit; run notes prune`; nothing is removed on
 its own. Without a Note that cites the document the output is unchanged.

@@ -270,7 +270,7 @@ def test_page_prints_cite_header_and_numbered_lines(held, catalog_file, capsys):
         [
             "cite: mctp",
             "DSP0236 1.3.3",
-            "8 MCTP base protocol",
+            "8 MCTP base protocol; 8.1 Overview; 8.2 MCTP packet fields",
             "PDF page 1",
             "lines 100-105",
             URL,
@@ -289,13 +289,26 @@ def test_page_range_section_and_limits(held, catalog_file, capsys):
     assert code == 0
     cites = [ln for ln in out.splitlines() if ln.startswith("cite:")]
     assert len(cites) == 2 and "PDF page 2" in cites[1]
+    # one cite per page, each listing the sections that page spans
+    assert cites[0].split(" | ")[2].count("; ") == 2
+    assert cites[1].split(" | ")[2] == "8.3 Message assembly"
     assert "[figure]" in out
     code, out = run(
         capsys, "page", "DSP0236", "--section", "8.3", catalog_file=catalog_file
     )
     assert code == 0
-    assert out.splitlines()[0].split(" | ")[3] == "PDF page 2"
+    assert out.splitlines()[0].split(" | ")[2:4] == [
+        "8.3 Message assembly",
+        "PDF page 2",
+    ]
     assert out.count("cite:") == 1
+    # an explicit --section names that section only, on every page it prints
+    code, out = run(
+        capsys, "page", "DSP0236", "--section", "8", catalog_file=catalog_file
+    )
+    assert code == 0
+    cites = [ln for ln in out.splitlines() if ln.startswith("cite:")]
+    assert [c.split(" | ")[2] for c in cites] == ["8 MCTP base protocol"] * 2
     code, out = run(
         capsys,
         "page",
@@ -335,7 +348,16 @@ def test_render_writes_png_without_pillow(held, catalog_file, capsys, monkeypatc
     assert out.splitlines()[0] == f"rendered {png}"
     cite = out.splitlines()[1].split(" | ")
     assert cite[0] == "cite: mctp" and cite[3] == "PDF page 2"
+    assert cite[2] == "8.3 Message assembly"
     assert cite[4] == "lines rendered page"
+    code, out = run(
+        capsys, "render", "DSP0236", "--page", "1", catalog_file=catalog_file
+    )
+    assert code == 0, out
+    assert (
+        out.splitlines()[1].split(" | ")[2]
+        == "8 MCTP base protocol; 8.1 Overview; 8.2 MCTP packet fields"
+    )
     data = png.read_bytes()
     assert data.startswith(b"\x89PNG\r\n\x1a\n")
     width, height, depth, colour = struct.unpack(">IIBB", data[16:26])
