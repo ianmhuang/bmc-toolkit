@@ -98,7 +98,9 @@ def test_find_lists_the_notes_and_prints_the_latest_matching_one_whole(
     held, library, capsys, catalog_file
 ):
     on(library)
-    older = a_note("aaaa0001", "What is in the MCTP packet?", time="2026-09-01T00:00:00+00:00")
+    older = a_note(
+        "aaaa0001", "What is in the MCTP packet?", time="2026-09-01T00:00:00+00:00"
+    )
     newer = a_note(
         "aaaa0002",
         "Which fields does an MCTP packet header carry?",
@@ -114,7 +116,10 @@ def test_find_lists_the_notes_and_prints_the_latest_matching_one_whole(
         "aaaa0002 2026-09-02 | Which fields does an MCTP packet header carry? "
         "| DSP0236 1.3.3 p.1"
     )
-    assert lines[2] == "aaaa0001 2026-09-01 | What is in the MCTP packet? | DSP0236 1.3.3 p.1"
+    assert (
+        lines[2]
+        == "aaaa0001 2026-09-01 | What is in the MCTP packet? | DSP0236 1.3.3 p.1"
+    )
     # both match the pattern; only the latest is printed whole, right after
     # the title lines, in the documented frame
     assert lines[3] == (
@@ -164,7 +169,9 @@ def test_the_query_must_be_covered_by_the_question_or_the_cited_section_titles(
 
 def test_section_serves_the_same_way(held, library, capsys, catalog_file):
     on(library)
-    write_notes(library, a_note("cccc0001", "Give me the overview of the base protocol"))
+    write_notes(
+        library, a_note("cccc0001", "Give me the overview of the base protocol")
+    )
     code, out = run(capsys, "section", "DSP0236", "overview", catalog_file=catalog_file)
     assert code == 0
     lines = out.splitlines()
@@ -174,13 +181,19 @@ def test_section_serves_the_same_way(held, library, capsys, catalog_file):
         "note: answer from a Note of 2026-09-08 (cccc0001); ask to re-read to verify"
     )
     assert "end of note cccc0001" in lines
-    assert any("8.1 Overview" in ln for ln in lines[lines.index("end of note cccc0001") :])
+    assert any(
+        "8.1 Overview" in ln for ln in lines[lines.index("end of note cccc0001") :]
+    )
 
 
 def test_at_most_ten_title_lines_latest_first(held, library, capsys, catalog_file):
     on(library)
     notes = [
-        a_note(f"dddd00{i:02d}", f"question number {i} about nothing", time=f"2026-08-{i:02d}T00:00:00+00:00")
+        a_note(
+            f"dddd00{i:02d}",
+            f"question number {i} about nothing",
+            time=f"2026-08-{i:02d}T00:00:00+00:00",
+        )
         for i in range(1, 13)
     ]
     write_notes(library, *notes)
@@ -190,7 +203,9 @@ def test_at_most_ten_title_lines_latest_first(held, library, capsys, catalog_fil
     assert lines[0] == "notes DSP0236 1.3.3: 12"
     titles = [ln for ln in lines if ln.startswith("dddd00")]
     assert len(titles) == 10
-    assert [t.split(" ", 1)[0] for t in titles] == [f"dddd00{i:02d}" for i in range(12, 2, -1)]
+    assert [t.split(" ", 1)[0] for t in titles] == [
+        f"dddd00{i:02d}" for i in range(12, 2, -1)
+    ]
     assert "answer from a Note" not in out
 
 
@@ -200,7 +215,9 @@ def test_a_partial_note_is_listed_but_never_printed_whole(
     on(library)
     write_notes(
         library,
-        a_note("eeee0001", "packet fields", answer="First paragraph only.", partial=True),
+        a_note(
+            "eeee0001", "packet fields", answer="First paragraph only.", partial=True
+        ),
     )
     code, out = find(capsys, catalog_file)
     assert code == 0
@@ -295,7 +312,10 @@ def test_a_note_citing_another_version_of_the_document_is_superseded(
     assert out.splitlines()[0] == "notes DSP0236 1.3.3: 1"
     # superseded after the date, the pages still named so the Session can
     # read them in the new version; never printed whole
-    assert out.splitlines()[1] == "1111aaaa 2026-09-08 superseded | packet | DSP0236 1.3.2 pp.1-2"
+    assert (
+        out.splitlines()[1]
+        == "1111aaaa 2026-09-08 superseded | packet | DSP0236 1.3.2 pp.1-2"
+    )
     assert "answer from a Note" not in out and "old answer" not in out
 
 
@@ -340,7 +360,10 @@ def test_recall_prints_a_note_whole_and_a_superseded_one_as_a_pointer(
     code, out = run(capsys, "recall", "3333aaaa", catalog_file=catalog_file)
     assert code == 0
     lines = out.splitlines()
-    assert "note: answer from a Note of 2026-09-08 (3333aaaa); ask to re-read to verify" in lines
+    assert (
+        "note: answer from a Note of 2026-09-08 (3333aaaa); ask to re-read to verify"
+        in lines
+    )
     assert lines[-1] == "end of note 3333aaaa"
     assert "The packet fields are as follows." in lines
     code, out = run(capsys, "recall", "3333bbbb", catalog_file=catalog_file)
@@ -360,8 +383,9 @@ def test_recall_prints_a_note_whole_and_a_superseded_one_as_a_pointer(
 def test_recall_names_every_held_version_or_says_none_is_held(
     held, library, scripted, tmp_path, capsys, catalog_file
 ):
-    """AC-6: `the Library holds W1, W2` with several versions held, `which
-    the Library no longer holds` with none; one part per missing version."""
+    """AC-6: `the Library answers from W` with the version held or not
+    (several held: the one `find` answers from), `which the Library no
+    longer holds` with none; one part per missing version."""
     on(library)
     gone = a_note(
         "3333cccc",
@@ -392,7 +416,8 @@ def test_recall_names_every_held_version_or_says_none_is_held(
         "note: this Note cites DSP0236 1.2.0, the Library answers from 1.3.3; "
         "DSP0999 1.0, which the Library no longer holds; read the pages again"
     )
-    # a second version of DSP0236 held: both are named
+    # a second version of DSP0236 held: the one find answers from is named
+    # (the follow-up of round 2 made the managing commands judge as find does)
     scripted.responses[OLD_URL] = ok(mctp_pdf(tmp_path))
     code, out = run(
         capsys, "fetch", "DSP0236", "--version", "1.3.2", catalog_file=catalog_file
@@ -401,7 +426,7 @@ def test_recall_names_every_held_version_or_says_none_is_held(
     code, out = run(capsys, "recall", "3333dddd", catalog_file=catalog_file)
     assert code == 0
     assert out.splitlines()[1] == (
-        "note: this Note cites DSP0236 1.2.0, the Library holds 1.3.2, 1.3.3; "
+        "note: this Note cites DSP0236 1.2.0, the Library answers from 1.3.3; "
         "DSP0999 1.0, which the Library no longer holds; read the pages again"
     )
 
@@ -426,8 +451,15 @@ def test_notes_list_filters_by_document_and_is_latest_first(
     )
     code, out = run(capsys, "notes", "list", catalog_file=catalog_file)
     assert code == 0
-    assert [ln.split(" ")[0] for ln in out.splitlines()] == ["4444bbbb", "4444cccc", "4444aaaa"]
-    assert out.splitlines()[0] == "4444bbbb 2026-09-03 superseded | second | DSP0274 1.4.1 p.18"
+    assert [ln.split(" ")[0] for ln in out.splitlines()] == [
+        "4444bbbb",
+        "4444cccc",
+        "4444aaaa",
+    ]
+    assert (
+        out.splitlines()[0]
+        == "4444bbbb 2026-09-03 superseded | second | DSP0274 1.4.1 p.18"
+    )
     code, out = run(capsys, "notes", "list", "DSP0236", catalog_file=catalog_file)
     assert code == 0
     assert [ln.split(" ")[0] for ln in out.splitlines()] == ["4444cccc", "4444aaaa"]
@@ -455,7 +487,9 @@ def test_notes_forget_and_prune(held, library, capsys, catalog_file):
     assert ids() == ["5555aaaa", "5555cccc"]
     code, out = run(capsys, "notes", "prune", catalog_file=catalog_file)
     assert (code, out) == (0, "nothing to prune\n")
-    code, out = run(capsys, "notes", "prune", "--days", "3650", catalog_file=catalog_file)
+    code, out = run(
+        capsys, "notes", "prune", "--days", "3650", catalog_file=catalog_file
+    )
     assert code == 0 and "5555cccc" in out and "5555aaaa" not in out
     assert ids() == ["5555aaaa"]
     code, out = run(capsys, "notes", "forget", "5555aaaa", catalog_file=catalog_file)
@@ -593,7 +627,10 @@ def test_off_by_default_nothing_is_served_and_the_commands_say_so(
         code, out = run(capsys, *argv, catalog_file=catalog_file)
         assert (code, out) == (2, expected), argv
     # the file is left as it is
-    assert json.loads((library.root / "notes.jsonl").read_text("utf-8"))["id"] == "9999aaaa"
+    assert (
+        json.loads((library.root / "notes.jsonl").read_text("utf-8"))["id"]
+        == "9999aaaa"
+    )
 
 
 def test_a_switch_that_is_not_a_boolean_is_refused_like_offline(
@@ -643,7 +680,9 @@ def test_recall_and_notes_refuse_a_bad_switch_or_an_unparsable_config(
         f"note: notes: {library.root / 'config.toml'}"
     )
     # `notes record`, the hook's command, never exits non-zero on it
-    code, out = run(capsys, "notes", "record", "--transcript", "x", catalog_file=catalog_file)
+    code, out = run(
+        capsys, "notes", "record", "--transcript", "x", catalog_file=catalog_file
+    )
     assert code == 0 and len(out.splitlines()) == 1 and out.startswith("note: notes: ")
 
 

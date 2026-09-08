@@ -209,14 +209,22 @@ def test_find_searches_companions_first_and_notes_missing_ones(
 def test_section_by_number_and_by_words(held, catalog_file, capsys):
     code, out = run(capsys, "section", "DSP0236", "8.2", catalog_file=catalog_file)
     assert code == 0
-    assert out.strip() == "1 | 8.2 MCTP packet fields | pages 1-2"
+    # 8.3 opens page 2, so 8.2 ends on page 1 (not 1-2: page 2 has none of it)
+    assert out.strip() == "1 | 8.2 MCTP packet fields | pages 1-1"
     code, out = run(capsys, "section", "DSP0236", "8", catalog_file=catalog_file)
     assert out.strip().splitlines() == [
         "0 | 8 MCTP base protocol | pages 1-2",
         "1 | 8.1 Overview | pages 1-1",
-        "1 | 8.2 MCTP packet fields | pages 1-2",
+        "1 | 8.2 MCTP packet fields | pages 1-1",
         "1 | 8.3 Message assembly | pages 2-2",
     ]
+    code, out = run(
+        capsys, "page", "DSP0236", "--section", "8.2", catalog_file=catalog_file
+    )
+    assert code == 0
+    assert [
+        ln.split(" | ")[3] for ln in out.splitlines() if ln.startswith("cite:")
+    ] == ["PDF page 1"]
     code, out = run(
         capsys, "section", "DSP0236", "message ASSEMBLY", catalog_file=catalog_file
     )

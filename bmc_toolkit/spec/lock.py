@@ -99,8 +99,11 @@ def read_holder(path: Path) -> Holder | None:
 
 
 def locks_under(root: Path) -> list[Holder]:
-    """Every lock in a Library: version directories and Code Tree repositories."""
+    """Every lock in a Library: the root (``notes record``), version
+    directories and Code Tree repositories."""
     found = []
+    if (root / LOCK_NAME).is_file():
+        found.append(root / LOCK_NAME)
     specs = root / "specs"
     if specs.is_dir():
         found += sorted(specs.glob("*/*/*/" + LOCK_NAME))

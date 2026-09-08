@@ -319,3 +319,6 @@ def test_locks_under_finds_version_and_repository_locks(tmp_path):
     assert [h.path for h in holders] == [a, b]
     assert [h.stale for h in holders] == [False, True]
     assert lock_mod.locks_under(tmp_path / "nowhere") == []
+    # the root's own lock (notes record) comes first
+    top = fake_lock(root, command="notes record")
+    assert [h.path for h in lock_mod.locks_under(root)] == [top, a, b]

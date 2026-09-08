@@ -185,18 +185,17 @@ def test_find_hits_keep_their_per_line_section(held, catalog_file, capsys):
 # ---------------------------------------------------------------- AC-4
 
 
-def test_page_section_names_that_section_only_on_every_page(
-    held, catalog_file, capsys
-):
-    # 7 runs from page 2 to page 4 (where 8 begins): three pages, each
-    # cite: naming 7 alone, though page 2 also holds 7.1 and page 3 is 7.1
+def test_page_section_names_that_section_only_on_every_page(held, catalog_file, capsys):
+    # 7 runs from page 2 to page 3 (8 opens page 4, so that page holds none
+    # of 7): two pages, each cite: naming 7 alone, though page 2 also holds
+    # 7.1 and page 3 is 7.1
     code, out = run(
         capsys, "page", "DSP0236", "--section", "7", catalog_file=catalog_file
     )
     assert code == 0, out
     cites = [ln for ln in out.splitlines() if ln.startswith("cite:")]
-    assert len(cites) == 3
-    assert [c.split(" | ")[2] for c in cites] == ["7 SPDM message exchanges"] * 3
+    assert len(cites) == 2
+    assert [c.split(" | ")[2] for c in cites] == ["7 SPDM message exchanges"] * 2
     code, out = run(
         capsys, "page", "DSP0236", "--section", "7.1", catalog_file=catalog_file
     )
@@ -270,9 +269,9 @@ def test_range_cite_with_an_explicit_section_names_it_alone():
     assert v.cite(2, lines="table 1", last=4, section=entry).split(" | ")[2] == (
         "7 SPDM message exchanges"
     )
-    assert v.cite(2, lines="table 1", last=4, section="Table 5 - Codes").split(
-        " | "
-    )[2] == ("Table 5 - Codes")
+    assert v.cite(2, lines="table 1", last=4, section="Table 5 - Codes").split(" | ")[
+        2
+    ] == ("Table 5 - Codes")
 
 
 def test_range_past_the_last_page_is_clipped_and_an_empty_outline_prints_a_dash():

@@ -599,6 +599,112 @@ def test_other_commands_print_straight(library, capsys, catalog_file):
     assert code == 0 and out == f"{library.root}\n"
 
 
+# ------------------------------------------- follow-ups closed before 1.0.0
+
+
+def test_a_prose_section_marked_with_the_sign_may_hold_commas():
+    # a title with a comma, and several "; "-joined titles with commas
+    assert N.find_cites(
+        "DSP0274 1.4.1, §6 Symbols, terms; 7 SPDM, exchanges, PDF pp.27-28."
+    ) == ["DSP0274 1.4.1 | 6 Symbols, terms; 7 SPDM, exchanges | PDF pages 27-28"]
+    # without the sign the section still ends at the first comma, so a
+    # mention of another document before a Citation is not swallowed
+    assert N.find_cites(
+        "Per DSP0274 1.4.1, see also DSP0236 1.3.0, §8 Overview, PDF p.5"
+    ) == ["DSP0236 1.3.0 | 8 Overview | PDF page 5"]
+    # nor with the sign: a second sign ends the first attempt
+    assert N.find_cites(
+        "DSP0274 1.4.1, §7 SPDM, see DSP0236 1.3.3, §8 Overview, PDF p.5"
+    ) == ["DSP0236 1.3.3 | 8 Overview | PDF page 5"]
+
+
+def test_a_failing_reminder_keeps_the_served_note(
+    held, library, capsys, catalog_file, monkeypatch
+):
+    on(library)
+    write_notes(library, note("packet"))
+
+    def boom(root):
+        raise N.NotesError("boom")
+
+    monkeypatch.setattr(N, "reminder", boom)
+    code, out = run(capsys, "find", "DSP0236", "packet", catalog_file=catalog_file)
+    assert code == 0
+    lines = out.splitlines()
+    assert lines[0] == "notes DSP0236 1.3.3: 1"
+    assert any(ln.startswith("note: answer from a Note") for ln in lines)
+    assert lines[-1] == "note: notes: boom"
+
+
+def test_record_holds_the_root_lock_and_yields_to_a_live_one(
+    held, library, capsys, catalog_file, tmp_path, monkeypatch
+):
+    from tests.test_lock import fake_lock
+
+    on(library)
+    path = transcript(tmp_path, [("packet", [HELPER], ANSWER)])
+    code, out = run(
+        capsys, "notes", "record", "--transcript", str(path), catalog_file=catalog_file
+    )
+    assert code == 0 and out.startswith("noted ")
+    assert not (library.root / ".lock").exists()  # released
+    held_by = fake_lock(library.root, command="notes record")
+    monkeypatch.setattr(N, "RECORD_WAIT", 0)
+    code, out = run(
+        capsys, "notes", "record", "--transcript", str(path), catalog_file=catalog_file
+    )
+    assert code == 0
+    assert out.startswith(
+        f"note: notes: busy: {held_by} is held by pid 4242 on host elsewhere"
+    )
+    assert out.rstrip().endswith("; not noted")
+    assert len(N.load(library.root / N.NOTES_NAME)) == 1  # the file is untouched
+    code, out = run(capsys, "status", catalog_file=catalog_file)
+    assert code == 0
+    assert any(
+        ln.startswith(f"lock: {held_by} held by pid 4242 on host elsewhere")
+        for ln in out.splitlines()
+    )
+
+
+def test_managing_commands_judge_current_as_find_does(
+    held, library, scripted, tmp_path, capsys, catalog_file
+):
+    # 1.3.2 and 1.3.3 both held: find answers from 1.3.3 (the catalog's
+    # Latest), so a Note citing 1.3.2 is superseded everywhere, not only in
+    # find
+    on(library)
+    scripted.responses["https://example.test/DSP0236_1.3.2.pdf"] = ok(
+        mctp_pdf(tmp_path)
+    )
+    code, out = run(
+        capsys, "fetch", "DSP0236", "--version", "1.3.2", catalog_file=catalog_file
+    )
+    assert code == 0, out
+    older = note(
+        "older packet",
+        answer="cite: mctp | DSP0236 1.3.2 | 8.1 Overview | PDF page 1 | l | u | p",
+    )
+    write_notes(library, note("packet"), older)
+    code, out = run(capsys, "notes", "list", catalog_file=catalog_file)
+    assert code == 0
+    assert [ln.split(" | ")[0].endswith("superseded") for ln in out.splitlines()] == [
+        False,
+        True,
+    ]
+    code, out = run(capsys, "recall", older.id, catalog_file=catalog_file)
+    assert code == 0
+    assert out.splitlines()[1] == (
+        "note: this Note cites DSP0236 1.3.2, the Library answers from 1.3.3; "
+        "read the pages again"
+    )
+    code, out = run(capsys, "find", "DSP0236", "packet", catalog_file=catalog_file)
+    assert code == 0 and f"{older.id} 2026-09-08 superseded | " in out
+    code, out = run(capsys, "notes", "prune", catalog_file=catalog_file)
+    assert code == 0 and out.startswith(f"pruned {older.id} ")
+    assert [n.question for n in N.load(library.root / N.NOTES_NAME)] == ["packet"]
+
+
 def test_notes_is_imported_only_by_cli_in_the_package():
     """The add-on stays one module behind ``cli.main``: no other package
     module imports it. Test files may (this one and the review tests)."""

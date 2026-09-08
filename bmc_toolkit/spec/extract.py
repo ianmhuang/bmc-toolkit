@@ -487,6 +487,13 @@ def bookmarks_usable(entries: list[dict], page_count: int) -> bool:
     return len({e["page"] for e in entries}) > 1
 
 
+def is_contents_line(text: str) -> bool:
+    """Whether a line reads as a contents entry: a section number, a title,
+    dot leaders or a wide gap, then a page number. Such a line names a
+    section without being its heading."""
+    return _CONTENTS_LINE.match(text) is not None
+
+
 def parse_contents(pages_text: list[list[str]]) -> list[dict]:
     """Contents-page entries as {level, title, printed} from page texts.
 
