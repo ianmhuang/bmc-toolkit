@@ -1,10 +1,52 @@
 # Commands
 
-What each `bmcspec.py` command does beyond the one-line examples in the
-README, the Library's `config.toml`, the Freshness Check, and everything
+The one-line examples first, then what each `bmcspec.py` command does
+beyond them, the Library's `config.toml`, the Freshness Check, and everything
 the tool touches on the network and on disk. The files it writes are
 described in [LIBRARY.md](LIBRARY.md); the documents it knows, in
 [CATALOG.md](CATALOG.md).
+
+## Examples
+
+Every command once, through a shell alias for the launcher:
+
+```
+alias bmcspec='python skills/bmc-spec/scripts/bmcspec.py'
+
+bmcspec catalog              # every document, one per line
+bmcspec catalog DSP0236      # one document, all versions
+bmcspec catalog --table --golden docs/golden-questions.md   # Support Level table, one flat table
+bmcspec catalog --table --by-family --golden docs/golden-questions.md   # the same per family (docs/SUPPORT.md)
+bmcspec fetch DSP0236        # latest published version
+bmcspec fetch DSP0236 --version 1.2.0
+bmcspec fetch PMBUS-II --version 1.3.1   # the latest is gated: fetch names this one
+bmcspec fetch IPMI --version "2.0 rev 1.1"
+bmcspec fetch --all          # several hundred MB
+bmcspec add vendor.pdf --document DSP0236 --version 1.1.0   # --force to replace
+bmcspec scan                 # register hand-placed files
+bmcspec status
+bmcspec check DSP0236        # is the catalog behind DMTF? (no download)
+bmcspec check                # every document with a listing, plus the OpenBMC release
+bmcspec refresh --write      # maintainer: add the versions the publishers list
+bmcspec extract DSP0236      # text, outline, line map, figures
+bmcspec extract --all
+bmcspec section DSP0236 8.1  # level | title | pages, per matching entry
+bmcspec find DSP0236 "Msg tag" --context 1   # hits with page, line, section
+bmcspec page DSP0236 24 --to 25              # the pages, with a cite: line each
+bmcspec page DSP0236 --section 8.2
+bmcspec render DSP0236 --page 24             # renders/page-24.png
+bmcspec table DSP0236 --page 122             # the table(s) on the page, whole
+bmcspec table DSP0239 --page 13              # a table drawn as cell boxes, no rules
+bmcspec schema DSP8010 Chassis --property PowerState   # the JSON Schema bundle, fetched and unpacked as needed
+bmcspec registry DSP8011 Base PropertyValueTypeError
+bmcspec schema DSP8013 RedfishInteroperabilityProfile --definition ReadRequirement
+bmcspec repos --topic redfish                # repositories and held Code Trees
+bmcspec clone bmcweb                         # default branch, shallow
+bmcspec clone pldm --release 2.18.0          # the commit OpenBMC 2.18.0 ships
+bmcspec grep bmcweb CurrentPowerState --context 2
+bmcspec code bmcweb redfish-core/lib/chassis.hpp --lines 160-175
+bmcspec prune                # list superseded Code Trees; --yes removes them
+```
 
 ## Reading commands
 

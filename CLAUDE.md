@@ -3,7 +3,7 @@
 Claude Code plugin. Layout: `.claude-plugin/` (manifest, marketplace),
 `skills/<name>/` (SKILL.md plus a launcher under `scripts/`), `bmc_toolkit/`
 (the Python package the launchers import), `hooks/` (SessionStart dependency
-install), `tests/`.
+install, Stop notes record), `tests/`.
 
 - Code, comments, commit messages and docs are in English.
 - Run `ruff check .`, `ruff format --check .` and `python -m pytest -q` before
