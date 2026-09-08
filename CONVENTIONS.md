@@ -31,14 +31,18 @@ Things a linter cannot check; formatting is not listed.
   when the `plugin.json` version changes. Bump in a change that alters what
   an installed user gets: code under `bmc_toolkit/`, the Source Catalog,
   SKILL.md, hooks. A change that touches only README, `docs/`, tests or CI
-  does not bump. Bumps start with the first tag: until `bmc-toolkit--v1.0.0`
-  exists, every change lands in 1.0.0.
+  does not bump. Bumps started with the first tag, `v1.0.0` (2026-09-08).
+  A bump also moves the pin `RELEASE` in `tests/test_review_release.py`.
 - Major: the Library's disk format is no longer read by the previous version,
   or a command is removed. Minor: a new command, flag, exit code or catalog
   document. Patch: fixes and wording.
-- After the merge of a bumping change the maintainer runs
-  `claude plugin tag --push` (tag `bmc-toolkit--v<version>`), once the README
-  describes that version.
+- After the merge of a bumping change, once the README describes that
+  version, the maintainer labels the pull requests merged since the last
+  tag (`major`, `minor`, `patch` or `docs`), tags main `v<version>`
+  (annotated) and pushes the tag, then publishes a GitHub Release:
+  `gh release create v<version> --generate-notes`, with one lead line above
+  the generated list saying why the version exists. `.github/release.yml`
+  groups that list by the labels.
 
 ## Interfaces
 - CLI subcommands and flags, the Library directory layout, the Source Catalog

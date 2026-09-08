@@ -1,9 +1,11 @@
-"""Catalog refresh workflow (AC-1 to AC-7): a monthly GitHub Action runs
-``refresh`` without writing and opens an issue when the publishers list
-something the Source Catalog lacks. No YAML parser is a dependency, so the
-checks read the text; the counting line is run through bash where one is
-on PATH."""
+"""Catalog refresh workflow: a monthly GitHub Action runs ``refresh``
+without writing and opens an issue when the publishers list something the
+Source Catalog lacks (PR #25, AC-1 to AC-7), then leaves OCP out, keeps the
+summary on failure and fences with four backticks (refresh --skip-source
+change, AC-3 to AC-7). No YAML parser is a dependency, so the checks read
+the text; the shell block runs through a bash that can read the checkout."""
 
+import os
 import re
 import shutil
 import subprocess
@@ -17,7 +19,7 @@ TEST_WORKFLOW = ROOT / ".github" / "workflows" / "test.yml"
 CATALOG_DOC = ROOT / "docs" / "CATALOG.md"
 README = ROOT / "README.md"
 
-REFRESH = "python skills/bmc-spec/scripts/bmcspec.py refresh"
+REFRESH = "python skills/bmc-spec/scripts/bmcspec.py refresh --skip-source ocp"
 
 
 def _text() -> str:
@@ -56,6 +58,88 @@ def _refresh_step() -> str:
     return _step(_text(), "refresh (dry run)")
 
 
+def _run_block(step: str) -> str:
+    """The shell script under the step's ``run: |``."""
+    lines = step.splitlines()
+    start = lines.index("        run: |") + 1
+    body = []
+    for ln in lines[start:]:
+        if ln.strip() and not ln.startswith("          "):
+            break
+        body.append(ln[10:])
+    return "\n".join(body) + "\n"
+
+
+def _bash() -> str:
+    """A bash that can read this checkout, or skip: on a Windows PATH the
+    first ``bash`` may be the WSL launcher, which sees no Windows path."""
+    bash = shutil.which("bash")
+    if bash is None:
+        pytest.skip("no bash on PATH")
+    try:
+        probe = subprocess.run(
+            [bash, "-c", 'test -f "$1" && printf ok', "_", str(WORKFLOW)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        pytest.skip("bash on PATH does not run")
+    if probe.returncode != 0 or probe.stdout != "ok":
+        pytest.skip("bash on PATH cannot read this checkout")
+    return bash
+
+
+def _run_refresh_block(tmp_path: Path, output: str, exit_code: int = 0):
+    """Run the refresh step's script as GitHub does (``shell: bash`` is
+    ``bash --noprofile --norc -eo pipefail``) with a stand-in ``python``
+    that prints ``output`` and exits ``exit_code``. Returns the completed
+    process, the step summary text and the ``proposals`` output."""
+    bash = _bash()
+    shim_dir = tmp_path / "shim"
+    shim_dir.mkdir()
+    canned = tmp_path / "canned.txt"
+    canned.write_text(output, encoding="utf-8", newline="\n")
+    shim = shim_dir / "python"
+    shim.write_text(
+        '#!/bin/sh\ncat "$FAKE_OUTPUT"\nexit "$FAKE_EXIT"\n',
+        encoding="utf-8",
+        newline="\n",
+    )
+    shim.chmod(0o755)
+    script = tmp_path / "step.sh"
+    script.write_text(_run_block(_refresh_step()), encoding="utf-8", newline="\n")
+    summary = tmp_path / "summary.md"
+    outputs = tmp_path / "outputs.txt"
+    summary.touch()
+    outputs.touch()
+    env = dict(os.environ)
+    env["PATH"] = str(shim_dir) + os.pathsep + env.get("PATH", "")
+    env["GITHUB_STEP_SUMMARY"] = str(summary)
+    env["GITHUB_OUTPUT"] = str(outputs)
+    env["FAKE_OUTPUT"] = str(canned)
+    env["FAKE_EXIT"] = str(exit_code)
+    cwd = tmp_path / "work"
+    cwd.mkdir()
+    proc = subprocess.run(
+        [bash, "--noprofile", "--norc", "-eo", "pipefail", str(script)],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    outs = dict(
+        ln.split("=", 1)
+        for ln in outputs.read_text(encoding="utf-8").splitlines()
+        if "=" in ln
+    )
+    return proc, summary.read_text(encoding="utf-8"), outs.get("proposals")
+
+
+TAIL = " (dry run; --write adds them)"
+
+
 # ---------------------------------------------------------------- AC-1
 
 
@@ -90,10 +174,9 @@ def test_ac2_runs_upstream_only_on_ubuntu_python_313_with_requirements():
 # ---------------------------------------------------------------- AC-3
 
 
-def test_ac3_runs_refresh_dry_and_writes_the_step_summary():
+def test_ac3_runs_refresh_dry_skipping_ocp_and_writes_the_step_summary():
     step = _refresh_step()
     assert REFRESH in step
-    assert "--write" not in step
     assert "GITHUB_STEP_SUMMARY" in step
     assert "shell: bash" in step  # pipefail: a failing refresh fails the step
 
@@ -152,9 +235,6 @@ def test_ac5_count_pattern_names_the_three_kinds_and_not_unreachable():
     assert "grep '^summary:'" in line
 
 
-TAIL = " (dry run; --write adds them)"
-
-
 @pytest.mark.parametrize(
     ("counts", "expected"),
     [
@@ -164,20 +244,45 @@ TAIL = " (dry run; --write adds them)"
         ("add 2, confirm 0, changed 0, unreachable 1", "2"),
     ],
 )
-def test_ac5_count_line_sums_add_confirm_changed(tmp_path, counts, expected):
-    bash = shutil.which("bash")
-    if bash is None:
-        pytest.skip("no bash on PATH")
-    (tmp_path / "refresh.txt").write_text(
+def test_ac5_step_sums_add_confirm_changed(tmp_path, counts, expected):
+    output = (
         "unreachable DSP0236: HTTP 503\nchanged DSP0266 1.20.2 (2024-08-19) x\n"
-        f"summary: {counts}{TAIL}\n",
-        encoding="utf-8",
+        f"summary: {counts}{TAIL}\n"
     )
-    script = _count_line() + '; printf "%s" "$proposals"'
-    out = subprocess.run(
-        [bash, "-c", script], cwd=tmp_path, capture_output=True, text=True, check=True
+    proc, summary, proposals = _run_refresh_block(tmp_path, output)
+    assert proc.returncode == 0, proc.stderr
+    assert proposals == expected
+    assert "unreachable DSP0236: HTTP 503" in summary
+
+
+# --------------------------------------- summary on failure (skip-source AC-4)
+
+
+def test_failing_refresh_still_reaches_the_summary_and_fails_the_step(tmp_path):
+    output = "cannot read catalog: bad TOML on line 3\n"
+    proc, summary, proposals = _run_refresh_block(tmp_path, output, exit_code=1)
+    assert proc.returncode == 1, (proc.returncode, proc.stderr)
+    assert "cannot read catalog: bad TOML on line 3" in summary
+    assert proposals == "0"
+
+
+def test_refresh_exit_code_is_the_steps_exit_code(tmp_path):
+    proc, _summary, _proposals = _run_refresh_block(
+        tmp_path, "unknown document 'NOPE'\n", exit_code=2
     )
-    assert out.stdout == expected, out
+    assert proc.returncode == 2, (proc.returncode, proc.stderr)
+
+
+# -------------------------------------------- fences (skip-source AC-5)
+
+
+def test_summary_and_issue_body_fence_with_four_backticks():
+    run = _run_block(_refresh_step())
+    assert run.count("echo '````'") == 2
+    assert "echo '```'" not in run
+    issue = _issue_step()
+    assert issue.count('"````",') == 2
+    assert '"```",' not in issue
 
 
 # ---------------------------------------------------------------- AC-6
@@ -200,7 +305,9 @@ def test_ac7_catalog_doc_describes_the_workflow_and_keeps_writes_manual():
     assert len(about) == 1, about
     p = about[0]
     assert "Once a month" in p and "Run workflow" in p
-    assert "without `--write`" in p
+    assert "`refresh --skip-source ocp`" in p and "without `--write`" in p
+    assert "whether or not `refresh` succeeded" in p
+    assert "HTTP 403" in p and "developer machine" in p
     assert "issue" in p and "`catalog`" in p
     assert "opens nothing" in p
     assert "pull request" in p and "`refresh --write`" in p

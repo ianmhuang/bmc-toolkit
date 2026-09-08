@@ -585,10 +585,12 @@ def test_workflow_concurrency_comment():
     assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in text
 
 
-def test_version_stays_1_0_0():
+def test_version_records_agree():
+    # Was "stays 1.0.0" while nothing had been published; since the 1.0.0
+    # tag the version moves, so this checks the three records agree
+    # (changed by the refresh --skip-source change, declared in its change.md).
     from bmc_toolkit import __version__
 
-    assert __version__ == "1.0.0"
-    assert 'version = "1.0.0"' in read("pyproject.toml")
+    assert f'version = "{__version__}"' in read("pyproject.toml")
     plugin = json.loads(read(".claude-plugin/plugin.json"))
-    assert plugin["version"] == "1.0.0"
+    assert plugin["version"] == __version__

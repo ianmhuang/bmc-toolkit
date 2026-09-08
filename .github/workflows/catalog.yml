@@ -32,15 +32,22 @@ jobs:
         id: refresh
         shell: bash
         run: |
-          python skills/bmc-spec/scripts/bmcspec.py refresh | tee refresh.txt
+          # opencompute.org answers 403 to GitHub's runners; OCP is refreshed
+          # from a developer machine (docs/CATALOG.md). The output reaches the
+          # summary even when refresh fails, and the step then fails.
+          set +e
+          python skills/bmc-spec/scripts/bmcspec.py refresh --skip-source ocp | tee refresh.txt
+          status=${PIPESTATUS[0]}
+          set -e
           {
             echo '## refresh'
-            echo '```'
+            echo '````'
             cat refresh.txt
-            echo '```'
+            echo '````'
           } >> "$GITHUB_STEP_SUMMARY"
-          proposals=$(grep '^summary:' refresh.txt | grep -oE '(add|confirm|changed) [0-9]+' | awk '{ s += $2 } END { print s + 0 }')
+          proposals=$({ grep '^summary:' refresh.txt | grep -oE '(add|confirm|changed) [0-9]+' || true; } | awk '{ s += $2 } END { print s + 0 }')
           echo "proposals=$proposals" >> "$GITHUB_OUTPUT"
+          exit "$status"
       - name: open or comment on the catalog issue
         if: steps.refresh.outputs.proposals != '0'
         uses: actions/github-script@v7
@@ -56,9 +63,9 @@ jobs:
               "`docs/golden-questions.md`, bump `plugin.json`, and open a pull request",
               "(docs/CATALOG.md).",
               "",
-              "```",
+              "````",
               fs.readFileSync("refresh.txt", "utf8").trimEnd(),
-              "```",
+              "````",
               "",
               `Run: ${run}`,
             ].join("\n");
