@@ -104,6 +104,11 @@ def test_find_cites_takes_every_form_the_session_writes():
             "No version: DSP0275 4.6, PDF page 9.",
             "cite: code | bmcweb ae6cec2 (master) | x.hpp | lines 1-3 | p",
             "Again: cite: mctp | DSP0236 1.3.3 | 8.1 Overview | PDF page 1 | lines 3",
+            "Spanning: cite: spdm | DSP0274 1.4.1 | 6 Symbols and abbreviated terms; "
+            "7 SPDM message exchanges | PDF page 27 | lines 1-3 | u | p",
+            "Prose spanning: DSP0274 1.4.1, §6 Symbols and abbreviated terms; "
+            "7 SPDM message exchanges; 7.1 Request and response messages; "
+            "7.2 Generic SPDM message format, PDF pp.27-28, lines 1-9.",
         ]
     )
     assert N.find_cites(text) == [
@@ -112,7 +117,30 @@ def test_find_cites_takes_every_form_the_session_writes():
         "DSP0236 1.3.3 | 8.2 Fields | PDF pages 43-45",
         "DSP0274 1.4.1 | 7 SPDM message exchanges | PDF page 27",
         "DSP0275 1.0.2 | 4.5.1 | PDF page 9",
+        "DSP0274 1.4.1 | 6 Symbols and abbreviated terms; 7 SPDM message exchanges"
+        " | PDF page 27",
+        "DSP0274 1.4.1 | 6 Symbols and abbreviated terms; 7 SPDM message exchanges;"
+        " 7.1 Request and response messages; 7.2 Generic SPDM message format"
+        " | PDF pages 27-28",
     ]
+
+
+def test_note_sections_are_the_parts_of_a_spanning_section_field():
+    made = note(
+        "How does a request map to a response?",
+        answer=(
+            "One request, one response.\n"
+            "cite: spdm | DSP0274 1.4.1 | 6 Symbols and abbreviated terms; "
+            "7 SPDM message exchanges | PDF page 27 | lines 1-3 | u | p\n"
+        ),
+    )
+    assert made.sections() == [
+        "6 Symbols and abbreviated terms",
+        "7 SPDM message exchanges",
+    ]
+    assert made.pages() == "DSP0274 1.4.1 p.27"
+    assert N.matches("SPDM exchanges", made)
+    assert N.matches("abbreviated", made)
 
 
 def test_make_note_keys_documents_and_pages_and_stores_long_answers_partial():
@@ -571,15 +599,17 @@ def test_other_commands_print_straight(library, capsys, catalog_file):
     assert code == 0 and out == f"{library.root}\n"
 
 
-def test_notes_is_imported_only_by_cli_and_this_test():
+def test_notes_is_imported_only_by_cli_in_the_package():
+    """The add-on stays one module behind ``cli.main``: no other package
+    module imports it. Test files may (this one and the review tests)."""
     importers = set()
-    for path in list(ROOT.glob("bmc_toolkit/**/*.py")) + list(ROOT.glob("tests/*.py")):
+    for path in ROOT.glob("bmc_toolkit/**/*.py"):
         text = path.read_text("utf-8")
         if re.search(r"from bmc_toolkit\.spec import notes\b", text) or re.search(
             r"bmc_toolkit\.spec\.notes\b", text
         ):
             importers.add(path.relative_to(ROOT).as_posix())
-    assert importers == {"bmc_toolkit/spec/cli.py", "tests/test_notes.py"}
+    assert importers == {"bmc_toolkit/spec/cli.py"}
 
 
 def test_hooks_json_registers_the_stop_hook():

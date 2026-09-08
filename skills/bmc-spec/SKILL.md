@@ -123,8 +123,9 @@ names (or the default branch), searched with `grep` and read with `code`.
   downloads and checks off (a held version is still extracted); `fetch`,
   `check` and `clone` ignore it.
 - **Citation**: a `cite:` line printed by `page`, `render` or `table`. Its
-  fields, separated by ` | `: family, document and version, section,
-  `PDF page N` (or `PDF pages A-B` for a Logical Table), `lines A-B` (or
+  fields, separated by ` | `: family, document and version, the sections
+  the page spans (joined by `; `; one section for `page --section` and
+  `table`), `PDF page N` (or `PDF pages A-B` for a Logical Table), `lines A-B` (or
   `lines -`, `rendered page`, or `table K` for the K-th table on the first
   page), origin (download URL or `user-provided`), Library path. A `schema`
   Citation has, in the section, page and lines positions: `<Resource>
@@ -296,9 +297,10 @@ and the user's release may differ, and `grep` at both is cheap.
   not read.
 - Line numbers appear only when the `page` output printed them for those
   lines; give the range you actually used, not the page's whole range.
-- The `cite:` section is the entry in force at the top of the page; for a
-  claim further down use the section printed by `find` for that hit, or
-  the heading you saw in the page text.
+- The `cite:` section field lists every section the page spans: the entry
+  in force at the top, then each whose heading is on the page. Copy the
+  field whole, or keep the one your claim sits in when the page text or
+  the section printed by `find` for that hit shows which one it is.
 - A `~` page comes from a contents page whose offset could not be
   confirmed: open the page and check the heading before citing it.
 - An answer read from a rendered PNG says "read from a rendered page" in

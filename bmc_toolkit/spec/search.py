@@ -231,6 +231,25 @@ class Version:
                     return i
         return 0
 
+    def spanned_sections(self, page: int, last: int | None = None) -> list[Section]:
+        """The entries pages ``page``-``last`` span: the one owning the first
+        line of ``page``, then every entry whose heading is on one of the
+        pages, in Outline order, none twice.
+
+        An entry the Outline places on a page without its heading being
+        found there (a contents-page entry, a bookmark worded otherwise) is
+        listed only when it owns the top of ``page``.
+        """
+        last = min(last or page, self.page_count)
+        owner = self.owning_section(page, 0)
+        out = [owner] if owner else []
+        for e in self.sections():
+            if not page <= e.page <= last or e in out:
+                continue
+            if self._heading_index(e, e.page) >= 0:
+                out.append(e)
+        return out
+
     def cite(
         self,
         page: int,
@@ -239,15 +258,19 @@ class Version:
         last: int | None = None,
         section: "Section | str | None" = None,
     ) -> str:
-        """The Citation line for a page, or for pages ``page``-``last``;
-        ``section`` (an entry or its label) overrides the entry owning the
-        page's first line."""
-        if section is None:
-            section = self.owning_section(page, 0)
+        """The Citation line for a page, or for pages ``page``-``last``.
+
+        The section field lists the entries the pages span (see
+        :meth:`spanned_sections`), joined by ``; ``; ``section`` (an entry
+        or its label) prints that one only.
+        """
         if isinstance(section, str):
             label = section
+        elif section is not None:
+            label = section.label
         else:
-            label = section.label if section else "-"
+            spanned = self.spanned_sections(page, last)
+            label = "; ".join(s.label for s in spanned) or "-"
         if lines is None:
             rng = self.line_range(page)
             lines = f"{rng[0]}-{rng[1]}" if rng else "-"

@@ -1442,6 +1442,7 @@ def cmd_page(args: argparse.Namespace) -> int:
     version, _, code = _open_version(args)
     if version is None:
         return code
+    sec = None  # an explicit --section is the one the cite: line names
     if args.section is not None:
         matches = version.match_sections(args.section)
         if not matches:
@@ -1470,7 +1471,7 @@ def cmd_page(args: argparse.Namespace) -> int:
     for n in range(first, last + 1):
         if n > first:
             print()
-        print(version.cite(n))
+        print(version.cite(n, section=sec))
         for ln in search_mod.format_page(version, n):
             print(ln)
     return EXIT_OK

@@ -48,15 +48,17 @@ EXIT_OK, EXIT_ERROR, EXIT_ACTION = 0, 1, 2
 # A Citation as the tool prints it, on its own line or quoted inline, with
 # or without the ``cite:`` prefix the Session sometimes drops:
 #   cite: spdm | DSP0274 1.4.1 | 3 Scope | PDF page 18 | lines 82-84 | ...
+# The section field lists every section the page spans, joined by "; ".
 _CITE = re.compile(
     r"(?:cite: )?(?P<family>[A-Za-z][A-Za-z0-9-]*) \| (?P<label>[^|\n]+) \| "
     r"(?P<section>[^|\n]*) \| PDF pages? (?P<first>\d+)(?:-(?P<last>\d+))?"
 )
-# The prose form the Session also writes:
+# The prose form the Session also writes (the section copied from the
+# cite: line, so it may hold several "; "-joined titles):
 #   DSP0274 1.4.1, §3 Scope, PDF p.18, lines 82-84
 _PROSE = re.compile(
     r"(?P<doc>\b[A-Z][A-Za-z0-9_-]{2,})\s+(?P<ver>\d+(?:\.\d+)+)[,，]\s*"
-    r"(?:§\s*)?(?P<section>[^,，()（）\n]{1,80}?)[,，]\s*"
+    r"(?:§\s*)?(?P<section>[^,，()（）\n]{1,300}?)[,，]\s*"
     r"PDF\s*(?:pages?|pp?\.?)\s*(?P<first>\d+)(?:\s*[-–]\s*(?P<last>\d+))?"
 )
 # The stored form: DOC V | section | PDF pages N-M
@@ -118,11 +120,12 @@ class Note:
         return "; ".join(parts)
 
     def sections(self) -> list[str]:
+        """The cited section titles, one per section a cite: line spans."""
         out = []
         for line in self.cites:
             m = _NORM.match(line)
             if m:
-                out.append(m.group("section").strip())
+                out.extend(p.strip() for p in m.group("section").split("; ") if p)
         return out
 
     def words(self) -> set[str]:
