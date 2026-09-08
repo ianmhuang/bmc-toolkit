@@ -10,8 +10,9 @@ on:
     branches: [main, develop]
 
 # A newer push to a pull request cancels the run for the superseded commit.
-# A run on main is never cancelled, but the group holds at most one pending
-# run: pushing three commits in a row runs the first and the last.
+# A run on main or develop is never cancelled, but the group holds at most
+# one pending run: pushing three commits in a row runs the first and the
+# last.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

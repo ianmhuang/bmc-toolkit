@@ -1,6 +1,7 @@
 """CI workflow (M12, AC-1 to AC-7): the GitHub Actions file lints and tests
 on Linux and Windows for every pull request and adds macOS on pushes to
-main. No YAML parser is a dependency, so the checks read the text."""
+main or develop. No YAML parser is a dependency, so the checks read the
+text."""
 
 import re
 from pathlib import Path
@@ -29,7 +30,7 @@ def _job(name: str) -> str:
     return "\n".join(body)
 
 
-def test_ac1_triggers_on_pull_request_and_push_to_main():
+def test_ac1_triggers_on_pull_request_and_push_to_main_or_develop():
     text = _text()
     on = text[text.index("\non:") : text.index("\nconcurrency:")]
     assert "pull_request:" in on

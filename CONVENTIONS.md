@@ -22,10 +22,12 @@ Things a linter cannot check; formatting is not listed.
 - Anything the tool downloads, writes outside the Library, or runs as a
   subprocess is listed in the README's network-and-disk section and in
   full in `docs/COMMANDS.md`.
-- A change that settles an issue says `Closes #N` in its description, so
-  the pull request closes it when the release reaches `main`. A change that
-  settles part of one comments on the issue: the cause, what the change
-  did, what is left.
+- A change that settles an issue says `Closes #N` in its description. A
+  pull request into `develop` closes nothing (GitHub closes from the
+  default branch only), so the release pull request repeats the `Closes`
+  lines of the changes it ships, and the issue closes when that merges. A
+  change that settles part of an issue comments on it: the cause, what the
+  change did, what is left.
 
 ## Versions
 - `plugin.json`, `pyproject.toml` and `bmc_toolkit/__init__.py` carry one
@@ -43,10 +45,13 @@ Things a linter cannot check; formatting is not listed.
   code under `bmc_toolkit/`, the Source Catalog, SKILL.md, hooks. The
   maintainer opens a `develop` to `main` pull request titled
   `Release v<version>`, labelled `skip-changelog`, that changes only the
-  version records and the pin `RELEASE` in `tests/test_review_release.py`;
-  the bump is the highest label since the last tag. It does not go through
-  revali. It is merged with a merge commit, never squashed: `develop` and
-  `main` must share their commits, or the next release lists them again.
+  version records (`plugin.json`, `pyproject.toml`,
+  `bmc_toolkit/__init__.py`, the README status line) and the pin `RELEASE`
+  in `tests/test_review_release.py`, and repeats the `Closes #N` lines of
+  the changes it ships; the bump is the highest label since the last tag.
+  It does not go through revali. It is merged with a merge commit, never
+  squashed: `develop` and `main` must share their commits, or the next
+  release lists them again.
 - After that merge the maintainer tags `main` `v<version>` (annotated),
   pushes the tag and publishes a GitHub Release:
   `gh release create v<version> --generate-notes`, with one lead line above
