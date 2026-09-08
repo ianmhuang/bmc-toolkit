@@ -84,18 +84,26 @@ title lines, latest first: `ID DATE | question | DSP0248 1.3.0
 pp.107-108; DSP0240 1.2.0 p.9`. A Note is current while every version
 it cites is still the one answered from (a document not loaded by the
 call only has to be held); otherwise the title line says `superseded`
-after the date. When every identifier in the pattern or query (ASCII
+after the date. `recall`, `notes list` and `notes prune` judge the same
+way against the version `find` answers from without `--version` (the
+catalog's Latest when held, else the newest held released version), so
+a Note citing an older version held beside a newer one is superseded in
+all of them. When every identifier in the pattern or query (ASCII
 words of three or more characters) occurs in a current Note's question
 or cited section titles, the latest such Note is printed whole after the
 title lines, from `note: answer from a Note of DATE (ID); ask to re-read
 to verify` to `end of note ID`; one Note per call at most, never a
 `partial` one. `recall ID` prints one Note whole (a superseded one with
 `note: this Note cites DOC V, the Library answers from W; read the pages
-again` first; `the Library holds W1, W2` with several versions held,
-`which the Library no longer holds` with none). `notes list [DOC]`
-prints the title lines, `notes forget ID` removes one, `notes prune`
-removes the superseded ones (`--days N` also those older than N days,
-`--all` every one); `status` adds `notes: N (size)` after the holdings.
+again` first, `which the Library no longer holds` when it holds no
+version of DOC). `notes list [DOC]` prints the title lines, `notes
+forget ID` removes one, `notes prune` removes the superseded ones
+(`--days N` also those older than N days, `--all` every one); `status`
+adds `notes: N (size)` after the holdings. `notes record` writes the
+Note under the Library root's `.lock` (two Sessions ending a turn
+together: the one replacing a Note rewrites the file), waiting up to
+five seconds; held longer, it prints `note: notes: busy: ...; not
+noted` and exits 0, and `status` lists that lock like any other.
 When the file grows past `notes_limit` (default `"5MB"`: an integer with
 `KB` or `MB`, or `"0"` or the bare integer `0` which never reminds; any
 other form is refused),
@@ -302,7 +310,8 @@ temporary files (see above).
   (`catalog_known`). Nothing already in the Library is replaced without
   `--force`. `fetch`, `add`, `extract`, `table` and a reading command
   downloading or extracting hold `.lock` in the version directory while
-  they write (see above), and every single-file
+  they write (see above), `notes record` holds `.lock` at the Library
+  root while it writes `notes.jsonl`, and every single-file
   write goes through a `<name>.<pid>-<token>.part` temporary beside the
   target; nothing else is created.
 - Replacing an original (`add --force`, `fetch --force`) removes the
@@ -322,5 +331,5 @@ temporary files (see above).
   the PDF stay in the ZIP.
 - `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/w/index.php?title=<page>` for the pages named in the catalog's `listing` keys. They download no document. A reading command reads the one listing page of the document it answered from when that document's Freshness Check is due (at most once per document per `freshness_days`), never with `[library] offline = true`.
 - Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed.
-- `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory that is removed on failure, and `code/<repo>/.lock` while it runs. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees, `.tmp-*` and `.part` leftovers and stale `.lock` files under `code/` and `specs/`, nothing else.
+- `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory that is removed on failure, and `code/<repo>/.lock` while it runs. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees, `.tmp-*` and `.part` leftovers and stale `.lock` files under `code/` and `specs/` and at the Library root, nothing else.
 - `check` writes `freshness.json` at the Library root, and so does a reading command that ran the due check; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it inserts version entries into the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).

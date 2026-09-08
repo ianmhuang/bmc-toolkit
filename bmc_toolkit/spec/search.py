@@ -11,8 +11,10 @@ fields are fixed and separated by `` | ``::
     cite: <family> | <document> <version> | <section> | PDF page <n>
           | lines <a>-<b> | <origin> | <library path>
 
-``section`` is the Outline entry that owns the page's first line (``-`` when
-the Outline is empty, ``~`` in front when the entry's page is approximate);
+``section`` lists every entry the page spans, joined by ``; ``: the one
+owning the page's first line, then each whose heading is on the page (``-``
+when the Outline is empty, ``~`` in front of an entry whose page is
+approximate); a command given a section prints that one alone.
 ``lines`` are the first and last printed line numbers on the page, ``-``
 without a Line Map, ``rendered page`` for an image, ``table K`` for a
 Logical Table (whose page field reads ``PDF pages <a>-<b>`` when it spans
@@ -84,6 +86,7 @@ class Version:
     linemap: dict = field(default_factory=dict)  # "N" -> {"first","last","lines"}
     figures: dict = field(default_factory=dict)  # "N" -> {"regions","lines"}
     original: Path | None = None  # the PDF the Extract came from
+    _placed: dict = field(default_factory=dict, repr=False, compare=False)
 
     @property
     def page_count(self) -> int:
@@ -125,6 +128,8 @@ class Version:
 
         The last entry that starts on an earlier page, unless an entry
         starting on the same page has its heading at or above the line.
+        An entry starts on the page its heading is found on
+        (:meth:`placed_page`).
         """
         entries = self.sections()
         if not entries:
@@ -132,15 +137,37 @@ class Version:
         before = None
         same: list[tuple[int, Section]] = []
         for e in entries:
-            if e.page < page:
+            placed = self.placed_page(e)
+            if placed < page:
                 before = e
-            elif e.page == page:
+            elif placed == page:
                 same.append((self._heading_index(e, page), e))
         owner = before
         for heading, e in same:
             if heading <= index:
                 owner = e
         return owner
+
+    def placed_page(self, entry: Section) -> int:
+        """The page an entry starts on: its Outline page, except for an
+        approximate entry whose heading is not there but is on the page
+        after or before it (a contents page whose offset is one off).
+        """
+        if not entry.approximate or not 1 <= entry.page <= self.page_count:
+            return entry.page
+        key = (entry.title, entry.page)
+        placed = self._placed.get(key)
+        if placed is None:
+            placed = entry.page
+            if self._heading_index(entry, entry.page) < 0:
+                for near in (entry.page + 1, entry.page - 1):
+                    if 1 <= near <= self.page_count and (
+                        self._heading_index(entry, near) >= 0
+                    ):
+                        placed = near
+                        break
+            self._placed[key] = placed
+        return placed
 
     def _heading_index(self, entry: Section, page: int) -> int:
         """Line index of the entry's heading on the page.
@@ -170,7 +197,8 @@ class Version:
     def match_sections(self, query: str) -> list[tuple[int, Section, int]]:
         """(level, entry, end page) for the entries matching the query; the
         end page is where the next entry of the same or a higher level
-        begins, or the last page.
+        begins (the page before it when that heading is the page's first
+        line, so the page holds nothing of this entry), or the last page.
 
         A query that looks like a section number (``20.1``, ``A.2``) matches
         entries whose number is it or starts with it on a dot boundary;
@@ -196,6 +224,11 @@ class Version:
             for later in entries[i + 1 :]:
                 if later["level"] <= e["level"]:
                     end = later["page"]
+                    following = Section(
+                        later["title"], later["page"], bool(later.get("approximate"))
+                    )
+                    if end > sec.page and self._heading_index(following, end) == 0:
+                        end -= 1
                     break
             out.append((e["level"], sec, end))
         return out
@@ -238,15 +271,17 @@ class Version:
 
         An entry the Outline places on a page without its heading being
         found there (a contents-page entry, a bookmark worded otherwise) is
-        listed only when it owns the top of ``page``.
+        listed only when it owns the top of ``page``; an approximate entry
+        counts on the page its heading is found on (:meth:`placed_page`).
         """
         last = min(last or page, self.page_count)
         owner = self.owning_section(page, 0)
         out = [owner] if owner else []
         for e in self.sections():
-            if not page <= e.page <= last or e in out:
+            placed = self.placed_page(e)
+            if not page <= placed <= last or e in out:
                 continue
-            if self._heading_index(e, e.page) >= 0:
+            if self._heading_index(e, placed) >= 0:
                 out.append(e)
         return out
 

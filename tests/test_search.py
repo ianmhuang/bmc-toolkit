@@ -169,6 +169,94 @@ def test_match_sections_end_page_is_next_same_or_higher_level_entry():
     assert end == 3  # last page of the document
 
 
+def test_match_sections_end_page_excludes_a_page_the_next_heading_opens():
+    # "Figure 1 - Topology" is the first line of page 3: page 3 holds none
+    # of 3 Commands, so it ends on page 2 (and so does 3.1, its last child)
+    outline = [
+        {"level": 0, "title": "1 Introduction", "page": 1},
+        {"level": 0, "title": "2 Scope", "page": 1},
+        {"level": 0, "title": "3 Commands", "page": 2},
+        {"level": 1, "title": "3.1 Get Device ID", "page": 2},
+        {"level": 0, "title": "Figure 1 - Topology", "page": 3},
+    ]
+    v = make_version(outline=outline)
+    got = dict((s.title, end) for _, s, end in v.match_sections("3"))
+    assert got == {"3 Commands": 2, "3.1 Get Device ID": 2}
+    # the heading lower on the page: the page is still part of the range
+    v = make_version(
+        outline=outline, pages=[*make_version().pages[:2], ["x", "Figure 1 - Topology"]]
+    )
+    got = dict((s.title, end) for _, s, end in v.match_sections("3"))
+    assert got == {"3 Commands": 3, "3.1 Get Device ID": 3}
+    # the heading not found on the page (a contents-page entry): unchanged
+    got = dict((s.title, end) for _, s, end in make_version().match_sections("3"))
+    assert got == {"3 Commands": 3, "3.1 Get Device ID": 3}
+    # an entry starting on the page the next one opens keeps that page
+    v = make_version(
+        outline=[
+            {"level": 0, "title": "2 Scope", "page": 1},
+            {"level": 1, "title": "2.1 Lines", "page": 2},
+            {"level": 1, "title": "2.2 More", "page": 2},
+        ],
+        pages=[["2 Scope"], ["2.1 Lines", "2.2 More"]],
+    )
+    got = dict((s.title, end) for _, s, end in v.match_sections("2"))
+    assert got == {"2 Scope": 2, "2.1 Lines": 2, "2.2 More": 2}
+
+
+def test_an_approximate_entry_starts_where_its_heading_is_found():
+    # the contents page placed 3 Commands one page early: its heading is on
+    # page 2, so page 2's top still belongs to 2 Scope and the entry owns
+    # the lines from its heading down
+    v = make_version(
+        outline=[
+            {"level": 0, "title": "1 Introduction", "page": 1},
+            {"level": 0, "title": "2 Scope", "page": 1},
+            {"level": 0, "title": "3 Commands", "page": 1, "approximate": True},
+            {"level": 1, "title": "3.1 Get Device ID", "page": 2},
+        ]
+    )
+    assert v.placed_page(se.Section("3 Commands", 1, approximate=True)) == 2
+    assert v.owning_section(2, 0).title == "2 Scope"
+    assert v.owning_section(2, 1).label == "~3 Commands"
+    assert [s.label for s in v.spanned_sections(2)] == [
+        "2 Scope",
+        "~3 Commands",
+        "3.1 Get Device ID",
+    ]
+    assert [s.label for s in v.spanned_sections(1)] == ["1 Introduction", "2 Scope"]
+    # one page late: the heading is on the page before
+    v = make_version(
+        outline=[
+            {"level": 0, "title": "1 Introduction", "page": 1},
+            {"level": 0, "title": "2 Scope", "page": 2, "approximate": True},
+            {"level": 0, "title": "3 Commands", "page": 2},
+        ]
+    )
+    assert v.owning_section(1, 3).label == "~2 Scope"
+    assert [s.label for s in v.spanned_sections(1)] == ["1 Introduction", "~2 Scope"]
+    assert [s.label for s in v.spanned_sections(2)] == ["~2 Scope", "3 Commands"]
+    # an exact entry on the wrong page is taken as placed: unchanged
+    v = make_version(
+        outline=[
+            {"level": 0, "title": "1 Introduction", "page": 1},
+            {"level": 0, "title": "2 Scope", "page": 1},
+            {"level": 0, "title": "3 Commands", "page": 1},
+            {"level": 1, "title": "3.1 Get Device ID", "page": 2},
+        ]
+    )
+    assert v.owning_section(2, 0).title == "3 Commands"
+    assert [s.title for s in v.spanned_sections(2)] == [
+        "3 Commands",
+        "3.1 Get Device ID",
+    ]
+    # an approximate entry whose heading is nowhere near stays put; one
+    # placed outside the document is left alone
+    v = make_version()
+    assert v.placed_page(se.Section("A Annex", 3, approximate=True)) == 3
+    assert v.placed_page(se.Section("Z Gone", 9, approximate=True)) == 9
+
+
 # -------------------------------------------------------------- search
 
 

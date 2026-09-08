@@ -374,3 +374,42 @@ class Library:
             originals = [p for p in originals if not p.name.endswith(PART_SUFFIX)]
             if originals:
                 yield vdir, originals[0]
+
+
+def latest_held(doc, held: list[Holding]) -> Holding | None:
+    """The newest held version of a document: the catalog's latest if held,
+    else the held version the catalog dates newest, else the most recently
+    fetched. ``doc`` is the catalog Document, or None for one it lacks."""
+    if not held:
+        return None
+    if doc is not None:
+        latest = doc.latest()
+        if latest is not None:
+            for h in held:
+                if h.version == latest.version:
+                    return h
+        dated = {v.version: v.published for v in doc.versions}
+        known = [h for h in held if h.version in dated]
+        if known:
+            return max(known, key=lambda h: dated[h.version])
+    return max(held, key=lambda h: h.meta.get("fetched_at", ""))
+
+
+def released(doc, held: list[Holding]) -> list[Holding]:
+    """The held versions the catalog does not mark WIP (versions it does not
+    list, and every version of a document it lacks, count as released)."""
+    if doc is None:
+        return list(held)
+    kept = []
+    for h in held:
+        ver = doc.find_version(h.version)
+        if ver is None or not ver.wip:
+            kept.append(h)
+    return kept
+
+
+def answering_holding(doc, held: list[Holding]) -> Holding | None:
+    """The held version a reading command answers from without ``--version``
+    when it cannot download: the newest released one, or the newest WIP one
+    when nothing released is held."""
+    return latest_held(doc, released(doc, held)) or latest_held(doc, held)

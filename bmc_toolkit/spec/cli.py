@@ -45,7 +45,9 @@ from bmc_toolkit.spec.library import (
     PART_SUFFIX,
     Library,
     LibraryError,
+    answering_holding,
     file_matches_type,
+    latest_held,
     now_iso,
     resolve_library,
     safe_name,
@@ -1036,24 +1038,6 @@ def _unpack_one(holding, force: bool, label: str) -> str:
     return "extracted"
 
 
-def _latest_held(doc, held):
-    """The newest held version: the catalog's latest if held, else the held
-    version the catalog dates newest, else the most recently fetched."""
-    if not held:
-        return None
-    if doc is not None:
-        latest = doc.latest()
-        if latest is not None:
-            for h in held:
-                if h.version == latest.version:
-                    return h
-        dated = {v.version: v.published for v in doc.versions}
-        known = [h for h in held if h.version in dated]
-        if known:
-            return max(known, key=lambda h: dated[h.version])
-    return max(held, key=lambda h: h.meta.get("fetched_at", ""))
-
-
 def cmd_extract(args: argparse.Namespace) -> int:
     library = Library(resolve_library())
     if args.all == bool(args.document):
@@ -1080,7 +1064,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
         holding = next((h for h in held if h.version == args.doc_version), None)
         wanted = args.doc_version
     else:
-        holding = _latest_held(doc, held)
+        holding = latest_held(doc, held)
         wanted = "latest"
     if holding is None:
         print(f"{doc_id} {wanted} is not in the Library; run: bmcspec fetch {doc_id}")
@@ -1176,17 +1160,6 @@ def _wrong_kind(name: str, version: str, file_type: str, kind: str) -> str:
     )
 
 
-def _released(doc: Document, held):
-    """The held versions the catalog does not mark WIP (versions it does not
-    list count as released)."""
-    kept = []
-    for h in held:
-        ver = doc.find_version(h.version)
-        if ver is None or not ver.wip:
-            kept.append(h)
-    return kept
-
-
 def _nothing_to_read(name: str, doc: Document | None) -> str:
     """Why a document without a catalog Latest and without a held version
     cannot be read."""
@@ -1248,7 +1221,7 @@ def _ready_holding(
     else:
         ver = doc.latest() if doc else None
         if ver is None:
-            holding = _latest_held(doc, held)
+            holding = latest_held(doc, held)
             if holding is None:
                 print(_nothing_to_read(name, doc))
                 return None, doc, EXIT_ACTION
@@ -1257,7 +1230,7 @@ def _ready_holding(
         if holding is not None:
             return holding, doc, EXIT_OK
         # A held WIP version answers only when nothing released is held.
-        fallback = _latest_held(doc, _released(doc, held)) or _latest_held(doc, held)
+        fallback = answering_holding(doc, held)
     # The version to read is not held.
     if kind is not None and (ver.type == "zip") != (kind == "zip"):
         print(_wrong_kind(name, ver.version, ver.type, kind))

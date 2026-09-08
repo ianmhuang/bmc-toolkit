@@ -29,9 +29,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from bmc_toolkit.spec import lock as lock_mod
+from bmc_toolkit.spec.catalog import load_catalog
 from bmc_toolkit.spec.freshness import FreshnessError, library_section
 from bmc_toolkit.spec.library import (
     Library,
+    answering_holding,
     atomic_write_text,
     now_iso,
     resolve_library,
@@ -39,6 +42,7 @@ from bmc_toolkit.spec.library import (
 
 NOTES_NAME = "notes.jsonl"
 SERVING = frozenset({"find", "section"})
+RECORD_WAIT = 5.0  # seconds a record waits for the Library root's lock
 MAX_ANSWER = 4096  # characters; a longer answer is stored partial
 MAX_TITLES = 10
 MAX_CONTEXT = 200
@@ -56,10 +60,14 @@ _CITE = re.compile(
 # The prose form the Session also writes (the section copied from the
 # cite: line, so it may hold several "; "-joined titles):
 #   DSP0274 1.4.1, §3 Scope, PDF p.18, lines 82-84
+# A section marked with § may hold commas (a title with one, or several
+# titles) and ends at ", PDF"; one without § ends at the first comma, so a
+# mention such as "see also DSP0236 1.3.0, §8 Overview, PDF p.5" is
+# DSP0236's Citation, not the document's before it.
 _PROSE = re.compile(
     r"(?P<doc>\b[A-Z][A-Za-z0-9_-]{2,})\s+(?P<ver>\d+(?:\.\d+)+)[,，]\s*"
-    r"(?:§\s*)?(?P<section>[^,，()（）\n]{1,300}?)[,，]\s*"
-    r"PDF\s*(?:pages?|pp?\.?)\s*(?P<first>\d+)(?:\s*[-–]\s*(?P<last>\d+))?"
+    r"(?:§\s*(?P<marked>[^()（）§\n]{1,300}?)|(?P<section>[^,，()（）\n]{1,300}?))"
+    r"[,，]\s*PDF\s*(?:pages?|pp?\.?)\s*(?P<first>\d+)(?:\s*[-–]\s*(?P<last>\d+))?"
 )
 # The stored form: DOC V | section | PDF pages N-M
 _NORM = re.compile(
@@ -193,7 +201,8 @@ def find_cites(text: str) -> list[str]:
 
 
 def _stored(document: str, version: str, m: re.Match) -> str:
-    section = " ".join(m.group("section").split())
+    section = m.groupdict().get("marked") or m.group("section") or ""
+    section = " ".join(section.split())
     first, last = m.group("first"), m.group("last")
     pages = f"pages {first}-{last}" if last and last != first else f"page {first}"
     return f"{document} {version} | {section} | PDF {pages}"
@@ -508,7 +517,17 @@ def record(root: Path, transcript: Path, answer: str | None = None) -> str:
     note = make_note(turn.question, turn.context, turn.answer, now_iso())
     if note is None:
         return "nothing to note: the answer carries no Citation"
-    replaced = upsert(notes_path(root), note)
+    # Two Sessions ending a turn together: the one replacing a Note rewrites
+    # the file, so the writes go through the Library root's lock.
+    try:
+        with lock_mod.Lock(root, "notes record", wait=RECORD_WAIT):
+            replaced = upsert(notes_path(root), note)
+    except lock_mod.Busy as exc:
+        holder = exc.holder
+        return (
+            f"note: notes: busy: {holder.path} is held by {holder.describe()}; "
+            f"not noted"
+        )
     verb = "replaced" if replaced else "noted"
     return f"{verb} {note.id}: {' '.join(note.question.split())[:60]}"
 
@@ -534,21 +553,39 @@ def _switch(root: Path) -> bool | None:
     return None
 
 
-def superseded_line(note: Note, held: set[tuple[str, str]]) -> str:
+def answering_versions(root: Path, catalog) -> dict[str, str]:
+    """The version ``find`` answers from for each held document when no
+    ``--version`` is given and nothing is downloaded: the catalog's Latest
+    when held, else the newest held released version. The managing
+    commands judge a Note current against these, as ``find`` does against
+    the versions it loaded."""
+    by_document: dict[str, list] = {}
+    for h in Library(root).holdings():
+        by_document.setdefault(h.document, []).append(h)
+    out = {}
+    for document, held in by_document.items():
+        chosen = answering_holding(catalog.get(document), held)
+        if chosen is not None:
+            out[document] = chosen.version
+    return out
+
+
+def superseded_line(
+    note: Note, held: set[tuple[str, str]], answering: dict[str, str]
+) -> str:
     """``note: this Note cites DSP0236 1.2.0, the Library answers from
-    1.3.3; read the pages again``: per cited version no longer held, the
-    versions of that document the Library holds instead."""
+    1.3.3; read the pages again``: per cited version the Library no longer
+    answers from, the version it answers from instead, or that it holds
+    none of the document."""
     parts = []
     for document, version in note.documents:
-        if (document, version) in held:
+        if answering.get(document, version) == version and (document, version) in held:
             continue
-        others = sorted(v for d, v in held if d == document)
-        if not others:
-            parts.append(f"{document} {version}, which the Library no longer holds")
-        elif len(others) == 1:
-            parts.append(f"{document} {version}, the Library answers from {others[0]}")
+        current = answering.get(document)
+        if current is not None:
+            parts.append(f"{document} {version}, the Library answers from {current}")
         else:
-            parts.append(f"{document} {version}, the Library holds {', '.join(others)}")
+            parts.append(f"{document} {version}, which the Library no longer holds")
     return f"note: this Note cites {'; '.join(parts)}; read the pages again"
 
 
@@ -562,11 +599,12 @@ def cmd_recall(args: argparse.Namespace) -> int:
         return EXIT_ACTION
     note = notes[0]
     held = held_versions(root)
-    if is_current(note, {}, held):
-        first = served_first_line(note)
-    else:
-        first = superseded_line(note, held)
-    print(f"{title_line(note, is_current(note, {}, held))}")
+    answering = answering_versions(root, load_catalog(args.catalog))
+    current = is_current(note, answering, held)
+    first = (
+        served_first_line(note) if current else superseded_line(note, held, answering)
+    )
+    print(title_line(note, current))
     for line in block(note, first):
         print(line)
     return EXIT_OK
@@ -580,8 +618,10 @@ def cmd_notes(args: argparse.Namespace) -> int:
         return EXIT_ACTION
     path = notes_path(root)
     notes = load(path)
-    if args.action == "list":
+    if args.action in ("list", "prune"):
         held = held_versions(root)
+        answering = answering_versions(root, load_catalog(args.catalog))
+    if args.action == "list":
         chosen = [
             n for n in notes if not args.document or n.cites_document(args.document)
         ]
@@ -589,7 +629,7 @@ def cmd_notes(args: argparse.Namespace) -> int:
             print("no Notes")
             return EXIT_OK
         for n in sorted(chosen, key=lambda n: n.time, reverse=True):
-            print(title_line(n, is_current(n, {}, held)))
+            print(title_line(n, is_current(n, answering, held)))
         return EXIT_OK
     if args.action == "forget":
         kept = [n for n in notes if n.id != args.id]
@@ -600,13 +640,12 @@ def cmd_notes(args: argparse.Namespace) -> int:
         print(f"forgot {args.id}")
         return EXIT_OK
     if args.action == "prune":
-        held = held_versions(root)
         cutoff = None
         if args.days is not None:
             cutoff = datetime.now(UTC).timestamp() - args.days * 86400
         gone = []
         for n in notes:
-            if args.all or not is_current(n, {}, held):
+            if args.all or not is_current(n, answering, held):
                 gone.append(n)
             elif cutoff is not None and _timestamp(n.time) < cutoff:
                 gone.append(n)
@@ -615,7 +654,7 @@ def cmd_notes(args: argparse.Namespace) -> int:
             return EXIT_OK
         save(path, [n for n in notes if n not in gone])
         for n in gone:
-            print(f"pruned {title_line(n, is_current(n, {}, held))}")
+            print(f"pruned {title_line(n, is_current(n, answering, held))}")
         return EXIT_OK
     print(f"unknown notes action {args.action}")
     return EXIT_ACTION
@@ -697,15 +736,23 @@ def after(args, output: str, code: int) -> str:
         root = resolve_library()
         if not enabled(root):
             return output
+        limit_bytes(root)  # a refused notes_limit refuses the feature
         answered = getattr(args, "answered", None) or []
         query = args.pattern if args.command == "find" else args.query
         text = serve(
             query, output, answered, load(notes_path(root)), held_versions(root)
         )
-        line = reminder(root)
-        return f"{line}\n{text}" if line else text
     except Exception as exc:  # noqa: BLE001 - the note must not fail the answer
         return output + f"note: notes: {exc}\n"
+    try:
+        line = reminder(root)
+    except Exception as exc:  # noqa: BLE001 - nor lose the Note just served
+        return _with_line(text, f"note: notes: {exc}")
+    return f"{line}\n{text}" if line else text
+
+
+def _with_line(text: str, line: str) -> str:
+    return (text if text.endswith("\n") or not text else text + "\n") + line + "\n"
 
 
 def run(command: Callable[..., int], args) -> int:
