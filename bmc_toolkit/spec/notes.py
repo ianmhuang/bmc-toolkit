@@ -586,6 +586,15 @@ def _timestamp(iso: str) -> float:
         return 0.0
 
 
+def _read_stdin() -> str:
+    """The hook JSON is UTF-8; a piped stdin on Windows is not (cp950 with
+    surrogateescape turns CJK into lone surrogates), so read the bytes."""
+    buffer = getattr(sys.stdin, "buffer", None)
+    if buffer is None:
+        return sys.stdin.read()
+    return buffer.read().decode("utf-8", errors="replace")
+
+
 def _cmd_record(args: argparse.Namespace, root: Path) -> int:
     """The Stop hook's command: always exits 0, one line says what happened."""
     try:
@@ -596,7 +605,7 @@ def _cmd_record(args: argparse.Namespace, root: Path) -> int:
         transcript = args.transcript
         if transcript is None:
             try:
-                data = json.loads(sys.stdin.read() or "{}")
+                data = json.loads(_read_stdin() or "{}")
             except ValueError:
                 data = {}
             if not isinstance(data, dict) or not data.get("transcript_path"):

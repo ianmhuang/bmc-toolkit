@@ -218,11 +218,24 @@ def test_record_command_reads_the_hook_json_and_never_fails(
     library, tmp_path, capsys, catalog_file, monkeypatch
 ):
     on(library)
-    path = transcript(tmp_path, [("q", [HELPER], ANSWER)])
-    hook = json.dumps({"transcript_path": str(path), "last_assistant_message": ANSWER})
-    monkeypatch.setattr("sys.stdin", __import__("io").StringIO(hook))
+    cjk = "PLDM 的 SetNumericSensorEnable 命令有哪些 completion code？"
+    answer = "封包欄位如下。\n\n" + CITE + "\n"
+    path = transcript(tmp_path, [(cjk, [HELPER], answer)])
+    hook = json.dumps(
+        {"transcript_path": str(path), "last_assistant_message": answer},
+        ensure_ascii=False,  # as Node writes it
+    )
+    # A piped stdin on Windows is cp950 with surrogateescape: the hook's
+    # UTF-8 JSON must be read as bytes or CJK becomes lone surrogates.
+    io = __import__("io")
+    stdin = io.TextIOWrapper(
+        io.BytesIO(hook.encode("utf-8")), encoding="cp950", errors="surrogateescape"
+    )
+    monkeypatch.setattr("sys.stdin", stdin)
     code, out = run(capsys, "notes", "record", catalog_file=catalog_file)
     assert code == 0 and out.startswith("noted ")
+    notes = N.load(library.root / N.NOTES_NAME)
+    assert notes[0].question == cjk and notes[0].answer == answer.strip()
     monkeypatch.setattr("sys.stdin", __import__("io").StringIO("not json"))
     code, out = run(capsys, "notes", "record", catalog_file=catalog_file)
     assert code == 0 and "no transcript_path" in out
