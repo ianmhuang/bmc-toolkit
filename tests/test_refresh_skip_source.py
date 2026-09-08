@@ -69,7 +69,13 @@ def catalog_file(tmp_path):
 def client(monkeypatch, tmp_path):
     monkeypatch.setenv("BMC_SPEC_LIBRARY", str(tmp_path / "lib"))
     scripted = ScriptedClient({})
-    monkeypatch.setattr(cli, "CLIENT_FACTORY", lambda: scripted)
+    scripted.built = 0  # how often refresh asked for a client
+
+    def factory():
+        scripted.built += 1
+        return scripted
+
+    monkeypatch.setattr(cli, "CLIENT_FACTORY", factory)
     return scripted
 
 
@@ -160,6 +166,7 @@ def test_skipping_every_source_asks_nobody_and_counts_nothing(
         == "summary: add 0, confirm 0, changed 0, unreachable 0, written 0"
     )
     assert client.calls == []
+    assert client.built == 0  # not even a client is made
 
 
 def test_unknown_source_is_an_argparse_error(catalog_file, client, capsys):

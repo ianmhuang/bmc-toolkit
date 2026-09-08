@@ -32,8 +32,7 @@ jobs:
         id: refresh
         shell: bash
         run: |
-          # opencompute.org answers 403 to GitHub's runners; OCP is refreshed
-          # from a developer machine (docs/CATALOG.md). The output reaches the
+          # Why OCP is skipped: docs/CATALOG.md. The output reaches the
           # summary even when refresh fails, and the step then fails.
           set +e
           python skills/bmc-spec/scripts/bmcspec.py refresh --skip-source ocp | tee refresh.txt

@@ -939,7 +939,8 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         )
         return EXIT_ACTION
     docs = [d for d in docs if d.listing_source not in skipped]
-    listings = listing_mod.Listings(CLIENT_FACTORY())
+    # No client when every source is skipped: nothing will be read.
+    listings = listing_mod.Listings(CLIENT_FACTORY()) if docs else None
     counts = {"add": 0, "confirm": 0, "changed": 0, "unreachable": 0}
     written = 0
     for doc in docs:

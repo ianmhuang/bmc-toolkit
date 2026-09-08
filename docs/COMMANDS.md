@@ -28,6 +28,7 @@ bmcspec status
 bmcspec check DSP0236        # is the catalog behind DMTF? (no download)
 bmcspec check                # every document with a listing, plus the OpenBMC release
 bmcspec refresh --write      # maintainer: add the versions the publishers list
+bmcspec refresh --skip-source ocp   # as the catalog workflow runs it: OCP refreshed locally
 bmcspec extract DSP0236      # text, outline, line map, figures
 bmcspec extract --all
 bmcspec section DSP0236 8.1  # level | title | pages, per matching entry
