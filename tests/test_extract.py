@@ -206,6 +206,14 @@ def test_outline_from_bookmarks(tmp_path):
     assert r.page_offset is None
 
 
+def test_is_contents_line_needs_leaders_or_a_gap_and_a_page_number():
+    assert ex.is_contents_line("2 Overview ............ 2")
+    assert ex.is_contents_line("2.1 Arch     14")
+    assert not ex.is_contents_line("2 Overview")
+    assert not ex.is_contents_line("2 Overview 2")  # a heading ending in a number
+    assert not ex.is_contents_line("Overview ...... 2")  # no section number
+
+
 def _contents_document(tmp_path, offset: int):
     """A cover, a contents page, and body pages whose footer prints its number."""
     contents = [(72, 740, "Table of Contents")]

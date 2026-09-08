@@ -29,12 +29,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from bmc_toolkit.spec.extract import (
-    _CONTENTS_LINE,
     EXTRACT_NAME,
     FIGURES_NAME,
     LINEMAP_NAME,
     OUTLINE_NAME,
     PAGE_MARKER,
+    is_contents_line,
 )
 
 USER_PROVIDED = "user-provided"
@@ -166,7 +166,7 @@ class Version:
                     if not 1 <= near <= self.page_count:
                         continue
                     index = self._heading_index(entry, near)
-                    if index >= 0 and not _CONTENTS_LINE.match(self.lines(near)[index]):
+                    if index >= 0 and not is_contents_line(self.lines(near)[index]):
                         placed = near
                         break
             self._placed[key] = placed
