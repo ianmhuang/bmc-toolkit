@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from bmc_toolkit.spec.extract import (
+    _CONTENTS_LINE,
     EXTRACT_NAME,
     FIGURES_NAME,
     LINEMAP_NAME,
@@ -151,7 +152,8 @@ class Version:
     def placed_page(self, entry: Section) -> int:
         """The page an entry starts on: its Outline page, except for an
         approximate entry whose heading is not there but is on the page
-        after or before it (a contents page whose offset is one off).
+        after or before it (a contents page whose offset is one off). A
+        contents line naming the entry is not its heading.
         """
         if not entry.approximate or not 1 <= entry.page <= self.page_count:
             return entry.page
@@ -161,9 +163,10 @@ class Version:
             placed = entry.page
             if self._heading_index(entry, entry.page) < 0:
                 for near in (entry.page + 1, entry.page - 1):
-                    if 1 <= near <= self.page_count and (
-                        self._heading_index(entry, near) >= 0
-                    ):
+                    if not 1 <= near <= self.page_count:
+                        continue
+                    index = self._heading_index(entry, near)
+                    if index >= 0 and not _CONTENTS_LINE.match(self.lines(near)[index]):
                         placed = near
                         break
             self._placed[key] = placed
@@ -195,10 +198,11 @@ class Version:
         return -1
 
     def match_sections(self, query: str) -> list[tuple[int, Section, int]]:
-        """(level, entry, end page) for the entries matching the query; the
-        end page is where the next entry of the same or a higher level
-        begins (the page before it when that heading is the page's first
-        line, so the page holds nothing of this entry), or the last page.
+        """(level, entry, end page) for the entries matching the query. The
+        entry's page is where it is placed (``placed_page``); the end page
+        is where the next entry of the same or a higher level is placed
+        (the page before it when that heading is the page's first line, so
+        the page holds nothing of this entry), or the last page.
 
         A query that looks like a section number (``20.1``, ``A.2``) matches
         entries whose number is it or starts with it on a dot boundary;
@@ -220,13 +224,14 @@ class Version:
                 matched = bool(words) and all(w in title for w in words)
             if not matched:
                 continue
+            sec = Section(sec.title, self.placed_page(sec), sec.approximate)
             end = self.page_count
             for later in entries[i + 1 :]:
                 if later["level"] <= e["level"]:
-                    end = later["page"]
                     following = Section(
                         later["title"], later["page"], bool(later.get("approximate"))
                     )
+                    end = self.placed_page(following)
                     if end > sec.page and self._heading_index(following, end) == 0:
                         end -= 1
                     break

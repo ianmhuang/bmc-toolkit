@@ -31,10 +31,16 @@ def range_doc(tmp_path):
     heading is the first line); 5 Annex is the second line of page 4."""
     page1 = pdfgen.numbered_page(
         1,
-        ["1 Introduction", "Intro text here.", "2 Scope", "Scope text here."],
+        [
+            "1 Introduction",
+            "Intro text here.",
+            "More intro text.",
+            "2 Scope",
+            "Scope text here.",
+        ],
     )
     page2 = pdfgen.numbered_page(
-        5,
+        6,
         [
             "Scope text continues.",
             "3 Commands",
@@ -42,9 +48,9 @@ def range_doc(tmp_path):
             "Get Device ID returns the id.",
         ],
     )
-    page3 = pdfgen.numbered_page(9, ["4 Transport", "The transport carries bytes."])
+    page3 = pdfgen.numbered_page(10, ["4 Transport", "The transport carries bytes."])
     page4 = pdfgen.numbered_page(
-        11, ["Annex material follows.", "5 Annex", "Annex text here."]
+        12, ["Annex material follows.", "5 Annex", "Annex text here."]
     )
     return pdfgen.write_pdf(
         tmp_path / "range.pdf",
@@ -314,14 +320,14 @@ def test_the_cli_cites_an_approximate_entry_where_its_heading_is(
     )
     assert code == 0, out
     assert out.strip() == (
-        "DSP0236 p.2 line 8 | 3.1 Get Device ID | Get Device ID returns the id."
+        "DSP0236 p.2 line 9 | 3.1 Get Device ID | Get Device ID returns the id."
     )
     code, out = run(
         capsys, "find", "DSP0236", "carries bytes", catalog_file=catalog_file
     )
     assert code == 0, out
     assert out.strip() == (
-        "DSP0236 p.3 line 10 | ~4 Transport | The transport carries bytes."
+        "DSP0236 p.3 line 11 | ~4 Transport | The transport carries bytes."
     )
     # the contents page put 3 Commands one page late: page 2 lists it
     set_outline_page(held, "4 Transport", 3, approximate=False)

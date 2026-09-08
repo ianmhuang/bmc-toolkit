@@ -570,16 +570,14 @@ def answering_versions(root: Path, catalog) -> dict[str, str]:
     return out
 
 
-def superseded_line(
-    note: Note, held: set[tuple[str, str]], answering: dict[str, str]
-) -> str:
+def superseded_line(note: Note, answering: dict[str, str]) -> str:
     """``note: this Note cites DSP0236 1.2.0, the Library answers from
-    1.3.3; read the pages again``: per cited version the Library no longer
-    answers from, the version it answers from instead, or that it holds
-    none of the document."""
+    1.3.3; read the pages again``: a cited version is fine when it is the
+    one the Library answers from; per other cited version, the version the
+    Library answers from instead, or that it holds none of the document."""
     parts = []
     for document, version in note.documents:
-        if answering.get(document, version) == version and (document, version) in held:
+        if answering.get(document) == version:
             continue
         current = answering.get(document)
         if current is not None:
@@ -601,9 +599,7 @@ def cmd_recall(args: argparse.Namespace) -> int:
     held = held_versions(root)
     answering = answering_versions(root, load_catalog(args.catalog))
     current = is_current(note, answering, held)
-    first = (
-        served_first_line(note) if current else superseded_line(note, held, answering)
-    )
+    first = served_first_line(note) if current else superseded_line(note, answering)
     print(title_line(note, current))
     for line in block(note, first):
         print(line)

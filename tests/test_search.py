@@ -255,6 +255,58 @@ def test_an_approximate_entry_starts_where_its_heading_is_found():
     v = make_version()
     assert v.placed_page(se.Section("A Annex", 3, approximate=True)) == 3
     assert v.placed_page(se.Section("Z Gone", 9, approximate=True)) == 9
+    # the contents line naming the entry on the page before is not its
+    # heading: the entry stays where the Outline put it
+    v = make_version(
+        outline=[
+            {"level": 0, "title": "1 Intro", "page": 2, "approximate": True},
+            {"level": 0, "title": "2 Overview", "page": 2, "approximate": True},
+        ],
+        pages=[["Contents", "1 Intro ...... 1", "2 Overview ...... 2"], ["body"]],
+    )
+    assert v.placed_page(se.Section("2 Overview", 2, approximate=True)) == 2
+    assert [s.label for s in v.spanned_sections(1)] == []
+
+
+def test_match_sections_ranges_run_between_placed_pages():
+    # 3 Commands placed one page early (heading on page 2): its range and
+    # 2 Scope's end follow the heading, as owning_section does
+    v = make_version(
+        outline=[
+            {"level": 0, "title": "1 Introduction", "page": 1},
+            {"level": 0, "title": "2 Scope", "page": 1},
+            {"level": 0, "title": "3 Commands", "page": 1, "approximate": True},
+            {"level": 1, "title": "3.1 Get Device ID", "page": 2},
+        ]
+    )
+    got = {s.title: (s.page, end) for _, s, end in v.match_sections("commands")}
+    assert got == {"3 Commands": (2, 3)}
+    got = {s.title: (s.page, end) for _, s, end in v.match_sections("2")}
+    assert got == {"2 Scope": (1, 2)}
+    # placed one page late (heading on the page before): 2 Scope starts on
+    # page 1 and 1 Introduction ends there, since the heading is not the
+    # page's first line
+    v = make_version(
+        outline=[
+            {"level": 0, "title": "1 Introduction", "page": 1},
+            {"level": 0, "title": "2 Scope", "page": 2, "approximate": True},
+            {"level": 0, "title": "3 Commands", "page": 2},
+        ]
+    )
+    got = {s.title: (s.page, end) for _, s, end in v.match_sections("2")}
+    assert got == {"2 Scope": (1, 2)}
+    got = {s.title: (s.page, end) for _, s, end in v.match_sections("1")}
+    assert got == {"1 Introduction": (1, 1)}
+    # the next entry placed late on a page it opens: the range ends before
+    v = make_version(
+        outline=[
+            {"level": 0, "title": "2 Scope", "page": 1},
+            {"level": 0, "title": "3 Commands", "page": 3, "approximate": True},
+        ],
+        pages=[["2 Scope", "text"], ["3 Commands", "text"], ["more", "text"]],
+    )
+    got = {s.title: (s.page, end) for _, s, end in v.match_sections("2")}
+    assert got == {"2 Scope": (1, 1)}
 
 
 # -------------------------------------------------------------- search

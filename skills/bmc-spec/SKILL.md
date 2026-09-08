@@ -61,7 +61,9 @@ names (or the default branch), searched with `grep` and read with `code`.
   from the PDF bookmarks or parsed from the contents pages (also when the
   bookmarks are only Word anchors such as `Ref_DSP0236`, or two or more of
   them all point at one page of a longer document). An entry whose page
-  could not be confirmed is *approximate* and is printed with `~`.
+  could not be confirmed is *approximate* and is printed with `~`; when
+  its heading is found on the page before or after instead, the reading
+  commands count it from there.
 - **Figure region**: `figures.json` records, per page, where raster images
   and vector drawings sit and which Extract lines lie inside them. Text
   inside a figure is often fragmentary; `find` and `page` mark such lines
