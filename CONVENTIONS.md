@@ -43,15 +43,18 @@ Things a linter cannot check; formatting is not listed.
   wording. Docs: README, `docs/`, tests or CI only.
 - A release is due once `develop` holds something an installed user gets:
   code under `bmc_toolkit/`, the Source Catalog, SKILL.md, hooks. The
-  maintainer opens a `develop` to `main` pull request titled
-  `Release v<version>`, labelled `skip-changelog`, that changes only the
-  version records (`plugin.json`, `pyproject.toml`,
-  `bmc_toolkit/__init__.py`, the README status line) and the pin `RELEASE`
-  in `tests/test_review_release.py`, and repeats the `Closes #N` lines of
-  the changes it ships; the bump is the highest label since the last tag.
-  It does not go through revali. It is merged with a merge commit, never
-  squashed: `develop` and `main` must share their commits, or the next
-  release lists them again.
+  bump is the highest label since the last tag. `develop` is protected,
+  so the bump reaches it through its own pull request: from a
+  `release/v<version>` branch into `develop`, labelled `skip-changelog`,
+  changing only the version records (`plugin.json`, `pyproject.toml`,
+  `bmc_toolkit/__init__.py`, the README status line) and the `RELEASE`
+  pins in `tests/test_review_release.py` and
+  `tests/test_review_skipsource.py`. Then the maintainer opens a `develop`
+  to `main` pull request titled `Release v<version>`, labelled
+  `skip-changelog`, that repeats the `Closes #N` lines of the changes it
+  ships. Neither goes through revali. The release pull request is merged
+  with a merge commit, never squashed: `develop` and `main` must share
+  their commits, or the next release lists them again.
 - After that merge the maintainer tags `main` `v<version>` (annotated),
   pushes the tag and publishes a GitHub Release:
   `gh release create v<version> --generate-notes`, with one lead line above
