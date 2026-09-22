@@ -155,6 +155,32 @@ def test_ac11_shipped_nuvoton_kernel_names_its_branch(shipped):
     assert shipped.get_repo("nuvoton-linux").ref == "NPCM-6.18-OpenBMC"
 
 
+IGPS_PATTERNS = (
+    "/**/*.py",
+    "*.xml",
+    "*.bat",
+    "*.md",
+    "*.txt",
+    "*.csv",
+    "*.json",
+    "*.ps1",
+)
+
+
+def test_ac2_igps_is_held_for_its_text_files_only(shipped):
+    sparse = shipped.get_repo("nuvoton-igps").sparse
+    # the AC names the extensions; the patterns may carry a /**/ prefix
+    suffixes = tuple(p.rsplit("*", 1)[-1] for p in sparse)
+    assert suffixes == tuple(p.rsplit("*", 1)[-1] for p in IGPS_PATTERNS)
+    assert all("*" in p for p in sparse)
+    held = {p.rsplit(".", 1)[-1] for p in sparse}
+    assert held.isdisjoint({"bin", "exe", "pyc", "der", "pem", "key", "img", "gz"})
+    # the other vendor trees without a layer or kernel are held whole
+    whole = ("aspeed-socsec", "nuvoton-bootblock", "nuvoton-npcm8xx-bootblock")
+    for repo_id in whole:
+        assert shipped.get_repo(repo_id).sparse == (), repo_id
+
+
 # ------------------------------------------------------------ CLI fixtures
 
 
@@ -506,3 +532,71 @@ def test_ac11_ref_and_config_release_together_on_a_vendor_tree(
     lines = out.splitlines()
     assert lines[0] == "note: acme-linux has no Release; config.toml release 1.0.0 not used"
     assert lines[1].startswith(f"cloned acme-linux {sdk} (sdk-2 ")
+
+
+# ------------------------------------------------------------ AC-2 (igps sparse)
+
+IGPS_FILES = {
+    "GenerateAll.bat": "@echo off\n",
+    "README.md": "igps\n",
+    "notes.txt": "layout notes\n",
+    "py_scripts/gen.py": "print('gen')\n",
+    "py_scripts/gen.pyc": "\x00\x01",
+    "py_scripts/ImageGeneration/inputs/BootBlock.xml": "<layout/>\n",
+    "py_scripts/ImageGeneration/inputs/bootblock.bin": "\x00" * 32,
+    "py_scripts/ImageGeneration/images/full.img": "\x00" * 32,
+    "py_scripts/tools/flash.exe": "MZ\n",
+    "py_scripts/keys/rot.der": "0\n",
+    "py_scripts/keys/rot.pem": "-----\n",
+    "py_scripts/config/versions.json": "{}\n",
+    "py_scripts/config/list.csv": "a,b\n",
+    "py_scripts/run.ps1": "Write-Host hi\n",
+}
+
+
+def test_ac2_pattern_sparse_vendor_tree_holds_text_files_only(
+    library, tmp_path, capsys
+):
+    """A vendor entry with the igps patterns checks out the text files at
+    every depth and none of the prebuilt files beside them, and the tree
+    reads like any other."""
+    (tmp_path / "igps").mkdir()
+    work, bare, url = make_repo(tmp_path / "igps", "acme-igps", IGPS_FILES)
+    head = git("rev-parse", "HEAD", cwd=work)[:7]
+    patterns = ", ".join(f'"{p}"' for p in IGPS_PATTERNS)
+    path = tmp_path / "igps.toml"
+    path.write_text(
+        MINI_CATALOG
+        + f'\n[[repos]]\nid = "acme-igps"\nowner = "acme"\nurl = "{url}"\n'
+        + f'topics = ["acme", "image"]\nsparse = [{patterns}]\n',
+        encoding="utf-8",
+        newline="",
+    )
+    code, out = run(capsys, path, "clone", "acme-igps")
+    assert code == 0, out
+    assert out.startswith(f"cloned acme-igps {head} (main ")
+    trees = [p for p in (library / "code" / "acme-igps").iterdir() if p.is_dir()]
+    assert len(trees) == 1
+    tree = trees[0]
+    held = {
+        p.relative_to(tree).as_posix()
+        for p in tree.rglob("*")
+        if p.is_file() and ".git" not in p.relative_to(tree).parts
+    }
+    held.discard(code_mod.TREE_META)
+    text_ext = {p.rsplit(".", 1)[-1] for p in IGPS_PATTERNS}
+    text = {rel for rel in IGPS_FILES if rel.rsplit(".", 1)[-1] in text_ext}
+    assert held == text
+    assert "py_scripts/ImageGeneration/inputs/bootblock.bin" not in held
+    assert "py_scripts/gen.pyc" not in held
+    # the held tree is readable: grep and code find the scripts and layouts
+    code, out = run(capsys, path, "grep", "acme-igps", "layout")
+    assert code == 0, out
+    hits = {line.split(" ", 1)[1].split(":", 1)[0] for line in out.splitlines()}
+    assert hits == {"notes.txt", "py_scripts/ImageGeneration/inputs/BootBlock.xml"}
+    code, out = run(capsys, path, "code", "acme-igps", "py_scripts/gen.py")
+    assert code == 0, out
+    assert out.splitlines()[0].startswith(f"cite: code | acme-igps {head} | main ")
+    # a second plain clone is held, no network
+    code, out = run(capsys, path, "clone", "acme-igps")
+    assert code == 0 and out.startswith(f"held acme-igps {head} (main ")
