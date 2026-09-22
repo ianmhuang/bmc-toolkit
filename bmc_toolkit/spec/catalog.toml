@@ -5045,8 +5045,10 @@ topics = ["openpower", "ipmi", "firmware-update"]
 # The SoC vendors' own forks and SDK repositories (owner = the vendor).
 # Fetched at the repository's default branch, which each vendor points at
 # its newest SDK branch, or at the entry's "ref" where that default does
-# not serve; another SDK branch is a --ref. No Release pins them. Each kernel is held sparse: the upstream `linux` directories plus
-# the vendor's own arch, dts and soc directories.
+# not serve; another SDK branch is a --ref. No Release pins them. Each
+# kernel is held sparse: the upstream `linux` directories plus the
+# vendor's own arch, dts and soc directories (and, for Aspeed, the JTAG
+# driver directory, which upstream `linux` does not list).
 
 [[repos]]
 id = "aspeed-linux"
