@@ -1840,8 +1840,9 @@ def _select_tree(args, catalog, library, config, repo):
     """(tree, notes): the Code Tree a reading command works on.
 
     A user checkout wins; then the named ref or release; then the config
-    release; then the newest default-branch tree. CodeError says what to
-    run when nothing fits.
+    release; then a held tree of the branch the catalog ref names (a
+    superseded one still counts); then the newest default-branch tree.
+    CodeError says what to run when nothing fits.
     """
     notes = []
     checkout = config.checkouts.get(repo.id.lower())
