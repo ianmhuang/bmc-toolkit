@@ -453,3 +453,60 @@ def test_ac8_ac6_a_plain_clone_answered_by_a_ref_tree_retires_no_default_tree(
     assert code == 0 and out.startswith("nothing to prune")
     code, out = run(capsys, catalog, "repos", "--topic", "power")
     assert code == 0 and out.startswith("thing\t") and "superseded" not in out
+
+
+# ------------------------------------------------------------ round 3
+
+
+def test_ac7_ac2_reading_after_a_force_lands_on_a_ref_tree_uses_that_tree(
+    library, repo, capsys, tmp_path
+):
+    # `--ref main` held (older); a plain clone fetches main's next commit as
+    # the default tree; main moves back and `clone --force` lands on the ref
+    # tree, retiring the default tree. No current default tree is left, and
+    # reading without --ref must use the tree clone reported, not the newer
+    # superseded one prune is about to remove.
+    work, c2 = repo["work"], repo["c2"]
+    catalog = _catalog(tmp_path, repo)
+    code, out = run(capsys, catalog, "clone", "thing", "--ref", "main")
+    assert code == 0 and out.startswith(f"cloned thing {c2[:7]} (main ")
+    meta_path = _tree_dir(library, c2) / code_mod.TREE_META
+    meta = json.loads(meta_path.read_text("utf-8"))
+    meta["fetched_at"] = "2026-01-01T00:00:00+00:00"  # certainly the older tree
+    text = json.dumps(meta, sort_keys=True)
+    meta_path.write_text(text, encoding="utf-8", newline="")
+
+    c3 = commit(work, {"README.md": "thing 3\n"}, "third")
+    push(work)
+    code, out = run(capsys, catalog, "clone", "thing")
+    assert code == 0 and out.startswith(f"cloned thing {c3[:7]} (main ")
+    assert "superseded" not in out
+    assert _meta(library, c3)["provenance"] == {"kind": "default", "name": "main"}
+
+    git("reset", "-q", "--hard", c2, cwd=work)
+    git("push", "-q", "-f", "origin", "main", cwd=work)
+    code, out = run(capsys, catalog, "clone", "thing", "--force")
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith(f"held thing {c2[:7]} (main ")
+    assert lines[1].startswith(f"superseded thing {c3[:7]} (main ")
+    assert len(lines) == 2, out
+    assert "superseded_by" not in _meta(library, c2)
+    assert _meta(library, c2)["provenance"] == {"kind": "ref", "name": "main"}
+    assert _meta(library, c3)["superseded_by"] == c2
+
+    code, out = run(capsys, catalog, "code", "thing", "README.md")
+    assert code == 0 and out.startswith(f"cite: code | thing {c2[:7]} | main ")
+    assert "thing 2" in out and "thing 3" not in out
+    code, out = run(capsys, catalog, "grep", "thing", "thing 2")
+    assert code == 0 and out.startswith(f"thing@{c2[:7]} README.md:1 | thing 2")
+    code, out = run(capsys, catalog, "prune")
+    assert code == 0, out
+    listed = [ln for ln in out.splitlines() if ln.startswith("would remove ")]
+    assert len(listed) == 1 and str(_tree_dir(library, c3)) in listed[0]
+    code, out = run(capsys, catalog, "prune", "--yes")
+    assert code == 0, out
+    assert _tree_dir(library, c2).is_dir()
+    assert not _tree_dir(library, c3).exists()
+    code, out = run(capsys, catalog, "code", "thing", "README.md")
+    assert code == 0 and out.startswith(f"cite: code | thing {c2[:7]} | main ")
