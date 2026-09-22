@@ -59,7 +59,10 @@ Things a linter cannot check; formatting is not listed.
   pushes the tag and publishes a GitHub Release:
   `gh release create v<version> --generate-notes`, with one lead line above
   the generated list saying why the version exists. `.github/release.yml`
-  groups that list by the labels. Bumps started with the first tag,
+  groups that list by the labels. Then the maintainer deletes the
+  `release/v<version>` branch on GitHub and locally: the repository does
+  not delete merged branches on its own, and the bump pull request was
+  squashed, so git never counts that branch as merged. Bumps started with the first tag,
   `v1.0.0` (2026-09-08); `v1.1.0` was the last bump made inside a feature
   pull request.
 
