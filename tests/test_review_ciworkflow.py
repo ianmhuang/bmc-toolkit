@@ -138,7 +138,7 @@ def test_ac1_triggers_are_pull_request_any_base_and_push_to_main_only():
 # --- AC-2 --------------------------------------------------------------------
 
 
-def test_ac2_test_job_matrix_is_ubuntu_311_313_and_windows_313():
+def test_ac2_test_job_matrix_is_ubuntu_311_313_windows_313_and_macos_313():
     jobs = _jobs()
     assert "test" in jobs
     job = jobs["test"]
@@ -148,6 +148,7 @@ def test_ac2_test_job_matrix_is_ubuntu_311_313_and_windows_313():
         ("ubuntu-latest", "3.11"),
         ("ubuntu-latest", "3.13"),
         ("windows-latest", "3.13"),
+        ("macos-latest", "3.13"),
     }
     # The matrix value is what setup-python receives.
     setup = [
@@ -174,29 +175,15 @@ def test_ac2_ubuntu_runs_the_python_floor_from_pyproject():
 # --- AC-3 --------------------------------------------------------------------
 
 
-def test_ac3_macos_job_is_separate_and_guarded_to_push_events():
+def test_ac3_macos_runs_on_pull_requests_through_the_one_test_job():
+    # T4 (2026-09-23): the repository is public, so macOS runs on every
+    # pull request instead of in a separate job guarded to push events.
     jobs = _jobs()
-    assert "test-macos" in jobs
-    job = jobs["test-macos"]
-    assert job["runs-on"] == "macos-latest"
-    guard = str(job.get("if", "")).replace('"', "'").replace(" ", "")
-    assert guard == "github.event_name=='push'", job.get("if")
-    setup = [
-        s
-        for s in job["steps"]
-        if isinstance(s, dict) and str(s.get("uses", "")).startswith("actions/setup-python@")
-    ]
-    assert len(setup) == 1
-    assert str(setup[0]["with"]["python-version"]) == "3.13"
-
-
-def test_ac3_no_other_job_can_start_a_macos_runner_on_a_pull_request():
-    for name, job in _jobs().items():
-        if name == "test-macos":
-            continue
-        assert "macos" not in str(job.get("runs-on", "")).lower(), name
-        for entry in _matrix_entries(job):
-            assert "macos" not in str(entry.get("os", "")).lower(), (name, entry)
+    assert set(jobs) == {"test"}, set(jobs)
+    job = jobs["test"]
+    assert "if" not in job, job.get("if")
+    macos = [e for e in _matrix_entries(job) if "macos" in str(e["os"]).lower()]
+    assert [(e["os"], str(e["python"])) for e in macos] == [("macos-latest", "3.13")]
 
 
 # --- AC-4 --------------------------------------------------------------------
