@@ -58,6 +58,12 @@ def _file_type(url: str) -> str:
     return ""
 
 
+def _file_id(url: str) -> str:
+    """A URL without its scheme: a listing's http:// link names the same
+    file as the catalog's https:// one (DSP8011 2017.1)."""
+    return re.sub(r"^https?://", "", url, flags=re.IGNORECASE)
+
+
 def _is_wip(seen: Seen) -> bool:
     """A Work-in-Progress row: the catalog lists WIP releases only by hand,
     with ``wip = true``, so refresh never writes one."""
@@ -80,15 +86,27 @@ def proposals(doc: Document, listings: Listings) -> list[Proposal]:
         return [Proposal("unreachable", doc.id, problem=str(exc))]
     source = doc.listing_source
     by_key = {version_key(source, v.version): v for v in doc.versions}
+    # A publisher may list one version more than once (DMTF keeps a file and
+    # its re-upload, DSP0266 1.20.2): the catalog URL has not moved while
+    # any of those rows still names it.
+    listed: dict[str, set[str]] = {}
+    for s in seen:
+        listed.setdefault(version_key(source, s.version), set()).add(_file_id(s.url))
     out = []
     for s in seen:
-        known = by_key.get(version_key(source, s.version))
+        key = version_key(source, s.version)
+        known = by_key.get(key)
         if known is None:
             if source != "ocp" and _file_type(s.url) and not _is_wip(s):
                 out.append(Proposal("add", doc.id, s))
             else:
                 out.append(Proposal("confirm", doc.id, s, why=_why_confirm(source, s)))
-        elif source != "ocp" and known.url and s.url and known.url != s.url:
+        elif (
+            source != "ocp"
+            and known.url
+            and s.url
+            and _file_id(known.url) not in listed[key]
+        ):
             out.append(Proposal("changed", doc.id, s))
     return out
 

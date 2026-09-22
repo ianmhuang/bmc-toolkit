@@ -184,3 +184,42 @@ def test_versions_are_listed_in_publication_order_then_version_order(shipped):
     assert dsp0277.index("1.0.1") < dsp0277.index("1.1.1")
     assert shipped.get("DSP0277").latest().version == "2.0.0"
     assert shipped.get("DSP0276").latest().version == "2.0.0"
+
+
+# ---------------------------------------------------- DMTF, September 2026
+
+DMTF_2026_09 = {
+    "DSP0236": ("1.4.0", "2026-09-07", "pdf"),
+    "DSP0134": ("3.10.0", "2026-09-07", "pdf"),
+    "DSP0240": ("1.2.1", "2026-09-14", "pdf"),
+    "DSP0266": ("1.25.0", "2026-09-14", "pdf"),
+    "DSP8010": ("2026.2", "2026-09-14", "zip"),
+    "DSP0268": ("2026.2", "2026-09-14", "pdf"),
+    "DSP2046": ("2026.2", "2026-09-14", "pdf"),
+    "DSP2053": ("2026.2", "2026-09-14", "pdf"),
+    "DSP2065": ("2026.2", "2026-09-14", "pdf"),
+    "DSP8011": ("2026.2", "2026-09-14", "zip"),
+}
+
+
+@pytest.mark.parametrize("doc_id", sorted(DMTF_2026_09))
+def test_dmtf_september_2026_release_is_the_latest(shipped, doc_id):
+    version, published, type_ = DMTF_2026_09[doc_id]
+    latest = shipped.get(doc_id).latest()
+    assert (latest.version, latest.published, latest.type) == (
+        version,
+        published,
+        type_,
+    )
+    assert latest.url == (
+        "https://www.dmtf.org/sites/default/files/standards/documents/"
+        f"{doc_id}_{version}.{type_}"
+    )
+
+
+def test_dsp0266_1_24_1_sits_between_1_24_0_and_1_25_0(shipped):
+    # Same day as 1.25.0: the version numbers decide, and 1.25.0 is latest.
+    versions = [v.version for v in shipped.get("DSP0266").versions]
+    assert versions.index("1.24.0") < versions.index("1.24.1")
+    assert versions.index("1.24.1") + 1 == versions.index("1.25.0")
+    assert shipped.get("DSP0266").find_version("1.24.1").published == "2026-09-14"

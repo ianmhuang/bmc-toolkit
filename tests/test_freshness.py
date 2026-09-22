@@ -3,6 +3,7 @@ commands against scripted listings, the notes fetch and status print,
 and the OpenBMC release comparison."""
 
 import json
+import tomllib
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -10,7 +11,7 @@ import pytest
 from bmc_toolkit.spec import freshness as F
 from bmc_toolkit.spec import listing as L
 from bmc_toolkit.spec import refresh as R
-from bmc_toolkit.spec.catalog import load_catalog
+from bmc_toolkit.spec.catalog import load_catalog, parse_catalog
 from bmc_toolkit.spec.cli import main
 from bmc_toolkit.spec.fetch import Response
 from tests.conftest import MINI_CATALOG, PDF_BYTES, ok
@@ -578,3 +579,60 @@ def test_refresh_write_orders_same_day_versions_by_their_numbers(catalog_file):
         < text.index('version = "1.3.5"')
     )
     assert load_catalog(catalog_file).get("DSP0236").latest().version == "1.3.5"
+
+
+# ------------------------------------------- a version listed more than once
+
+
+class _History:
+    """Listings stand-in: every listing key answers the same rows."""
+
+    def __init__(self, rows):
+        self.rows = rows
+
+    def history(self, listing):
+        return self.rows
+
+
+_BASE = "https://www.dmtf.org/sites/default/files/standards/documents/"
+_TWICE = [  # DMTF lists DSP0266 1.20.2 twice: the file and its re-upload
+    L.Seen("1.20.2", _BASE + "DSP0266_1.20.2_0.pdf", "2024-09-16"),
+    L.Seen("1.20.2", _BASE + "DSP0266_1.20.2.pdf", "2024-08-19"),
+]
+
+
+def _dsp0266(url):
+    text = (
+        "schema_version = 1\n\n"
+        '[families.redfish]\ntitle = "Redfish"\npublisher = "DMTF"\n\n'
+        '[[documents]]\nid = "DSP0266"\nfamily = "redfish"\ntitle = "Redfish"\n'
+        'access = "open"\nfetch = "direct"\n\n'
+        f'[[documents.versions]]\nversion = "1.20.2"\nurl = "{url}"\n'
+        'type = "pdf"\npublished = "2024-09-16"\n'
+    )
+    return parse_catalog(tomllib.loads(text)).get("DSP0266")
+
+
+@pytest.mark.parametrize("name", ["DSP0266_1.20.2_0.pdf", "DSP0266_1.20.2.pdf"])
+def test_a_version_listed_twice_is_not_changed_when_one_row_matches(name):
+    doc = _dsp0266(_BASE + name)
+    assert R.proposals(doc, _History(_TWICE)) == []
+
+
+def test_a_version_listed_twice_reports_every_row_when_none_matches():
+    doc = _dsp0266(_BASE + "DSP0266_1.20.2_1.pdf")
+    got = R.proposals(doc, _History(_TWICE))
+    assert [(p.kind, p.seen.url) for p in got] == [
+        ("changed", _BASE + "DSP0266_1.20.2_0.pdf"),
+        ("changed", _BASE + "DSP0266_1.20.2.pdf"),
+    ]
+
+
+def test_a_listing_link_differing_only_in_scheme_is_not_changed():
+    # DMTF lists DSP8011 2017.1 as http://; the catalog keeps https:// for
+    # every directly fetched version (test_shipped_catalog).
+    doc = _dsp0266(_BASE.replace("https://", "http://") + "DSP0266_1.20.2_0.pdf")
+    assert R.proposals(doc, _History(_TWICE[:1])) == []
+    doc = _dsp0266(_BASE + "DSP0266_1.20.2_0.pdf")
+    seen = [L.Seen("1.20.2", _TWICE[0].url.replace("https://", "http://"))]
+    assert R.proposals(doc, _History(seen)) == []

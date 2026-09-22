@@ -539,7 +539,7 @@ def test_unknown_document_still_wins_over_the_skip(catalog_file, client, capsys)
 
 # ----------------------------------------------------------------- AC-8
 
-RELEASE = "1.1.0"
+RELEASE = "1.2.0"
 
 
 def test_version_1_1_0_in_the_four_records():

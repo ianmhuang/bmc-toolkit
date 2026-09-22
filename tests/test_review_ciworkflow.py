@@ -132,7 +132,7 @@ def test_ac1_triggers_are_pull_request_any_base_and_push_to_main_only():
     assert set(on) == {"pull_request", "push"}
     # No branch filter on pull_request: any base branch triggers it.
     assert on["pull_request"] is None or "branches" not in on["pull_request"]
-    assert on["push"] == {"branches": ["main"]}
+    assert on["push"] == {"branches": ["main", "develop"]}
 
 
 # --- AC-2 --------------------------------------------------------------------

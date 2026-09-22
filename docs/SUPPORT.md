@@ -51,7 +51,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 
 | Document | Access | Latest | Verified | Known limit |
 |---|---|---|---|---|
-| `DSP0236` Management Component Transport Protocol (MCTP) Base Specification | open | 1.3.3 | PASS | - |
+| `DSP0236` Management Component Transport Protocol (MCTP) Base Specification | open | 1.4.0 | PASS | - |
 | `DSP0237` Management Component Transport Protocol (MCTP) SMBus/I2C Transport Binding Specification | open | 1.2.0 | PASS | PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page. |
 | `DSP0238` Management Component Transport Protocol (MCTP) PCIe® VDM Transport Binding Specification | open | 1.4.0 | PASS | - |
 | `DSP0239` Management Component Transport Protocol (MCTP) IDs and Codes Specification | open | 1.12.0 | PASS | One page holds an emoji that breaks pdfium's character order; extracted without layout. |
@@ -71,7 +71,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 
 | Document | Access | Latest | Verified | Known limit |
 |---|---|---|---|---|
-| `DSP0240` Platform Level Data Model (PLDM) Base Specification | open | 1.1.1 | PASS | - |
+| `DSP0240` Platform Level Data Model (PLDM) Base Specification | open | 1.2.1 | PASS | - |
 | `DSP0241` Platform Level Data Model (PLDM) Over MCTP Binding Specification | open | 1.0.0 | PASS | - |
 | `DSP0242` Platform Level Data Model (PLDM) for File Transfer Specification | open | 1.0.1 | PASS | - |
 | `DSP0245` Platform Level Data Model (PLDM) IDs and Codes Specification | open | 1.4.0 | PASS | - |
@@ -107,21 +107,21 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 
 | Document | Access | Latest | Verified | Known limit |
 |---|---|---|---|---|
-| `DSP0134` SMBIOS Specification | open | 3.9.0 | PASS | - |
+| `DSP0134` SMBIOS Specification | open | 3.10.0 | PASS | - |
 
 ## Redfish
 
 | Document | Access | Latest | Verified | Known limit |
 |---|---|---|---|---|
-| `DSP0266` Redfish Specification | open | 1.24.0 | PASS | - |
-| `DSP8010` Redfish Schema Bundle | open | 2026.1 | PASS | - |
-| `DSP0268` Redfish Data Model Specification | open | 2026.1 | PASS | - |
-| `DSP2046` Redfish Resource and Schema Guide | open | 2026.1 | PASS | - |
+| `DSP0266` Redfish Specification | open | 1.25.0 | PASS | - |
+| `DSP8010` Redfish Schema Bundle | open | 2026.2 | PASS | - |
+| `DSP0268` Redfish Data Model Specification | open | 2026.2 | PASS | - |
+| `DSP2046` Redfish Resource and Schema Guide | open | 2026.2 | PASS | - |
 | `DSP0270` Redfish Host Interface Specification | open | 1.3.1 | PASS | - |
 | `DSP0272` Redfish Interoperability Profiles Specification | open | 1.10.0 | PASS | - |
-| `DSP2053` Redfish Property Guide | open | 2026.1 | PASS | The whole guide is one property table over 300-odd pages: table prints the rows that start on the asked page and says so (--all-rows prints every row). |
-| `DSP2065` Redfish Message Registry Guide | open | 2026.1 | PASS | - |
-| `DSP8011` Redfish Standard Registries Bundle | open | 2026.1 | PASS | ZIP of registries: registry reads the message registries (newest file per registry); the privilege registries, the HTML and the PDF stay in the archive (DSP2065 is the PDF's own catalog entry). |
+| `DSP2053` Redfish Property Guide | open | 2026.2 | PASS | The whole guide is one property table over 300-odd pages: table prints the rows that start on the asked page and says so (--all-rows prints every row). |
+| `DSP2065` Redfish Message Registry Guide | open | 2026.2 | PASS | - |
+| `DSP8011` Redfish Standard Registries Bundle | open | 2026.2 | PASS | ZIP of registries: registry reads the message registries (newest file per registry); the privilege registries, the HTML and the PDF stay in the archive (DSP2065 is the PDF's own catalog entry). |
 | `DSP8013` Redfish Interoperability Profiles Bundle | open | 2026.1 | PASS | ZIP of profiles: schema reads the profile schema (RedfishInteroperabilityProfile); the bundle holds no profile documents, and its PDF stays in the archive (DSP0272 is the PDF's own catalog entry). |
 
 ## NVM Express
@@ -143,7 +143,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 
 | Document | Access | Latest | Verified | Known limit |
 |---|---|---|---|---|
-| `M-CRPS` DC-MHS Modular Hardware System Common Redundant Power Supply (M-CRPS) Base Specification | open | R1 v1.0 RC4 | PASS | - |
+| `M-CRPS` DC-MHS Modular Hardware System Common Redundant Power Supply (M-CRPS) Base Specification | open | 1.06 | PASS | - |
 | `M-PIC` DC-MHS Platform Infrastructure Connectivity (M-PIC) Specification | open | R1 v1.11 | PASS | - |
 | `M-XIO` DC-MHS Extensible I/O (M-XIO) Specification | open | R1 v1.04 RC1 | PASS | - |
 | `M-DNO` DC-MHS Densified Node Operation (M-DNO) Specification | open | R1 v1.1 RC2 | PASS | - |

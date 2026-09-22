@@ -212,6 +212,23 @@ def test_ac4_missing_label_is_created():
     assert "issues.getLabel(" in step and "issues.createLabel(" in step
 
 
+def test_new_issue_is_assigned_to_the_repository_owner():
+    # An issue nobody is assigned to sits unseen in the owner's list (#26).
+    step = _issue_step()
+    create = step[step.index("issues.create(") :]
+    create = create[: create.index("});")]
+    assert "assignees: [owner]" in create, create
+
+
+def test_issue_body_sends_the_change_to_develop_without_a_bump():
+    # Feature pull requests target develop and never bump the version; the
+    # release pull request does (CONVENTIONS.md, Versions).
+    step = _issue_step()
+    body = step[step.index("const body = [") : step.index('].join("\\n");')]
+    assert "`develop`" in body, body
+    assert "bump" not in body and "plugin.json" not in body, body
+
+
 # ---------------------------------------------------------------- AC-5
 
 
@@ -311,7 +328,8 @@ def test_ac7_catalog_doc_describes_the_workflow_and_keeps_writes_manual():
     assert "issue" in p and "`catalog`" in p
     assert "opens nothing" in p
     assert "pull request" in p and "`refresh --write`" in p
-    assert "golden-questions.md" in p and "`plugin.json`" in p
+    assert "golden-questions.md" in p and "`develop`" in p
+    assert "bump" not in p and "plugin.json" not in p
 
 
 def test_ac7_readme_does_not_mention_the_workflow():

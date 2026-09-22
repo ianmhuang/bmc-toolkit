@@ -93,10 +93,10 @@ def test_ac6_support_table_no_longer_carries_the_sentence(capsys):
 def test_ac11_bundle_questions_verify_dsp8011_and_dsp8013(shipped, golden_rows):
     verified, problems = support.read_golden(GOLDEN, shipped)
     assert problems == []
-    assert verified["dsp8011"] == [("G101", "2026.1")]
+    assert verified["dsp8011"] == [("G101", "2026.2")]
     assert verified["dsp8013"] == [("G102", "2026.1")]
     g101 = golden_rows["G101"]
-    assert g101[2] == "DSP8011 2026.1"
+    assert g101[2] == "DSP8011 2026.2"
     assert "#/Messages/" in g101[3] and "Base" in g101[3]
     assert "registry DSP8011 Base " in g101[4]
     g102 = golden_rows["G102"]
@@ -128,7 +128,7 @@ def test_ac11_support_table_marks_the_bundles_verified(capsys):
         cells = [c.strip() for c in ln[2:-2].split(" | ")]
         if len(cells) == 7 and "`" in cells[1]:
             cells_by_id[cells[1].split("`")[1]] = cells
-    assert cells_by_id["DSP8011"][5] == "G101 (2026.1)"
+    assert cells_by_id["DSP8011"][5] == "G101 (2026.2)"
     assert cells_by_id["DSP8013"][5] == "G102 (2026.1)"
 
 
