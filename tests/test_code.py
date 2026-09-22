@@ -259,6 +259,10 @@ def test_a_held_ref_tree_does_not_retire_the_default_of_its_branch(thing, librar
     git("checkout", "-q", "-b", "sdk", cwd=work)
     push(work, "sdk")
     default, _ = library.clone("thing", url, C.Provenance("default", "sdk"), ref="sdk")
+    # fetched_at has one-second resolution: make the order of the two clones
+    # certain, so the newer --ref tree is the one that answers
+    default.fetched_at = "2026-01-01T00:00:00+00:00"
+    library.write_tree(default)
     commit(work, {"sdk.c": "int sdk;\n"}, "sdk")
     push(work, "sdk")
     newer, _ = library.clone(

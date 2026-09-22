@@ -451,6 +451,37 @@ def test_a_changed_catalog_ref_supersedes_the_old_tree_and_prune_removes_it(
     assert code == 0 and f"| acme-pinned {sdk_head[:7]} | sdk-2 " in out
 
 
+def test_reading_without_a_current_default_tree_prefers_one_prune_keeps(
+    library, catalog_file, vendor, capsys
+):
+    # --ref main held; a plain clone fetches main's next commit; main moves
+    # back and clone --force lands on the --ref tree, retiring the default
+    # tree: reading must not pick the superseded one although it is newer
+    work, bare, url = vendor
+    first = git("rev-parse", "HEAD", cwd=work)
+    argv = ["clone", "acme-thing", "--ref", "main"]
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert code == 0, out
+    ref_dir = library / "code" / "acme-thing" / first
+    meta_path = ref_dir / code_mod.TREE_META
+    meta = json.loads(meta_path.read_text("utf-8"))
+    meta["fetched_at"] = "2026-01-01T00:00:00+00:00"  # certainly the older one
+    meta_path.write_text(json.dumps(meta), encoding="utf-8", newline="")
+    second = commit(work, {"README.md": "moved\n"}, "second")
+    push(work)
+    code, out = run(capsys, "clone", "acme-thing", catalog_file=catalog_file)
+    assert code == 0 and out.startswith(f"cloned acme-thing {second[:7]} ")
+    git("reset", "-q", "--hard", first, cwd=work)
+    git("push", "-q", "-f", "origin", "main", cwd=work)
+    argv = ["clone", "acme-thing", "--force"]
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert code == 0, out
+    assert f"superseded acme-thing {second[:7]} " in out
+    argv = ["code", "acme-thing", "README.md"]
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert code == 0 and f"| acme-thing {first[:7]} | main " in out
+
+
 def _no_git(*a, **k):
     raise AssertionError("git must not run")
 

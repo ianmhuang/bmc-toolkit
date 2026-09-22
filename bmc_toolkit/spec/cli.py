@@ -1909,8 +1909,8 @@ def _select_tree(args, catalog, library, config, repo):
     current = [t for t in trees if t.provenance.kind == "default" and not t.superseded]
     if current:
         return current[0], notes
-    if trees:
-        return trees[0], notes
+    if trees:  # no current default tree: the newest tree prune keeps
+        return sorted(trees, key=lambda t: t.superseded)[0], notes
     raise code_mod.CodeError(
         f"{repo.id} is not in the Library; run: bmcspec clone {repo.id}"
     )
