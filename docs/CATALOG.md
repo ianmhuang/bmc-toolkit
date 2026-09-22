@@ -43,9 +43,14 @@ that `find` searches together with it, and a `listing`
 nvmexpress.org API; `ocp:<wiki page>|<description prefix>`) that `check`
 and `refresh` consult. `refresh` prints the versions the publishers list
 that the catalog lacks (`add`), catalog URLs that moved (`changed`, for
-DMTF and NVMe) and versions a human has to handle (`confirm`: OCP rows,
-whose download URL has to be found, and DMTF Work-in-Progress rows, which
-the catalog lists only by hand with `wip = true`); `refresh --write`
+DMTF and NVMe; a URL has not moved while any row the publisher lists for
+that version names it, `http://` and `https://` alike, since DMTF lists
+some versions twice and some links as `http://`) and versions a human has
+to handle (`confirm`: OCP rows, whose download URL has to be found, and
+DMTF Work-in-Progress rows, which the catalog lists only by hand with
+`wip = true`). An OCP row's Google Drive viewer link usually has a direct
+download, `https://drive.google.com/uc?export=download&id=<file id>`,
+which `fetch` can use (M-CRPS 1.06 is listed so). `refresh --write`
 inserts the `add` entries as `[[documents.versions]]` blocks at their
 place in the document's block (publication order, same-day versions by
 their numbers), leaving every other line and comment as it was, and

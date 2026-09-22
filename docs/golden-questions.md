@@ -76,7 +76,7 @@ on its newest open version and the row says so.
 | # | Question | Document | Where the answer is | Commands |
 |---|---|---|---|---|
 | G33 | LTPI frame types, their comma symbols and size | LTPI Rev 1.2 Ver 1.0 | LTPI Rev 1.2 Ver 1.0, section 3, Table 19, PDF page 52 (printed 46): K28.5 Link Detect and Link Speed Selection, K28.6 Capabilities Advertise and Configure/Accept, K28.7 LTPI Operational Frame; every frame is 16 symbols (160 bits in 8b/10b); base frequency 25 MHz SDR (3.1.1.1, page 53) | `find LTPI "Frame Types summary"`, `page LTPI 52 --to 53` |
-| G34 | M-CRPS 73.5 mm form factor dimensions and the sideband signals on its card edge | M-CRPS R1 v1.0 RC4 | M-CRPS v1.00 RC4, section 2.6.1, Tables 2-2 and 2-3, pages 34-35: 40 x 73.5 x 185 mm; signal pins A19-A25 / B19-B25: PMBus SDA, PMBus SCL, PSON#, SMBAlert#, Return Sense / PS_KILL, Remote sense, PWOK, A0 and A1 (SMBus address), +12VSB, Cold Redundancy Bus, 12V load share bus, Imon, VINOK | `section M-CRPS 2.6`, `page M-CRPS 34 --to 35` |
+| G34 | M-CRPS 73.5 mm form factor dimensions and the sideband signals on its card edge | M-CRPS 1.06 | M-CRPS 1.06 (the PDF says 1.06.00 RC1), section 2.6.1, Tables 2-2 and 2-3, pages 52-53: 40 x 73.5 x 185 mm; signal pins A19-A25 / B19-B25: PMBus SDA, PMBus SCL, PSON#, SMBAlert#, Return Sense / PS_KILL, +12V/+54V Remote sense, PWOK, A0 and A1 (SMBus address), +12VSB, Cold Redundancy Bus, 12V load share bus, Imon, VINOK. Same values as v1.00 RC4 (pages 34-35); 1.06 adds the 54 V output and the 265 mm length | `section M-CRPS 2.6`, `page M-CRPS 52 --to 53` |
 | G35 | Signals on the M-PIC primary control panel connector | M-PIC R1 v1.11 | M-PIC 1.11, section 11.4.1, Table 23, pages 81-82: 12V_CP and GND, [SMB/I3C]_BMC_SDA/SCL from the DC-SCM BMC, PCP_SB[4:1] sideband GPIOs from the HPM FPGA (SB1 suggested for PRES_N or PESTI, SB2 for PWREN), optional USB 2.0 USB_PCP_DP/DN, SPI from the DC-SCM; 2x10 header pinout in Table 24 | `find M-PIC "Control Panel Pin"`, `page M-PIC 81 --to 82` |
 | G36 | Signals of an M-XIO port | M-XIO R1 v1.04 RC1 | M-XIO 1.04, section 6, Table 2, pages 13-14: PER/PET PCIe lanes, REFCLK_D 100 MHz, SMSCL/SMSDA (SMBus up to 400 kHz or I3C after discovery, BMC domain), PERST_N, CBL_PRES_PESTI_N (cable presence and PESTI), 3p3AUX_MGMT, GND, FLEXIO_[0:6], USB2 | `section M-XIO 6`, `table M-XIO --page 13` |
 | G37 | M-DNO HPM board types and their widths | M-DNO R1 v1.1 RC2 | M-DNO Rev 1.0 Version 1.1, section 9, pages 20-21: Type 2 and Type 3 are half width (210 mm), Type 4 is three-quarter width (295 mm); Type 1 (full width) is defined by M-FLW; DC-SCM and OCP NIC connector locations are common to all types relative to the datum | `section M-DNO 9`, `page M-DNO 20 --to 21` |
@@ -248,8 +248,9 @@ finding, not an error.
 `check` against the publishers on 2026-09-04: every DMTF document
 current; NVMe lists Management Interface 2.2 and NVMe over PCIe Transport
 1.4 (added to the catalog with `refresh --write`); the OCP wiki lists
-M-CRPS 1.06 as a Google Drive link, which the catalog records in the
-document's notes until a download URL exists. DC-SCM Rev 2.2 Ver 1.0 has
+M-CRPS 1.06 as a Google Drive link, which the catalog recorded in the
+document's notes until a download URL existed (on 2026-09-22 the file's
+Google Drive direct download became the 1.06 URL, and G34 moved to 1.06). DC-SCM Rev 2.2 Ver 1.0 has
 been in the catalog as a direct opencompute.org PDF since M8a; only Rev
 2.0 Ver 1.0 remains a Google Drive link, listed so that `fetch` prints the
 browser instruction and `check DC-SCM` reports current.
