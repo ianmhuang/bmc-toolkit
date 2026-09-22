@@ -309,7 +309,8 @@ class CodeLibrary:
         default-branch clone leaves its tree the one current default tree."""
         held = self._already_held(repo, provenance, ref, commit)
         if held is not None and not force:
-            self._retire_defaults(held, provenance)
+            if held.provenance.kind == "default":  # a --ref tree retires nothing
+                self._retire_defaults(held, provenance)
             return held, False
         if ref and _SHA.match(ref) and len(ref) < 40:
             raise CodeError(
@@ -360,14 +361,17 @@ class CodeLibrary:
             provenance.kind,
             provenance.name,
         )
-        if not fetched and tree.superseded and same_name:
-            # the name moved back to a commit held under it: current again
+        both_default = tree.provenance.kind == provenance.kind == "default"
+        if not fetched and tree.superseded and (same_name or both_default):
+            # the name (or the default branch, under whatever name) moved back
+            # to a commit held under it: current again
             tree.superseded_by = None
             self.write_tree(tree)
             self._supersede(tree)
         elif fetched:
             self._supersede(tree)
-        self._retire_defaults(tree, provenance)
+        if not tree.superseded:  # never point a tree at a superseded one
+            self._retire_defaults(tree, provenance)
         return tree, fetched
 
     def _already_held(self, repo, provenance, ref, commit) -> Tree | None:

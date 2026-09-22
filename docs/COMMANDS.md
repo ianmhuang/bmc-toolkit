@@ -230,9 +230,11 @@ and marks the older tree superseded rather than deleting it. A plain `clone`
 leaves one current default-branch tree: every other default-branch tree
 (fetched under an earlier catalog `ref`, or under the remote's old default
 branch name) is marked superseded too, and `clone` prints a `superseded`
-line for each tree it marks. Trees held under `--ref` or `--release` stay.
-When a `--force` fetch lands on a commit already held, superseded, under the
-same name (the branch moved back), that tree is current again. `grep` (`git grep`) and `code` read a
+line for each tree it marks. Trees held under `--ref` or `--release` stay,
+and a plain `clone` that finds its branch held under `--ref` marks nothing.
+When a fetch lands on a commit held in a superseded tree of the same name
+(the branch moved back), or for a plain `clone` in a superseded
+default-branch tree of any name, that tree is current again. `grep` (`git grep`) and `code` read a
 tree: a user checkout named in `config.toml` first, then the `--ref` or
 `--release` asked for, then the `config.toml` default Release, then a
 held tree of the branch the catalog `ref` names (a superseded one still

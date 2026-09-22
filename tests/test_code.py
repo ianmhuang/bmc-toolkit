@@ -210,6 +210,68 @@ def test_a_branch_moved_back_makes_its_old_tree_current_again(thing, library):
     assert "superseded_by" not in meta
 
 
+def test_a_default_landing_on_a_tree_superseded_under_another_name_revives_it(
+    thing, library
+):
+    # catalog ref main, then dev, then trunk, which points back at main's commit:
+    # no two trees may supersede each other (prune would remove both)
+    work, bare, url = thing
+    first = git("rev-parse", "HEAD", cwd=work)
+    old, _ = library.clone("thing", url, C.Provenance("default", "main"), ref="main")
+    git("checkout", "-q", "-b", "dev", cwd=work)
+    commit(work, {"dev.c": "int dev;\n"}, "dev")
+    push(work, "dev")
+    dev, _ = library.clone("thing", url, C.Provenance("default", "dev"), ref="dev")
+    git("branch", "trunk", first, cwd=work)
+    push(work, "trunk")
+    back, fetched = library.clone(
+        "thing", url, C.Provenance("default", "trunk"), ref="trunk"
+    )
+    assert not fetched and back.commit == old.commit
+    trees = {t.commit: t for t in library.trees("thing")}
+    assert not trees[old.commit].superseded
+    assert trees[dev.commit].superseded_by == old.commit
+
+
+def test_a_default_landing_on_a_superseded_ref_tree_retires_nothing(thing, library):
+    work, bare, url = thing
+    first = git("rev-parse", "HEAD", cwd=work)
+    git("checkout", "-q", "-b", "rel", cwd=work)
+    push(work, "rel")
+    stale, _ = library.clone("thing", url, C.Provenance("ref", "rel"), ref="rel")
+    commit(work, {"rel.c": "int rel;\n"}, "rel")
+    push(work, "rel")
+    library.clone("thing", url, C.Provenance("ref", "rel"), ref="rel", force=True)
+    git("checkout", "-q", "-b", "d1", "main", cwd=work)
+    commit(work, {"d1.c": "int d1;\n"}, "d1")
+    push(work, "d1")
+    current, _ = library.clone("thing", url, C.Provenance("default", "d1"), ref="d1")
+    git("branch", "back", first, cwd=work)
+    push(work, "back")
+    library.clone("thing", url, C.Provenance("default", "back"), ref="back")
+    trees = {t.commit: t for t in library.trees("thing")}
+    assert trees[stale.commit].superseded  # still: it is a --ref tree
+    assert not trees[current.commit].superseded
+
+
+def test_a_held_ref_tree_does_not_retire_the_default_of_its_branch(thing, library):
+    work, bare, url = thing
+    git("checkout", "-q", "-b", "sdk", cwd=work)
+    push(work, "sdk")
+    default, _ = library.clone("thing", url, C.Provenance("default", "sdk"), ref="sdk")
+    commit(work, {"sdk.c": "int sdk;\n"}, "sdk")
+    push(work, "sdk")
+    newer, _ = library.clone(
+        "thing", url, C.Provenance("ref", "sdk"), ref="sdk", force=True
+    )
+    held, fetched = library.clone(
+        "thing", url, C.Provenance("default", "sdk"), ref="sdk"
+    )
+    assert not fetched and held.path == newer.path
+    trees = {t.commit: t for t in library.trees("thing")}
+    assert not trees[default.commit].superseded
+
+
 def test_a_ref_and_the_same_named_default_answer_each_other(
     thing, library, monkeypatch
 ):
