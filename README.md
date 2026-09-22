@@ -191,8 +191,8 @@ ruff format --check .
 python -m pytest -q
 ```
 
-The same commands run on GitHub Actions for every pull request (Linux and
-Windows) and every push to main or develop (Linux, Windows and macOS).
+The same commands run on GitHub Actions on Linux, Windows and macOS for
+every pull request and every push to main or develop.
 
 ## License
 

@@ -1,7 +1,6 @@
 """CI workflow (M12, AC-1 to AC-7): the GitHub Actions file lints and tests
-on Linux and Windows for every pull request and adds macOS on pushes to
-main or develop. No YAML parser is a dependency, so the checks read the
-text."""
+on Linux, Windows and macOS for every pull request and every push to main
+or develop. No YAML parser is a dependency, so the checks read the text."""
 
 import re
 from pathlib import Path
@@ -38,13 +37,14 @@ def test_ac1_triggers_on_pull_request_and_push_to_main_or_develop():
     assert "tags" not in on and "schedule" not in on
 
 
-def test_ac2_test_job_matrix_is_ubuntu_and_windows():
+def test_ac2_test_job_matrix_is_ubuntu_windows_and_macos():
     job = _job("test")
     combos = re.findall(r"- os: (\S+)\n\s+python: \"([\d.]+)\"", job)
     assert combos == [
         ("ubuntu-latest", "3.11"),
         ("ubuntu-latest", "3.13"),
         ("windows-latest", "3.13"),
+        ("macos-latest", "3.13"),
     ]
     assert "runs-on: ${{ matrix.os }}" in job
     assert "fail-fast: false" in job
@@ -56,28 +56,29 @@ def test_ac2_python_floor_matches_pyproject():
     assert f'python: "{floor}"' in _job("test")
 
 
-def test_ac3_macos_job_only_on_push():
-    job = _job("test-macos")
-    assert "runs-on: macos-latest" in job
-    assert "if: github.event_name == 'push'" in job
-    assert 'python-version: "3.13"' in job
-    assert "macos" not in _job("test")
+def test_ac3_macos_is_a_matrix_entry_not_a_push_only_job():
+    # T4 (2026-09-23): the repository is public, so macOS minutes are free
+    # and macOS runs on every pull request like the other two systems.
+    text = _text()
+    jobs = text[text.index("\njobs:") :]
+    assert re.findall(r"^  (\S+):$", jobs, re.M) == ["test"]
+    assert "test-macos" not in text
+    assert "if:" not in _job("test")
 
 
-def test_ac4_every_job_runs_the_same_steps_in_order():
-    for name in ("test", "test-macos"):
-        job = _job(name)
-        assert "uses: actions/checkout@v4" in job
-        assert "uses: actions/setup-python@v5" in job
-        positions = [job.index(f"- run: {step}") for step in STEPS]
-        assert positions == sorted(positions), name
+def test_ac4_the_job_runs_the_same_steps_in_order():
+    job = _job("test")
+    assert "uses: actions/checkout@v4" in job
+    assert "uses: actions/setup-python@v5" in job
+    positions = [job.index(f"- run: {step}") for step in STEPS]
+    assert positions == sorted(positions)
 
 
 def test_ac5_utf8_and_timeout():
     text = _text()
     assert re.search(r"^env:\n  PYTHONUTF8: \"1\"", text, re.M)
     timeouts = [int(m) for m in re.findall(r"timeout-minutes: (\d+)", text)]
-    assert len(timeouts) == 2 and all(t <= 30 for t in timeouts)
+    assert len(timeouts) == 1 and all(t <= 30 for t in timeouts)
 
 
 def test_ac6_concurrency_cancels_superseded_runs():
