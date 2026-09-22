@@ -571,7 +571,6 @@ listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-CRPS Base"
 title = "DC-MHS Modular Hardware System Common Redundant Power Supply (M-CRPS) Base Specification"
 access = "open"
 fetch = "direct"
-notes = "A v1.06 draft (2026-04) exists only as a Google Drive link and is not listed."
 
 [[documents.versions]]
 version = "R1 v1.0 RC4"

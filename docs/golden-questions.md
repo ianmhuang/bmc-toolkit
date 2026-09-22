@@ -250,7 +250,8 @@ current; NVMe lists Management Interface 2.2 and NVMe over PCIe Transport
 1.4 (added to the catalog with `refresh --write`); the OCP wiki lists
 M-CRPS 1.06 as a Google Drive link, which the catalog recorded in the
 document's notes until a download URL existed (on 2026-09-22 the file's
-Google Drive direct download became the 1.06 URL, and G34 moved to 1.06). DC-SCM Rev 2.2 Ver 1.0 has
-been in the catalog as a direct opencompute.org PDF since M8a; only Rev
-2.0 Ver 1.0 remains a Google Drive link, listed so that `fetch` prints the
-browser instruction and `check DC-SCM` reports current.
+Google Drive direct download became the 1.06 URL, and G34 moved to
+1.06). DC-SCM Rev 2.2 Ver 1.0 has been in the catalog as a direct
+opencompute.org PDF since M8a; only Rev 2.0 Ver 1.0 remains a Google
+Drive link, listed so that `fetch` prints the browser instruction and
+`check DC-SCM` reports current.

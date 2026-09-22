@@ -129,7 +129,7 @@ def test_a_catalog_http_url_matches_the_listing_https_link(
     scripted.responses[L.DMTF_DSP.format(key="DSP0266")] = _html(page)
     code, out = _refresh(capsys, _catalog(tmp_path, FIRST.replace("https://", "http://")))
     assert code == 0, out
-    assert "changed" not in out
+    assert not any(ln.startswith("changed ") for ln in out.splitlines()), out
 
 
 def test_a_different_path_is_changed_even_when_only_the_scheme_also_differs(
@@ -159,7 +159,7 @@ def test_shipped_m_crps_1_06_is_known_so_the_wiki_row_is_not_confirm(
     out = capsys.readouterr().out
     assert code == 0, out
     assert "confirm M-CRPS 1.06" not in out
-    assert "changed" not in out
+    assert not any(ln.startswith("changed ") for ln in out.splitlines()), out
     assert out.splitlines()[-1].startswith(
         "summary: add 0, confirm 0, changed 0, unreachable 0"
     )
