@@ -215,7 +215,15 @@ tag or branch L (only the `.bb` and `.inc` recipe files of every `meta-*`
 layer, about 20 MB) and the component's `SRCREV` there is the commit
 checked out; a repository no layer's recipe pins has no release commit,
 and `clone` says so. For the `openbmc` repository itself `--release L` is
-the same as `--ref L`. Several commits of one repository
+the same as `--ref L`. A vendor tree (a catalog entry with an `owner`,
+see [CATALOG.md](CATALOG.md#code-trees)) is never guessed: an unlisted
+id starting with a vendor owner (`aspeed-`, `nuvoton-`) exits 2. It has
+no Release: `--release` on
+`clone`, `grep` or `code` prints `<repo> has no Release; use --ref with an
+SDK branch or tag` and exits 2, and the `config.toml` default Release is
+not used for it (`note: <repo> has no Release; config.toml release L not
+used`). A catalog entry's `ref` stands in for the remote's default branch
+when no flag is given (`nuvoton-linux`). Several commits of one repository
 coexist; `--force` on a moving name fetches again and marks the older tree
 superseded rather than deleting it. `grep` (`git grep`) and `code` read a
 tree: a user checkout named in `config.toml` first, then the `--ref` or
@@ -378,6 +386,6 @@ temporary files (see above).
   DSP8011 2026.1's 264 members); the privilege registries, the HTML and
   the PDF stay in the ZIP.
 - `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/w/index.php?title=<page>` for the pages named in the catalog's `listing` keys. They download no document. A reading command reads the one listing page of the document it answered from when that document's Freshness Check is due (at most once per document per `freshness_days`), never with `[library] offline = true`.
-- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed.
+- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed. The vendor kernels `aspeed-linux` and `nuvoton-linux` are cloned sparse like `linux` (its directories plus the vendor's arch, dts and soc ones), and the vendor SDK layers `aspeed-openbmc` and `nuvoton-openbmc` hold only `meta-<vendor>*` and `meta-evb`.
 - `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory that is removed on failure, and `code/<repo>/.lock` while it runs. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees, `.tmp-*` and `.part` leftovers and stale `.lock` files under `code/` and `specs/` and at the Library root, nothing else.
 - `check` writes `freshness.json` at the Library root, and so does a reading command that ran the due check; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it inserts version entries into the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).

@@ -1683,12 +1683,15 @@ def cmd_clone(args: argparse.Namespace) -> int:
                     catalog_known=known,
                 )
         else:
-            prov = code_mod.Provenance("default", "")
+            # the catalog's ref, when it names one, stands in for the
+            # remote's default branch (a default the platform cannot check out)
+            prov = code_mod.Provenance("default", repo.ref)
             with _clone_lock(args, library, repo.id, "default branch"):
                 tree, fetched = library.clone(
                     repo.id,
                     repo.url,
                     prov,
+                    ref=repo.ref or None,
                     sparse=repo.sparse,
                     force=args.force,
                     catalog_known=known,
@@ -1893,6 +1896,8 @@ def _select_tree(args, catalog, library, config, repo):
             )
         return pinned[0], notes
     current = [t for t in trees if t.provenance.kind == "default" and not t.superseded]
+    if repo.ref:  # a tree an earlier catalog ref left behind comes second
+        current.sort(key=lambda t: t.provenance.name != repo.ref)
     if current:
         return current[0], notes
     if trees:

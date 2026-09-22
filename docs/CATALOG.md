@@ -72,3 +72,29 @@ verify each new version against `docs/golden-questions.md`, and open the
 pull request into `develop` without touching the version, as CONVENTIONS.md
 says. If `check` reports a newer version
 before the workflow does, please open that pull request yourself.
+
+## Code Trees
+
+The `[[repos]]` table lists the code repositories `clone` brings into the
+Library as Code Trees: the ones a BMC developer asks about, not every
+repository a publisher has. Upstream OpenBMC repositories carry no
+`owner`; an unlisted `openbmc/<name>` can still be cloned by name. The
+SoC vendors' forks and SDK repositories (Aspeed's `AspeedTech-BMC`,
+Nuvoton's `Nuvoton-Israel`) carry `owner = "aspeed"` or `"nuvoton"`, and
+their ids start with the owner (`aspeed-linux`, `nuvoton-u-boot`); an
+unlisted id with a vendor prefix is refused rather than guessed. A
+vendor tree is fetched at the repository's default branch, which each
+vendor points at its newest SDK branch; another SDK branch is `--ref`.
+An entry's optional `ref` replaces the remote's default branch for a
+plain `clone`: `nuvoton-linux` is held at `NPCM-6.18-OpenBMC`, since its
+default `NPCM-6.12-OpenBMC` holds a file named `aux.c`, a reserved device
+name that git on Windows refuses to check out even outside the sparse
+directories. A
+vendor tree has no Release: `--release` on one exits 2, and a
+`config.toml` default Release is not used for one (a `note:` says so).
+Nuvoton's `u-boot` defaults to `npcm-v2023.10` while `npcm-v2025.07`
+exists; ask for it with `--ref npcm-v2025.07`. The two vendor kernels are
+held sparse, like `linux`: its directories plus the vendor's own arch,
+dts and soc directories. Prebuilt toolchains and binaries, Zephyr,
+MCUboot and OpenBIC, QEMU, OP-TEE and ATF, and vendor forks of OpenBMC
+daemons are left out until someone asks for them.

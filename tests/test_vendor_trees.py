@@ -15,7 +15,7 @@ from bmc_toolkit.spec.catalog import (
     parse_catalog,
 )
 from tests.conftest import MINI_CATALOG
-from tests.test_code import THING_FILES, git, make_repo
+from tests.test_code import THING_FILES, commit, git, make_repo, push
 
 # library and remotes are pytest fixtures; a test naming them as parameters
 # is not a redefinition
@@ -65,6 +65,20 @@ def test_an_owned_id_must_carry_the_owner_prefix(repo_id):
 def test_owner_must_be_a_lowercase_name(owner):
     with pytest.raises(CatalogError, match=r"repos\[0\]\.owner"):
         parse_catalog(_catalog([_repo("acme-linux", owner=owner)]))
+
+
+def test_ref_is_optional_and_carried_on_the_repo():
+    catalog = parse_catalog(
+        _catalog([_repo("bmcweb"), _repo("acme-linux", owner="acme", ref="sdk-2")])
+    )
+    assert catalog.get_repo("bmcweb").ref == ""
+    assert catalog.get_repo("acme-linux").ref == "sdk-2"
+
+
+@pytest.mark.parametrize("ref", ["", "  ", 3])
+def test_ref_must_be_a_non_empty_string(ref):
+    with pytest.raises(CatalogError, match=r"repos\[0\]\.ref"):
+        parse_catalog(_catalog([_repo("acme-linux", owner="acme", ref=ref)]))
 
 
 # ------------------------------------------------------------ shipped catalog
@@ -123,6 +137,11 @@ def test_vendor_kernels_add_only_their_own_directories(shipped):
         sparse = list(shipped.get_repo(f"{owner}-linux").sparse)
         assert sparse == upstream + [d for d in KERNEL_DIRS[owner] if d not in upstream]
         assert not set(KERNEL_DIRS[other]) - set(upstream) & set(sparse)
+
+
+def test_nuvoton_kernel_is_held_at_the_branch_windows_can_check_out(shipped):
+    assert shipped.get_repo("nuvoton-linux").ref == "NPCM-6.18-OpenBMC"
+    assert [r.id for r in shipped.repos if r.ref] == ["nuvoton-linux"]
 
 
 def test_vendor_openbmc_layers_are_sparse(shipped):
@@ -299,3 +318,65 @@ def test_unlisted_vendor_id_is_not_guessed(
     # an id whose prefix is no owner is still guessed under openbmc
     code, out = run(capsys, "clone", "extra", catalog_file=catalog_file)
     assert code == 0 and out.splitlines()[1].startswith("cloned extra ")
+
+
+def _pinned_catalog(tmp_path, url, ref):
+    path = tmp_path / "pinned.toml"
+    text = MINI_CATALOG + (
+        f'\n[[repos]]\nid = "acme-pinned"\nowner = "acme"\nurl = "{url}"\n'
+        f'topics = ["acme"]\nref = "{ref}"\n'
+    )
+    path.write_text(text, encoding="utf-8", newline="")
+    return path
+
+
+def test_catalog_ref_replaces_the_remote_default_branch(
+    library, vendor, capsys, tmp_path
+):
+    work, bare, url = vendor
+    main_head = git("rev-parse", "HEAD", cwd=work)
+    git("checkout", "-q", "-b", "sdk-2", cwd=work)
+    sdk_head = commit(work, {"src/sdk.c": "int sdk2;\n"}, "sdk 2")
+    push(work, "sdk-2")
+    git("checkout", "-q", "main", cwd=work)
+
+    catalog_file = _pinned_catalog(tmp_path, url, "main")
+    code, out = run(capsys, "clone", "acme-pinned", catalog_file=catalog_file)
+    assert code == 0 and out.startswith(f"cloned acme-pinned {main_head[:7]} (main ")
+
+    catalog_file = _pinned_catalog(tmp_path, url, "sdk-2")
+    code, out = run(capsys, "clone", "acme-pinned", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.startswith(f"cloned acme-pinned {sdk_head[:7]} (sdk-2 ")
+    code, out = run(capsys, "clone", "acme-pinned", catalog_file=catalog_file)
+    assert code == 0 and out.startswith(f"held acme-pinned {sdk_head[:7]} (sdk-2 ")
+    # the reading commands pick the tree the catalog's ref names, not the
+    # one an earlier ref left behind
+    code, out = run(capsys, "grep", "acme-pinned", "sdk2", catalog_file=catalog_file)
+    assert code == 0 and out.startswith(f"acme-pinned@{sdk_head[:7]} src/sdk.c:1")
+    argv = ["code", "acme-pinned", "README.md"]
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert code == 0 and f"| acme-pinned {sdk_head[:7]} | sdk-2 " in out
+    # --ref still reaches any branch
+    argv = ["grep", "acme-pinned", "powerState", "--ref", "main"]
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert code == 0 and out.startswith(f"acme-pinned@{main_head[:7]} ")
+
+
+def test_golden_questions_cover_the_vendor_trees():
+    text = (DEFAULT_CATALOG.parents[2] / "docs" / "golden-questions.md").read_text(
+        "utf-8"
+    )
+    rows = {
+        line.split("|")[1].strip(): line
+        for line in text.splitlines()
+        if line.startswith("| V")
+    }
+    for gid, tree in (
+        ("V1", "aspeed-linux"),
+        ("V2", "nuvoton-linux"),
+        ("V3", "aspeed-u-boot"),
+        ("V4", "linux"),
+    ):
+        assert f"`clone {tree}`" in rows[gid], gid
+        assert "(2026-09-22)" in rows[gid], gid

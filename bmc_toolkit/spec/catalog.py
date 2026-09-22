@@ -52,6 +52,9 @@ Schema (``schema_version = 1``)::
     owner = "aspeed"           optional: the vendor that publishes a fork
                                (lowercase); the id then starts "<owner>-".
                                Absent means upstream OpenBMC
+    ref = "NPCM-6.18-OpenBMC"  optional: the branch a clone without --ref or
+                               --release fetches, instead of the remote's
+                               default branch
     url = "https://github.com/openbmc/bmcweb.git"
                                https://; file:// for a local mirror (and tests)
     topics = ["redfish"]       what the repository is about, for `repos --topic`
@@ -173,6 +176,7 @@ class Repo:
     topics: tuple[str, ...]
     sparse: tuple[str, ...] = ()
     owner: str = ""  # the vendor of a fork; "" for upstream OpenBMC
+    ref: str = ""  # the branch a plain clone fetches; "" for the remote's default
 
 
 @dataclass
@@ -345,12 +349,16 @@ def _parse_repo(raw: dict, where: str) -> Repo:
         repo_id.startswith(f"{owner}-") and len(repo_id) > len(owner) + 1
     ):
         raise CatalogError(f"{where}.id: '{repo_id}' must start with '{owner}-'")
+    ref = _expect(raw, "ref", str, where, default="", required=False).strip()
+    if "ref" in raw and not ref:
+        raise CatalogError(f"{where}.ref: must name a branch or tag")
     return Repo(
         repo_id,
         url,
         tuple(t.strip() for t in topics),
         tuple(s.strip() for s in sparse),
         owner,
+        ref,
     )
 
 
