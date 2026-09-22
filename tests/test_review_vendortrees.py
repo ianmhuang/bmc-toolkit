@@ -127,6 +127,9 @@ def test_ac2_kernel_sparse_lists_extend_upstream_with_own_directories(shipped):
         # its own dts and soc directories are there
         assert any(p.startswith("arch/arm/boot/dts/") for p in extra), owner
         assert any(p.startswith("drivers/soc/") for p in extra), owner
+        # beyond arch, dts and soc, only Aspeed adds a driver directory, jtag
+        others = [p for p in extra if not p.startswith(("arch/", "drivers/soc/"))]
+        assert others == (["drivers/jtag"] if owner == "aspeed" else []), owner
 
 
 def test_ac2_soc_topics_route_to_the_right_vendor(shipped):
