@@ -1655,6 +1655,7 @@ def cmd_clone(args: argparse.Namespace) -> int:
             print(f"release: {release} (from config.toml)")
     if release and repo.id.lower() == code_mod.OPENBMC_REPO:
         args.ref, release = release, None  # the release source: the tag or branch
+    current = {t.commit for t in library.trees(repo.id) if not t.superseded}
     try:
         if release:
             source = _openbmc_tree(args, catalog, library, release, args.force)
@@ -1705,13 +1706,11 @@ def cmd_clone(args: argparse.Namespace) -> int:
     what = tree.provenance.label(tree.fetched_at)
     if fetched:
         print(f"cloned {tree.label} ({what}) -> {tree.path}")
-        for old in library.trees(repo.id):
-            if old.superseded_by == tree.commit:
-                print(
-                    f"superseded {old.label} ({old.provenance.label(old.fetched_at)})"
-                )
     else:
         print(f"held {tree.label} ({what}) at {tree.path}")
+    for old in library.trees(repo.id):
+        if old.commit in current and old.superseded:
+            print(f"superseded {old.label} ({old.provenance.label(old.fetched_at)})")
     if release:
         print(f"pin: {tree.short} from {recipe} of openbmc {source.short}")
     return EXIT_OK
@@ -1895,9 +1894,18 @@ def _select_tree(args, catalog, library, config, repo):
                 f"{repo.id} --release {release}"
             )
         return pinned[0], notes
+    if repo.ref:
+        # the catalog's ref names the branch, as --ref does: a tree held under
+        # --ref counts, and so does one a later ref superseded but not pruned
+        named = [
+            t
+            for t in trees
+            if t.provenance.kind in ("ref", "default") and t.provenance.name == repo.ref
+        ]
+        named.sort(key=lambda t: t.superseded)
+        if named:
+            return named[0], notes
     current = [t for t in trees if t.provenance.kind == "default" and not t.superseded]
-    if repo.ref:  # a tree an earlier catalog ref left behind comes second
-        current.sort(key=lambda t: t.provenance.name != repo.ref)
     if current:
         return current[0], notes
     if trees:

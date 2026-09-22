@@ -152,6 +152,86 @@ def test_force_at_the_same_commit_keeps_the_held_tree(thing, library):
     assert (old.path / "src" / "main.cpp").is_file()
 
 
+def test_a_default_clone_retires_default_trees_of_other_branches(thing, library):
+    # a changed catalog ref: the tree fetched under the old ref is superseded,
+    # trees held under --ref or --release are not
+    work, bare, url = thing
+    first = git("rev-parse", "HEAD", cwd=work)
+    for branch in ("sdk-a", "sdk-b", "other"):
+        git("checkout", "-q", "-b", branch, "main", cwd=work)
+        commit(work, {f"{branch}.c": f"int {branch[-1]};\n"}, branch)
+        push(work, branch)
+    old, _ = library.clone("thing", url, C.Provenance("default", "sdk-a"), ref="sdk-a")
+    kept, _ = library.clone("thing", url, C.Provenance("ref", "other"), ref="other")
+    pin, _ = library.clone("thing", url, C.Provenance("release", "1.0"), commit=first)
+    new, fetched = library.clone(
+        "thing", url, C.Provenance("default", "sdk-b"), ref="sdk-b"
+    )
+    assert fetched
+    trees = {t.commit: t for t in library.trees("thing")}
+    assert trees[old.commit].superseded_by == new.commit
+    assert not trees[new.commit].superseded
+    assert not trees[kept.commit].superseded
+    assert not trees[pin.commit].superseded
+
+
+def test_a_renamed_remote_default_branch_supersedes_the_old_tree(thing, library):
+    work, bare, url = thing
+    old, _ = library.clone("thing", url, C.Provenance("default", ""))
+    git("checkout", "-q", "-b", "trunk", cwd=work)
+    new_sha = commit(work, {"README.md": "thing on trunk\n"}, "trunk")
+    push(work, "trunk")
+    git("symbolic-ref", "HEAD", "refs/heads/trunk", cwd=bare)
+    held, fetched = library.clone("thing", url, C.Provenance("default", ""))
+    assert not fetched and held.commit == old.commit  # no --force: nothing moves
+    new, fetched = library.clone("thing", url, C.Provenance("default", ""), force=True)
+    assert fetched and new.commit == new_sha
+    assert new.provenance == C.Provenance("default", "trunk")
+    trees = {t.commit: t for t in library.trees("thing")}
+    assert trees[old.commit].superseded_by == new_sha
+
+
+def test_a_branch_moved_back_makes_its_old_tree_current_again(thing, library):
+    work, bare, url = thing
+    first, _ = library.clone("thing", url, C.Provenance("default", ""))
+    second_sha = commit(work, {"README.md": "thing 2\n"}, "second")
+    push(work)
+    library.clone("thing", url, C.Provenance("default", ""), force=True)
+    git("reset", "-q", "--hard", first.commit, cwd=work)
+    git("push", "-q", "-f", "origin", "main", cwd=work)
+    again, fetched = library.clone(
+        "thing", url, C.Provenance("default", ""), force=True
+    )
+    assert not fetched and again.commit == first.commit
+    trees = {t.commit: t for t in library.trees("thing")}
+    assert not trees[first.commit].superseded
+    assert trees[second_sha].superseded_by == first.commit
+    meta = json.loads((first.path / C.TREE_META).read_text("utf-8"))
+    assert "superseded_by" not in meta
+
+
+def test_a_ref_and_the_same_named_default_answer_each_other(
+    thing, library, monkeypatch
+):
+    def no_git(*a, **k):
+        raise AssertionError("git must not run")
+
+    work, bare, url = thing
+    git("checkout", "-q", "-b", "sdk", cwd=work)
+    commit(work, {"sdk.c": "int sdk;\n"}, "sdk")
+    push(work, "sdk")
+    other = C.CodeLibrary(library.root.parent / "lib2")
+    by_ref, _ = library.clone("thing", url, C.Provenance("ref", "sdk"), ref="sdk")
+    default, _ = other.clone("thing", url, C.Provenance("default", "sdk"), ref="sdk")
+    monkeypatch.setattr(C, "run_git", no_git)
+    held, fetched = library.clone(
+        "thing", url, C.Provenance("default", "sdk"), ref="sdk"
+    )
+    assert not fetched and held.path == by_ref.path
+    held, fetched = other.clone("thing", url, C.Provenance("ref", "sdk"), ref="sdk")
+    assert not fetched and held.path == default.path
+
+
 def test_a_failed_clone_leaves_no_directory(thing, library, tmp_path):
     work, bare, url = thing
     with pytest.raises(C.CodeError):

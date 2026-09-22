@@ -305,9 +305,11 @@ class CodeLibrary:
     ) -> tuple[Tree, bool]:
         """Bring the repository in at ``ref`` (branch or tag), at ``commit``,
         or at the default branch; returns (tree, fetched). A tree already
-        held at the resolved commit is returned with fetched False."""
+        held at the resolved commit is returned with fetched False. A
+        default-branch clone leaves its tree the one current default tree."""
         held = self._already_held(repo, provenance, ref, commit)
         if held is not None and not force:
+            self._retire_defaults(held, provenance)
             return held, False
         if ref and _SHA.match(ref) and len(ref) < 40:
             raise CodeError(
@@ -330,30 +332,43 @@ class CodeLibrary:
             existing = self.read_tree(target) if target.exists() else None
             if existing is not None:  # the same commit again: keep what we hold
                 _rmtree(tmp)
-                return existing, False
-            if target.exists():  # a directory without its meta: a leftover
-                _rmtree(target)
-            tree = Tree(
-                repo,
-                url,
-                sha,
-                target,
-                provenance,
-                now_iso(),
-                catalog_known=catalog_known,
-            )
-            # The meta goes into the temp directory first, so the rename
-            # publishes a complete tree: a reader never sees one without it.
-            atomic_write_json(tmp / TREE_META, tree.to_meta(), sort_keys=True)
-            os.replace(tmp, target)
+                tree, fetched = existing, False
+            else:
+                if target.exists():  # a directory without its meta: a leftover
+                    _rmtree(target)
+                tree = Tree(
+                    repo,
+                    url,
+                    sha,
+                    target,
+                    provenance,
+                    now_iso(),
+                    catalog_known=catalog_known,
+                )
+                # The meta goes into the temp directory first, so the rename
+                # publishes a complete tree: a reader never sees one without it.
+                atomic_write_json(tmp / TREE_META, tree.to_meta(), sort_keys=True)
+                os.replace(tmp, target)
+                fetched = True
         except BaseException:
             try:
                 _rmtree(tmp)
             except CodeError:
                 pass  # the original error matters more
             raise
-        self._supersede(tree)
-        return tree, True
+        same_name = (tree.provenance.kind, tree.provenance.name) == (
+            provenance.kind,
+            provenance.name,
+        )
+        if not fetched and tree.superseded and same_name:
+            # the name moved back to a commit held under it: current again
+            tree.superseded_by = None
+            self.write_tree(tree)
+            self._supersede(tree)
+        elif fetched:
+            self._supersede(tree)
+        self._retire_defaults(tree, provenance)
+        return tree, fetched
 
     def _already_held(self, repo, provenance, ref, commit) -> Tree | None:
         """The tree that answers without the network: the same commit, or
@@ -363,11 +378,17 @@ class CodeLibrary:
         if ref and _SHA.match(ref):
             return self.held(repo, ref)
         for t in self.trees(repo):
-            if t.superseded or t.provenance.kind != provenance.kind:
+            if t.superseded:
                 continue
             if provenance.kind == "default" and not provenance.name:
-                return t
-            if t.provenance.name == provenance.name:
+                if t.provenance.kind == "default":
+                    return t
+                continue
+            if t.provenance.name != provenance.name:
+                continue
+            # a branch held under --ref and the catalog's ref are one branch
+            kinds = {t.provenance.kind, provenance.kind}
+            if len(kinds) == 1 or kinds == {"default", "ref"}:
                 return t
         return None
 
@@ -382,6 +403,20 @@ class CodeLibrary:
             )
             if same and old.provenance.kind in ("default", "ref", "release"):
                 old.superseded_by = new.commit
+                self.write_tree(old)
+
+    def _retire_defaults(self, tree: Tree, provenance: Provenance) -> None:
+        """After a default-branch clone, older default trees point at the
+        tree it resolved to, whatever branch they were fetched under (a
+        changed catalog ref, a renamed remote default). Trees held under
+        --ref or --release stay."""
+        if provenance.kind != "default":
+            return
+        for old in self.trees(tree.repo):
+            if old.commit == tree.commit or old.superseded_by:
+                continue
+            if old.provenance.kind == "default":
+                old.superseded_by = tree.commit
                 self.write_tree(old)
 
 

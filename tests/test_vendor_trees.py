@@ -3,6 +3,7 @@ shipped catalog lists, and how clone, grep and code treat a vendor tree
 (no Release, no guessing). Local bare repositories stand in for the vendor
 remotes; skipped when git is not on PATH."""
 
+import json
 import shutil
 
 import pytest
@@ -410,6 +411,85 @@ def test_catalog_ref_replaces_the_remote_default_branch(
     argv = ["grep", "acme-pinned", "powerState", "--ref", "main"]
     code, out = run(capsys, *argv, catalog_file=catalog_file)
     assert code == 0 and out.startswith(f"acme-pinned@{main_head[:7]} ")
+
+
+def _sdk_branch(work):
+    git("checkout", "-q", "-b", "sdk-2", cwd=work)
+    sdk_head = commit(work, {"src/sdk.c": "int sdk2;\n"}, "sdk 2")
+    push(work, "sdk-2")
+    git("checkout", "-q", "main", cwd=work)
+    return sdk_head
+
+
+def test_a_changed_catalog_ref_supersedes_the_old_tree_and_prune_removes_it(
+    library, vendor, capsys, tmp_path
+):
+    work, bare, url = vendor
+    main_head = git("rev-parse", "HEAD", cwd=work)
+    sdk_head = _sdk_branch(work)
+    catalog_file = _pinned_catalog(tmp_path, url, "main")
+    code, out = run(capsys, "clone", "acme-pinned", catalog_file=catalog_file)
+    assert code == 0, out
+    catalog_file = _pinned_catalog(tmp_path, url, "sdk-2")
+    code, out = run(capsys, "clone", "acme-pinned", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith(f"cloned acme-pinned {sdk_head[:7]} (sdk-2 ")
+    assert lines[1].startswith(f"superseded acme-pinned {main_head[:7]} (main ")
+    old_dir = library / "code" / "acme-pinned" / main_head
+    meta = json.loads((old_dir / code_mod.TREE_META).read_text("utf-8"))
+    assert meta["superseded_by"] == sdk_head
+
+    code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
+    assert code == 0, out
+    assert not old_dir.exists()
+    assert (library / "code" / "acme-pinned" / sdk_head).is_dir()
+    code, out = run(capsys, "grep", "acme-pinned", "sdk2", catalog_file=catalog_file)
+    assert code == 0 and out.startswith(f"acme-pinned@{sdk_head[:7]} src/sdk.c:1")
+    argv = ["code", "acme-pinned", "README.md"]
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert code == 0 and f"| acme-pinned {sdk_head[:7]} | sdk-2 " in out
+
+
+def _no_git(*a, **k):
+    raise AssertionError("git must not run")
+
+
+def test_a_ref_clone_answers_the_catalog_ref(
+    library, vendor, capsys, tmp_path, monkeypatch
+):
+    work, bare, url = vendor
+    sdk_head = _sdk_branch(work)
+    catalog_file = _pinned_catalog(tmp_path, url, "sdk-2")
+    argv = ["clone", "acme-pinned", "--ref", "sdk-2"]
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert code == 0 and out.startswith(f"cloned acme-pinned {sdk_head[:7]} ")
+    with monkeypatch.context() as m:
+        m.setattr(code_mod, "run_git", _no_git)
+        code, out = run(capsys, "clone", "acme-pinned", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.startswith(f"held acme-pinned {sdk_head[:7]} (sdk-2 ")
+    assert "superseded" not in out
+    code, out = run(capsys, "grep", "acme-pinned", "sdk2", catalog_file=catalog_file)
+    assert code == 0 and out.startswith(f"acme-pinned@{sdk_head[:7]} src/sdk.c:1")
+    argv = ["code", "acme-pinned", "README.md"]
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert code == 0 and f"| acme-pinned {sdk_head[:7]} | sdk-2 " in out
+
+
+def test_the_catalog_ref_answers_a_ref_clone(
+    library, vendor, capsys, tmp_path, monkeypatch
+):
+    work, bare, url = vendor
+    sdk_head = _sdk_branch(work)
+    catalog_file = _pinned_catalog(tmp_path, url, "sdk-2")
+    code, out = run(capsys, "clone", "acme-pinned", catalog_file=catalog_file)
+    assert code == 0 and out.startswith(f"cloned acme-pinned {sdk_head[:7]} ")
+    monkeypatch.setattr(code_mod, "run_git", _no_git)
+    argv = ["clone", "acme-pinned", "--ref", "sdk-2"]
+    code, out = run(capsys, *argv, catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.startswith(f"held acme-pinned {sdk_head[:7]} (sdk-2 ")
 
 
 def test_golden_questions_cover_the_vendor_trees():
