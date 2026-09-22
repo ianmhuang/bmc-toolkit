@@ -36,9 +36,10 @@ import subprocess
 import sys
 import tomllib
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
-from bmc_toolkit.spec.library import atomic_write_json, now_iso
+from bmc_toolkit.spec.library import atomic_write_json
 
 CODE_DIRNAME = "code"
 TREE_META = ".bmc-tree.json"
@@ -51,6 +52,13 @@ MAX_WHOLE_FILE = 200  # ``code`` prints a longer file only with --lines
 _SHA = re.compile(r"^[0-9a-f]{7,40}$")
 _SRCREV = re.compile(r'^\s*SRCREV\s*(?:=|\?=|:=)\s*"([^"]*)"', re.MULTILINE)
 _SRC_URI = re.compile(r'SRC_URI\s*(?:=|\?=|:=|\+=)\s*"([^"]*)"', re.MULTILINE)
+
+
+def _fetch_time() -> str:
+    """A tree's fetched_at: ISO 8601 UTC with microseconds, so two clones in
+    one second still sort newest first (a whole-second stamp from an older
+    version sorts before a same-second one with a fraction)."""
+    return datetime.now(UTC).isoformat(timespec="microseconds")
 
 
 class CodeError(Exception):
@@ -343,7 +351,7 @@ class CodeLibrary:
                     sha,
                     target,
                     provenance,
-                    now_iso(),
+                    _fetch_time(),
                     catalog_known=catalog_known,
                 )
                 # The meta goes into the temp directory first, so the rename

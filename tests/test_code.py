@@ -259,8 +259,8 @@ def test_a_held_ref_tree_does_not_retire_the_default_of_its_branch(thing, librar
     git("checkout", "-q", "-b", "sdk", cwd=work)
     push(work, "sdk")
     default, _ = library.clone("thing", url, C.Provenance("default", "sdk"), ref="sdk")
-    # fetched_at has one-second resolution: make the order of the two clones
-    # certain, so the newer --ref tree is the one that answers
+    # make the order of the two clones certain, so the newer --ref tree is
+    # the one that answers
     default.fetched_at = "2026-01-01T00:00:00+00:00"
     library.write_tree(default)
     commit(work, {"sdk.c": "int sdk;\n"}, "sdk")
@@ -296,6 +296,23 @@ def test_a_ref_and_the_same_named_default_answer_each_other(
     assert not fetched and held.path == by_ref.path
     held, fetched = other.clone("thing", url, C.Provenance("ref", "sdk"), ref="sdk")
     assert not fetched and held.path == default.path
+
+
+def test_trees_fetched_within_one_second_sort_newest_first(thing, library):
+    # the order _already_held and reading rely on; a whole-second stamp an
+    # older version wrote sorts before a same-second one with a fraction
+    work, bare, url = thing
+    git("tag", "v1", cwd=work)
+    push(work, "v1")
+    first, _ = library.clone("thing", url, C.Provenance("ref", "v1"), ref="v1")
+    commit(work, {"README.md": "thing 2\n"}, "second")
+    push(work)
+    second, _ = library.clone("thing", url, C.Provenance("ref", "main"), ref="main")
+    stamp = second.fetched_at[:19] + "+00:00"
+    assert "." in second.fetched_at and second.fetched_at > stamp
+    first.fetched_at = stamp  # the same second, whole-second form
+    library.write_tree(first)
+    assert [t.commit for t in library.trees("thing")] == [second.commit, first.commit]
 
 
 def test_a_failed_clone_leaves_no_directory(thing, library, tmp_path):
