@@ -947,6 +947,12 @@ url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0236_1.3.
 type = "pdf"
 published = "2024-03-25"
 
+[[documents.versions]]
+version = "1.4.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0236_1.4.0.pdf"
+type = "pdf"
+published = "2026-09-07"
+
 [[documents]]
 id = "DSP0237"
 family = "mctp"
@@ -1366,6 +1372,12 @@ version = "1.1.1"
 url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0240_1.1.1.pdf"
 type = "pdf"
 published = "2026-08-25"
+
+[[documents.versions]]
+version = "1.2.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0240_1.2.1.pdf"
+type = "pdf"
+published = "2026-09-14"
 
 [[documents]]
 id = "DSP0241"
@@ -2221,6 +2233,12 @@ published = "2025-08-19"
 
 # redfish
 
+[[documents.versions]]
+version = "3.10.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.10.0.pdf"
+type = "pdf"
+published = "2026-09-07"
+
 [[documents]]
 id = "DSP0266"
 family = "redfish"
@@ -2564,6 +2582,18 @@ url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.24
 type = "pdf"
 published = "2026-05-17"
 
+[[documents.versions]]
+version = "1.24.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.24.1.pdf"
+type = "pdf"
+published = "2026-09-14"
+
+[[documents.versions]]
+version = "1.25.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.25.0.pdf"
+type = "pdf"
+published = "2026-09-14"
+
 [[documents]]
 id = "DSP8010"
 family = "redfish"
@@ -2793,6 +2823,12 @@ url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2026
 type = "zip"
 published = "2026-05-17"
 
+[[documents.versions]]
+version = "2026.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2026.2.zip"
+type = "zip"
+published = "2026-09-14"
+
 [[documents]]
 id = "DSP0268"
 family = "redfish"
@@ -2949,6 +2985,12 @@ version = "2026.1"
 url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2026.1.pdf"
 type = "pdf"
 published = "2026-05-17"
+
+[[documents.versions]]
+version = "2026.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2026.2.pdf"
+type = "pdf"
+published = "2026-09-14"
 
 [[documents]]
 id = "DSP2046"
@@ -3166,6 +3208,13 @@ version = "2026.1"
 url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2026.1.pdf"
 type = "pdf"
 published = "2026-05-17"
+
+[[documents.versions]]
+version = "2026.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2026.2.pdf"
+type = "pdf"
+published = "2026-09-14"
+notes = "Informational"
 
 [[documents]]
 id = "DSP0270"
@@ -3483,6 +3532,13 @@ url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2026
 type = "pdf"
 published = "2026-05-17"
 
+[[documents.versions]]
+version = "2026.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2053_2026.2.pdf"
+type = "pdf"
+published = "2026-09-14"
+notes = "Informational"
+
 [[documents]]
 id = "DSP2065"
 family = "redfish"
@@ -3573,6 +3629,13 @@ version = "2026.1"
 url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2026.1.pdf"
 type = "pdf"
 published = "2026-05-17"
+
+[[documents.versions]]
+version = "2026.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2065_2026.2.pdf"
+type = "pdf"
+published = "2026-09-14"
+notes = "Informational"
 
 # ---------------------------------------------------------------- OCP Security and NIC
 # OCP Security and OCP NIC: current version only; the OCP wiki pages for
@@ -4302,6 +4365,12 @@ version = "2026.1"
 url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2026.1.zip"
 type = "zip"
 published = "2026-05-17"
+
+[[documents.versions]]
+version = "2026.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8011_2026.2.zip"
+type = "zip"
+published = "2026-09-14"
 
 [[documents]]
 id = "DSP8013"

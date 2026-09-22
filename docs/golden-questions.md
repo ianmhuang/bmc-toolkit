@@ -33,17 +33,17 @@ on its newest open version and the row says so.
 | G5 | Get SEL Entry: command and NetFn | IPMI 2.0 rev 1.1; IPMI-UPDATE 2.0 rev 1.1 Errata 7 | IPMI 2.0 rev 1.1, section 31.5, page 450; Appendix G, page 615 | `section IPMI 31.5` |
 | G6 | DCMI Group Extension id and Get DCMI Capabilities Info code | DCMI 1.5 | DCMI 1.5, section 6.1.1, Table 6-2, page 26 | `find DCMI "Group Extension"` |
 | G7 | DCMI Get Power Reading / Get Power Limit / Set Power Limit codes | DCMI 1.5 | DCMI 1.5, section 6 command table, page 25; Tables 6-16 to 6-18, pages 42-44 | `table DCMI --page 25` |
-| G8 | MCTP packet header byte by byte | DSP0236 1.3.3 | DSP0236 1.3.3, section 8.2, Table 1 and Figure 4, pages 24-25 | `page DSP0236 24 --to 25`, `render DSP0236 --page 25` (Figure 4 is a box-only diagram) |
+| G8 | MCTP packet header byte by byte | DSP0236 1.4.0 | DSP0236 1.4.0, section 8.2, Table 1 and Figure 4, pages 25-27 | `page DSP0236 25 --to 27`, `render DSP0236 --page 25` (Figure 4 is a box-only diagram) |
 | G9 | MCTP message type values for PLDM, NVMe-MI, SPDM | DSP0239 1.12.0 | DSP0239 1.12.0, section 7, Table 1, pages 13-14 (page 13 extracts without layout: an emoji in a NOTE) | `table DSP0239 --page 13` (one Logical Table over pages 13-14, drawn as cell boxes), `page DSP0239 13 --to 14` |
 | G10 | SMBus command code carrying MCTP | DSP0237 1.2.0 | DSP0237 1.2.0, section 6.3, page 12 | `find DSP0237 "command code"` |
-| G11 | PLDM message header layout | DSP0240 1.1.1 | DSP0240 1.1.1, section 7.1, page 23 | `page DSP0240 23` |
+| G11 | PLDM message header layout | DSP0240 1.2.1 | DSP0240 1.2.1, section 8.1, Figure 1 and Table 4, pages 25-27 | `page DSP0240 25 --to 27` |
 | G12 | PLDM type numbers | DSP0245 1.4.0 | DSP0245 1.4.0, section 8, Table 1 (written in binary) | `find DSP0245 "PLDM Types"`, `table DSP0245 --page 11` (cell boxes) |
 | G13 | GetPDR request fields and command code | DSP0248 1.3.1 | DSP0248 1.3.1, section 26.2.1, Table 69, page 122; Table 110, page 200 | `table DSP0248 --page 122` (joins pages 122-123) |
 | G14 | RequestUpdate request fields | DSP0267 1.3.0 | DSP0267 1.3.0 (two fields more than 1.1.0), section 10 command tables | `find DSP0267 RequestUpdate`, `table` on the hit page |
 | G15 | GetSensorReading response, spec and code | DSP0248 1.3.1 | DSP0248 1.3.1 Table 33; libpldm `decode_get_sensor_reading_resp`; pldm `platform-mc` | the two-part workflow |
 | G16 | SPDM request and response codes for GET_VERSION, GET_CAPABILITIES, NEGOTIATE_ALGORITHMS | DSP0274 1.4.1 | DSP0274 1.4.1, Tables 4 and 5, pages 39-42 | `table DSP0274 --page 39` (Table 4, pages 39-41) and `table DSP0274 --page 42` (Table 5, pages 41-43); both drawn as cell boxes |
-| G17 | Values of Chassis.PowerState | DSP8010 2026.1 | DSP8010 2026.1, `Chassis.v1_28_0.json` referring to `Resource.json#/definitions/PowerState`: seven values | `schema DSP8010 Chassis --property PowerState` |
-| G18 | Creating a Redfish session and authenticating later requests | DSP0266 1.23.2 | DSP0266 1.23.2, sections 13.3.4.1 and 13.3.4.2 | `section DSP0266 13.3.4` |
+| G17 | Values of Chassis.PowerState | DSP8010 2026.2 | DSP8010 2026.2, `Chassis.v1_29_0.json` referring to `Resource.json#/definitions/PowerState`: seven values | `schema DSP8010 Chassis --property PowerState` |
+| G18 | Creating a Redfish session and authenticating later requests | DSP0266 1.25.0 | DSP0266 1.25.0, sections 13.3.4.1 and 13.3.4.2, pages 188-190 | `section DSP0266 13.3.4` |
 | G19 | NVMe-MI opcodes of Read NVMe-MI Data Structure, NVM Subsystem Health Status Poll, Controller Health Status Poll | NVME-MI 2.1 | NVMe-MI 2.1, section 5, Figure 68, page 92 | `find NVME-MI "Opcode"` |
 | G20 | What LTPI is in DC-SCM 2.x | DC-SCM Rev 2.1 Ver 1.1 | DC-SCM Rev 2.1 Ver 1.1, LTPI section; the signal details are in the separate LTPI specification, which the catalog does not hold | `find DC-SCM LTPI`, `render` (DC-SCM tables are images) |
 | G21 | I2C speed modes and maximum bit rates | UM10204 Rev. 7.0 | UM10204 Rev. 7.0, section 5, page 33 | `section UM10204 "Bus speeds"` |
@@ -146,18 +146,18 @@ on its newest open version and the row says so.
 
 | # | Question | Document | Where the answer is | Commands |
 |---|---|---|---|---|
-| G74 | Which structures a compliant SMBIOS implementation must provide | DSP0134 3.9.0 | DSP0134 3.9.0, section 6.2, Table 4, pages 28-29: Firmware Information (Type 0), System Information (1), System Enclosure (3), Processor Information (4), Cache Information (7), System Slots (9), Physical Memory Array (16), Memory Device (17), Memory Array Mapped Address (19), System Boot Information (32) | `section DSP0134 6.2`, `table DSP0134 --page 28` (one Logical Table over pages 28-29) |
+| G74 | Which structures a compliant SMBIOS implementation must provide | DSP0134 3.10.0 | DSP0134 3.10.0, section 6.2, Table 4, pages 28-29: Firmware Information (Type 0), System Information (1), System Enclosure (3), Processor Information (4), Cache Information (7), System Slots (9), Physical Memory Array (16), Memory Device (17), Memory Array Mapped Address (19), System Boot Information (32) | `section DSP0134 6.2`, `table DSP0134 --page 28` (one Logical Table over pages 28-29) |
 
 ## Redfish documents
 
 | # | Question | Document | Where the answer is | Commands |
 |---|---|---|---|---|
-| G75 | Properties every Redfish resource carries, and which are required | DSP0268 2026.1 | DSP0268 2026.1, section 3.1.1, page 13: @odata.context, @odata.etag, @odata.id (required), @odata.type (required), Description, Id (required), Name (required), Oem | `section DSP0268 3.1`, `page DSP0268 13`, `table DSP0268 --page 13` |
-| G76 | Values of the Sensor resource's ReadingType | DSP2046 2026.1 | DSP2046 2026.1, section 6.124.5.7, pages 971-973: AbsoluteHumidity, AirFlow (deprecated v1.7), AirFlowCMM, Altitude, Barometric, ChargeAh, Current, EnergyJoules and the rest of the list through Voltage; the property itself in 6.124.3, page 964 | `section DSP2046 6.124.5.7`, `page DSP2046 971 --to 973`, `table DSP2046 --page 971` (the ReadingType values table runs over pages 971-972) |
+| G75 | Properties every Redfish resource carries, and which are required | DSP0268 2026.2 | DSP0268 2026.2, section 3.1.1, page 13: @odata.context, @odata.etag, @odata.id (required), @odata.type (required), Description, Id (required), Name (required), Oem | `section DSP0268 3.1`, `page DSP0268 13`, `table DSP0268 --page 13` |
+| G76 | Values of the Sensor resource's ReadingType | DSP2046 2026.2 | DSP2046 2026.2, section 6.126.5.7, pages 1004-1006: AbsoluteHumidity, AirFlow (deprecated v1.7), AirFlowCMM, Altitude, Barometric, ChargeAh, Current, EnergyJoules and the rest of the list through Voltage; the property itself in 6.126.3, page 997 | `section DSP2046 6.126.5.7`, `page DSP2046 1004 --to 1006`, `table DSP2046 --page 1004` (the ReadingType values table is the third one on page 1004 and runs over pages 1004-1006) |
 | G77 | How the Redfish host interface is described in SMBIOS and which device types it allows | DSP0270 1.3.1 | DSP0270 1.3.1, sections 7.2 and 7.3.1, pages 15-16: Type 42 with interface type 40h (network host interface); device type 02h USB, 03h PCI/PCIe, 04h USB v2, 05h PCI/PCIe v2, 80h-FFh OEM | `find DSP0270 "Type 42"`, `section DSP0270 7.3.1`, `page DSP0270 15 --to 16`, `table DSP0270 --page 15` |
 | G78 | ReadRequirement values in an interoperability profile and the default | DSP0272 1.10.0 | DSP0272 1.10.0, section 8.4.3.3, page 28: Mandatory (default), Supported, Recommended, IfImplemented, IfPopulated, Conditional | `section DSP0272 8.4.3.3`, `page DSP0272 28`, `table DSP0272 --page 28` |
-| G79 | Which schemas define a PowerState property | DSP2053 2026.1 | DSP2053 2026.1, section 3 reference guide, page 216: Chassis, Manager, Processor, Switch, ComputerSystem, Circuit, OutletGroup, Outlet (also as an action parameter of BreakerControl and PowerControl) | `find DSP2053 PowerState`, `page DSP2053 216`, `table DSP2053 --page 216` (the guide is one table over pages 8-323; only the rows starting on page 216 are printed, after a `note:` line) |
-| G80 | Severity, message text and resolution of Base.PropertyValueNotInList | DSP2065 2026.1 | DSP2065 2026.1, section 2.3.78, page 63: Warning; "The value '<1>' for the property <2> is not in the list of acceptable values."; resolution: choose a value from the enumeration list and resubmit; version added v1.0 | `find DSP2065 PropertyValueNotInList`, `page DSP2065 63` |
+| G79 | Which schemas define a PowerState property | DSP2053 2026.2 | DSP2053 2026.2, section 3 reference guide, pages 220-221: Chassis, Manager, Processor, Switch, ComputerSystem, Circuit, OutletGroup, Outlet (also as an action parameter of BreakerControl and PowerControl; PowerDistribution's PowerControl parameter is new in 2026.2) | `find DSP2053 PowerState`, `page DSP2053 220 --to 221`, `table DSP2053 --page 220`, `table DSP2053 --page 221` (the guide is one table over pages 8-330; only the rows starting on the asked page are printed, after a `note:` line) |
+| G80 | Severity, message text and resolution of Base.PropertyValueNotInList | DSP2065 2026.2 | DSP2065 2026.2, section 2.3.81, pages 66-67: Warning; "The value '<1>' for the property '<2>' is not in the list of acceptable values."; resolution: choose a value from the enumeration list and resubmit; version added v1.0 | `find DSP2065 PropertyValueNotInList`, `page DSP2065 66 --to 67` |
 
 ## OCP Security and OCP NIC
 
@@ -213,7 +213,7 @@ version is the one on the cover of the archived file.
 
 | # | Question | Document | Where the answer is | Commands |
 |---|---|---|---|---|
-| G101 | Severity, text, arguments and resolution of Base.PropertyValueTypeError, as the registry states them | DSP8011 2026.1 | DSP8011 2026.1, Base 1.23.0, `#/Messages/PropertyValueTypeError`: MessageId `Base.1.23.PropertyValueTypeError`, severity Warning, two arguments; the text, verbatim: "The value '%1' for the property %2 is not a type that the property can accept."; %1 is the value provided, %2 the property name; resolution: correct the value for the property in the request body and resubmit the request if the operation failed | `extract DSP8011`, `registry DSP8011 Base PropertyValueTypeError` |
+| G101 | Severity, text, arguments and resolution of Base.PropertyValueTypeError, as the registry states them | DSP8011 2026.2 | DSP8011 2026.2, Base 1.24.0, `#/Messages/PropertyValueTypeError`: MessageId `Base.1.24.PropertyValueTypeError`, severity Warning, two arguments; the text, verbatim: "The value '%1' for the property '%2' is not a type that the property can accept."; %1 is the value provided, %2 the property name; resolution: correct the value for the property in the request body and resubmit the request if the operation failed | `extract DSP8011`, `registry DSP8011 Base PropertyValueTypeError` |
 | G102 | What a property entry of an interoperability profile may specify | DSP8013 2026.1 | DSP8013 2026.1, RedfishInteroperabilityProfile v1.10.0, `#/definitions/PropertyProfile`: ReadRequirement and WriteRequirement (enums), ReplacedByProperty, ReplacesProperty, Priority, Purpose, MinCount, MinSupportValues, Comparison, Values, ConditionalRequirements and nested PropertyRequirements; ReadRequirement takes Mandatory, Supported, Recommended, IfImplemented, IfPopulated, Conditional, Excluded (Product profiles only) or None, Mandatory being the default when absent (`#/definitions/ReadRequirement`) | `extract DSP8013`, `schema DSP8013 RedfishInteroperabilityProfile --definition PropertyProfile`, `schema DSP8013 RedfishInteroperabilityProfile --definition ReadRequirement` |
 
 ## OpenBMC
@@ -234,7 +234,7 @@ version is the one on the cover of the archived file.
 | DSP0248 Table 69 GetPDR command format | `table DSP0248 --page 122` | pages 122-123, the `(continued)` header row dropped |
 | DSP0239 Table 1 MCTP Message Types (cell boxes, no ruling lines) | `table DSP0239 --page 13` | one Logical Table, pages 13-14, 14 rows; the `table:` line says `cells (no ruling lines)` |
 | DSP0274 Table 4 SPDM request codes (cell boxes) | `table DSP0274 --page 39` | pages 39-41, 32 rows, the header repeated on each page dropped |
-| DSP2053 the property guide (one cell-box table over the whole document) | `table DSP2053 --page 216` | a `note:` line, then only the rows that start on page 216; `--all-rows` prints all 4153 (rows the page break cut are joined) |
+| DSP2053 the property guide (one cell-box table over the whole document) | `table DSP2053 --page 220` | a `note:` line, then only the rows that start on page 220; `--all-rows` prints all 4312 (rows the page break cut are joined) |
 
 ## Spec versus code
 
@@ -255,3 +255,13 @@ Google Drive direct download became the 1.06 URL, and G34 moved to
 opencompute.org PDF since M8a; only Rev 2.0 Ver 1.0 remains a Google
 Drive link, listed so that `fetch` prints the browser instruction and
 `check DC-SCM` reports current.
+
+`refresh` on 2026-09-22 found eleven DMTF versions published on
+2026-09-07 and 2026-09-14: DSP0236 1.4.0, DSP0134 3.10.0, DSP0240 1.2.1,
+DSP0266 1.24.1 and 1.25.0, and 2026.2 of DSP8010, DSP0268, DSP2046,
+DSP2053, DSP2065 and DSP8011. They were added with `refresh --write`, each
+was fetched and extracted, and the rows of those ten documents (G8, G11,
+G17, G18, G74, G75, G76, G79, G80, G101) were re-checked on the newest
+version. G80 and G101 changed with the documents (the property name
+argument is now quoted, Base 1.24.0), and G79 gained PowerDistribution;
+the other rows hold, some on new pages.
