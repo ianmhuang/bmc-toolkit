@@ -223,12 +223,22 @@ no Release: `--release` on
 SDK branch or tag` and exits 2, and the `config.toml` default Release is
 not used for it (`note: <repo> has no Release; config.toml release L not
 used`). A catalog entry's `ref` stands in for the remote's default branch
-when no flag is given (`nuvoton-linux`). Several commits of one repository
-coexist; `--force` on a moving name fetches again and marks the older tree
-superseded rather than deleting it. `grep` (`git grep`) and `code` read a
+when no flag is given (`nuvoton-linux`); a tree held from `--ref` at that
+branch answers a plain `clone` without the network, and the reverse. Several
+commits of one repository coexist; `--force` on a moving name fetches again
+and marks the older tree superseded rather than deleting it. A plain `clone`
+leaves one current default-branch tree: every other default-branch tree
+(fetched under an earlier catalog `ref`, or under the remote's old default
+branch name) is marked superseded too, and `clone` prints a `superseded`
+line for each tree it marks. Trees held under `--ref` or `--release` stay,
+and a plain `clone` that finds its branch held under `--ref` marks nothing.
+When a fetch lands on a commit held in a superseded tree of the same name
+(the branch moved back), or for a plain `clone` in a superseded
+default-branch tree of any name, that tree is current again. `grep` (`git grep`) and `code` read a
 tree: a user checkout named in `config.toml` first, then the `--ref` or
-`--release` asked for, then the `config.toml` default Release, then the
-default-branch tree. Every `code` output starts with a `cite:` line naming
+`--release` asked for, then the `config.toml` default Release, then a
+held tree of the branch the catalog `ref` names (a superseded one still
+counts until `prune` removes it), then the default-branch tree. Every `code` output starts with a `cite:` line naming
 repository, commit, provenance, path and lines.
 
 `prune` lists every Code Tree marked superseded (an older commit of a

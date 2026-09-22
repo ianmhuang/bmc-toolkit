@@ -89,7 +89,9 @@ An entry's optional `ref` replaces the remote's default branch for a
 plain `clone`: `nuvoton-linux` is held at `NPCM-6.18-OpenBMC`, since its
 default `NPCM-6.12-OpenBMC` holds a file named `aux.c`, a reserved device
 name that git on Windows refuses to check out even outside the sparse
-directories. A
+directories. When an entry's `ref` changes, the next plain `clone`
+fetches the new branch and marks the tree of the old one superseded, so
+`prune --yes` removes it. A
 vendor tree has no Release: `--release` on one exits 2, and a
 `config.toml` default Release is not used for one (a `note:` says so).
 Nuvoton's `u-boot` defaults to `npcm-v2023.10` while `npcm-v2025.07`
