@@ -152,7 +152,56 @@ def test_vendor_openbmc_layers_are_sparse(shipped):
     )
     for repo_id in VENDOR_TREES:
         if "linux" not in repo_id and "openbmc" not in repo_id:
-            assert shipped.get_repo(repo_id).sparse == ()
+            if repo_id != "nuvoton-igps":
+                assert shipped.get_repo(repo_id).sparse == ()
+
+
+IGPS_TEXT = ("py", "xml", "bat", "md", "txt", "csv", "json", "ps1")
+
+
+def test_igps_holds_its_scripts_without_the_prebuilt_images(shipped):
+    sparse = shipped.get_repo("nuvoton-igps").sparse
+    assert sparse == tuple(f"/**/*.{ext}" for ext in IGPS_TEXT)
+    for binary in ("bin", "exe", "pyc", "gz", "der", "pem"):
+        assert not any(p.endswith(f".{binary}") for p in sparse)
+
+
+def test_igps_pattern_sparse_checks_out_text_only(library, tmp_path, capsys):
+    files = {
+        "GenerateAll.bat": "@echo off\n",
+        "README.md": "igps\n",
+        "py_scripts/ImageGeneration/build.py": "print(1)\n",
+        "py_scripts/ImageGeneration/inputs/BootBlockAndHeader.xml": "<x/>\n",
+        "py_scripts/ImageGeneration/inputs/bootblock.bin": "\x00" * 16,
+        "py_scripts/tools/tool.exe": "MZ\n",
+        "py_scripts/keys/key.der": "0\n",
+    }
+    (tmp_path / "igps").mkdir()
+    work, bare, url = make_repo(tmp_path / "igps", "nuvoton-igps", files)
+    sparse = ", ".join(f'"/**/*.{ext}"' for ext in IGPS_TEXT)
+    path = tmp_path / "igps.toml"
+    path.write_text(
+        MINI_CATALOG
+        + f'\n[[repos]]\nid = "nuvoton-igps"\nowner = "nuvoton"\nurl = "{url}"\n'
+        + f'topics = ["nuvoton"]\nsparse = [{sparse}]\n',
+        encoding="utf-8",
+        newline="",
+    )
+    code, out = run(capsys, "clone", "nuvoton-igps", catalog_file=path)
+    assert code == 0, out
+    tree = next(p for p in (library / "code" / "nuvoton-igps").iterdir() if p.is_dir())
+    held = {
+        p.relative_to(tree).as_posix()
+        for p in tree.rglob("*")
+        if p.is_file() and ".git" not in p.relative_to(tree).parts
+    }
+    held.discard(code_mod.TREE_META)
+    assert held == {
+        "GenerateAll.bat",
+        "README.md",
+        "py_scripts/ImageGeneration/build.py",
+        "py_scripts/ImageGeneration/inputs/BootBlockAndHeader.xml",
+    }
 
 
 def test_soc_topics_find_the_vendor_trees(shipped):

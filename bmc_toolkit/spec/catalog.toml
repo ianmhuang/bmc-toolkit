@@ -5159,4 +5159,16 @@ id = "nuvoton-igps"
 owner = "nuvoton"
 url = "https://github.com/Nuvoton-Israel/igps-npcm8xx.git"
 topics = ["nuvoton", "npcm8xx", "image", "programming", "flash"]
-# NPCM8XX image packing and programming scripts
+sparse = [
+    "/**/*.py",
+    "/**/*.xml",
+    "/**/*.bat",
+    "/**/*.md",
+    "/**/*.txt",
+    "/**/*.csv",
+    "/**/*.json",
+    "/**/*.ps1",
+]
+# NPCM8XX image packing and programming scripts; held for the scripts and
+# the XML layouts only: the repository is 648 MB checked out, 605 MB of it
+# prebuilt images, executables and keys under py_scripts/ (2026-09-22)
