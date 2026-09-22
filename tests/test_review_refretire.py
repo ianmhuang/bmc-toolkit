@@ -338,3 +338,38 @@ def test_ac8_a_held_plain_clone_supersedes_nothing(library, repo, capsys, tmp_pa
     assert code == 0 and out.startswith("thing\t") and "superseded" not in out
     code, out = run(capsys, catalog, "prune")
     assert code == 0 and out.startswith("nothing to prune")
+
+
+def test_ac1_a_held_plain_clone_retires_a_default_tree_an_earlier_version_left(
+    library, repo, capsys, tmp_path, monkeypatch
+):
+    # a Library written before this change holds two current default trees
+    # (the old and the new catalog ref); the next plain clone, held, without
+    # git, leaves the one it resolved to current and marks the other
+    c2, cs = repo["c2"], repo["cs"]
+    old = _catalog(tmp_path, repo, ref="main", name="old")
+    code, out = run(capsys, old, "clone", "thing")
+    assert code == 0 and out.startswith(f"cloned thing {c2[:7]} (main ")
+    new = _catalog(tmp_path, repo, ref="sdk", name="new")
+    code, out = run(capsys, new, "clone", "thing")
+    assert code == 0 and out.startswith(f"cloned thing {cs[:7]} (sdk ")
+    meta_path = _tree_dir(library, c2) / code_mod.TREE_META
+    meta = json.loads(meta_path.read_text("utf-8"))
+    del meta["superseded_by"]  # what the previous version left behind
+    text = json.dumps(meta, sort_keys=True)
+    meta_path.write_text(text, encoding="utf-8", newline="")
+    assert "superseded_by" not in _meta(library, c2)
+
+    with monkeypatch.context() as m:
+        m.setattr(code_mod, "run_git", _refuse)
+        code, out = run(capsys, new, "clone", "thing")
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith(f"held thing {cs[:7]} (sdk ")
+    assert lines[1].startswith(f"superseded thing {c2[:7]} (main ")
+    assert len(lines) == 2, out
+    assert _meta(library, c2)["superseded_by"] == cs
+    assert "superseded_by" not in _meta(library, cs)
+    code, out = run(capsys, new, "prune")
+    assert code == 0 and f"would remove {_tree_dir(library, c2)}" in out
+    assert str(_tree_dir(library, cs)) not in out
