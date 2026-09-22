@@ -61,12 +61,14 @@ workflow), `.github/workflows/catalog.yml` runs `refresh --skip-source
 ocp` without `--write` on a GitHub runner and puts the output in the
 run's summary, whether or not `refresh` succeeded. When it reports
 anything to add, confirm or change, it opens an issue labelled `catalog`
-with that output, or comments on the open one; a run that finds nothing,
+and assigned to the repository owner with that output, or comments on the
+open one; a run that finds nothing,
 or only unreachable listings, opens nothing. OCP is left out because
 opencompute.org answers HTTP 403 to GitHub's runners (the same client
 gets the wiki from a developer machine), so OCP versions come from
 `refresh` run locally. The catalog itself changes only through a pull
 request: run `refresh --write` locally, confirm any OCP URL by hand,
-verify each new version against `docs/golden-questions.md`, and bump
-`plugin.json` as CONVENTIONS.md says. If `check` reports a newer version
+verify each new version against `docs/golden-questions.md`, and open the
+pull request into `develop` without touching the version, as CONVENTIONS.md
+says. If `check` reports a newer version
 before the workflow does, please open that pull request yourself.
