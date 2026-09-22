@@ -2,8 +2,9 @@ name: catalog
 
 # Once a month, ask the publishers' listings what the Source Catalog lacks.
 # The catalog is never written here: when refresh reports something to add,
-# confirm or change, an issue carries the output to the maintainer, who runs
-# refresh --write, verifies the new versions and bumps through a pull request.
+# confirm or change, an issue assigned to the maintainer carries the output;
+# the maintainer runs refresh --write, verifies the new versions and opens a
+# pull request into develop.
 
 on:
   schedule:
@@ -59,7 +60,7 @@ jobs:
             const body = [
               "`refresh` found what the Source Catalog lacks. Run `refresh --write`",
               "locally, confirm any OCP URL by hand, verify each new version against",
-              "`docs/golden-questions.md`, bump `plugin.json`, and open a pull request",
+              "`docs/golden-questions.md`, and open a pull request into `develop`",
               "(docs/CATALOG.md).",
               "",
               "````",
@@ -89,6 +90,7 @@ jobs:
               const month = new Date().toISOString().slice(0, 7);
               const issue = await github.rest.issues.create({
                 owner, repo, title: `Catalog refresh ${month}`, labels: [label], body,
+                assignees: [owner],
               });
               core.info(`opened #${issue.data.number}`);
             }
