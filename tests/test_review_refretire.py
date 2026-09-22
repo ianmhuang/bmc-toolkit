@@ -373,3 +373,83 @@ def test_ac1_a_held_plain_clone_retires_a_default_tree_an_earlier_version_left(
     code, out = run(capsys, new, "prune")
     assert code == 0 and f"would remove {_tree_dir(library, c2)}" in out
     assert str(_tree_dir(library, cs)) not in out
+
+
+# ------------------------------------------------------------ round 2
+
+
+def test_ac7_ac2_a_ref_moved_to_a_superseded_default_tree_of_another_name_revives_it(
+    library, repo, capsys, tmp_path
+):
+    # catalog ref main (c2), then sdk (cs, c2 superseded), then trunk which
+    # points at c2: the clone lands on the superseded main tree. It must come
+    # back as the one current default tree; the sdk tree is superseded in
+    # turn, and prune never lists both (that would remove the held tree).
+    work, c2, cs = repo["work"], repo["c2"], repo["cs"]
+    first = _catalog(tmp_path, repo, ref="main", name="first")
+    code, out = run(capsys, first, "clone", "thing")
+    assert code == 0 and out.startswith(f"cloned thing {c2[:7]} (main ")
+    second = _catalog(tmp_path, repo, ref="sdk", name="second")
+    code, out = run(capsys, second, "clone", "thing")
+    assert code == 0 and out.startswith(f"cloned thing {cs[:7]} (sdk ")
+    assert _meta(library, c2)["superseded_by"] == cs
+
+    git("branch", "trunk", c2, cwd=work)
+    push(work, "trunk")
+    third = _catalog(tmp_path, repo, ref="trunk", name="third")
+    code, out = run(capsys, third, "clone", "thing")
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith(f"held thing {c2[:7]} (main ")
+    assert lines[1].startswith(f"superseded thing {cs[:7]} (sdk ")
+    assert len(lines) == 2, out
+    assert "superseded_by" not in _meta(library, c2)
+    assert _meta(library, cs)["superseded_by"] == c2
+    assert _tree_dirs(library) == sorted([c2, cs])
+    code, out = run(capsys, third, "code", "thing", "README.md")
+    assert code == 0 and out.startswith(f"cite: code | thing {c2[:7]} | main ")
+    assert "thing 2" in out
+    code, out = run(capsys, third, "prune")
+    assert code == 0, out
+    listed = [ln for ln in out.splitlines() if ln.startswith("would remove ")]
+    assert len(listed) == 1 and str(_tree_dir(library, cs)) in listed[0]
+    code, out = run(capsys, third, "prune", "--yes")
+    assert code == 0, out
+    assert _tree_dir(library, c2).is_dir()
+    assert not _tree_dir(library, cs).exists()
+    code, out = run(capsys, third, "code", "thing", "README.md")
+    assert code == 0 and out.startswith(f"cite: code | thing {c2[:7]} | main ")
+
+
+def test_ac8_ac6_a_plain_clone_answered_by_a_ref_tree_retires_no_default_tree(
+    library, repo, capsys, tmp_path, monkeypatch
+):
+    # catalog ref sdk held as a default tree; `--ref sdk --force` fetches a
+    # newer sdk as a ref tree; the next plain clone is answered by that ref
+    # tree, without git, and marks nothing: the default tree stays current
+    work, cs = repo["work"], repo["cs"]
+    catalog = _catalog(tmp_path, repo, ref="sdk")
+    code, out = run(capsys, catalog, "clone", "thing")
+    assert code == 0 and out.startswith(f"cloned thing {cs[:7]} (sdk ")
+    git("checkout", "-q", "sdk", cwd=work)
+    cs2 = commit(work, {"src/sdk.c": "int sdk2;\n"}, "sdk 2")
+    push(work, "sdk")
+    git("checkout", "-q", "main", cwd=work)
+    code, out = run(capsys, catalog, "clone", "thing", "--ref", "sdk", "--force")
+    assert code == 0 and out.startswith(f"cloned thing {cs2[:7]} (sdk ")
+    assert "superseded" not in out
+    assert _meta(library, cs2)["provenance"] == {"kind": "ref", "name": "sdk"}
+
+    with monkeypatch.context() as m:
+        m.setattr(code_mod, "run_git", _refuse)
+        code, out = run(capsys, catalog, "clone", "thing")
+    assert code == 0, out
+    assert out.startswith(f"held thing {cs2[:7]} (sdk ")
+    assert len(out.splitlines()) == 1 and "superseded" not in out
+    assert "superseded_by" not in _meta(library, cs)
+    assert "superseded_by" not in _meta(library, cs2)
+    assert _tree_dirs(library) == sorted([cs, cs2])
+    code, out = run(capsys, catalog, "prune")
+    assert code == 0 and out.startswith("nothing to prune")
+    code, out = run(capsys, catalog, "repos", "--topic", "power")
+    assert code == 0 and out.startswith("thing\t") and "superseded" not in out
