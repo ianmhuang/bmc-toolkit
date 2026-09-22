@@ -571,7 +571,6 @@ listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-CRPS Base"
 title = "DC-MHS Modular Hardware System Common Redundant Power Supply (M-CRPS) Base Specification"
 access = "open"
 fetch = "direct"
-notes = "A v1.06 draft (2026-04) exists only as a Google Drive link and is not listed."
 
 [[documents.versions]]
 version = "R1 v1.0 RC4"
@@ -579,6 +578,13 @@ url = "https://www.opencompute.org/documents/m-crps-r1-v1p0-rc4-pdf"
 type = "pdf"
 published = "2023-01-01"
 notes = "Publication date approximate."
+
+[[documents.versions]]
+version = "1.06"
+url = "https://drive.google.com/uc?export=download&id=1-KDyCqRdAEQ8gKFOIm88_ixXDWo6drYx"
+type = "pdf"
+published = "2026-04-24"
+notes = "The OCP wiki lists it as 1.06 and links it to Google Drive; the URL is that file's direct download. The PDF's own header says 1.06.00 RC1."
 
 [[documents]]
 id = "M-PIC"
@@ -4120,12 +4126,14 @@ version = "2017.1"
 url = "https://redfish.dmtf.org/schemas/registries/archive/DSP8011_2017.1.zip"
 type = "zip"
 published = "2017-05-30"
+notes = "DMTF's listing link no longer serves the file; fetch falls back to the Wayback Machine's copy (2017-06-26). The file named DSP8011_2017.1.zip under dmtf.org/sites/default/files is the DSP8010 schema bundle, not this registry."
 
 [[documents.versions]]
 version = "2017.2"
 url = "https://redfish.dmtf.org/schemas/registries/archive/2017.2/DSP8011_2017.2.zip"
 type = "zip"
 published = "2017-10-02"
+notes = "No copy found: DMTF's listing link no longer serves the file, dmtf.org/sites/default/files has no such file and the Wayback Machine holds none (checked 2026-09-22). fetch prints the Drop-in instruction; add a copy you have."
 
 [[documents.versions]]
 version = "2018.1"

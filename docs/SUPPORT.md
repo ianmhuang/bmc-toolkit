@@ -143,7 +143,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 
 | Document | Access | Latest | Verified | Known limit |
 |---|---|---|---|---|
-| `M-CRPS` DC-MHS Modular Hardware System Common Redundant Power Supply (M-CRPS) Base Specification | open | R1 v1.0 RC4 | PASS | - |
+| `M-CRPS` DC-MHS Modular Hardware System Common Redundant Power Supply (M-CRPS) Base Specification | open | 1.06 | PASS | - |
 | `M-PIC` DC-MHS Platform Infrastructure Connectivity (M-PIC) Specification | open | R1 v1.11 | PASS | - |
 | `M-XIO` DC-MHS Extensible I/O (M-XIO) Specification | open | R1 v1.04 RC1 | PASS | - |
 | `M-DNO` DC-MHS Densified Node Operation (M-DNO) Specification | open | R1 v1.1 RC2 | PASS | - |
