@@ -9,6 +9,7 @@ repositories; skipped when git is not on PATH."""
 
 import json
 import shutil
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -510,3 +511,53 @@ def test_ac7_ac2_reading_after_a_force_lands_on_a_ref_tree_uses_that_tree(
     assert not _tree_dir(library, c3).exists()
     code, out = run(capsys, catalog, "code", "thing", "README.md")
     assert code == 0 and out.startswith(f"cite: code | thing {c2[:7]} | main ")
+
+
+# ------------------------------------------------------------ round 4
+
+
+def test_ac4_ac8_two_trees_of_one_second_answer_with_the_newer_one(
+    library, repo, capsys, tmp_path, monkeypatch
+):
+    # The round 3 flake, made certain: the default tree of the catalog ref
+    # and a newer `--ref --force` tree of the same branch fetched inside one
+    # second. The older tree gets the whole-second stamp an earlier version
+    # wrote for that very second; the plain clone must still be answered by
+    # the newer tree, without git, and the date the output shows is unchanged.
+    work, cs = repo["work"], repo["cs"]
+    catalog = _catalog(tmp_path, repo, ref="sdk")
+    code, out = run(capsys, catalog, "clone", "thing")
+    assert code == 0 and out.startswith(f"cloned thing {cs[:7]} (sdk ")
+    git("checkout", "-q", "sdk", cwd=work)
+    cs2 = commit(work, {"src/sdk.c": "int sdk2;\n"}, "sdk 2")
+    push(work, "sdk")
+    git("checkout", "-q", "main", cwd=work)
+    code, out = run(capsys, catalog, "clone", "thing", "--ref", "sdk", "--force")
+    assert code == 0 and out.startswith(f"cloned thing {cs2[:7]} (sdk ")
+
+    newer = _meta(library, cs2)["fetched_at"]
+    older = _meta(library, cs)["fetched_at"]
+    parsed = datetime.fromisoformat(newer)
+    assert parsed.tzinfo is not None and parsed.utcoffset() == timedelta(0)
+    assert newer > older  # strictly: two clones never share a stamp
+    assert out.startswith(f"cloned thing {cs2[:7]} (sdk {newer[:10]})")
+    same_second = newer[:19] + "+00:00"
+    meta_path = _tree_dir(library, cs) / code_mod.TREE_META
+    meta = json.loads(meta_path.read_text("utf-8"))
+    meta["fetched_at"] = same_second
+    text = json.dumps(meta, sort_keys=True)
+    meta_path.write_text(text, encoding="utf-8", newline="")
+
+    with monkeypatch.context() as m:
+        m.setattr(code_mod, "run_git", _refuse)
+        code, out = run(capsys, catalog, "clone", "thing")
+    assert code == 0, out
+    assert out.startswith(f"held thing {cs2[:7]} (sdk {newer[:10]})")
+    assert len(out.splitlines()) == 1 and "superseded" not in out
+    assert "superseded_by" not in _meta(library, cs)
+    assert "superseded_by" not in _meta(library, cs2)
+    code, out = run(capsys, catalog, "repos", "--topic", "power")
+    assert code == 0, out
+    held = out.splitlines()[0].split("\t")[1]
+    assert held.startswith(f"{cs2[:7]} sdk {newer[:10]}")
+    assert "superseded" not in held
