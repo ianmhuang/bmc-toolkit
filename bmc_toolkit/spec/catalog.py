@@ -49,6 +49,12 @@ Schema (``schema_version = 1``)::
     [[repos]]                  one entry per code repository (Code Trees)
     id = "bmcweb"              unique, matched case-insensitively; also the
                                directory name under the Library's code/
+    owner = "aspeed"           optional: the vendor that publishes a fork
+                               (lowercase); the id then starts "<owner>-".
+                               Absent means upstream OpenBMC
+    ref = "NPCM-6.18-OpenBMC"  optional: the branch a clone without --ref or
+                               --release fetches, instead of the remote's
+                               default branch
     url = "https://github.com/openbmc/bmcweb.git"
                                https://; file:// for a local mirror (and tests)
     topics = ["redfish"]       what the repository is about, for `repos --topic`
@@ -72,6 +78,7 @@ DEFAULT_CATALOG = Path(__file__).with_name("catalog.toml")
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _DSP_RE = re.compile(r"^DSP\d+$", re.IGNORECASE)
+_OWNER_RE = re.compile(r"^[a-z][a-z0-9]*$")
 
 
 class CatalogError(Exception):
@@ -168,6 +175,8 @@ class Repo:
     url: str
     topics: tuple[str, ...]
     sparse: tuple[str, ...] = ()
+    owner: str = ""  # the vendor of a fork; "" for upstream OpenBMC
+    ref: str = ""  # the branch a plain clone fetches; "" for the remote's default
 
 
 @dataclass
@@ -187,6 +196,11 @@ class Catalog:
 
     def by_family(self, family_id: str) -> list[Document]:
         return [d for d in self.documents if d.family == family_id]
+
+    @property
+    def owners(self) -> set[str]:
+        """The vendors whose forks the catalog lists."""
+        return {r.owner for r in self.repos if r.owner}
 
     def get_repo(self, repo_id: str) -> Repo | None:
         return self._repo_index.get(repo_id.strip().lower())
@@ -328,11 +342,23 @@ def _parse_repo(raw: dict, where: str) -> Repo:
     sparse = _expect(raw, "sparse", list, where, default=[], required=False)
     if not all(isinstance(s, str) and s.strip() for s in sparse):
         raise CatalogError(f"{where}.sparse: expected non-empty path strings")
+    owner = _expect(raw, "owner", str, where, default="", required=False)
+    if "owner" in raw and not _OWNER_RE.match(owner):
+        raise CatalogError(f"{where}.owner: '{owner}' is not a lowercase name")
+    if owner and not (
+        repo_id.startswith(f"{owner}-") and len(repo_id) > len(owner) + 1
+    ):
+        raise CatalogError(f"{where}.id: '{repo_id}' must start with '{owner}-'")
+    ref = _expect(raw, "ref", str, where, default="", required=False).strip()
+    if "ref" in raw and not ref:
+        raise CatalogError(f"{where}.ref: must name a branch or tag")
     return Repo(
         repo_id,
         url,
         tuple(t.strip() for t in topics),
         tuple(s.strip() for s in sparse),
+        owner,
+        ref,
     )
 
 

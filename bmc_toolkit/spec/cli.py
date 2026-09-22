@@ -1525,11 +1525,30 @@ def _repo_or_message(catalog, library, repo_id: str, *, guess: bool):
     if held:
         return Repo(name, held[0].url, (), ())
     if guess:
+        if "-" in name and name.split("-", 1)[0].lower() in catalog.owners:
+            print(
+                f"{name} is not in the catalog; vendor repositories are cloned "
+                "only from catalog entries (bmcspec repos lists them)"
+            )
+            return None
         url = code_mod.guess_url(name)
         print(f"note: {name} is not in the catalog; trying {url}")
         return Repo(name, url, (), ())
     print(f"unknown repository '{repo_id}'; bmcspec repos lists them")
     return None
+
+
+def _vendor_release(repo, args) -> bool:
+    """True after a message when --release names a vendor tree: a vendor
+    fork is not pinned by an OpenBMC release, its SDK branches are refs."""
+    if repo.owner and args.release:
+        print(f"{repo.id} has no Release; use --ref with an SDK branch or tag")
+        return True
+    return False
+
+
+def _vendor_release_note(repo, release: str) -> str:
+    return f"note: {repo.id} has no Release; config.toml release {release} not used"
 
 
 def _tree_summary(tree: code_mod.Tree) -> str:
@@ -1624,13 +1643,16 @@ def cmd_clone(args: argparse.Namespace) -> int:
     if code != EXIT_OK:
         return code
     repo = _repo_or_message(catalog, library, args.repo, guess=True)
-    if repo is None:
+    if repo is None or _vendor_release(repo, args):
         return EXIT_ACTION
     known = catalog.get_repo(repo.id) is not None
     release = args.release
     if not args.ref and not release and config.release:
-        release = config.release
-        print(f"release: {release} (from config.toml)")
+        if repo.owner:
+            print(_vendor_release_note(repo, config.release))
+        else:
+            release = config.release
+            print(f"release: {release} (from config.toml)")
     if release and repo.id.lower() == code_mod.OPENBMC_REPO:
         args.ref, release = release, None  # the release source: the tag or branch
     try:
@@ -1661,12 +1683,15 @@ def cmd_clone(args: argparse.Namespace) -> int:
                     catalog_known=known,
                 )
         else:
-            prov = code_mod.Provenance("default", "")
+            # the catalog's ref, when it names one, stands in for the
+            # remote's default branch (a default the platform cannot check out)
+            prov = code_mod.Provenance("default", repo.ref)
             with _clone_lock(args, library, repo.id, "default branch"):
                 tree, fetched = library.clone(
                     repo.id,
                     repo.url,
                     prov,
+                    ref=repo.ref or None,
                     sparse=repo.sparse,
                     force=args.force,
                     catalog_known=known,
@@ -1848,6 +1873,9 @@ def _select_tree(args, catalog, library, config, repo):
             )
         return found, notes
     release = args.release or config.release
+    if release and repo.owner:
+        notes.append(_vendor_release_note(repo, release))
+        release = None
     if release:
         if not args.release:
             notes.append(f"note: release {release} from config.toml")
@@ -1868,6 +1896,8 @@ def _select_tree(args, catalog, library, config, repo):
             )
         return pinned[0], notes
     current = [t for t in trees if t.provenance.kind == "default" and not t.superseded]
+    if repo.ref:  # a tree an earlier catalog ref left behind comes second
+        current.sort(key=lambda t: t.provenance.name != repo.ref)
     if current:
         return current[0], notes
     if trees:
@@ -1886,7 +1916,7 @@ def _reading_tree(args):
     if code != EXIT_OK:
         return None, None, [], code
     repo = _repo_or_message(catalog, library, args.repo, guess=False)
-    if repo is None:
+    if repo is None or _vendor_release(repo, args):
         return None, None, [], EXIT_ACTION
     try:
         tree, notes = _select_tree(args, catalog, library, config, repo)

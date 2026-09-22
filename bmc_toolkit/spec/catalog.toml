@@ -4159,8 +4159,9 @@ unlisted = true
 
 # ------------------------------------------------------------------ repos
 #
-# Code repositories the Skill can bring into the Library as Code Trees.
-# Upstream OpenBMC only. "topics" are keywords for `repos --topic`;
+# Code repositories the Skill can bring into the Library as Code Trees:
+# upstream OpenBMC here, the SoC vendors' forks under "vendor repos" at the
+# end (they carry an owner). "topics" are keywords for `repos --topic`;
 # "sparse" limits the checkout to the listed directories, or, with glob
 # patterns, to the matching files (openbmc/openbmc is held only for the
 # recipe files of every layer, which pin every component in a release).
@@ -5038,3 +5039,136 @@ topics = ["openpower", "dump", "debug"]
 id = "openpower-host-ipmi-flash"
 url = "https://github.com/openbmc/openpower-host-ipmi-flash.git"
 topics = ["openpower", "ipmi", "firmware-update"]
+
+# ------------------------------------------------------------ vendor repos
+#
+# The SoC vendors' own forks and SDK repositories (owner = the vendor).
+# Fetched at the repository's default branch, which each vendor points at
+# its newest SDK branch, or at the entry's "ref" where that default does
+# not serve; another SDK branch is a --ref. No Release pins them. Each
+# kernel is held sparse: the upstream `linux` directories plus the
+# vendor's own arch, dts and soc directories (and, for Aspeed, the JTAG
+# driver directory, which upstream `linux` does not list).
+
+[[repos]]
+id = "aspeed-linux"
+owner = "aspeed"
+url = "https://github.com/AspeedTech-BMC/linux.git"
+topics = ["aspeed", "ast2600", "ast2700", "kernel", "dts", "espi", "mmbi", "jtag", "peci"]
+sparse = [
+    "Documentation",
+    "drivers/hwmon",
+    "drivers/i2c",
+    "drivers/gpio",
+    "drivers/peci",
+    "drivers/char/ipmi",
+    "net/ncsi",
+    "net/mctp",
+    "drivers/net/mctp",
+    "drivers/mtd/spi-nor",
+    "arch/arm/boot/dts/aspeed",
+    "arch/arm64/boot/dts/aspeed",
+    "arch/arm/mach-aspeed",
+    "drivers/soc/aspeed",
+    "drivers/jtag",
+]
+# Aspeed's SDK kernel: drivers not upstream yet (eSPI, MMBI, JTAG), dts for
+# the EVBs; the full tree is about 6 GB
+
+[[repos]]
+id = "aspeed-u-boot"
+owner = "aspeed"
+url = "https://github.com/AspeedTech-BMC/u-boot.git"
+topics = ["aspeed", "ast2600", "ast2700", "u-boot", "bootloader", "defconfig", "flash-layout"]
+# Aspeed's SDK U-Boot: SPL, EVB defconfigs, flash layout
+
+[[repos]]
+id = "aspeed-openbmc"
+owner = "aspeed"
+url = "https://github.com/AspeedTech-BMC/openbmc.git"
+topics = ["aspeed", "ast2600", "ast2700", "sdk", "yocto", "recipes"]
+sparse = ["/meta-aspeed*/", "/meta-evb/"]
+# Aspeed's OpenBMC SDK layers; meta-aspeed-sdk is the entry point
+
+[[repos]]
+id = "aspeed-socsec"
+owner = "aspeed"
+url = "https://github.com/AspeedTech-BMC/socsec.git"
+topics = ["aspeed", "ast2600", "ast2700", "secure-boot", "signing", "otp"]
+# Aspeed secure-boot image signing and OTP tool
+
+[[repos]]
+id = "nuvoton-linux"
+owner = "nuvoton"
+url = "https://github.com/Nuvoton-Israel/linux.git"
+topics = ["nuvoton", "npcm7xx", "npcm8xx", "kernel", "dts"]
+ref = "NPCM-6.18-OpenBMC"
+sparse = [
+    "Documentation",
+    "drivers/hwmon",
+    "drivers/i2c",
+    "drivers/gpio",
+    "drivers/peci",
+    "drivers/char/ipmi",
+    "net/ncsi",
+    "net/mctp",
+    "drivers/net/mctp",
+    "drivers/mtd/spi-nor",
+    "arch/arm/boot/dts/nuvoton",
+    "arch/arm64/boot/dts/nuvoton",
+    "arch/arm/mach-npcm",
+    "drivers/soc/nuvoton",
+]
+# Nuvoton's SDK kernel: NPCM drivers and dts; the full tree is about 6 GB.
+# Held at NPCM-6.18-OpenBMC rather than the default NPCM-6.12-OpenBMC, which
+# git on Windows cannot check out (a nouveau file named aux.c, a reserved
+# device name; checked 2026-09-22); both branches are maintained.
+
+[[repos]]
+id = "nuvoton-u-boot"
+owner = "nuvoton"
+url = "https://github.com/Nuvoton-Israel/u-boot.git"
+topics = ["nuvoton", "npcm7xx", "npcm8xx", "u-boot", "bootloader", "defconfig", "flash-layout"]
+# Nuvoton's SDK U-Boot; the default branch is npcm-v2023.10 while
+# npcm-v2025.07 exists (--ref npcm-v2025.07)
+
+[[repos]]
+id = "nuvoton-openbmc"
+owner = "nuvoton"
+url = "https://github.com/Nuvoton-Israel/openbmc.git"
+topics = ["nuvoton", "npcm7xx", "npcm8xx", "sdk", "yocto", "recipes"]
+sparse = ["/meta-nuvoton*/", "/meta-evb/"]
+# Nuvoton's OpenBMC SDK layers; meta-nuvoton-obmc is the entry point
+
+[[repos]]
+id = "nuvoton-bootblock"
+owner = "nuvoton"
+url = "https://github.com/Nuvoton-Israel/bootblock.git"
+topics = ["nuvoton", "npcm7xx", "bootblock", "boot"]
+# NPCM7XX first-stage boot
+
+[[repos]]
+id = "nuvoton-npcm8xx-bootblock"
+owner = "nuvoton"
+url = "https://github.com/Nuvoton-Israel/npcm8xx-bootblock.git"
+topics = ["nuvoton", "npcm8xx", "bootblock", "boot"]
+# NPCM8XX first-stage boot
+
+[[repos]]
+id = "nuvoton-igps"
+owner = "nuvoton"
+url = "https://github.com/Nuvoton-Israel/igps-npcm8xx.git"
+topics = ["nuvoton", "npcm8xx", "image", "programming", "flash"]
+sparse = [
+    "/**/*.py",
+    "/**/*.xml",
+    "/**/*.bat",
+    "/**/*.md",
+    "/**/*.txt",
+    "/**/*.csv",
+    "/**/*.json",
+    "/**/*.ps1",
+]
+# NPCM8XX image packing and programming scripts; held for the scripts and
+# the XML layouts only: the repository is 648 MB checked out, 605 MB of it
+# prebuilt images, executables and keys under py_scripts/ (2026-09-22)
