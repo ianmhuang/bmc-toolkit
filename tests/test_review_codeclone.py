@@ -20,7 +20,7 @@ import pytest
 from bmc_toolkit.spec import code as code_mod
 from bmc_toolkit.spec.cli import main
 from tests.conftest import MINI_CATALOG, ROOT
-from tests.test_code import RECIPE, commit, git, make_repo, push
+from tests.test_code import RECIPE, RECIPE_URL, commit, git, make_repo, push
 
 needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
 
@@ -47,7 +47,7 @@ def remotes(tmp_path):
     push(work, "v1")
     second = commit(work, {"src/main.cpp": "int main() { return 2; }\n"}, "second")
     push(work)
-    recipe = RECIPE.format(url=url.removeprefix("file://"), sha=first)
+    recipe = RECIPE.format(url=RECIPE_URL, sha=first)
     ob_files = {
         "meta-phosphor/recipes-phosphor/things/thing_git.bb": recipe,
         "meta/unrelated.txt": "big\n",

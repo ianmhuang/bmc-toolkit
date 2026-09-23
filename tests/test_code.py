@@ -2,13 +2,17 @@
 ref and commit, superseding, release pins from recipes, config, grep and
 reading files. Skipped when git is not on PATH."""
 
+import hashlib
 import json
+import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from bmc_toolkit.spec import code as C
+from tests.conftest import REPO_TEMPLATES
 
 pytestmark = pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
 
@@ -16,6 +20,9 @@ RECIPE = """SUMMARY = "Thing daemon"
 SRC_URI = "git://{url};branch=main;protocol=https"
 SRCREV = "{sha}"
 """
+# What the fixtures' recipes name thing by. find_pin only matches the name at
+# the end, and one fixed recipe lets make_repo reuse its openbmc template.
+RECIPE_URL = "github.com/openbmc/thing.git"
 
 
 def git(*args, cwd=None) -> str:
@@ -32,7 +39,42 @@ def git(*args, cwd=None) -> str:
 
 def make_repo(tmp_path, name, files, *, branch="main"):
     """A work tree with one commit and a bare clone of it that allows
-    shallow fetches of any commit and partial (sparse) clones."""
+    shallow fetches of any commit and partial (sparse) clones.
+
+    Within a pytest session the same name, files and branch are built once
+    (tests/conftest.py ``_repo_templates``) and copied after that, so every
+    caller gets its own pair, with the same commit id."""
+    root = REPO_TEMPLATES["root"]
+    if root is None:
+        return _build_repo(tmp_path, name, files, branch)
+    key = json.dumps([name, branch, files], sort_keys=True)
+    template = root / hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+    if not template.is_dir():
+        template.mkdir()
+        _build_repo(template, name, files, branch)
+    work = tmp_path / f"{name}-work"
+    bare = tmp_path / f"{name}.git"
+    shutil.copytree(template / work.name, work)
+    shutil.copytree(template / bare.name, bare)
+    # the only absolute paths in either repository: each one's origin
+    _set_origin(work / ".git" / "config", bare)
+    _set_origin(bare / "config", work)
+    return work, bare, bare.as_uri()
+
+
+def _set_origin(config, target) -> None:
+    text = config.read_text(encoding="utf-8")
+    text, count = re.subn(
+        r"^(\s*url = ).*$",
+        lambda m: m.group(1) + str(target).replace("\\", "/"),
+        text,
+        flags=re.MULTILINE,
+    )
+    assert count == 1, config
+    config.write_text(text, encoding="utf-8", newline="")
+
+
+def _build_repo(tmp_path, name, files, branch):
     work = tmp_path / f"{name}-work"
     work.mkdir()
     git("init", "-q", "-b", branch, cwd=work)
@@ -72,6 +114,35 @@ THING_FILES = {
 @pytest.fixture
 def thing(tmp_path):
     return make_repo(tmp_path, "thing", THING_FILES)
+
+
+def _refs(bare) -> dict[str, str]:
+    lines = git("ls-remote", str(bare)).splitlines()
+    return {ref: sha for sha, ref in (line.split("\t") for line in lines)}
+
+
+def test_make_repo_copies_do_not_share_state(tmp_path):
+    # a copy's commits, pushes and tags reach its own bare repository only;
+    # the next copy starts from the template as it was built
+    assert REPO_TEMPLATES["root"] is not None
+    files = {"README.md": "copied\n"}
+    (tmp_path / "one").mkdir()
+    (tmp_path / "two").mkdir()
+    work1, bare1, _ = make_repo(tmp_path / "one", "copied", files)
+    first = git("rev-parse", "HEAD", cwd=work1)
+    second = commit(work1, {"README.md": "changed\n"}, "second")
+    push(work1)
+    git("tag", "v1", cwd=work1)
+    push(work1, "v1")
+    assert _refs(bare1)["refs/heads/main"] == second
+    assert "refs/tags/v1" in _refs(bare1)
+
+    work2, bare2, url2 = make_repo(tmp_path / "two", "copied", files)
+    assert git("rev-parse", "HEAD", cwd=work2) == first
+    assert _refs(bare2) == {"HEAD": first, "refs/heads/main": first}
+    origin = git("remote", "get-url", "origin", cwd=work2)
+    assert Path(origin).resolve() == bare2.resolve()
+    assert url2 == bare2.as_uri()
 
 
 @pytest.fixture
@@ -383,6 +454,23 @@ def test_find_pin_reads_the_recipe_that_names_the_repository(tmp_path):
         C.find_pin(distro, "nope")
     with pytest.raises(C.CodeError, match="no fixed SRCREV"):
         C.find_pin(distro, "auto")
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["/D:/999.%20Temp/pytest-1/test0/thing.git", "/tmp/pytest-1/test0/thing.git"],
+)
+def test_find_pin_matches_a_local_path_url(tmp_path, url):
+    # the fixtures' recipes use RECIPE_URL; a bare repository's path, as a
+    # file URI gives it on Windows and on POSIX, names thing just as well
+    recipes = tmp_path / "meta-phosphor" / "recipes-phosphor" / "things"
+    recipes.mkdir(parents=True)
+    (recipes / "thing_git.bb").write_text(
+        RECIPE.format(url=url, sha="a" * 40), encoding="utf-8"
+    )
+    assert C.find_pin(tmp_path, "thing") == "a" * 40
+    with pytest.raises(C.CodeError, match="no recipe in this release names test0"):
+        C.find_pin(tmp_path, "test0")
 
 
 # ---------------------------------------------------------------- config
