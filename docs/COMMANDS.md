@@ -367,6 +367,9 @@ temporary files (see above).
   reading commands download the one version they need (the catalog's
   latest, or `--version`) when the Library lacks it, through the same
   chain, and `[library] offline = true` in `config.toml` stops them.
+  The Archive throttles bursts of queries for a while; the tool then says
+  "rate limited by archive.org (HTTP 429)" rather than "no Wayback
+  snapshot", and does not retry on its own. Run the command again later.
 - A response that is not the expected PDF or ZIP (an HTML block page, a
   cut-off download) is discarded and never written to the Library. The same
   leading-bytes check applies to files given to `add` or found by `scan`.
