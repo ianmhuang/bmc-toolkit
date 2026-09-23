@@ -16,7 +16,7 @@ import pytest
 from bmc_toolkit.spec import code as code_mod
 from bmc_toolkit.spec.cli import main
 from tests.conftest import MINI_CATALOG
-from tests.test_code import RECIPE, THING_FILES, commit, git, make_repo, push
+from tests.test_code import RECIPE, RECIPE_URL, THING_FILES, commit, git, make_repo, push
 
 pytestmark = pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
 
@@ -55,7 +55,7 @@ def repo(tmp_path):
 @pytest.fixture
 def release_source(tmp_path, repo):
     """openbmc, tag 1.0.0, whose recipe pins thing at c1."""
-    recipe = RECIPE.format(url=repo["url"].removeprefix("file://"), sha=repo["c1"])
+    recipe = RECIPE.format(url=RECIPE_URL, sha=repo["c1"])
     files = {
         "meta-phosphor/recipes-phosphor/things/thing_git.bb": recipe,
         "README.md": "distro\n",
