@@ -312,7 +312,7 @@ def test_ac7_a_branch_moved_back_makes_its_superseded_tree_current_again(
     assert _tree_dirs(library) == sorted([c2, c3])
     code, out = run(capsys, catalog, "code", "thing", "README.md")
     assert code == 0 and out.startswith(f"cite: code | thing {c2[:7]} | main ")
-    assert "thing 2" in out
+    assert out.splitlines()[1:] == ["1  thing 2"]
     code, out = run(capsys, catalog, "prune")
     assert code == 0, out
     listed = [ln for ln in out.splitlines() if ln.startswith("would remove ")]
@@ -409,7 +409,7 @@ def test_ac7_ac2_a_ref_moved_to_a_superseded_default_tree_of_another_name_revive
     assert _tree_dirs(library) == sorted([c2, cs])
     code, out = run(capsys, third, "code", "thing", "README.md")
     assert code == 0 and out.startswith(f"cite: code | thing {c2[:7]} | main ")
-    assert "thing 2" in out
+    assert out.splitlines()[1:] == ["1  thing 2"]
     code, out = run(capsys, third, "prune")
     assert code == 0, out
     listed = [ln for ln in out.splitlines() if ln.startswith("would remove ")]
@@ -498,7 +498,8 @@ def test_ac7_ac2_reading_after_a_force_lands_on_a_ref_tree_uses_that_tree(
 
     code, out = run(capsys, catalog, "code", "thing", "README.md")
     assert code == 0 and out.startswith(f"cite: code | thing {c2[:7]} | main ")
-    assert "thing 2" in out and "thing 3" not in out
+    # the body lines only: the cite line's short sha can read "thing 3..."
+    assert out.splitlines()[1:] == ["1  thing 2"]
     code, out = run(capsys, catalog, "grep", "thing", "thing 2")
     assert code == 0 and out.startswith(f"thing@{c2[:7]} README.md:1 | thing 2")
     code, out = run(capsys, catalog, "prune")
