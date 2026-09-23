@@ -223,3 +223,55 @@ def test_dsp0266_1_24_1_sits_between_1_24_0_and_1_25_0(shipped):
     assert versions.index("1.24.0") < versions.index("1.24.1")
     assert versions.index("1.24.1") + 1 == versions.index("1.25.0")
     assert shipped.get("DSP0266").find_version("1.24.1").published == "2026-09-14"
+
+
+DCSCM_2_0_URL = (
+    "https://drive.google.com/uc?export=download&id=13BxuseSrKo647hjIXjp087ei8l5QQVb0"
+)
+DCSCM_2_0_VIEWER = (
+    "https://drive.google.com/file/d/13BxuseSrKo647hjIXjp087ei8l5QQVb0/view"
+)
+
+
+def test_dcscm_rev_2_0_is_a_direct_drive_download(shipped):
+    doc = shipped.get("DC-SCM")
+    ver = doc.find_version("Rev 2.0 Ver 1.0")
+    assert (ver.url, ver.type, ver.published) == (DCSCM_2_0_URL, "pdf", "2022-07-27")
+    assert ver.open
+    assert doc.latest().version == "Rev 2.2 Ver 1.0"
+
+
+def test_dcscm_notes_no_longer_send_rev_2_0_to_a_browser(shipped):
+    doc = shipped.get("DC-SCM")
+    ver = doc.find_version("Rev 2.0 Ver 1.0")
+    for notes in (doc.notes, ver.notes):
+        lowered = notes.lower()
+        assert "browser" not in lowered, notes
+        assert "not downloadable" not in lowered, notes
+    assert "direct download" in ver.notes and "Google Drive" in ver.notes
+    assert "DC-SCI" in doc.notes
+
+
+def test_fetch_downloads_dcscm_rev_2_0_directly(library, scripted, capsys):
+    from bmc_toolkit.spec.cli import main
+    from tests.conftest import PDF_BYTES, ok
+
+    scripted.responses[DCSCM_2_0_URL] = ok(PDF_BYTES)
+    code = main(["fetch", "DC-SCM", "--version", "Rev 2.0 Ver 1.0", "--no-extract"])
+    out = capsys.readouterr().out
+    assert code == 0, out
+    assert "fetched DC-SCM Rev 2.0 Ver 1.0 via direct" in out
+    assert scripted.calls == [DCSCM_2_0_URL]
+    assert library.find("DC-SCM", "Rev 2.0 Ver 1.0") is not None
+
+
+def test_refresh_does_not_call_the_wiki_viewer_link_a_change(shipped):
+    from bmc_toolkit.spec import listing as L
+    from bmc_toolkit.spec import refresh as R
+
+    class Wiki:
+        def history(self, listing):
+            return [L.Seen("Rev 2.0 Ver 1.0", DCSCM_2_0_VIEWER, "2022-07-27")]
+
+    got = R.proposals(shipped.get("DC-SCM"), Wiki())
+    assert [p for p in got if p.kind == "changed"] == []
