@@ -515,7 +515,7 @@ title = "Datacenter-ready Secure Control Module (DC-SCM) Specification"
 access = "open"
 fetch = "direct"
 limits = "Tables are images: use page and render; table finds nothing on those pages."
-notes = "Rev 2.0 Ver 1.0 exists only as a Google Drive link on the OCP wiki: fetch prints the browser instruction for it. The DC-SCI pin list is a spreadsheet on the same wiki page, not a document the tool holds."
+notes = "The DC-SCI pin list is a spreadsheet on the same wiki page, not a document the tool holds."
 
 [[documents.versions]]
 version = "Rev 1.0"
@@ -525,10 +525,10 @@ published = "2021-03-26"
 
 [[documents.versions]]
 version = "Rev 2.0 Ver 1.0"
-url = "https://drive.google.com/file/d/13BxuseSrKo647hjIXjp087ei8l5QQVb0/view"
+url = "https://drive.google.com/uc?export=download&id=13BxuseSrKo647hjIXjp087ei8l5QQVb0"
 type = "pdf"
 published = "2022-07-27"
-notes = "Google Drive viewer link from the OCP wiki; not downloadable by the tool, save it from the browser and run scan."
+notes = "The OCP wiki links this version to Google Drive; the URL is that file's direct download."
 
 [[documents.versions]]
 version = "Rev 2.1 Ver 1.1"
