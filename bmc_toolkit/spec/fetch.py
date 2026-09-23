@@ -81,6 +81,8 @@ class RejectedBody(Exception):
 
 def check_body(resp: Response, expected_type: str) -> bytes:
     """Return the body if it is a complete file of the expected type."""
+    if resp.status == 429:
+        raise RejectedBody("HTTP 429 (rate limited; try again later)")
     if resp.status != 200:
         raise RejectedBody(f"HTTP {resp.status}")
     body = resp.body
@@ -98,10 +100,21 @@ def check_body(resp: Response, expected_type: str) -> bytes:
 
 
 def wayback_snapshot(url: str, client: HttpClient) -> str | None:
-    """The Wayback Machine URL serving the archived original bytes, if any."""
+    """The Wayback Machine URL serving the archived original bytes, if any.
+
+    Raises RejectedBody when the availability query itself fails: a throttled
+    or failing query says nothing about whether a snapshot exists.
+    """
     resp = client(WAYBACK_AVAILABLE + urllib.parse.quote(url, safe=":/?=&"))
+    if resp.status == 429:
+        # archive.org throttles bursts of availability queries for a while
+        wait = resp.header("retry-after").strip()
+        wait = f"{wait} s" if wait.isdigit() else "a few minutes"
+        raise RejectedBody(
+            f"rate limited by archive.org (HTTP 429), try again in {wait}"
+        )
     if resp.status != 200:
-        return None
+        raise RejectedBody(f"availability query failed (HTTP {resp.status})")
     try:
         info = json.loads(resp.body.decode("utf-8"))
         closest = info["archived_snapshots"]["closest"]
