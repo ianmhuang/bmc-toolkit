@@ -721,6 +721,21 @@ def test_refresh_write_puts_a_version_above_trailing_comments(tmp_path):
     assert text == _expected(_COMMENTED_HEAD, tail)
 
 
+def test_refresh_write_treats_an_indented_comment_as_a_comment(tmp_path):
+    # Round 1 F1: TOML allows whitespace before a comment.
+    tail = "\n  # next\n\n" + _NEXT_DOCUMENT
+    text = _append_new(tmp_path, _COMMENTED_HEAD + tail)
+    assert text == _expected(_COMMENTED_HEAD, tail)
+
+
+def test_comments_before_a_section_comment_stay_inside_the_span(tmp_path):
+    # Round 1 F2: a section comment ends the span where it stands, as before.
+    inner = "\n# about A1\n"
+    tail = "\n# ---------------- next\n\n" + _NEXT_DOCUMENT
+    text = _append_new(tmp_path, _COMMENTED_HEAD + inner + tail)
+    assert text == _expected(_COMMENTED_HEAD + inner, tail)
+
+
 def test_dsp0134_3_10_0_sits_above_the_redfish_comment():
     """PR #31 wrote DSP0134 3.10.0 under "# redfish"; the fix moved it."""
     lines = DEFAULT_CATALOG.read_text("utf-8").split("\n")

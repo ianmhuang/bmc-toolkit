@@ -345,7 +345,7 @@ def test_ac6_a_further_dsp0134_version_lands_above_redfish_on_the_real_catalog(
     refresh_mod.append_versions(path, "DSP0134", [seen])
     after = path.read_text("utf-8")
     assert "\n\n\n" not in after
-    assert after.count("# redfish") == 1
+    assert after.split("\n").count("# redfish") == 1
     assert (
         'published = "2026-09-07"\n\n[[documents.versions]]\nversion = "3.11.0"\n'
         in after

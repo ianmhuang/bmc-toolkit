@@ -134,7 +134,8 @@ def _document_span(lines: list[str], doc_id: str) -> tuple[int, int]:
     ``[[documents]]`` line to the line before the next block, the next
     section comment, or the end of the file. Comment lines (blank lines
     between them included) that run up to the next block or the end of the
-    file introduce what follows, so the span ends above them."""
+    file introduce what follows, so the span ends above them; a section
+    comment ends the span where it stands."""
     id_re = re.compile(rf'^id\s*=\s*"{re.escape(doc_id)}"\s*$', re.IGNORECASE)
     start = None
     for i, line in enumerate(lines):
@@ -143,12 +144,14 @@ def _document_span(lines: list[str], doc_id: str) -> tuple[int, int]:
         elif id_re.match(line) and start is not None:
             end = len(lines)
             for j in range(i + 1, len(lines)):
-                if _BLOCK_START.match(lines[j]) or _SECTION_COMMENT.match(lines[j]):
+                if _SECTION_COMMENT.match(lines[j]):
+                    return start, j
+                if _BLOCK_START.match(lines[j]):
                     end = j
                     break
             comments = end
             for j in range(end - 1, i, -1):
-                if lines[j].startswith("#"):
+                if lines[j].lstrip().startswith("#"):
                     comments = j
                 elif lines[j].strip():
                     break
