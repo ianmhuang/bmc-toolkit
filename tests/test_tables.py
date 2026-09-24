@@ -539,6 +539,48 @@ def test_a_cells_row_cut_by_the_page_break_is_joined(tmp_path):
         assert lt.row_pages == [1, 1, 1, 2]
 
 
+def test_a_complete_cells_row_with_an_empty_first_cell_stays_a_row(tmp_path):
+    # DSP2053 p.220-221: a property's rows leave the name cell empty after
+    # the first, so a continuation row with every other cell filled is the
+    # next row of the group, not the rest of a cut one.
+    page1 = furniture(1) + [(72, 214, "Table 1 - Codes")]
+    page1 += cell_table(
+        72, 200, WIDTHS, [16] * 3, [HEADER, ROWS_1[0], ["", "05h", "watts"]]
+    )
+    page2 = furniture(2) + cell_table(
+        72, 740, WIDTHS, [16] * 3, [HEADER, ["", "06h", "joules"], ROWS_2[0]]
+    )
+    with reader(tmp_path, [page1, page2]) as r:
+        (lt,) = r.logical_tables(1)
+        assert lt.drawn == T.CELLS
+        assert lt.rows == [
+            HEADER,
+            ROWS_1[0],
+            ["", "05h", "watts"],
+            ["", "06h", "joules"],
+            ROWS_2[0],
+        ]
+        assert lt.row_pages == [1, 1, 1, 2, 2]
+
+
+def test_an_open_ruled_part_still_joins_a_complete_row(tmp_path):
+    # Ruled tables keep their rule: the missing bottom rule says the row
+    # was cut, whatever the continuation row holds.
+    rows1 = [HEADER, ["Processor", "07h", "IERR"]]
+    page1 = furniture(1) + ruled_table(
+        72, 200, WIDTHS, [16, 16], rows1, bottom_rule=False
+    )
+    rows2 = [HEADER, ["", "08h", "Thermal Trip"], ["Power", "09h", "watts"]]
+    page2 = furniture(2) + ruled_table(72, 740, WIDTHS, [16] * 3, rows2)
+    with reader(tmp_path, [page1, page2]) as r:
+        t = r.logical_tables(1)[0]
+    assert t.rows == [
+        HEADER,
+        ["Processor", "07h\n08h", "IERR\nThermal Trip"],
+        ["Power", "09h", "watts"],
+    ]
+
+
 def test_store_keeps_drawn_and_reads_an_old_store_again(tmp_path):
     t = sample_table()
     t.drawn = T.CELLS
@@ -546,10 +588,23 @@ def test_store_keeps_drawn_and_reads_an_old_store_again(tmp_path):
     (got,) = T.stored_for_page(tmp_path, 2)
     assert got.drawn == T.CELLS
     data = json.loads((tmp_path / T.TABLES_NAME).read_text("utf-8"))
-    assert data["tables_version"] == 2
+    assert data["tables_version"] == 3
     assert data["tables"][0]["drawn"] == "cells"
     del data["tables"][0]["drawn"]  # a version 1 entry has no drawn key
     data["tables_version"] = 1
     (tmp_path / T.TABLES_NAME).write_text(json.dumps(data), "utf-8")
     assert T.stored_for_page(tmp_path, 2) is None
     assert T.LogicalTable.from_dict(data["tables"][0]).drawn == T.RULED
+
+
+def test_a_version_2_store_is_read_again(tmp_path):
+    # Version 2 stores may hold cells rows joined across a page break by
+    # the old rule (every continuation row with an empty first cell).
+    T.store(tmp_path, 2, [sample_table()])
+    path = tmp_path / T.TABLES_NAME
+    data = json.loads(path.read_text("utf-8"))
+    assert data["tables_version"] == 3
+    assert T.stored_for_page(tmp_path, 2) is not None
+    data["tables_version"] = 2
+    path.write_text(json.dumps(data), "utf-8")
+    assert T.stored_for_page(tmp_path, 2) is None

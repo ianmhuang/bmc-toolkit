@@ -245,7 +245,7 @@ Questions on the SoC vendors' Code Trees and the upstream kernel docs they are r
 | DSP0248 Table 69 GetPDR command format | `table DSP0248 --page 122` | pages 122-123, the `(continued)` header row dropped |
 | DSP0239 Table 1 MCTP Message Types (cell boxes, no ruling lines) | `table DSP0239 --page 13` | one Logical Table, pages 13-14, 14 rows; the `table:` line says `cells (no ruling lines)` |
 | DSP0274 Table 4 SPDM request codes (cell boxes) | `table DSP0274 --page 39` | pages 39-41, 32 rows, the header repeated on each page dropped |
-| DSP2053 the property guide (one cell-box table over the whole document) | `table DSP2053 --page 220` | a `note:` line, then only the rows that start on page 220; `--all-rows` prints all 4312 (rows the page break cut are joined) |
+| DSP2053 the property guide (one cell-box table over the whole document) | `table DSP2053 --page 220` | a `note:` line, then only the rows that start on page 220; `--all-rows` prints all 4406; PowerDistribution (Actions > PowerControl (Action)) ends page 220 and OutletGroup starts page 221 as rows of their own |
 
 ## Spec versus code
 

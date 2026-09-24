@@ -13,9 +13,11 @@ boxes, rows touching, the outer edges matching from row to row; each box's
 edges become the cell edges, so a merged cell stays one cell. Boxes that
 lie inside a ruled table (its shaded header) are not a second table. A
 cells table has no rule that could show its last row on a page to be
-complete, so a continuation whose first row has an empty first cell is
-taken as the rest of a row the page break cut, as for an open-bottomed
-ruled table.
+complete, and an empty first cell is how it groups rows under one name, so
+a continuation's first row is taken as the rest of a row the page break
+cut only when its first cell and at least one other cell are empty (the
+cells whose text ended before the break); a ruled table joins it when the
+part before it is open-bottomed.
 pdfplumber does the cell geometry and the text inside each cell; it is
 imported inside the functions that open a PDF.
 
@@ -27,7 +29,7 @@ continuation page repeats, with or without "(continued)", is dropped.
 
 ``tables.json`` in the version directory::
 
-    {"tables_version": 2,
+    {"tables_version": 3,
      "pages_done": [N, ...],          pages whose tables are all stored:
                                       the pages asked for and every page
                                       a table found there runs onto
@@ -55,7 +57,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
 
-TABLES_VERSION = 2
+TABLES_VERSION = 3
 TABLES_NAME = "tables.json"
 
 RULED = "ruled"
@@ -628,7 +630,10 @@ class Reader:
         for part in parts[1:]:
             more = drop_repeated_header(rows, part.rows)
             more = drop_repeated_header(rows, more)  # a "(continued)" sub-header too
-            cut = previous.open_bottom or previous.drawn == CELLS
+            if previous.drawn == CELLS:
+                cut = bool(more) and _is_partial_row(more[0])
+            else:
+                cut = previous.open_bottom
             if more and rows and cut and _is_cut_row(more[0]):
                 rows[-1] = join_cells(rows[-1], more[0])
                 more = more[1:]
@@ -691,6 +696,14 @@ def _is_cut_row(row: list[str]) -> bool:
     rest of a row the page break cut; the caller also checks that the part
     before it had no rule under its last row."""
     return bool(row) and not row[0].strip() and any(c.strip() for c in row)
+
+
+def _is_partial_row(row: list[str]) -> bool:
+    """A cells table has no rule to show a row cut, and an empty first cell
+    alone is how it groups rows: a continuation row is the rest of a cut
+    one only when another cell is empty too (the cells whose text ended
+    before the page break)."""
+    return any(not c.strip() for c in row[1:])
 
 
 def join_cells(a: list[str], b: list[str]) -> list[str]:

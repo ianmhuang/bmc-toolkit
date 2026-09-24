@@ -271,8 +271,8 @@ def test_ac2_table_line_names_the_drawing_and_the_store_records_it(
         "table: Table 4 - Boxed | cells (no ruling lines) | page 4 | 3 columns | 2 rows",
     ]
     data = json.loads((held / "tables.json").read_text("utf-8"))
-    assert data["tables_version"] == 2
-    assert T.TABLES_VERSION == 2
+    assert data["tables_version"] == 3
+    assert T.TABLES_VERSION == 3
     drawn = {(t["first"], t["index"]): t["drawn"] for t in data["tables"]}
     assert drawn == {(1, 1): "cells", (4, 1): "ruled", (4, 2): "cells"}
 
@@ -286,7 +286,7 @@ def test_ac2_a_version_1_store_is_read_again(held, catalog_file, capsys):
     assert code == 0, out
     assert "cells (no ruling lines)" in out.splitlines()[1]
     data = json.loads((held / "tables.json").read_text("utf-8"))
-    assert data["tables_version"] == 2
+    assert data["tables_version"] == 3
     assert 1 in data["pages_done"]
     assert len(data["tables"]) == 1
     # and a version 2 store is served without reading the PDF again
