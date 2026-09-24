@@ -214,12 +214,6 @@ def is_current(vdir: Path) -> bool:
     )
 
 
-def remove_schemas(vdir: Path) -> None:
-    target = vdir / SCHEMAS_DIRNAME
-    if target.is_dir():
-        shutil.rmtree(target)
-
-
 # -------------------------------------------------------------- reading
 
 
@@ -556,7 +550,6 @@ __all__ = [
     "property_line",
     "property_lines",
     "read_meta",
-    "remove_schemas",
     "resource_name",
     "select_members",
     "unpack",

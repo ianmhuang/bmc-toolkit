@@ -348,7 +348,7 @@ def test_prune_yes_reports_a_stale_lock_that_vanished_meanwhile(
     stored, catalog_file, library, capsys, monkeypatch
 ):
     # Round 4: a stale lock removed by someone else between the listing and
-    # the removal is reported as kept, not as removed and not as a failure.
+    # the removal is reported as gone, not as removed and not as a failure.
     from bmc_toolkit.spec import cli
 
     stale_age = lock_mod.STALE_SECONDS + 1
@@ -368,10 +368,10 @@ def test_prune_yes_reports_a_stale_lock_that_vanished_meanwhile(
     code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
     assert code == 0, out
     lines = out.splitlines()
-    assert f"kept {stale} (gone meanwhile)" in lines
+    assert f"gone {stale} (released meanwhile)" in lines
     assert not any(ln.startswith("failed") for ln in lines)
     assert lines[-1] == (
-        "prune: 0 superseded tree(s), 1 leftover(s), 0 stale lock(s), 1 kept"
+        "prune: 0 superseded tree(s), 1 leftover(s), 0 stale lock(s), 1 gone"
     )
     assert not (stored / ".lock.takeover").exists()
 
@@ -398,11 +398,11 @@ def test_prune_yes_reports_a_lock_released_inside_the_gate_as_gone(
     monkeypatch.undo()
     assert code == 0, out
     lines = out.splitlines()
-    assert f"kept {stale} (gone meanwhile)" in lines
+    assert f"gone {stale} (released meanwhile)" in lines
     assert not any(ln.startswith("failed") for ln in lines)
     assert not any(ln.startswith("removed") for ln in lines)
     assert lines[-1] == (
-        "prune: 0 superseded tree(s), 0 leftover(s), 0 stale lock(s), 1 kept"
+        "prune: 0 superseded tree(s), 0 leftover(s), 0 stale lock(s), 1 gone"
     )
     assert not stale.exists() and not gate.exists()
     assert (stored / "original.pdf").is_file()
@@ -556,10 +556,12 @@ def test_commands_md_has_the_sharing_section_and_the_disk_names():
     # Round 3 (F3 of round 2): the take-over gate is part of the layout
     assert "`.lock.takeover`" in text
     assert "taken over meanwhile" in text  # what prune --yes prints for a kept lock
-    # Round 5 (F2 of round 4): all three kept reasons prune --yes can print
+    # Round 5 (F2 of round 4): both kept reasons prune --yes can print, and
+    # the gone line for a lock released meanwhile
     assert "take-over in progress" in text
-    assert "gone meanwhile" in text
+    assert "released meanwhile" in text
     assert ", N kept" in text
+    assert ", N gone" in text
 
 
 def test_library_md_names_the_lock_and_the_temp_pattern():

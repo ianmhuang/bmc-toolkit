@@ -181,12 +181,6 @@ def is_current(vdir: Path) -> bool:
     )
 
 
-def remove_registries(vdir: Path) -> None:
-    target = vdir / REGISTRIES_DIRNAME
-    if target.is_dir():
-        shutil.rmtree(target)
-
-
 # -------------------------------------------------------------- reading
 
 
@@ -360,7 +354,6 @@ __all__ = [
     "message_line",
     "prefix_of",
     "read_meta",
-    "remove_registries",
     "select_members",
     "severity_of",
     "unpack",

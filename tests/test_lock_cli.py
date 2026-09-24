@@ -637,6 +637,81 @@ def test_prune_keeps_a_stale_lock_taken_over_while_it_worked(
     assert not path.exists() and not gate.exists()
 
 
+def _race_after_listing(monkeypatch, race):
+    """Run ``race`` once, right after prune lists the locks."""
+    from bmc_toolkit.spec import cli
+
+    real = cli.lock_mod.locks_under
+    calls = []
+
+    def listing_then_race(root):
+        holders = real(root)
+        if not calls:
+            race()
+        calls.append(root)
+        return holders
+
+    monkeypatch.setattr(cli.lock_mod, "locks_under", listing_then_race)
+
+
+def test_prune_reports_a_stale_lock_released_meanwhile_as_gone(
+    stored, catalog_file, monkeypatch, capsys
+):
+    path = fake_lock(stored, command="extract DSP0236 1.3.3")
+    backdate(path, lock_mod.STALE_SECONDS + 1)
+    _race_after_listing(monkeypatch, path.unlink)  # its holder releases it
+    code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert f"gone {path} (released meanwhile)" in lines
+    assert not any(ln.startswith(("kept", "removed", "failed")) for ln in lines)
+    assert (
+        lines[-1]
+        == "prune: 0 superseded tree(s), 0 leftover(s), 0 stale lock(s), 1 gone"
+    )
+
+
+def test_prune_counts_kept_and_gone_locks_apart(
+    stored, catalog_file, monkeypatch, capsys
+):
+    taken = fake_lock(stored, command="extract DSP0236 1.3.3")
+    released = fake_lock(stored.parent / "1.3.2", command="extract DSP0236 1.3.2")
+    for path in (taken, released):
+        backdate(path, lock_mod.STALE_SECONDS + 1)
+
+    def race():
+        os.utime(taken, None)
+        released.unlink()
+
+    _race_after_listing(monkeypatch, race)
+    code, out = run(capsys, "prune", "--yes", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert f"kept {taken} (taken over meanwhile)" in lines
+    assert f"gone {released} (released meanwhile)" in lines
+    assert (
+        lines[-1] == "prune: 0 superseded tree(s), 0 leftover(s), 0 stale lock(s), "
+        "1 kept, 1 gone"
+    )
+    assert taken.exists()
+
+
+def test_prune_dry_run_lists_a_lock_released_meanwhile_as_before(
+    stored, catalog_file, monkeypatch, capsys
+):
+    path = fake_lock(stored, command="extract DSP0236 1.3.3")
+    backdate(path, lock_mod.STALE_SECONDS + 1)
+    _race_after_listing(monkeypatch, path.unlink)
+    code, out = run(capsys, "prune", catalog_file=catalog_file)
+    assert code == 0, out
+    lines = out.splitlines()
+    assert any(ln.startswith(f"would remove {path} (stale lock, ") for ln in lines)
+    assert lines[-1] == (
+        "prune: 0 superseded tree(s), 0 leftover(s), 1 stale lock(s)"
+        " (dry run; --yes removes them)"
+    )
+
+
 def test_prune_skips_leftovers_in_a_live_locked_version(stored, catalog_file, capsys):
     part = stored / "original.pdf.1-2.part"
     part.write_bytes(b"x")

@@ -249,8 +249,6 @@ def test_stale_or_foreign_meta_is_not_current(tmp_path):
     assert not B.is_current(tmp_path)
     meta_path.write_text('{"extractor_version": 3}', encoding="utf-8")
     assert B.read_meta(tmp_path) is None  # a PDF extract's meta
-    B.remove_schemas(tmp_path)
-    assert not (tmp_path / "schemas").exists()
 
 
 # --------------------------------------------------------------- reading
