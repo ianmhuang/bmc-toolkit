@@ -68,8 +68,8 @@ def test_ac3_macos_is_a_matrix_entry_not_a_push_only_job():
 
 def test_ac4_the_job_runs_the_same_steps_in_order():
     job = _job("test")
-    assert "uses: actions/checkout@v4" in job
-    assert "uses: actions/setup-python@v5" in job
+    assert "uses: actions/checkout@v7" in job
+    assert "uses: actions/setup-python@v7" in job
     positions = [job.index(f"- run: {step}") for step in STEPS]
     assert positions == sorted(positions)
 
