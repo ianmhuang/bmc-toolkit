@@ -236,7 +236,7 @@ def test_store_file_has_the_documented_shape(held, catalog_file, capsys):
     code, out = run(capsys, "table", "DSP0236", "--page", "2", catalog_file=catalog_file)
     assert code == 0, out
     data = json.loads((held / "tables.json").read_text("utf-8"))
-    assert data["tables_version"] == 2
+    assert data["tables_version"] == 3
     assert 2 in data["pages_done"]
     (entry,) = [t for t in data["tables"] if t["first"] == 2]
     assert entry["last"] == 3
