@@ -11,7 +11,7 @@ import pytest
 from bmc_toolkit.spec import freshness as F
 from bmc_toolkit.spec import listing as L
 from bmc_toolkit.spec import refresh as R
-from bmc_toolkit.spec.catalog import load_catalog, parse_catalog
+from bmc_toolkit.spec.catalog import DEFAULT_CATALOG, load_catalog, parse_catalog
 from bmc_toolkit.spec.cli import main
 from bmc_toolkit.spec.fetch import Response
 from tests.conftest import MINI_CATALOG, PDF_BYTES, ok
@@ -636,3 +636,115 @@ def test_a_listing_link_differing_only_in_scheme_is_not_changed():
     doc = _dsp0266(_BASE + "DSP0266_1.20.2_0.pdf")
     seen = [L.Seen("1.20.2", _TWICE[0].url.replace("https://", "http://"))]
     assert R.proposals(doc, _History(seen)) == []
+
+
+# ---------------------------------------- comments that introduce a block
+
+_COMMENTED_HEAD = """schema_version = 1
+
+[families.a]
+title = "A"
+publisher = "P"
+
+[[documents]]
+id = "A1"
+family = "a"
+title = "A one"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://example.test/A1_1.0.0.pdf"
+type = "pdf"
+published = "2024-01-02"
+"""
+
+_NEXT_DOCUMENT = """[[documents]]
+id = "A2"
+family = "a"
+title = "A two"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://example.test/A2_1.0.0.pdf"
+type = "pdf"
+published = "2024-01-02"
+"""
+
+_NEW = L.Seen("2.0.0", "https://example.test/A1_2.0.0.pdf", "2026-09-07")
+
+
+def _append_new(tmp_path, text):
+    path = tmp_path / "catalog.toml"
+    path.write_text(text, encoding="utf-8", newline="")
+    R.append_versions(path, "A1", [_NEW])
+    return path.read_text("utf-8")
+
+
+def _expected(before, after):
+    return before + "\n" + R.version_block(_NEW) + after
+
+
+def test_refresh_write_puts_a_version_above_a_comment_line(tmp_path):
+    # PR #31: DSP0134 3.10.0 landed under the "# redfish" line that
+    # introduces the next document.
+    tail = "\n# next\n\n" + _NEXT_DOCUMENT
+    text = _append_new(tmp_path, _COMMENTED_HEAD + tail)
+    assert text == _expected(_COMMENTED_HEAD, tail)
+
+
+def test_refresh_write_keeps_a_comment_run_whole(tmp_path):
+    tail = "\n# first line\n# second line\n\n# after a blank line\n\n" + _NEXT_DOCUMENT
+    text = _append_new(tmp_path, _COMMENTED_HEAD + tail)
+    assert text == _expected(_COMMENTED_HEAD, tail)
+
+
+def test_a_comment_before_a_version_block_stays_inside_the_document(tmp_path):
+    inner = (
+        "\n# 1.1.0 confirmed by hand\n\n[[documents.versions]]\n"
+        'version = "1.1.0"\nurl = "https://example.test/A1_1.1.0.pdf"\n'
+        'type = "pdf"\npublished = "2025-01-02"\n'
+    )
+    tail = "\n# next\n\n" + _NEXT_DOCUMENT
+    text = _append_new(tmp_path, _COMMENTED_HEAD + inner + tail)
+    assert text == _expected(_COMMENTED_HEAD + inner, tail)
+    lines = text.split("\n")
+    assert R._document_span(lines, "A1")[1] == lines.index("# next")
+
+
+def test_refresh_write_puts_a_version_above_trailing_comments(tmp_path):
+    tail = "\n# about the file's last lines\n# (a second line)\n"
+    text = _append_new(tmp_path, _COMMENTED_HEAD + tail)
+    assert text == _expected(_COMMENTED_HEAD, tail)
+
+
+def test_refresh_write_treats_an_indented_comment_as_a_comment(tmp_path):
+    # Round 1 F1: TOML allows whitespace before a comment.
+    tail = "\n  # next\n\n" + _NEXT_DOCUMENT
+    text = _append_new(tmp_path, _COMMENTED_HEAD + tail)
+    assert text == _expected(_COMMENTED_HEAD, tail)
+
+
+def test_comments_before_a_section_comment_stay_inside_the_span(tmp_path):
+    # Round 1 F2: a section comment ends the span where it stands, as before.
+    inner = "\n# about A1\n"
+    tail = "\n# ---------------- next\n\n" + _NEXT_DOCUMENT
+    text = _append_new(tmp_path, _COMMENTED_HEAD + inner + tail)
+    assert text == _expected(_COMMENTED_HEAD + inner, tail)
+
+
+def test_dsp0134_3_10_0_sits_above_the_redfish_comment():
+    """PR #31 wrote DSP0134 3.10.0 under "# redfish"; the fix moved it."""
+    lines = DEFAULT_CATALOG.read_text("utf-8").split("\n")
+    redfish = lines.index("# redfish")
+    assert lines[redfish + 2] == "[[documents]]"
+    url = lines.index(
+        'url = "https://www.dmtf.org/sites/default/files/standards/documents/'
+        'DSP0134_3.10.0.pdf"'
+    )
+    assert lines[url - 2] == "[[documents.versions]]"
+    assert url < redfish
+    assert R._document_span(lines, "DSP0134")[1] <= redfish

@@ -2231,13 +2231,13 @@ url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.9.
 type = "pdf"
 published = "2025-08-19"
 
-# redfish
-
 [[documents.versions]]
 version = "3.10.0"
 url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.10.0.pdf"
 type = "pdf"
 published = "2026-09-07"
+
+# redfish
 
 [[documents]]
 id = "DSP0266"
