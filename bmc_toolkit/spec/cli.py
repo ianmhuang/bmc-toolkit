@@ -1741,6 +1741,7 @@ def cmd_prune(args: argparse.Namespace) -> int:
         failed += _prune_path(path, f"{verb} {path} (leftover)", args.yes)
     removed = 0
     kept = 0
+    gone = 0
     for holder in stale:
         line = f"{verb} {holder.path} (stale lock, {holder.describe()})"
         if not args.yes:
@@ -1755,10 +1756,13 @@ def cmd_prune(args: argparse.Namespace) -> int:
         elif outcome == "stuck":
             print(f"failed {holder.path}: another process has it open")
             failed += 1
+        elif outcome == "gone":
+            # Its holder released it: nothing is left to remove or to keep.
+            print(f"gone {holder.path} (released meanwhile)")
+            gone += 1
         else:
             why = {
                 "fresh": "taken over meanwhile",
-                "gone": "gone meanwhile",
                 "busy": "take-over in progress",
             }[outcome]
             print(f"kept {holder.path} ({why})")
@@ -1766,9 +1770,10 @@ def cmd_prune(args: argparse.Namespace) -> int:
     tail = "" if args.yes else " (dry run; --yes removes them)"
     counted = removed if args.yes else len(stale)
     kept_tail = f", {kept} kept" if kept else ""
+    gone_tail = f", {gone} gone" if gone else ""
     print(
         f"prune: {len(doomed)} superseded tree(s), {len(leftovers)} leftover(s), "
-        f"{counted} stale lock(s){kept_tail}{tail}"
+        f"{counted} stale lock(s){kept_tail}{gone_tail}{tail}"
     )
     return EXIT_ERROR if failed else EXIT_OK
 
