@@ -268,6 +268,35 @@ def test_ac5_existing_span_shape_for_a_separator_and_the_last_document():
     assert refresh_mod._document_span(lines, "B") == (10, len(lines))
 
 
+# ------------------------------------------------------------ round 2
+
+
+def test_ac5_comments_right_above_a_separator_stay_inside_the_document(tmp_path):
+    # round 1 F2: the separator ends the span where it stands, so a comment
+    # run directly above it is part of the document, as on develop
+    inner = "\n# about ONE\n\n# a second note on ONE\n"
+    separator = "# ---------------------------------------------------------------- next\n"
+    tail = "\n" + separator + "\n" + TWO
+    after = write(tmp_path, HEAD + inner + tail)
+    assert after == HEAD + inner + "\n" + NEWEST_BLOCK + tail
+    lines = after.split("\n")
+    assert refresh_mod._document_span(lines, "ONE")[1] == lines.index(separator[:-1])
+
+
+def test_ac1_an_indented_comment_line_is_a_comment(tmp_path):
+    # round 1 F1: TOML allows whitespace before '#'
+    tail = "\n    # two\n\t# also two\n\n" + TWO
+    after = write(tmp_path, HEAD + tail)
+    assert after == HEAD + "\n" + NEWEST_BLOCK + tail
+    assert versions(tmp_path / "catalog.toml", "ONE") == ["1.0", "2.0"]
+
+
+def test_ac2_an_indented_comment_inside_a_run_does_not_split_it(tmp_path):
+    tail = "\n# two\n\n  # (indented) more on two\n\n# last\n\n" + TWO
+    after = write(tmp_path, HEAD + tail)
+    assert after == HEAD + "\n" + NEWEST_BLOCK + tail
+
+
 # ---------------------------------------------------------------- edges
 
 
