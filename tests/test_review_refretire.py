@@ -401,14 +401,15 @@ def test_ac7_ac2_a_ref_moved_to_a_superseded_default_tree_of_another_name_revive
     code, out = run(capsys, third, "clone", "thing")
     assert code == 0, out
     lines = out.splitlines()
-    assert lines[0].startswith(f"held thing {c2[:7]} (main ")
+    # the revived tree takes the name the clone resolved (S4 AC-6)
+    assert lines[0].startswith(f"held thing {c2[:7]} (trunk ")
     assert lines[1].startswith(f"superseded thing {cs[:7]} (sdk ")
     assert len(lines) == 2, out
     assert "superseded_by" not in _meta(library, c2)
     assert _meta(library, cs)["superseded_by"] == c2
     assert _tree_dirs(library) == sorted([c2, cs])
     code, out = run(capsys, third, "code", "thing", "README.md")
-    assert code == 0 and out.startswith(f"cite: code | thing {c2[:7]} | main ")
+    assert code == 0 and out.startswith(f"cite: code | thing {c2[:7]} | trunk ")
     assert out.splitlines()[1:] == ["1  thing 2"]
     code, out = run(capsys, third, "prune")
     assert code == 0, out
@@ -419,15 +420,17 @@ def test_ac7_ac2_a_ref_moved_to_a_superseded_default_tree_of_another_name_revive
     assert _tree_dir(library, c2).is_dir()
     assert not _tree_dir(library, cs).exists()
     code, out = run(capsys, third, "code", "thing", "README.md")
-    assert code == 0 and out.startswith(f"cite: code | thing {c2[:7]} | main ")
+    assert code == 0 and out.startswith(f"cite: code | thing {c2[:7]} | trunk ")
 
 
-def test_ac8_ac6_a_plain_clone_answered_by_a_ref_tree_retires_no_default_tree(
+def test_ac8_ac6_a_ref_force_retires_the_default_tree_of_its_branch(
     library, repo, capsys, tmp_path, monkeypatch
 ):
     # catalog ref sdk held as a default tree; `--ref sdk --force` fetches a
-    # newer sdk as a ref tree; the next plain clone is answered by that ref
-    # tree, without git, and marks nothing: the default tree stays current
+    # newer sdk as a ref tree, which supersedes the default tree of the same
+    # branch (S4 AC-1: this used to leave it current, and prune never listed
+    # it); the next plain clone is answered by that ref tree, without git,
+    # and marks nothing more
     work, cs = repo["work"], repo["cs"]
     catalog = _catalog(tmp_path, repo, ref="sdk")
     code, out = run(capsys, catalog, "clone", "thing")
@@ -437,23 +440,26 @@ def test_ac8_ac6_a_plain_clone_answered_by_a_ref_tree_retires_no_default_tree(
     push(work, "sdk")
     git("checkout", "-q", "main", cwd=work)
     code, out = run(capsys, catalog, "clone", "thing", "--ref", "sdk", "--force")
-    assert code == 0 and out.startswith(f"cloned thing {cs2[:7]} (sdk ")
-    assert "superseded" not in out
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith(f"cloned thing {cs2[:7]} (sdk ")
+    assert lines[1].startswith(f"superseded thing {cs[:7]} (sdk ")
+    assert len(lines) == 2, out
     assert _meta(library, cs2)["provenance"] == {"kind": "ref", "name": "sdk"}
+    assert _meta(library, cs)["superseded_by"] == cs2
 
     with monkeypatch.context() as m:
         m.setattr(code_mod, "run_git", _refuse)
         code, out = run(capsys, catalog, "clone", "thing")
     assert code == 0, out
     assert out.startswith(f"held thing {cs2[:7]} (sdk ")
-    assert len(out.splitlines()) == 1 and "superseded" not in out
-    assert "superseded_by" not in _meta(library, cs)
+    assert len(out.splitlines()) == 1, out
     assert "superseded_by" not in _meta(library, cs2)
     assert _tree_dirs(library) == sorted([cs, cs2])
     code, out = run(capsys, catalog, "prune")
-    assert code == 0 and out.startswith("nothing to prune")
-    code, out = run(capsys, catalog, "repos", "--topic", "power")
-    assert code == 0 and out.startswith("thing\t") and "superseded" not in out
+    assert code == 0, out
+    listed = [ln for ln in out.splitlines() if ln.startswith("would remove ")]
+    assert len(listed) == 1 and str(_tree_dir(library, cs)) in listed[0]
 
 
 # ------------------------------------------------------------ round 3
@@ -480,8 +486,13 @@ def test_ac7_ac2_reading_after_a_force_lands_on_a_ref_tree_uses_that_tree(
     c3 = commit(work, {"README.md": "thing 3\n"}, "third")
     push(work)
     code, out = run(capsys, catalog, "clone", "thing")
-    assert code == 0 and out.startswith(f"cloned thing {c3[:7]} (main ")
-    assert "superseded" not in out
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith(f"cloned thing {c3[:7]} (main ")
+    # the --ref main tree is the same branch (S4 AC-1): superseded, until
+    # main moves back to it below
+    assert lines[1].startswith(f"superseded thing {c2[:7]} (main ")
+    assert len(lines) == 2, out
     assert _meta(library, c3)["provenance"] == {"kind": "default", "name": "main"}
 
     git("reset", "-q", "--hard", c2, cwd=work)
@@ -546,6 +557,9 @@ def test_ac4_ac8_two_trees_of_one_second_answer_with_the_newer_one(
     meta_path = _tree_dir(library, cs) / code_mod.TREE_META
     meta = json.loads(meta_path.read_text("utf-8"))
     meta["fetched_at"] = same_second
+    # `--ref sdk --force` now supersedes the default sdk tree (S4 AC-1); an
+    # earlier version left both current, which is the state this test needs
+    assert meta.pop("superseded_by") == cs2
     text = json.dumps(meta, sort_keys=True)
     meta_path.write_text(text, encoding="utf-8", newline="")
 
@@ -553,12 +567,15 @@ def test_ac4_ac8_two_trees_of_one_second_answer_with_the_newer_one(
         m.setattr(code_mod, "run_git", _refuse)
         code, out = run(capsys, catalog, "clone", "thing")
     assert code == 0, out
-    assert out.startswith(f"held thing {cs2[:7]} (sdk {newer[:10]})")
-    assert len(out.splitlines()) == 1 and "superseded" not in out
-    assert "superseded_by" not in _meta(library, cs)
+    lines = out.splitlines()
+    assert lines[0].startswith(f"held thing {cs2[:7]} (sdk {newer[:10]})")
+    # the older tree of the branch is retired by the held clone (S4 AC-2)
+    assert lines[1].startswith(f"superseded thing {cs[:7]} (sdk ")
+    assert len(lines) == 2, out
+    assert _meta(library, cs)["superseded_by"] == cs2
     assert "superseded_by" not in _meta(library, cs2)
     code, out = run(capsys, catalog, "repos", "--topic", "power")
     assert code == 0, out
-    held = out.splitlines()[0].split("\t")[1]
-    assert held.startswith(f"{cs2[:7]} sdk {newer[:10]}")
-    assert "superseded" not in held
+    held = out.splitlines()[0].split("\t")[1].split("; ")
+    assert held[0].startswith(f"{cs2[:7]} sdk {newer[:10]}")
+    assert "superseded" not in held[0]

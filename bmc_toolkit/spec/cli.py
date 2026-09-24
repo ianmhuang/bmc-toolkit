@@ -1655,13 +1655,16 @@ def cmd_clone(args: argparse.Namespace) -> int:
             print(f"release: {release} (from config.toml)")
     if release and repo.id.lower() == code_mod.OPENBMC_REPO:
         args.ref, release = release, None  # the release source: the tag or branch
-    current = {t.commit for t in library.trees(repo.id) if not t.superseded}
+    # the trees current when this clone starts: taken inside the lock, so a
+    # tree another clone superseded while this one waited is not reported
+    current: set[str] = set()
     try:
         if release:
             source = _openbmc_tree(args, catalog, library, release, args.force)
             pin, recipe = code_mod.find_pin_recipe(source.path, repo.id)
             prov = code_mod.Provenance("release", release, source.commit)
             with _clone_lock(args, library, repo.id, f"release {release}"):
+                current = _current_commits(library, repo.id)
                 tree, fetched = library.clone(
                     repo.id,
                     repo.url,
@@ -1674,6 +1677,7 @@ def cmd_clone(args: argparse.Namespace) -> int:
         elif args.ref:
             prov = code_mod.Provenance("ref", args.ref)
             with _clone_lock(args, library, repo.id, args.ref):
+                current = _current_commits(library, repo.id)
                 tree, fetched = library.clone(
                     repo.id,
                     repo.url,
@@ -1688,6 +1692,7 @@ def cmd_clone(args: argparse.Namespace) -> int:
             # remote's default branch (a default the platform cannot check out)
             prov = code_mod.Provenance("default", repo.ref)
             with _clone_lock(args, library, repo.id, "default branch"):
+                current = _current_commits(library, repo.id)
                 tree, fetched = library.clone(
                     repo.id,
                     repo.url,
@@ -1714,6 +1719,10 @@ def cmd_clone(args: argparse.Namespace) -> int:
     if release:
         print(f"pin: {tree.short} from {recipe} of openbmc {source.short}")
     return EXIT_OK
+
+
+def _current_commits(library: code_mod.CodeLibrary, repo: str) -> set[str]:
+    return {t.commit for t in library.trees(repo) if not t.superseded}
 
 
 def _clone_lock(args, library: code_mod.CodeLibrary, repo: str, what: str):
@@ -1906,12 +1915,16 @@ def _select_tree(args, catalog, library, config, repo):
         named = [
             t
             for t in trees
-            if t.provenance.kind in ("ref", "default") and t.provenance.name == repo.ref
+            if (
+                t.provenance.kind in ("ref", "default")
+                and t.provenance.name == repo.ref
+            )
+            or t.default_branch == repo.ref
         ]
         named.sort(key=lambda t: t.superseded)
         if named:
             return named[0], notes
-    current = [t for t in trees if t.provenance.kind == "default" and not t.superseded]
+    current = [t for t in trees if t.is_default and not t.superseded]
     if current:
         return current[0], notes
     if trees:  # no current default tree: the newest tree prune keeps

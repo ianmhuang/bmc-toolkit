@@ -224,17 +224,25 @@ SDK branch or tag` and exits 2, and the `config.toml` default Release is
 not used for it (`note: <repo> has no Release; config.toml release L not
 used`). A catalog entry's `ref` stands in for the remote's default branch
 when no flag is given (`nuvoton-linux`); a tree held from `--ref` at that
-branch answers a plain `clone` without the network, and the reverse. Several
+branch and a default-branch tree of it are one branch: either answers the
+other without the network. Several
 commits of one repository coexist; `--force` on a moving name fetches again
-and marks the older tree superseded rather than deleting it. A plain `clone`
-leaves one current default-branch tree: every other default-branch tree
-(fetched under an earlier catalog `ref`, or under the remote's old default
-branch name) is marked superseded too, and `clone` prints a `superseded`
-line for each tree it marks. Trees held under `--ref` or `--release` stay,
-and a plain `clone` that finds its branch held under `--ref` marks nothing.
-When a fetch lands on a commit held in a superseded tree of the same name
-(the branch moved back), or for a plain `clone` in a superseded
-default-branch tree of any name, that tree is current again. `grep` (`git grep`) and `code` read a
+and marks the older tree of that branch superseded (whether it was held
+under `--ref` or as the default branch) rather than deleting it. A plain
+`clone` leaves one current default-branch tree: every other default-branch
+tree (fetched under an earlier catalog `ref`, or under the remote's old
+default branch name) is marked superseded too, and `clone` prints a
+`superseded` line for each tree it marks; a held one also marks an older
+current tree of its own branch. Trees held under `--release` or under
+`--ref` of another branch stay. When a fetch lands on a commit held in a
+superseded tree of the same name (the branch moved back), that tree is
+current again. When a plain `clone` lands on a commit held already, that
+tree becomes the default-branch tree under the branch name the remote uses
+now: a default-branch tree takes that name, a superseded tree of another
+branch becomes a default-branch tree, and a current `--ref` or `--release`
+tree keeps its provenance and records `"default_branch": "<name>"` in its
+`.bmc-tree.json`, so the next plain `clone` answers from it without the
+network (a later plain `clone` that resolves elsewhere removes the field). `grep` (`git grep`) and `code` read a
 tree: a user checkout named in `config.toml` first, then the `--ref` or
 `--release` asked for, then the `config.toml` default Release, then a
 held tree of the branch the catalog `ref` names (a superseded one still
