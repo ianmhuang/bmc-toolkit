@@ -582,3 +582,43 @@ def test_ac7_a_tree_superseded_while_waiting_for_the_lock_is_not_reported(
     assert len(out.splitlines()) == 1, out
     assert _meta(library, c2)["superseded_by"] == other
     assert "superseded_by" not in _meta(library, c3)
+
+
+# ------------------------------------------------------------ round 2
+
+
+def test_ac4_ac1_a_marked_ref_tree_retires_the_ref_tree_of_the_marked_branch(
+    library, repo, capsys, tmp_path
+):
+    # Round 1 F3, the marking half: main is held under --ref at c2 and rel
+    # under --ref at c1; main moves back to c1. The plain --force lands on
+    # the rel tree and marks it main (AC-4), so that tree is now main's
+    # current tree and the --ref main tree at c2 is the older tree of the
+    # same branch (AC-1): superseded, reported, listed by prune. Round 2
+    # supersedes trees of the landed tree's own branch (rel) only, so the
+    # --ref main tree stays current and prune never lists it. Expected to
+    # fail on the base branch and on this branch until that is fixed.
+    work, c1, c2 = repo["work"], repo["c1"], repo["c2"]
+    catalog = _catalog(tmp_path, repo)
+    code, out = run(capsys, catalog, "clone", "thing", "--ref", "main")
+    assert code == 0 and out.startswith(f"cloned thing {c2[:7]} (main ")
+    code, out = run(capsys, catalog, "clone", "thing", "--ref", "rel")
+    assert code == 0 and out.startswith(f"cloned thing {c1[:7]} (rel ")
+
+    _reset_main(work, c1)
+    code, out = run(capsys, catalog, "clone", "thing", "--force")
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith(f"held thing {c1[:7]} (rel "), out
+    assert lines[1].startswith(f"superseded thing {c2[:7]} (main "), out
+    assert len(lines) == 2, out
+    meta = _meta(library, c1)
+    assert meta["provenance"] == {"kind": "ref", "name": "rel"}
+    assert meta["default_branch"] == "main"
+    assert _meta(library, c2)["superseded_by"] == c1
+    code, out = run(capsys, catalog, "prune")
+    assert code == 0, out
+    listed = _would_remove(out, library)
+    assert len(listed) == 1 and str(_tree_dir(library, c2)) in listed[0]
+    code, out = run(capsys, catalog, "code", "thing", "README.md")
+    assert code == 0 and out.startswith(f"cite: code | thing {c1[:7]} | rel ")

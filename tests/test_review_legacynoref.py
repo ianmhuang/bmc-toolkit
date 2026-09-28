@@ -1,12 +1,22 @@
-"""AC-2 for a repository without a catalog ``ref``: the branch is the
-remote's default, and the Library holds two current trees of it that an
-earlier version left (the default tree, and a newer ``--ref main --force``
-tree). A plain clone must be answered by the newer tree and mark the older
-one. As of the branch under review it is answered by the older tree and
-marks the newer one, which ``prune`` then removes (finding F1): this test
-is expected to fail on the base branch (no ``superseded`` line) and on
-this branch (the wrong tree is held) until F1 is fixed. Skipped when git
-is not on PATH."""
+"""AC-1 and AC-2 for a repository without a catalog ``ref``: the branch is
+the remote's default, so a plain clone carries no branch name and the
+Library has to find the branch's newest tree on its own.
+
+The first test is AC-2 on a Library an earlier version left (round 1 F1,
+fixed in round 2): the default tree and a newer ``--ref main --force``
+tree both current; a plain clone must be answered by the newer tree,
+without git, and mark the older one.
+
+The second test is the state this change itself creates through AC-1's
+reverse direction: ``--ref main --force`` supersedes the default main
+tree, after which the branch's only current tree is the ``--ref`` one.
+The next plain clone must be answered by it without the network, as the
+held path already arranges for the legacy state above (``_take_newest``
+hands the default-branch role to the newest tree). As of round 2 it
+instead runs ``git clone`` and throws the result away, which the base
+branch did not do (there the stale default tree answered). This test is
+expected to fail on the base branch (the older tree answers) and on this
+branch (git runs) until that is fixed. Skipped when git is not on PATH."""
 
 import json
 import shutil
@@ -108,3 +118,52 @@ def test_ac2_a_held_plain_clone_of_the_remote_default_keeps_the_newer_tree(
     listed = [ln for ln in out.splitlines() if ln.startswith("would remove ")]
     assert len(listed) == 1 and str(_tree_dir(library, c2)) in listed[0]
     assert str(_tree_dir(library, c3)) not in out
+
+    # the newer tree now answers reading commands too, without git
+    with monkeypatch.context() as m:
+        m.setattr(code_mod, "run_git", _refuse)
+        code, out = run(capsys, catalog, "clone", "thing")
+    assert code == 0 and out.startswith(f"held thing {c3[:7]} (main "), out
+    assert len(out.splitlines()) == 1, out
+    code, out = run(capsys, catalog, "code", "thing", "README.md")
+    assert code == 0 and out.startswith(f"cite: code | thing {c3[:7]} | main "), out
+    assert out.splitlines()[1:] == ["1  thing 3"]
+
+
+def test_ac1_a_plain_clone_after_a_ref_force_of_the_remote_default_needs_no_git(
+    library, repo, capsys, tmp_path, monkeypatch
+):
+    # AC-1 reverse: `--ref main --force` supersedes the default main tree.
+    # The branch's newest tree is then held under --ref, so the next plain
+    # clone must be answered by it without the network (the same handover
+    # the held path does for a legacy Library above). Round 2 runs git
+    # clone here and discards the result.
+    work, c2 = repo["work"], repo["c2"]
+    catalog = _catalog(tmp_path, repo)
+    code, out = run(capsys, catalog, "clone", "thing")
+    assert code == 0 and out.startswith(f"cloned thing {c2[:7]} (main ")
+    c3 = commit(work, {"README.md": "thing 3\n"}, "third")
+    push(work)
+    code, out = run(capsys, catalog, "clone", "thing", "--ref", "main", "--force")
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith(f"cloned thing {c3[:7]} (main ")
+    assert lines[1].startswith(f"superseded thing {c2[:7]} (main ")
+    assert len(lines) == 2, out
+    assert _meta(library, c2)["superseded_by"] == c3
+    assert _meta(library, c3)["provenance"] == {"kind": "ref", "name": "main"}
+
+    with monkeypatch.context() as m:
+        m.setattr(code_mod, "run_git", _refuse)
+        code, out = run(capsys, catalog, "clone", "thing")
+    assert code == 0, out
+    assert out.startswith(f"held thing {c3[:7]} (main "), out
+    assert len(out.splitlines()) == 1, out
+    assert "superseded_by" not in _meta(library, c3)
+    code, out = run(capsys, catalog, "code", "thing", "README.md")
+    assert code == 0 and out.startswith(f"cite: code | thing {c3[:7]} | main "), out
+    assert out.splitlines()[1:] == ["1  thing 3"]
+    code, out = run(capsys, catalog, "prune")
+    assert code == 0, out
+    listed = [ln for ln in out.splitlines() if ln.startswith("would remove ")]
+    assert len(listed) == 1 and str(_tree_dir(library, c2)) in listed[0]
