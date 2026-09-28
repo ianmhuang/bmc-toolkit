@@ -414,7 +414,10 @@ class CodeLibrary:
             return
         tree.superseded_by = None
         self.write_tree(tree)
-        self._supersede(tree)
+        # a marked tree is also the current tree of the branch it marks
+        self._supersede(
+            tree, Provenance("default", provenance.name) if default else None
+        )
 
     def newest_of_branch(self, tree: Tree) -> Tree:
         """The newest current tree of the tree's branch (the tree itself
@@ -461,21 +464,25 @@ class CodeLibrary:
                 return t
         return None
 
-    def _supersede(self, new: Tree) -> None:
-        """Older trees of the same branch or release point at the new one. A
-        tree the default branch resolved to stays, as a default tree, unless
-        that branch is the one that moved: then the new tree takes the mark."""
+    def _supersede(self, new: Tree, branch: Provenance | None = None) -> None:
+        """Older trees of the same branch or release point at the new one,
+        and so do those of ``branch`` (the branch a landed tree was just
+        marked with). A tree the default branch resolved to stays, as a
+        default tree, unless that branch is the one that moved: then the new
+        tree takes over the default-branch role."""
         for old in self.trees(new.repo):
             if old.commit == new.commit or old.superseded_by:
                 continue
-            if not _one_branch(old.provenance, new.provenance):
+            if not _one_branch(old.provenance, new.provenance) and not (
+                branch is not None and _one_branch(old.provenance, branch)
+            ):
                 continue
             if old.default_branch and old.default_branch != new.provenance.name:
                 old.provenance = Provenance("default", old.default_branch)
                 old.default_branch = None
             else:
-                if old.default_branch and not new.is_default:
-                    new.default_branch = old.default_branch
+                if old.is_default and not new.is_default:
+                    new.default_branch = old.default_branch or old.provenance.name
                     self.write_tree(new)
                 old.default_branch = None  # a superseded tree is never marked
                 old.superseded_by = new.commit

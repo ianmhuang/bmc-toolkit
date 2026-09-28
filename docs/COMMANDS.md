@@ -242,7 +242,9 @@ now: a default-branch tree takes that name, a superseded tree of another
 branch becomes a default-branch tree, and a current `--ref` or `--release`
 tree keeps its provenance and records `"default_branch": "<name>"` in its
 `.bmc-tree.json`, so the next plain `clone` answers from it without the
-network (a later plain `clone` that resolves elsewhere removes the field). `grep` (`git grep`) and `code` read a
+network (a later plain `clone` that resolves elsewhere removes the field).
+A `--ref` tree that supersedes the default-branch tree of its branch takes
+the field the same way. `grep` (`git grep`) and `code` read a
 tree: a user checkout named in `config.toml` first, then the `--ref` or
 `--release` asked for, then the `config.toml` default Release, then a
 held tree of the branch the catalog `ref` names (a superseded one still
