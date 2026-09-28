@@ -224,7 +224,7 @@ def test_ac3_a_closed_ruled_part_does_not_join_the_next_row(tmp_path):
 
 
 def test_ac4_the_store_is_version_3_and_a_version_2_store_is_discarded(tmp_path):
-    assert T.TABLES_VERSION == 3
+    assert T.TABLES_VERSION == 4
     table = T.LogicalTable(
         first=1,
         last=2,
@@ -240,7 +240,7 @@ def test_ac4_the_store_is_version_3_and_a_version_2_store_is_discarded(tmp_path)
     T.store(tmp_path, [1, 2], [table])
     path = tmp_path / T.TABLES_NAME
     data = json.loads(path.read_text("utf-8"))
-    assert data["tables_version"] == 3
+    assert data["tables_version"] == 4
     assert T.stored_for_page(tmp_path, 1) == [table]
     data["tables_version"] = 2
     path.write_text(json.dumps(data), "utf-8")
@@ -255,7 +255,7 @@ def test_ac4_cli_reads_the_pdf_again_over_a_version_2_store(
     assert code == 0, out
     path = held / "tables.json"
     data = json.loads(path.read_text("utf-8"))
-    assert data["tables_version"] == 3
+    assert data["tables_version"] == 4
     # a store the previous version wrote, holding the wrong join
     data["tables_version"] = 2
     (entry,) = data["tables"]
@@ -267,7 +267,7 @@ def test_ac4_cli_reads_the_pdf_again_over_a_version_2_store(
     assert "STALE JOIN" not in out
     assert "| 5 rows" in out.splitlines()[1]
     data = json.loads(path.read_text("utf-8"))
-    assert data["tables_version"] == 3
+    assert data["tables_version"] == 4
     (entry,) = data["tables"]
     assert entry["rows"] == [HEADER, POWER, LIMIT, STATE, OUTLET]
 

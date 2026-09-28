@@ -177,7 +177,12 @@ rectangles or stroked lines), and `cells` tables, which have no rules and
 paint every cell as a filled box tiled edge to edge, the way DMTF's
 current PDFs are made; a box's edges are its cell's edges, so a merged
 cell stays one cell, and boxes inside a ruled table (a shaded header) are
-not a second table. A table laid out with spaces alone is not detected.
+not a second table. Rules stroked as path curves (DMTF's Redfish guides
+draw the rows a page break cut off that way) are read as rules of a
+`ruled` table where neither kind of table was found; a table read from
+them that overlaps one found already is dropped, so they never change
+the tables found without them. A table laid out with spaces alone is not
+detected.
 A table longer than 300 rows (DSP2053's property guide is one table over
 the whole document) prints a `note:` line and only the rows that start
 on the page asked for; `--all-rows` prints every row. Tables are read on
