@@ -330,8 +330,10 @@ class CodeLibrary:
         held = self._already_held(repo, provenance, ref, commit)
         if held is not None and not force:
             if not held.superseded:
-                # an older current tree of the same branch, which a Library
-                # written before --ref and default trees were one branch holds
+                # a Library written before --ref and default trees were one
+                # branch may hold two current trees of it: the newest answers
+                # and the older one is superseded
+                held = self._take_newest(held)
                 self._supersede(held)
                 if held.is_default:  # a --ref tree retires no default tree
                     self._retire_defaults(held, provenance)
@@ -412,8 +414,32 @@ class CodeLibrary:
             return
         tree.superseded_by = None
         self.write_tree(tree)
-        if was:
-            self._supersede(tree)
+        self._supersede(tree)
+
+    def newest_of_branch(self, tree: Tree) -> Tree:
+        """The newest current tree of the tree's branch (the tree itself
+        when no other current tree shares its branch)."""
+        for t in self.trees(tree.repo):  # newest fetched first
+            if t.superseded:
+                continue
+            if t.commit == tree.commit or _one_branch(t.provenance, tree.provenance):
+                return t
+        return tree
+
+    def _take_newest(self, held: Tree) -> Tree:
+        """The newest current tree of the held tree's branch; when that is
+        another tree, it takes over the default-branch role of the held one,
+        so a plain clone still finds it without the network."""
+        newest = self.newest_of_branch(held)
+        if newest.commit == held.commit:
+            return held
+        if held.is_default and not newest.is_default:
+            newest.default_branch = held.default_branch or held.provenance.name
+            self.write_tree(newest)
+        if held.default_branch:
+            held.default_branch = None
+            self.write_tree(held)
+        return newest
 
     def _already_held(self, repo, provenance, ref, commit) -> Tree | None:
         """The tree that answers without the network: the same commit, or
@@ -451,6 +477,7 @@ class CodeLibrary:
                 if old.default_branch and not new.is_default:
                     new.default_branch = old.default_branch
                     self.write_tree(new)
+                old.default_branch = None  # a superseded tree is never marked
                 old.superseded_by = new.commit
             self.write_tree(old)
 

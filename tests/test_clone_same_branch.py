@@ -414,3 +414,55 @@ def test_ac7_a_tree_superseded_while_waiting_for_the_lock_is_not_reported(
     code, out = run(capsys, catalog, "clone", "thing", "--force")
     assert code == 0 and out.startswith(f"cloned thing {c3[:7]} (main ")
     assert _superseded_lines(out) == [] and len(out.splitlines()) == 1, out
+
+
+# ------------------------------------------------------------ review round 1
+
+
+def test_a_marked_tree_superseded_by_its_own_branch_loses_the_mark(
+    library, repo, capsys, tmp_path
+):
+    # review F2: a --ref main tree a plain clone landed on carries the mark;
+    # when main moves on it is superseded, and a superseded tree is never
+    # marked
+    work, c2 = repo["work"], repo["c2"]
+    catalog = _catalog(tmp_path, repo)
+    code, out = run(capsys, catalog, "clone", "thing", "--ref", "main")
+    assert code == 0 and out.startswith(f"cloned thing {c2[:7]} (main ")
+    code, out = run(capsys, catalog, "clone", "thing")
+    assert code == 0 and out.startswith(f"held thing {c2[:7]} (main ")
+    assert _meta(library, c2)["default_branch"] == "main"
+
+    c3 = commit(work, {"README.md": "thing 3\n"}, "third")
+    push(work)
+    code, out = run(capsys, catalog, "clone", "thing", "--force")
+    assert code == 0 and out.startswith(f"cloned thing {c3[:7]} (main ")
+    meta = _meta(library, c2)
+    assert meta["superseded_by"] == c3
+    assert "default_branch" not in meta
+
+
+def test_a_renamed_default_supersedes_a_ref_tree_of_its_new_name(
+    library, repo, capsys, tmp_path
+):
+    # review F3: the --force clone that renames the default tree to trunk
+    # also supersedes the older --ref trunk tree, and says so
+    work, bare, c1, c2 = repo["work"], repo["bare"], repo["c1"], repo["c2"]
+    catalog = _catalog(tmp_path, repo)
+    git("branch", "trunk", c1, cwd=work)
+    push(work, "trunk")
+    code, out = run(capsys, catalog, "clone", "thing", "--ref", "trunk")
+    assert code == 0 and out.startswith(f"cloned thing {c1[:7]} (trunk ")
+    code, out = run(capsys, catalog, "clone", "thing")
+    assert code == 0 and out.startswith(f"cloned thing {c2[:7]} (main ")
+
+    git("branch", "-f", "trunk", c2, cwd=work)
+    git("push", "-q", "-f", "origin", "trunk", cwd=work)
+    git("symbolic-ref", "HEAD", "refs/heads/trunk", cwd=bare)
+    code, out = run(capsys, catalog, "clone", "thing", "--force")
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith(f"held thing {c2[:7]} (trunk ")
+    assert lines[1].startswith(f"superseded thing {c1[:7]} (trunk ")
+    assert len(lines) == 2, out
+    assert _meta(library, c1)["superseded_by"] == c2

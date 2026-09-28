@@ -1926,7 +1926,8 @@ def _select_tree(args, catalog, library, config, repo):
             return named[0], notes
     current = [t for t in trees if t.is_default and not t.superseded]
     if current:
-        return current[0], notes
+        # the tree a plain clone answers with: the newest of that branch
+        return library.newest_of_branch(current[0]), notes
     if trees:  # no current default tree: the newest tree prune keeps
         return sorted(trees, key=lambda t: t.superseded)[0], notes
     raise code_mod.CodeError(
