@@ -10,13 +10,10 @@ without git, and mark the older one.
 The second test is the state this change itself creates through AC-1's
 reverse direction: ``--ref main --force`` supersedes the default main
 tree, after which the branch's only current tree is the ``--ref`` one.
-The next plain clone must be answered by it without the network, as the
-held path already arranges for the legacy state above (``_take_newest``
-hands the default-branch role to the newest tree). As of round 2 it
-instead runs ``git clone`` and throws the result away, which the base
-branch did not do (there the stale default tree answered). This test is
-expected to fail on the base branch (the older tree answers) and on this
-branch (git runs) until that is fixed. Skipped when git is not on PATH."""
+The next plain clone must be answered by it without the network (round 2
+F5, fixed in round 3: the ``--ref`` tree takes over the default-branch
+role of the tree it supersedes). On the base branch the older tree
+answers, so the test fails there. Skipped when git is not on PATH."""
 
 import json
 import shutil
@@ -136,8 +133,7 @@ def test_ac1_a_plain_clone_after_a_ref_force_of_the_remote_default_needs_no_git(
     # AC-1 reverse: `--ref main --force` supersedes the default main tree.
     # The branch's newest tree is then held under --ref, so the next plain
     # clone must be answered by it without the network (the same handover
-    # the held path does for a legacy Library above). Round 2 runs git
-    # clone here and discards the result.
+    # the held path does for a legacy Library above; round 2 F5).
     work, c2 = repo["work"], repo["c2"]
     catalog = _catalog(tmp_path, repo)
     code, out = run(capsys, catalog, "clone", "thing")

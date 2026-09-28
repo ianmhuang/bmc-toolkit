@@ -594,10 +594,10 @@ def test_ac4_ac1_a_marked_ref_tree_retires_the_ref_tree_of_the_marked_branch(
     # under --ref at c1; main moves back to c1. The plain --force lands on
     # the rel tree and marks it main (AC-4), so that tree is now main's
     # current tree and the --ref main tree at c2 is the older tree of the
-    # same branch (AC-1): superseded, reported, listed by prune. Round 2
-    # supersedes trees of the landed tree's own branch (rel) only, so the
-    # --ref main tree stays current and prune never lists it. Expected to
-    # fail on the base branch and on this branch until that is fixed.
+    # same branch (AC-1): superseded, reported, listed by prune (round 2
+    # F6, fixed in round 3: the landed tree also supersedes trees of the
+    # branch it was marked with). On the base branch the --ref main tree
+    # stays current, so the test fails there.
     work, c1, c2 = repo["work"], repo["c1"], repo["c2"]
     catalog = _catalog(tmp_path, repo)
     code, out = run(capsys, catalog, "clone", "thing", "--ref", "main")
@@ -622,3 +622,71 @@ def test_ac4_ac1_a_marked_ref_tree_retires_the_ref_tree_of_the_marked_branch(
     assert len(listed) == 1 and str(_tree_dir(library, c2)) in listed[0]
     code, out = run(capsys, catalog, "code", "thing", "README.md")
     assert code == 0 and out.startswith(f"cite: code | thing {c1[:7]} | rel ")
+
+
+# ------------------------------------------------------------ round 3
+
+
+def test_ac4_ac1_a_marked_ref_tree_retires_the_marked_ref_tree_of_its_branch(
+    library, repo, capsys, tmp_path, monkeypatch
+):
+    # The two round-2 fixes on one Library, repository without a catalog
+    # ref. `--ref main --force` supersedes the default main tree and takes
+    # over its default-branch role (F5), so main's current tree is a --ref
+    # tree carrying the mark. Then main moves back to the --ref rel tree:
+    # the plain --force marks that tree main (AC-4) and the marked --ref
+    # main tree is the older tree of the branch main now resolves to
+    # (AC-1, F6): superseded, reported, listed by prune. The next plain
+    # clone and the reading commands use the rel tree without git.
+    work, c1, c2 = repo["work"], repo["c1"], repo["c2"]
+    catalog = _catalog(tmp_path, repo)
+    code, out = run(capsys, catalog, "clone", "thing")
+    assert code == 0 and out.startswith(f"cloned thing {c2[:7]} (main ")
+    c3 = commit(work, {"README.md": "thing 3\n"}, "third")
+    push(work)
+    code, out = run(capsys, catalog, "clone", "thing", "--ref", "main", "--force")
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith(f"cloned thing {c3[:7]} (main ")
+    assert lines[1].startswith(f"superseded thing {c2[:7]} (main ")
+    assert len(lines) == 2, out
+    assert _meta(library, c2)["superseded_by"] == c3
+    meta = _meta(library, c3)
+    assert meta["provenance"] == {"kind": "ref", "name": "main"}
+    assert meta["default_branch"] == "main"
+    code, out = run(capsys, catalog, "clone", "thing", "--ref", "rel")
+    assert code == 0 and out.startswith(f"cloned thing {c1[:7]} (rel ")
+    assert _superseded_lines(out) == [], out
+
+    _reset_main(work, c1)
+    code, out = run(capsys, catalog, "clone", "thing", "--force")
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0].startswith(f"held thing {c1[:7]} (rel "), out
+    assert lines[1].startswith(f"superseded thing {c3[:7]} (main "), out
+    assert len(lines) == 2, out
+    meta = _meta(library, c1)
+    assert meta["provenance"] == {"kind": "ref", "name": "rel"}
+    assert meta["default_branch"] == "main"
+    assert "superseded_by" not in meta
+    meta = _meta(library, c3)
+    assert meta["superseded_by"] == c1
+    assert "default_branch" not in meta
+    assert _meta(library, c2)["superseded_by"] == c3
+
+    with monkeypatch.context() as m:
+        m.setattr(code_mod, "run_git", _refuse)
+        code, out = run(capsys, catalog, "clone", "thing")
+    assert code == 0, out
+    assert out.startswith(f"held thing {c1[:7]} (rel "), out
+    assert len(out.splitlines()) == 1, out
+    code, out = run(capsys, catalog, "code", "thing", "README.md")
+    assert code == 0 and out.startswith(f"cite: code | thing {c1[:7]} | rel "), out
+    assert out.splitlines()[1:] == ["1  thing"]
+    code, out = run(capsys, catalog, "prune")
+    assert code == 0, out
+    listed = _would_remove(out, library)
+    assert len(listed) == 2, out
+    assert any(str(_tree_dir(library, c2)) in ln for ln in listed)
+    assert any(str(_tree_dir(library, c3)) in ln for ln in listed)
+    assert str(_tree_dir(library, c1)) not in out
