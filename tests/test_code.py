@@ -304,7 +304,9 @@ def test_a_default_landing_on_a_tree_superseded_under_another_name_revives_it(
     assert trees[dev.commit].superseded_by == old.commit
 
 
-def test_a_default_landing_on_a_superseded_ref_tree_retires_nothing(thing, library):
+def test_a_default_landing_on_a_superseded_ref_tree_adopts_it(thing, library):
+    # the rel tree's branch moved on, so the tree now stands for the default
+    # branch the clone resolved: a default tree, retiring the other one
     work, bare, url = thing
     first = git("rev-parse", "HEAD", cwd=work)
     git("checkout", "-q", "-b", "rel", cwd=work)
@@ -321,11 +323,12 @@ def test_a_default_landing_on_a_superseded_ref_tree_retires_nothing(thing, libra
     push(work, "back")
     library.clone("thing", url, C.Provenance("default", "back"), ref="back")
     trees = {t.commit: t for t in library.trees("thing")}
-    assert trees[stale.commit].superseded  # still: it is a --ref tree
-    assert not trees[current.commit].superseded
+    assert not trees[stale.commit].superseded
+    assert trees[stale.commit].provenance == C.Provenance("default", "back")
+    assert trees[current.commit].superseded_by == stale.commit
 
 
-def test_a_held_ref_tree_does_not_retire_the_default_of_its_branch(thing, library):
+def test_a_ref_tree_supersedes_the_older_default_of_its_branch(thing, library):
     work, bare, url = thing
     git("checkout", "-q", "-b", "sdk", cwd=work)
     push(work, "sdk")
@@ -344,7 +347,7 @@ def test_a_held_ref_tree_does_not_retire_the_default_of_its_branch(thing, librar
     )
     assert not fetched and held.path == newer.path
     trees = {t.commit: t for t in library.trees("thing")}
-    assert not trees[default.commit].superseded
+    assert trees[default.commit].superseded_by == newer.commit
 
 
 def test_a_ref_and_the_same_named_default_answer_each_other(
