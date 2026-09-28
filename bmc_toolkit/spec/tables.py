@@ -11,7 +11,12 @@ every cell is a filled box, and the boxes tile the table edge to edge. A
 ``cells`` table is read from those boxes: at least two rows of at least two
 boxes, rows touching, the outer edges matching from row to row; each box's
 edges become the cell edges, so a merged cell stays one cell. Boxes that
-lie inside a ruled table (its shaded header) are not a second table. A
+lie inside a ruled table (its shaded header) are not a second table. Some
+producers stroke rules as path objects that pdfplumber files as curves
+(DMTF's Redfish guides draw the rows a page break cut off that way, and a
+few tables whole); where neither kind of table was found, the thin curves
+count as rules too, and a table read from them that overlaps one already
+found is dropped, so the tables found without them never change. A
 cells table has no rule that could show its last row on a page to be
 complete, and an empty first cell is how it groups rows under one name, so
 a continuation's first row is taken as the rest of a row the page break
@@ -29,7 +34,7 @@ continuation page repeats, with or without "(continued)", is dropped.
 
 ``tables.json`` in the version directory::
 
-    {"tables_version": 3,
+    {"tables_version": 4,
      "pages_done": [N, ...],          pages whose tables are all stored:
                                       the pages asked for and every page
                                       a table found there runs onto
@@ -57,7 +62,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
 
-TABLES_VERSION = 3
+TABLES_VERSION = 4
 TABLES_NAME = "tables.json"
 
 RULED = "ruled"
@@ -261,12 +266,14 @@ def _closing_rules(horizontal: list, vertical: list) -> list[dict]:
 
 def page_tables(page, number: int) -> list[PageTable]:
     """The tables on a pdfplumber page, top to bottom: ruled tables first,
-    then tables drawn as tiled cell boxes outside them."""
+    then tables drawn as tiled cell boxes outside them, then tables whose
+    rules are drawn as path curves outside both."""
     drawn, vertical = page_rules(page)
     found = _ruled_tables(page, number, drawn, vertical)
     boxes = page_boxes(page)
     boxes = [b for b in boxes if not any(_inside(b, t.bbox) for t in found)]
     found += _cell_tables(page, number, boxes)
+    found += _curve_tables(page, number, drawn, vertical, found)
     found.sort(key=lambda t: t.top)
     for i, t in enumerate(found):
         t.index = i
@@ -324,6 +331,51 @@ def _ruled_tables(page, number: int, drawn: list, vertical: list) -> list[PageTa
     for t in found:
         t.open_bottom = not any(abs(h["top"] - t.bottom) <= SNAP_Y_PT for h in drawn)
     return found
+
+
+def _curve_rules(page) -> tuple[list, list]:
+    """The page's horizontal and vertical rules drawn as path curves: a
+    stroked path whose box is thin one way (a straight Bezier segment, a
+    polyline along one edge). Boxes, diagonals and arcs are not rules."""
+    horizontal, vertical = [], []
+    for obj in page.curves:
+        is_h, is_v = _is_rule(obj)
+        if is_h:
+            horizontal.append(obj)
+        elif is_v:
+            vertical.append(obj)
+    return horizontal, vertical
+
+
+def _overlaps(a: tuple, b: tuple) -> bool:
+    return not (a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1])
+
+
+def _curve_tables(
+    page, number: int, drawn: list, vertical: list, found: list[PageTable]
+) -> list[PageTable]:
+    """Ruled tables read where no table was found, from the rules there
+    with the curve rules added. Some producers stroke a table's rules, or
+    only the rows a page break cut off, as path curves; reading curves as
+    rules everywhere would redraw tables found today (a cells table whose
+    boxes carry curve borders, a curve grid that splits a ruled table's
+    columns), so curves only fill in. A table from them that overlaps one
+    found already is dropped."""
+    curve_h, curve_v = _curve_rules(page)
+    if not curve_h and not curve_v:
+        return []
+    horizontal = [
+        o for o in drawn + curve_h if not any(_inside(o, t.bbox) for t in found)
+    ]
+    vertical = [
+        o for o in vertical + curve_v if not any(_inside(o, t.bbox) for t in found)
+    ]
+    extra = [
+        t
+        for t in _ruled_tables(page, number, horizontal, vertical)
+        if not any(_overlaps(t.bbox, f.bbox) for f in found)
+    ]
+    return extra
 
 
 # ------------------------------------------------------ cell boxes

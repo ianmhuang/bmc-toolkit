@@ -11,6 +11,9 @@ Each page is a list of items in PDF points, origin bottom-left:
                                           table rule the way Word draws it, a
                                           large light one a shaded cell
     ("curve", x0, y0, x1, y1, x2, y2, x3, y3)   a stroked Bezier curve
+    ("curvebox", x, y, w, h)              a box stroked as one closed path of
+                                          four straight Bezier segments (a
+                                          curve to pdfplumber, not a rect)
     ("image", x, y, w, h)                 a 2x2 grey raster image scaled to w x h
     ("form", x, y, w, h)                  a form XObject (a diagonal line across a
                                           100 x 100 box) scaled to w x h
@@ -48,6 +51,23 @@ def _content(items) -> bytes:
                 draw.append(
                     b"%.2f %.2f m %.2f %.2f %.2f %.2f %.2f %.2f c S" % tuple(item[1:9])
                 )
+            elif kind == "curvebox":
+                x, y, w, h = item[1:5]
+                corners = [(x, y), (x + w, y), (x + w, y + h), (x, y + h), (x, y)]
+                ops = [b"%.2f %.2f m" % corners[0]]
+                for (ax, ay), (bx, by) in zip(corners, corners[1:], strict=False):
+                    ops.append(
+                        b"%.2f %.2f %.2f %.2f %.2f %.2f c"
+                        % (
+                            ax + (bx - ax) / 3,
+                            ay + (by - ay) / 3,
+                            ax + 2 * (bx - ax) / 3,
+                            ay + 2 * (by - ay) / 3,
+                            bx,
+                            by,
+                        )
+                    )
+                draw.append(b" ".join(ops) + b" h S")
             elif kind == "image":
                 x, y, w, h = item[1:5]
                 draw.append(b"q %.2f 0 0 %.2f %.2f %.2f cm /Im1 Do Q" % (w, h, x, y))

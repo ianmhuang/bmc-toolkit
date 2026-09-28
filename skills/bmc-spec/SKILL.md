@@ -88,7 +88,9 @@ names (or the default branch), searched with `grep` and read with `code`.
   `table` prints it and stores it in `tables.json` next to the Extract.
   Two drawings are read: `ruled` tables (ruling lines, most publishers)
   and `cells` tables (no rules; every cell is a filled box tiled edge to
-  edge, DMTF's current PDFs); the `table:` line says which. A table laid
+  edge, DMTF's current PDFs); the `table:` line says which. Rules drawn
+  as path curves are read too where no other table lies (the rows DMTF's
+  Redfish guides draw that way after a page break), as `ruled`. A table laid
   out with spaces alone is not found and stays readable in the Extract.
 - **Code Tree**: a shallow checkout of one catalog repository at one
   commit, at `code/<repo>/<commit>/` in the Library. The commit is its
