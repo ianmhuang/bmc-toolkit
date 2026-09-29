@@ -469,7 +469,9 @@ class CodeLibrary:
         and so do those of ``branch`` (the branch a landed tree was just
         marked with). A tree the default branch resolved to stays, as a
         default tree, unless that branch is the one that moved: then the new
-        tree takes over the default-branch role."""
+        tree takes over the default-branch role. A release is never that
+        branch, whatever it is called."""
+        moved = new.provenance.name if new.provenance.kind != "release" else None
         for old in self.trees(new.repo):
             if old.commit == new.commit or old.superseded_by:
                 continue
@@ -477,7 +479,7 @@ class CodeLibrary:
                 branch is not None and _one_branch(old.provenance, branch)
             ):
                 continue
-            if old.default_branch and old.default_branch != new.provenance.name:
+            if old.default_branch and old.default_branch != moved:
                 old.provenance = Provenance("default", old.default_branch)
                 old.default_branch = None
             else:
