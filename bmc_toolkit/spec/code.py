@@ -12,6 +12,8 @@ Layout::
          "fetched_at": ISO 8601 UTC, "superseded_by": sha (optional),
          "default_branch": name (optional; a ref or release tree the
                            latest default-branch clone resolved to),
+         "also": [provenance, ...] (optional; ref and release names a
+                 later clone resolved to this commit),
          "catalog_known": false when the repository is not in the catalog
                           and its URL was guessed under GUESS_BASE}
     <library>/config.toml
@@ -37,7 +39,7 @@ import stat
 import subprocess
 import sys
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
@@ -115,10 +117,32 @@ class Tree:
     superseded_by: str | None = None
     catalog_known: bool = True
     default_branch: str | None = None
+    also: list[Provenance] = field(default_factory=list)
 
     @property
     def short(self) -> str:
         return self.commit[:7]
+
+    def name_for(self, asked: Provenance) -> Provenance | None:
+        """The name the tree answers ``asked`` with: its own provenance or
+        an ``also`` entry of the same moving name; None when neither is."""
+        for name in (self.provenance, *self.also):
+            if _one_branch(name, asked):
+                return name
+        return None
+
+    def answers(self, kinds: tuple[str, ...], name: str) -> Provenance | None:
+        """Its own provenance or an ``also`` entry of one of ``kinds``
+        called ``name``; None when neither is."""
+        for held in (self.provenance, *self.also):
+            if held.kind in kinds and held.name == name:
+                return held
+        return None
+
+    def as_asked(self, name: Provenance) -> "Tree":
+        """The tree as a reading command cites it when ``name`` found it:
+        an ``also`` entry stands in for the provenance."""
+        return replace(self, provenance=name) if name in self.also else self
 
     @property
     def is_default(self) -> bool:
@@ -146,6 +170,8 @@ class Tree:
             meta["superseded_by"] = self.superseded_by
         if self.default_branch:
             meta["default_branch"] = self.default_branch
+        if self.also:
+            meta["also"] = [name.to_dict() for name in self.also]
         if not self.catalog_known:
             meta["catalog_known"] = False
         return meta
@@ -296,6 +322,11 @@ class CodeLibrary:
             superseded_by=meta.get("superseded_by"),
             catalog_known=bool(meta.get("catalog_known", True)),
             default_branch=meta.get("default_branch") or None,
+            also=[
+                Provenance.from_dict(name)
+                for name in meta.get("also") or []
+                if isinstance(name, dict)
+            ],
         )
 
     def write_tree(self, tree: Tree) -> None:
@@ -329,7 +360,13 @@ class CodeLibrary:
         default-branch clone leaves its tree the one current default tree."""
         held = self._already_held(repo, provenance, ref, commit)
         if held is not None and not force:
-            if not held.superseded:
+            name = held.name_for(provenance)
+            if name is None and provenance.kind != "default":
+                # a pin or commit held under another name
+                self._name(held, provenance)
+            elif name is not None and name in held.also:
+                pass  # held answers the name already; nothing moved
+            elif not held.superseded:
                 # a Library written before --ref and default trees were one
                 # branch may hold two current trees of it: the newest answers
                 # and the older one is superseded
@@ -396,7 +433,8 @@ class CodeLibrary:
         that moved back makes it current again. A default-branch clone makes
         it the default tree under the branch name it resolved: a default
         tree takes that name, a superseded tree of another branch becomes a
-        default tree, a live ref or release tree is marked default_branch."""
+        default tree, a live ref or release tree is marked default_branch. A
+        ref or release the tree does not answer yet is named on it."""
         was = tree.superseded
         default = provenance.kind == "default"
         if default and tree.provenance.kind == "default":
@@ -411,6 +449,7 @@ class CodeLibrary:
                 return
             tree.default_branch = provenance.name
         elif not (was and _one_branch(tree.provenance, provenance)):
+            self._name(tree, provenance)
             return
         tree.superseded_by = None
         self.write_tree(tree)
@@ -418,6 +457,28 @@ class CodeLibrary:
         self._supersede(
             tree, Provenance("default", provenance.name) if default else None
         )
+
+    def _name(self, tree: Tree, provenance: Provenance) -> None:
+        """A ref or release resolved to a commit held under another name: the
+        tree answers that name too (an ``also`` entry), or takes it as its
+        own provenance when it is superseded, and the older trees of the name
+        step aside. The tree's own commit id is not a name to record."""
+        if provenance.kind not in ("ref", "release") or tree.name_for(provenance):
+            return
+        given = provenance.name.lower()
+        if (
+            provenance.kind == "ref"
+            and _SHA.match(given)
+            and tree.commit.startswith(given)
+        ):
+            return
+        if tree.superseded:
+            tree.provenance = provenance
+            tree.superseded_by = None
+        else:
+            tree.also.append(provenance)
+        self.write_tree(tree)
+        self._supersede(tree, name=provenance)
 
     def newest_of_branch(self, tree: Tree) -> Tree:
         """The newest current tree of the tree's branch (the tree itself
@@ -460,24 +521,37 @@ class CodeLibrary:
                 continue
             if provenance.kind == "default" and t.default_branch == provenance.name:
                 return t
-            if _one_branch(t.provenance, provenance):
+            if t.name_for(provenance):
                 return t
         return None
 
-    def _supersede(self, new: Tree, branch: Provenance | None = None) -> None:
+    def _supersede(
+        self,
+        new: Tree,
+        branch: Provenance | None = None,
+        name: Provenance | None = None,
+    ) -> None:
         """Older trees of the same branch or release point at the new one,
         and so do those of ``branch`` (the branch a landed tree was just
-        marked with). A tree the default branch resolved to stays, as a
+        marked with); ``name`` is the one just named on a held tree, in place
+        of its provenance. A tree the default branch resolved to stays, as a
         default tree, unless that branch is the one that moved: then the new
         tree takes over the default-branch role. A release is never that
-        branch, whatever it is called."""
-        moved = new.provenance.name if new.provenance.kind != "release" else None
+        branch, whatever it is called. A tree that answers another name
+        (``also``) takes that name instead of being superseded, and an
+        ``also`` entry of a moved name leaves the older tree."""
+        fetched = name or new.provenance
+        moved = fetched.name if fetched.kind != "release" else None
+        names = [fetched] + ([branch] if branch is not None else [])
         for old in self.trees(new.repo):
             if old.commit == new.commit or old.superseded_by:
                 continue
-            if not _one_branch(old.provenance, new.provenance) and not (
-                branch is not None and _one_branch(old.provenance, branch)
-            ):
+            kept = [a for a in old.also if not any(_one_branch(a, n) for n in names)]
+            dropped = kept != old.also
+            old.also = kept
+            if not any(_one_branch(old.provenance, n) for n in names):
+                if dropped:
+                    self.write_tree(old)
                 continue
             if old.default_branch and old.default_branch != moved:
                 old.provenance = Provenance("default", old.default_branch)
@@ -487,7 +561,10 @@ class CodeLibrary:
                     new.default_branch = old.default_branch or old.provenance.name
                     self.write_tree(new)
                 old.default_branch = None  # a superseded tree is never marked
-                old.superseded_by = new.commit
+                if old.also:
+                    old.provenance = old.also.pop(0)
+                else:
+                    old.superseded_by = new.commit
             self.write_tree(old)
 
     def _retire_defaults(self, tree: Tree, provenance: Provenance) -> None:
@@ -495,14 +572,18 @@ class CodeLibrary:
         tree it resolved to, whatever branch they were fetched under (a
         changed catalog ref, a renamed remote default), and no other tree
         stays marked default_branch. Trees held under --ref or --release
-        stay."""
+        stay, and so does a default tree that answers another name (it takes
+        that name)."""
         if provenance.kind != "default":
             return
         for old in self.trees(tree.repo):
             if old.commit == tree.commit or old.superseded_by:
                 continue
             if old.provenance.kind == "default":
-                old.superseded_by = tree.commit
+                if old.also:
+                    old.provenance = old.also.pop(0)
+                else:
+                    old.superseded_by = tree.commit
                 self.write_tree(old)
             elif old.default_branch:
                 old.default_branch = None

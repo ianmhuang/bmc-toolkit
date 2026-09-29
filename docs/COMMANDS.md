@@ -257,12 +257,28 @@ commit holds the `--ref` or `--release`. Only a `--ref` of the branch the
 field names moves the mark: the new tree supersedes the old one and takes
 the field. A `--release` never counts as that branch, even one named like
 it (`--release master` on a repository whose default branch is `master`).
+When a `--ref` or `--release` clone lands on a commit held under another
+name (a Release pin that is also the default branch's head, a tag on a
+commit held as a Release), that tree keeps its provenance and records the
+name in an `"also"` list in its `.bmc-tree.json`; `clone` prints `held`
+with the tree's own provenance, and the next clone of that name answers
+without the network. A tree with `also` names is not superseded when its
+own name moves on: the first `also` name becomes its provenance instead.
+When an `also` name moves on, only that entry leaves the tree. A tree is
+superseded only when no name is left on it. `repos` lists the names after
+the provenance (`<commit7> dev <date> (also release 2.18.0, v1.2)`). A
+full or abbreviated commit id given as `--ref` is not recorded: a commit is
+found by its id already. `clone` prints `cloned` when it downloaded the
+commit and `held` when the commit was already in the Library: nothing was
+downloaded, though `--force` still asks the remote where a name points.
 `grep` (`git grep`) and `code` read a
 tree: a user checkout named in `config.toml` first, then the `--ref` or
-`--release` asked for, then the `config.toml` default Release, then a
+`--release` asked for (a tree's own provenance or an `also` name), then the
+`config.toml` default Release, then a
 held tree of the branch the catalog `ref` names (a superseded one still
 counts until `prune` removes it), then the default-branch tree. Every `code` output starts with a `cite:` line naming
-repository, commit, provenance, path and lines.
+repository, commit, provenance, path and lines; a tree found by an `also`
+name is cited under that name (`release L`, `<ref> <date>`).
 
 `prune` lists every Code Tree marked superseded (an older commit of a
 moving name re-fetched with `--force`), every `.tmp-*` directory a failed
