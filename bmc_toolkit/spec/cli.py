@@ -1553,6 +1553,8 @@ def _vendor_release_note(repo, release: str) -> str:
 
 def _tree_summary(tree: code_mod.Tree) -> str:
     text = f"{tree.short} {tree.provenance.label(tree.fetched_at)}"
+    if tree.also:
+        text += f" (also {', '.join(name.label() for name in tree.also)})"
     return text + (" superseded" if tree.superseded else "")
 
 
@@ -1577,8 +1579,7 @@ def cmd_repos(args: argparse.Namespace) -> int:
         held = [
             t
             for t in library.trees(code_mod.OPENBMC_REPO)
-            if t.provenance.kind in ("ref", "default")
-            and t.provenance.name == config.release
+            if t.answers(("ref", "default"), config.release)
         ]
         resolved = f"openbmc {held[0].short}" if held else "not resolved yet"
         print(f"release: {config.release} (config.toml) -> {resolved}")
@@ -1618,9 +1619,8 @@ def _openbmc_tree(args, catalog, library, release: str, force: bool) -> code_mod
         )
     if not force:
         for t in library.trees(source.id):
-            if t.provenance.kind == "ref" and t.provenance.name == release:
-                if not t.superseded:
-                    return t
+            if t.answers(("ref",), release) and not t.superseded:
+                return t
     with _clone_lock(args, library, source.id, release):
         tree, fetched = library.clone(
             source.id,
@@ -1872,14 +1872,7 @@ def _select_tree(args, catalog, library, config, repo):
             library.held(repo.id, args.ref) if code_mod._SHA.match(args.ref) else None
         )
         if found is None:
-            named = [
-                t
-                for t in trees
-                if t.provenance.kind in ("ref", "default")
-                and t.provenance.name == args.ref
-            ]
-            named.sort(key=lambda t: (t.superseded, ""))
-            found = named[0] if named else None
+            found = _named_tree(trees, ("ref", "default"), args.ref)
         if found is None:
             raise code_mod.CodeError(
                 f"{repo.id} is not held at {args.ref}; run: bmcspec clone {repo.id} "
@@ -1897,33 +1890,25 @@ def _select_tree(args, catalog, library, config, repo):
             kind = "ref"  # the release source is held at the tag or branch itself
         else:
             kind = "release"
-        pinned = [
-            t
-            for t in trees
-            if t.provenance.kind == kind and t.provenance.name == release
-        ]
-        pinned.sort(key=lambda t: (t.superseded, ""))
-        if not pinned:
+        pinned = _named_tree(trees, (kind,), release)
+        if pinned is None:
             raise code_mod.CodeError(
                 f"{repo.id} is not held at release {release}; run: bmcspec clone "
                 f"{repo.id} --release {release}"
             )
-        return pinned[0], notes
+        return pinned, notes
     if repo.ref:
         # the catalog's ref names the branch, as --ref does: a tree held under
         # --ref counts, and so does one a later ref superseded but not pruned
         named = [
             t
             for t in trees
-            if (
-                t.provenance.kind in ("ref", "default")
-                and t.provenance.name == repo.ref
-            )
-            or t.default_branch == repo.ref
+            if t.answers(("ref", "default"), repo.ref) or t.default_branch == repo.ref
         ]
         named.sort(key=lambda t: t.superseded)
         if named:
-            return named[0], notes
+            found = named[0].answers(("ref", "default"), repo.ref)
+            return (named[0].as_asked(found) if found else named[0]), notes
     current = [t for t in trees if t.is_default and not t.superseded]
     if current:
         # the tree a plain clone answers with: the newest of that branch
@@ -1933,6 +1918,17 @@ def _select_tree(args, catalog, library, config, repo):
     raise code_mod.CodeError(
         f"{repo.id} is not in the Library; run: bmcspec clone {repo.id}"
     )
+
+
+def _named_tree(trees, kinds: tuple[str, ...], name: str) -> code_mod.Tree | None:
+    """The tree held under ``name`` (its provenance or an ``also`` entry of
+    one of ``kinds``), a current one before a superseded one, as a cite
+    names it; None when no tree has the name."""
+    named = [t for t in trees if t.answers(kinds, name)]
+    named.sort(key=lambda t: (t.superseded, ""))
+    if not named:
+        return None
+    return named[0].as_asked(named[0].answers(kinds, name))
 
 
 def _reading_tree(args):
