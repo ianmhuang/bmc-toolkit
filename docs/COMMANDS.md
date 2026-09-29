@@ -177,7 +177,12 @@ rectangles or stroked lines), and `cells` tables, which have no rules and
 paint every cell as a filled box tiled edge to edge, the way DMTF's
 current PDFs are made; a box's edges are its cell's edges, so a merged
 cell stays one cell, and boxes inside a ruled table (a shaded header) are
-not a second table. A table laid out with spaces alone is not detected.
+not a second table. Rules stroked as path curves (DMTF's Redfish guides
+draw the rows a page break cut off that way) are read as rules of a
+`ruled` table where neither kind of table was found; a table read from
+them that overlaps one found already is dropped, so they never change
+the tables found without them. A table laid out with spaces alone is not
+detected.
 A table longer than 300 rows (DSP2053's property guide is one table over
 the whole document) prints a `note:` line and only the rows that start
 on the page asked for; `--all-rows` prints every row. Tables are read on
@@ -215,13 +220,67 @@ tag or branch L (only the `.bb` and `.inc` recipe files of every `meta-*`
 layer, about 20 MB) and the component's `SRCREV` there is the commit
 checked out; a repository no layer's recipe pins has no release commit,
 and `clone` says so. For the `openbmc` repository itself `--release L` is
-the same as `--ref L`. Several commits of one repository
-coexist; `--force` on a moving name fetches again and marks the older tree
-superseded rather than deleting it. `grep` (`git grep`) and `code` read a
+the same as `--ref L`. A vendor tree (a catalog entry with an `owner`,
+see [CATALOG.md](CATALOG.md#code-trees)) is never guessed: an unlisted
+id starting with a vendor owner (`aspeed-`, `nuvoton-`) exits 2. It has
+no Release: `--release` on
+`clone`, `grep` or `code` prints `<repo> has no Release; use --ref with an
+SDK branch or tag` and exits 2, and the `config.toml` default Release is
+not used for it (`note: <repo> has no Release; config.toml release L not
+used`). A catalog entry's `ref` stands in for the remote's default branch
+when no flag is given (`nuvoton-linux`); a tree held from `--ref` at that
+branch and a default-branch tree of it are one branch: either answers the
+other without the network. Several
+commits of one repository coexist; `--force` on a moving name fetches again
+and marks the older tree of that branch superseded (whether it was held
+under `--ref` or as the default branch) rather than deleting it. A plain
+`clone` leaves one current default-branch tree: every other default-branch
+tree (fetched under an earlier catalog `ref`, or under the remote's old
+default branch name) is marked superseded too, and `clone` prints a
+`superseded` line for each tree it marks; a held one also marks an older
+current tree of its own branch. Trees held under `--release` or under
+`--ref` of another branch stay. When a fetch lands on a commit held in a
+superseded tree of the same name (the branch moved back), that tree is
+current again. When a plain `clone` lands on a commit held already, that
+tree becomes the default-branch tree under the branch name the remote uses
+now: a default-branch tree takes that name, a superseded tree of another
+branch becomes a default-branch tree, and a current `--ref` or `--release`
+tree keeps its provenance and records `"default_branch": "<name>"` in its
+`.bmc-tree.json`, so the next plain `clone` answers from it without the
+network (a later plain `clone` that resolves elsewhere removes the field).
+A `--ref` tree that supersedes the default-branch tree of its branch takes
+the field the same way. When `--force` re-fetches the `--ref` or
+`--release` name of a tree that carries the field and lands on another
+commit, the marked tree is not superseded: it becomes the default-branch
+tree under the name the field held, with no `superseded` line, and the new
+commit holds the `--ref` or `--release`. Only a `--ref` of the branch the
+field names moves the mark: the new tree supersedes the old one and takes
+the field. A `--release` never counts as that branch, even one named like
+it (`--release master` on a repository whose default branch is `master`).
+When a `--ref` or `--release` clone lands on a commit held under another
+name (a Release pin that is also the default branch's head, a tag on a
+commit held as a Release), that tree keeps its provenance and records the
+name in an `"also"` list in its `.bmc-tree.json` (a version before 1.3.0
+ignores the list and drops it when it rewrites the file, so going back to
+one loses the recorded names); `clone` prints `held`
+with the tree's own provenance, and the next clone of that name answers
+without the network. A tree with `also` names is not superseded when its
+own name moves on: the first `also` name becomes its provenance instead.
+When an `also` name moves on, only that entry leaves the tree. A tree is
+superseded only when no name is left on it. `repos` lists the names after
+the provenance (`<commit7> dev <date> (also release 2.18.0, v1.2)`). A
+full or abbreviated commit id given as `--ref` is not recorded: a commit is
+found by its id already. `clone` prints `cloned` when it downloaded the
+commit and `held` when the commit was already in the Library: nothing was
+downloaded, though `--force` still asks the remote where a name points.
+`grep` (`git grep`) and `code` read a
 tree: a user checkout named in `config.toml` first, then the `--ref` or
-`--release` asked for, then the `config.toml` default Release, then the
-default-branch tree. Every `code` output starts with a `cite:` line naming
-repository, commit, provenance, path and lines.
+`--release` asked for (a tree's own provenance or an `also` name), then the
+`config.toml` default Release, then a
+held tree of the branch the catalog `ref` names (a superseded one still
+counts until `prune` removes it), then the default-branch tree. Every `code` output starts with a `cite:` line naming
+repository, commit, provenance, path and lines; a tree found by an `also`
+name is cited under that name (`release L`, `<ref> <date>`).
 
 `prune` lists every Code Tree marked superseded (an older commit of a
 moving name re-fetched with `--force`), every `.tmp-*` directory a failed
@@ -231,10 +290,11 @@ five minutes that a failed write or take-over left behind, and every stale
 lock through the same `.lock.takeover` gate a writer uses and keeping one
 that is no longer stale: `kept <path> (taken over meanwhile)` when a
 Session now holds it, `(take-over in progress)` when a Session is inside the
-gate, `(gone meanwhile)` when it was released; the summary then says
-`, N kept`. A directory whose lock is live is skipped whole. The current
-tree of each name, trees reached by a commit, user checkouts and the
-documents under `specs/` are never touched.
+gate; the summary then says `, N kept`. A stale lock its holder released
+before `prune` reached it is printed as `gone <path> (released meanwhile)`
+and counted as `, N gone`. A directory whose lock is live is skipped
+whole. The current tree of each name, trees reached by a commit, user
+checkouts and the documents under `specs/` are never touched.
 
 `config.toml` at the Library root (optional):
 
@@ -349,6 +409,9 @@ temporary files (see above).
   reading commands download the one version they need (the catalog's
   latest, or `--version`) when the Library lacks it, through the same
   chain, and `[library] offline = true` in `config.toml` stops them.
+  The Archive throttles bursts of queries for a while; the tool then says
+  "rate limited by archive.org (HTTP 429)" rather than "no Wayback
+  snapshot", and does not retry on its own. Run the command again later.
 - A response that is not the expected PDF or ZIP (an HTML block page, a
   cut-off download) is discarded and never written to the Library. The same
   leading-bytes check applies to files given to `add` or found by `scan`.
@@ -378,6 +441,6 @@ temporary files (see above).
   DSP8011 2026.1's 264 members); the privilege registries, the HTML and
   the PDF stay in the ZIP.
 - `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/w/index.php?title=<page>` for the pages named in the catalog's `listing` keys. They download no document. A reading command reads the one listing page of the document it answered from when that document's Freshness Check is due (at most once per document per `freshness_days`), never with `[library] offline = true`.
-- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed.
+- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed. The vendor kernels `aspeed-linux` and `nuvoton-linux` are cloned sparse like `linux` (its directories plus the vendor's arch, dts and soc ones), and the vendor SDK layers `aspeed-openbmc` and `nuvoton-openbmc` hold only `meta-<vendor>*` and `meta-evb`. `nuvoton-igps` holds only its text files (scripts, XML layouts, notes), not the prebuilt images beside them.
 - `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory that is removed on failure, and `code/<repo>/.lock` while it runs. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees, `.tmp-*` and `.part` leftovers and stale `.lock` files under `code/` and `specs/` and at the Library root, nothing else.
 - `check` writes `freshness.json` at the Library root, and so does a reading command that ran the due check; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it inserts version entries into the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).

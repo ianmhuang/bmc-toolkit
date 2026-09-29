@@ -72,12 +72,43 @@ def test_wayback_snapshot_none_when_missing_or_broken():
     assert wayback_snapshot(URL, ScriptedClient({WB_QUERY: wayback_miss()})) is None
     garbage = fetch_mod.Response(200, {}, b"<html>")
     assert wayback_snapshot(URL, ScriptedClient({WB_QUERY: garbage})) is None
-    assert (
-        wayback_snapshot(
-            URL, ScriptedClient({WB_QUERY: fetch_mod.Response(500, {}, b"")})
-        )
-        is None
+    unavailable = fetch_mod.Response(
+        200, {}, b'{"archived_snapshots": {"closest": {"available": false}}}'
     )
+    assert wayback_snapshot(URL, ScriptedClient({WB_QUERY: unavailable})) is None
+
+
+@pytest.mark.parametrize("status", [500, 503, 404])
+def test_wayback_snapshot_raises_when_the_query_fails(status):
+    # A failed availability query says nothing about whether a snapshot exists.
+    client = ScriptedClient({WB_QUERY: fetch_mod.Response(status, {}, b"")})
+    with pytest.raises(RejectedBody) as exc:
+        wayback_snapshot(URL, client)
+    assert str(exc.value) == f"availability query failed (HTTP {status})"
+
+
+@pytest.mark.parametrize(
+    "headers, wait",
+    [
+        ({}, "a few minutes"),
+        ({"retry-after": "120"}, "120 s"),
+        ({"retry-after": " 30 "}, "30 s"),
+        ({"retry-after": "Wed, 23 Sep 2026 07:28:00 GMT"}, "a few minutes"),
+    ],
+)
+def test_wayback_snapshot_reports_a_rate_limit(headers, wait):
+    client = ScriptedClient({WB_QUERY: fetch_mod.Response(429, headers, b"")})
+    with pytest.raises(RejectedBody) as exc:
+        wayback_snapshot(URL, client)
+    assert str(exc.value) == (
+        f"rate limited by archive.org (HTTP 429), try again in {wait}"
+    )
+
+
+def test_check_body_names_a_rate_limit():
+    with pytest.raises(RejectedBody) as exc:
+        check_body(fetch_mod.Response(429, {}, b""), "pdf")
+    assert str(exc.value) == "HTTP 429 (rate limited; try again later)"
 
 
 def test_direct_success_records_method_and_url(catalog, library):
@@ -152,6 +183,63 @@ def test_all_steps_fail_gives_manual_instruction(catalog, library):
     )
     assert out.attempts == ("direct: HTTP 403", "wayback: no Wayback snapshot")
     assert not library.version_dir("mctp", "DSP0236", "1.3.3").exists()
+
+
+def test_a_throttled_availability_query_is_not_reported_as_no_snapshot(
+    catalog, library
+):
+    doc = catalog.get("DSP0236")
+    ver = doc.latest()
+    client = ScriptedClient(
+        {
+            URL: fetch_mod.Response(403, {}, HTML_BYTES),
+            WB_QUERY: fetch_mod.Response(429, {"retry-after": "60"}, b""),
+        }
+    )
+    out = fetch_version(library, doc, ver, client=client)
+    assert out.status == "failed"
+    assert out.method == "manual"
+    assert out.attempts == (
+        "direct: HTTP 403",
+        "wayback: rate limited by archive.org (HTTP 429), try again in 60 s",
+    )
+    assert "no Wayback snapshot" not in "\n".join(out.attempts)
+
+
+def test_a_failing_availability_query_names_its_status(catalog, library):
+    doc = catalog.get("DSP0236")
+    ver = doc.latest()
+    client = ScriptedClient(
+        {
+            URL: fetch_mod.Response(403, {}, HTML_BYTES),
+            WB_QUERY: fetch_mod.Response(503, {}, b""),
+        }
+    )
+    out = fetch_version(library, doc, ver, client=client)
+    assert out.status == "failed"
+    assert out.attempts == (
+        "direct: HTTP 403",
+        "wayback: availability query failed (HTTP 503)",
+    )
+
+
+def test_a_throttled_download_names_the_rate_limit_on_both_steps(catalog, library):
+    doc = catalog.get("DSP0236")
+    ver = doc.latest()
+    client = ScriptedClient(
+        {
+            URL: fetch_mod.Response(429, {}, b""),
+            WB_QUERY: wayback_hit(URL),
+            WB_RAW: fetch_mod.Response(429, {}, b""),
+        }
+    )
+    out = fetch_version(library, doc, ver, client=client)
+    assert out.status == "failed"
+    assert out.attempts == (
+        "direct: HTTP 429 (rate limited; try again later)",
+        "wayback: HTTP 429 (rate limited; try again later)",
+    )
+    assert client.calls == [URL, WB_QUERY, WB_RAW]
 
 
 def test_wayback_method_skips_direct(catalog, library):

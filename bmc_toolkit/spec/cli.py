@@ -1525,6 +1525,12 @@ def _repo_or_message(catalog, library, repo_id: str, *, guess: bool):
     if held:
         return Repo(name, held[0].url, (), ())
     if guess:
+        if "-" in name and name.split("-", 1)[0].lower() in catalog.owners:
+            print(
+                f"{name} is not in the catalog; vendor repositories are cloned "
+                "only from catalog entries (bmcspec repos lists them)"
+            )
+            return None
         url = code_mod.guess_url(name)
         print(f"note: {name} is not in the catalog; trying {url}")
         return Repo(name, url, (), ())
@@ -1532,8 +1538,23 @@ def _repo_or_message(catalog, library, repo_id: str, *, guess: bool):
     return None
 
 
+def _vendor_release(repo, args) -> bool:
+    """True after a message when --release names a vendor tree: a vendor
+    fork is not pinned by an OpenBMC release, its SDK branches are refs."""
+    if repo.owner and args.release:
+        print(f"{repo.id} has no Release; use --ref with an SDK branch or tag")
+        return True
+    return False
+
+
+def _vendor_release_note(repo, release: str) -> str:
+    return f"note: {repo.id} has no Release; config.toml release {release} not used"
+
+
 def _tree_summary(tree: code_mod.Tree) -> str:
     text = f"{tree.short} {tree.provenance.label(tree.fetched_at)}"
+    if tree.also:
+        text += f" (also {', '.join(name.label() for name in tree.also)})"
     return text + (" superseded" if tree.superseded else "")
 
 
@@ -1558,8 +1579,7 @@ def cmd_repos(args: argparse.Namespace) -> int:
         held = [
             t
             for t in library.trees(code_mod.OPENBMC_REPO)
-            if t.provenance.kind in ("ref", "default")
-            and t.provenance.name == config.release
+            if t.answers(("ref", "default"), config.release)
         ]
         resolved = f"openbmc {held[0].short}" if held else "not resolved yet"
         print(f"release: {config.release} (config.toml) -> {resolved}")
@@ -1599,9 +1619,8 @@ def _openbmc_tree(args, catalog, library, release: str, force: bool) -> code_mod
         )
     if not force:
         for t in library.trees(source.id):
-            if t.provenance.kind == "ref" and t.provenance.name == release:
-                if not t.superseded:
-                    return t
+            if t.answers(("ref",), release) and not t.superseded:
+                return t
     with _clone_lock(args, library, source.id, release):
         tree, fetched = library.clone(
             source.id,
@@ -1624,21 +1643,28 @@ def cmd_clone(args: argparse.Namespace) -> int:
     if code != EXIT_OK:
         return code
     repo = _repo_or_message(catalog, library, args.repo, guess=True)
-    if repo is None:
+    if repo is None or _vendor_release(repo, args):
         return EXIT_ACTION
     known = catalog.get_repo(repo.id) is not None
     release = args.release
     if not args.ref and not release and config.release:
-        release = config.release
-        print(f"release: {release} (from config.toml)")
+        if repo.owner:
+            print(_vendor_release_note(repo, config.release))
+        else:
+            release = config.release
+            print(f"release: {release} (from config.toml)")
     if release and repo.id.lower() == code_mod.OPENBMC_REPO:
         args.ref, release = release, None  # the release source: the tag or branch
+    # the trees current when this clone starts: taken inside the lock, so a
+    # tree another clone superseded while this one waited is not reported
+    current: set[str] = set()
     try:
         if release:
             source = _openbmc_tree(args, catalog, library, release, args.force)
             pin, recipe = code_mod.find_pin_recipe(source.path, repo.id)
             prov = code_mod.Provenance("release", release, source.commit)
             with _clone_lock(args, library, repo.id, f"release {release}"):
+                current = _current_commits(library, repo.id)
                 tree, fetched = library.clone(
                     repo.id,
                     repo.url,
@@ -1651,6 +1677,7 @@ def cmd_clone(args: argparse.Namespace) -> int:
         elif args.ref:
             prov = code_mod.Provenance("ref", args.ref)
             with _clone_lock(args, library, repo.id, args.ref):
+                current = _current_commits(library, repo.id)
                 tree, fetched = library.clone(
                     repo.id,
                     repo.url,
@@ -1661,12 +1688,16 @@ def cmd_clone(args: argparse.Namespace) -> int:
                     catalog_known=known,
                 )
         else:
-            prov = code_mod.Provenance("default", "")
+            # the catalog's ref, when it names one, stands in for the
+            # remote's default branch (a default the platform cannot check out)
+            prov = code_mod.Provenance("default", repo.ref)
             with _clone_lock(args, library, repo.id, "default branch"):
+                current = _current_commits(library, repo.id)
                 tree, fetched = library.clone(
                     repo.id,
                     repo.url,
                     prov,
+                    ref=repo.ref or None,
                     sparse=repo.sparse,
                     force=args.force,
                     catalog_known=known,
@@ -1680,16 +1711,18 @@ def cmd_clone(args: argparse.Namespace) -> int:
     what = tree.provenance.label(tree.fetched_at)
     if fetched:
         print(f"cloned {tree.label} ({what}) -> {tree.path}")
-        for old in library.trees(repo.id):
-            if old.superseded_by == tree.commit:
-                print(
-                    f"superseded {old.label} ({old.provenance.label(old.fetched_at)})"
-                )
     else:
         print(f"held {tree.label} ({what}) at {tree.path}")
+    for old in library.trees(repo.id):
+        if old.commit in current and old.superseded:
+            print(f"superseded {old.label} ({old.provenance.label(old.fetched_at)})")
     if release:
         print(f"pin: {tree.short} from {recipe} of openbmc {source.short}")
     return EXIT_OK
+
+
+def _current_commits(library: code_mod.CodeLibrary, repo: str) -> set[str]:
+    return {t.commit for t in library.trees(repo) if not t.superseded}
 
 
 def _clone_lock(args, library: code_mod.CodeLibrary, repo: str, what: str):
@@ -1717,6 +1750,7 @@ def cmd_prune(args: argparse.Namespace) -> int:
         failed += _prune_path(path, f"{verb} {path} (leftover)", args.yes)
     removed = 0
     kept = 0
+    gone = 0
     for holder in stale:
         line = f"{verb} {holder.path} (stale lock, {holder.describe()})"
         if not args.yes:
@@ -1731,10 +1765,13 @@ def cmd_prune(args: argparse.Namespace) -> int:
         elif outcome == "stuck":
             print(f"failed {holder.path}: another process has it open")
             failed += 1
+        elif outcome == "gone":
+            # Its holder released it: nothing is left to remove or to keep.
+            print(f"gone {holder.path} (released meanwhile)")
+            gone += 1
         else:
             why = {
                 "fresh": "taken over meanwhile",
-                "gone": "gone meanwhile",
                 "busy": "take-over in progress",
             }[outcome]
             print(f"kept {holder.path} ({why})")
@@ -1742,9 +1779,10 @@ def cmd_prune(args: argparse.Namespace) -> int:
     tail = "" if args.yes else " (dry run; --yes removes them)"
     counted = removed if args.yes else len(stale)
     kept_tail = f", {kept} kept" if kept else ""
+    gone_tail = f", {gone} gone" if gone else ""
     print(
         f"prune: {len(doomed)} superseded tree(s), {len(leftovers)} leftover(s), "
-        f"{counted} stale lock(s){kept_tail}{tail}"
+        f"{counted} stale lock(s){kept_tail}{gone_tail}{tail}"
     )
     return EXIT_ERROR if failed else EXIT_OK
 
@@ -1816,8 +1854,9 @@ def _select_tree(args, catalog, library, config, repo):
     """(tree, notes): the Code Tree a reading command works on.
 
     A user checkout wins; then the named ref or release; then the config
-    release; then the newest default-branch tree. CodeError says what to
-    run when nothing fits.
+    release; then a held tree of the branch the catalog ref names (a
+    superseded one still counts); then the newest default-branch tree.
+    CodeError says what to run when nothing fits.
     """
     notes = []
     checkout = config.checkouts.get(repo.id.lower())
@@ -1833,14 +1872,7 @@ def _select_tree(args, catalog, library, config, repo):
             library.held(repo.id, args.ref) if code_mod._SHA.match(args.ref) else None
         )
         if found is None:
-            named = [
-                t
-                for t in trees
-                if t.provenance.kind in ("ref", "default")
-                and t.provenance.name == args.ref
-            ]
-            named.sort(key=lambda t: (t.superseded, ""))
-            found = named[0] if named else None
+            found = _named_tree(trees, ("ref", "default"), args.ref)
         if found is None:
             raise code_mod.CodeError(
                 f"{repo.id} is not held at {args.ref}; run: bmcspec clone {repo.id} "
@@ -1848,6 +1880,9 @@ def _select_tree(args, catalog, library, config, repo):
             )
         return found, notes
     release = args.release or config.release
+    if release and repo.owner:
+        notes.append(_vendor_release_note(repo, release))
+        release = None
     if release:
         if not args.release:
             notes.append(f"note: release {release} from config.toml")
@@ -1855,26 +1890,45 @@ def _select_tree(args, catalog, library, config, repo):
             kind = "ref"  # the release source is held at the tag or branch itself
         else:
             kind = "release"
-        pinned = [
-            t
-            for t in trees
-            if t.provenance.kind == kind and t.provenance.name == release
-        ]
-        pinned.sort(key=lambda t: (t.superseded, ""))
-        if not pinned:
+        pinned = _named_tree(trees, (kind,), release)
+        if pinned is None:
             raise code_mod.CodeError(
                 f"{repo.id} is not held at release {release}; run: bmcspec clone "
                 f"{repo.id} --release {release}"
             )
-        return pinned[0], notes
-    current = [t for t in trees if t.provenance.kind == "default" and not t.superseded]
+        return pinned, notes
+    if repo.ref:
+        # the catalog's ref names the branch, as --ref does: a tree held under
+        # --ref counts, and so does one a later ref superseded but not pruned
+        named = [
+            t
+            for t in trees
+            if t.answers(("ref", "default"), repo.ref) or t.default_branch == repo.ref
+        ]
+        named.sort(key=lambda t: t.superseded)
+        if named:
+            found = named[0].answers(("ref", "default"), repo.ref)
+            return (named[0].as_asked(found) if found else named[0]), notes
+    current = [t for t in trees if t.is_default and not t.superseded]
     if current:
-        return current[0], notes
-    if trees:
-        return trees[0], notes
+        # the tree a plain clone answers with: the newest of that branch
+        return library.newest_of_branch(current[0]), notes
+    if trees:  # no current default tree: the newest tree prune keeps
+        return sorted(trees, key=lambda t: t.superseded)[0], notes
     raise code_mod.CodeError(
         f"{repo.id} is not in the Library; run: bmcspec clone {repo.id}"
     )
+
+
+def _named_tree(trees, kinds: tuple[str, ...], name: str) -> code_mod.Tree | None:
+    """The tree held under ``name`` (its provenance or an ``also`` entry of
+    one of ``kinds``), a current one before a superseded one, as a cite
+    names it; None when no tree has the name."""
+    named = [t for t in trees if t.answers(kinds, name)]
+    named.sort(key=lambda t: (t.superseded, ""))
+    if not named:
+        return None
+    return named[0].as_asked(named[0].answers(kinds, name))
 
 
 def _reading_tree(args):
@@ -1886,7 +1940,7 @@ def _reading_tree(args):
     if code != EXIT_OK:
         return None, None, [], code
     repo = _repo_or_message(catalog, library, args.repo, guess=False)
-    if repo is None:
+    if repo is None or _vendor_release(repo, args):
         return None, None, [], EXIT_ACTION
     try:
         tree, notes = _select_tree(args, catalog, library, config, repo)

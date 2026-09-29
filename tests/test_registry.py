@@ -3,6 +3,7 @@ messages, the formatting helpers."""
 
 import io
 import json
+import shutil
 import zipfile
 
 import pytest
@@ -160,8 +161,7 @@ def test_unpack_replaces_an_earlier_directory(tmp_path):
     (tmp_path / "registries" / "Stale.1.0.0.json").write_text("{}", "utf-8")
     unpacked(tmp_path)
     assert not (tmp_path / "registries" / "Stale.1.0.0.json").exists()
-    R.remove_registries(tmp_path)
-    assert not (tmp_path / "registries").exists()
+    shutil.rmtree(tmp_path / "registries")
     assert not R.is_current(tmp_path)
 
 

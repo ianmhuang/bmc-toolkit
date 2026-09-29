@@ -308,6 +308,24 @@ def test_a_failed_download_falls_back_to_the_held_version_with_a_note(
     assert URL in scripted.calls  # the download was tried before the fallback
 
 
+def test_the_fallback_note_names_an_archive_org_rate_limit(
+    catalog_file, library, scripted, tmp_path, capsys
+):
+    scripted.responses[OLD_URL] = ok(pdf_bytes(tmp_path, "old.pdf", ["old text"]))
+    run(capsys, "fetch", "DSP0236", "--version", "1.3.2", catalog_file=catalog_file)
+    scripted.responses[URL] = fetch_mod.Response(403, {}, b"")
+    scripted.responses[fetch_mod.WAYBACK_AVAILABLE + URL] = fetch_mod.Response(
+        429, {}, b""
+    )
+    code, out = run(capsys, "page", "DSP0236", "1", catalog_file=catalog_file)
+    assert code == 0, out
+    assert out.splitlines()[0] == (
+        "note: could not fetch DSP0236 1.3.3: direct: HTTP 403; "
+        "wayback: rate limited by archive.org (HTTP 429), "
+        "try again in a few minutes; answering from held 1.3.2"
+    )
+
+
 def test_a_failed_download_with_nothing_held_is_exit_2_with_the_save_path(
     catalog_file, library, scripted, capsys
 ):

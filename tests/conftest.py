@@ -199,3 +199,18 @@ def _network_off_by_default(monkeypatch):
 
     monkeypatch.setattr(cli, "CLIENT_FACTORY", lambda: _no_network)
     monkeypatch.setattr(cli, "_check_when_due", lambda args: None)
+
+
+# The session directory tests/test_code.make_repo keeps its templates in;
+# None outside a pytest session, where make_repo builds every repository.
+REPO_TEMPLATES = {"root": None}
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _repo_templates(tmp_path_factory):
+    """Building a repository takes about ten git subprocesses, which is most
+    of the suite's time on Windows; make_repo builds each distinct one once
+    here and copies it for every later test."""
+    REPO_TEMPLATES["root"] = tmp_path_factory.mktemp("repo-templates")
+    yield
+    REPO_TEMPLATES["root"] = None

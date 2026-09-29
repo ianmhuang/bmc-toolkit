@@ -224,6 +224,17 @@ version is the one on the cover of the archived file.
 | G23 | How Get Device ID is registered in phosphor-host-ipmid | - | `apphandler.cpp`, `registerHandler(..., netFnApp, cmdGetDeviceId, ...)`; `cmdGetDeviceId = 0x01` in `include/ipmid/api-types.hpp` | `grep phosphor-host-ipmid cmdGetDeviceId` |
 | G24 | Which pldm code sends RequestUpdate and which libpldm function encodes it | - | pldm `fw-update/device_updater.cpp` calls `encode_request_update_req`; libpldm `src/dsp/firmware_update.c`; at the OpenBMC 2.18.0 pin the pldm call sits on another line | `clone pldm --release 2.18.0`, `grep pldm encode_request_update_req --release 2.18.0` |
 
+## Vendor SDKs
+
+Questions on the SoC vendors' Code Trees and the upstream kernel docs they are read against, numbered V1 onwards so the G series stays with documents; answered on the date and branch each row names.
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| V1 | Where the AST2600 eSPI driver sits in Aspeed's kernel and which compatible strings it binds | - | aspeed-linux aspeed-master-v6.18 (2026-09-22), `drivers/soc/aspeed/espi/`: `aspeed-espi.c` lines 90-92 bind `aspeed,ast2500-espi`, `aspeed,ast2600-espi`, `aspeed,ast2700-espi`; the AST2600 node is in `arch/arm/boot/dts/aspeed/aspeed-g6.dtsi` line 629 | `clone aspeed-linux`, `grep aspeed-linux ast2600-espi`, `grep aspeed-linux ".compatible = " --glob 'drivers/soc/aspeed/espi/*'` |
+| V2 | Which compatible strings the NPCM I2C driver binds in Nuvoton's kernel, and its bus clock ceiling | - | nuvoton-linux NPCM-6.18-OpenBMC (2026-09-22), `drivers/i2c/busses/i2c-npcm7xx.c`: lines 2718-2719 bind `nuvoton,npcm750-i2c` and `nuvoton,npcm845-i2c`; `I2C_FREQ_MAX_HZ` is `I2C_MAX_FAST_MODE_PLUS_FREQ` (1 MHz, line 264), a higher `clock-frequency` is refused (line 2187), 100 kHz when none is given | `clone nuvoton-linux`, `grep nuvoton-linux "compatible = \"nuvoton,npcm" --glob 'drivers/i2c/*'`, `grep nuvoton-linux I2C_FREQ_MAX_HZ` |
+| V3 | Which defconfig builds U-Boot for the AST2600 EVB, and where its environment and kernel sit in SPI flash | - | aspeed-u-boot aspeed-master-v2023.10 (2026-09-22), `configs/evb-ast2600_defconfig` (`CONFIG_TARGET_EVB_AST2600`, device tree `ast2600-evb`): environment at flash offset `0x140000`, `0x20000` bytes (lines 15-17); `bootspi` in `include/configs/evb_ast2600.h` line 19 reads the kernel FIT from `0x20160000` in the flash window | `clone aspeed-u-boot`, `grep aspeed-u-boot TARGET_EVB_AST2600`, `code aspeed-u-boot configs/evb-ast2600_defconfig`, `code aspeed-u-boot include/configs/evb_ast2600.h` |
+| V4 | Which sysfs attributes the upstream PECI cputemp hwmon driver exposes | - | linux dev-6.18 (2026-09-22), `Documentation/hwmon/peci-cputemp.rst`: `temp1` Die and `temp2` DTS (`_label`, `_input`, `_max`, `_crit`, `_crit_hyst`), `temp3` Tcontrol (`_label`, `_input`, `_crit`), `temp4` Tthrottle and `temp5` Tjmax (`_label`, `_input`), `temp6` onwards one per core (`_label` "Core X", `_input`); all in millidegree Celsius | `clone linux`, `code linux Documentation/hwmon/peci-cputemp.rst` |
+
 ## Named table checks
 
 | Table | Command | Expected |
@@ -234,7 +245,7 @@ version is the one on the cover of the archived file.
 | DSP0248 Table 69 GetPDR command format | `table DSP0248 --page 122` | pages 122-123, the `(continued)` header row dropped |
 | DSP0239 Table 1 MCTP Message Types (cell boxes, no ruling lines) | `table DSP0239 --page 13` | one Logical Table, pages 13-14, 14 rows; the `table:` line says `cells (no ruling lines)` |
 | DSP0274 Table 4 SPDM request codes (cell boxes) | `table DSP0274 --page 39` | pages 39-41, 32 rows, the header repeated on each page dropped |
-| DSP2053 the property guide (one cell-box table over the whole document) | `table DSP2053 --page 220` | a `note:` line, then only the rows that start on page 220; `--all-rows` prints all 4312 (rows the page break cut are joined) |
+| DSP2053 the property guide (one cell-box table over the whole document) | `table DSP2053 --page 220` | a `note:` line, then only the rows that start on page 220; `--all-rows` prints all 4406; PowerDistribution (Actions > PowerControl (Action)) ends page 220 and OutletGroup starts page 221 as rows of their own |
 
 ## Spec versus code
 
