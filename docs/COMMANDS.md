@@ -260,7 +260,9 @@ it (`--release master` on a repository whose default branch is `master`).
 When a `--ref` or `--release` clone lands on a commit held under another
 name (a Release pin that is also the default branch's head, a tag on a
 commit held as a Release), that tree keeps its provenance and records the
-name in an `"also"` list in its `.bmc-tree.json`; `clone` prints `held`
+name in an `"also"` list in its `.bmc-tree.json` (a version before 1.3.0
+ignores the list and drops it when it rewrites the file, so going back to
+one loses the recorded names); `clone` prints `held`
 with the tree's own provenance, and the next clone of that name answers
 without the network. A tree with `also` names is not superseded when its
 own name moves on: the first `also` name becomes its provenance instead.

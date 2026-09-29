@@ -125,7 +125,9 @@ class Tree:
 
     def name_for(self, asked: Provenance) -> Provenance | None:
         """The name the tree answers ``asked`` with: its own provenance or
-        an ``also`` entry of the same moving name; None when neither is."""
+        an ``also`` entry of the same moving name; None when neither is.
+        Cloning uses this: a --ref and a default tree of one branch are one
+        name (``_one_branch``), so either answers the other."""
         for name in (self.provenance, *self.also):
             if _one_branch(name, asked):
                 return name
@@ -133,7 +135,9 @@ class Tree:
 
     def answers(self, kinds: tuple[str, ...], name: str) -> Provenance | None:
         """Its own provenance or an ``also`` entry of one of ``kinds``
-        called ``name``; None when neither is."""
+        called ``name``; None when neither is. Reading commands use this:
+        each lookup names the kinds it accepts (``--release`` takes only
+        release trees, the openbmc release source only ref trees)."""
         for held in (self.provenance, *self.also):
             if held.kind in kinds and held.name == name:
                 return held
