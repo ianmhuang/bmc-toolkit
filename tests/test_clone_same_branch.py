@@ -21,6 +21,7 @@ from tests.test_code import (
     commit,
     git,
     make_repo,
+    make_scenario,
     push,
 )
 
@@ -43,12 +44,9 @@ def library(tmp_path, monkeypatch):
     return root
 
 
-@pytest.fixture
-def repo(tmp_path):
-    """thing: main at c1 then c2, an sdk branch at cs (from c1), a rel
-    branch at c1."""
-    (tmp_path / "remote").mkdir()
-    work, bare, url = make_repo(tmp_path / "remote", "thing", THING_FILES)
+def _build_thing(root):
+    (root / "remote").mkdir(exist_ok=True)
+    work, bare, url = make_repo(root / "remote", "thing", THING_FILES)
     c1 = git("rev-parse", "HEAD", cwd=work)
     git("branch", "rel", c1, cwd=work)
     push(work, "rel")
@@ -59,6 +57,13 @@ def repo(tmp_path):
     c2 = commit(work, {"README.md": "thing 2\n"}, "second")
     push(work)
     return {"work": work, "bare": bare, "url": url, "c1": c1, "cs": cs, "c2": c2}
+
+
+@pytest.fixture
+def repo(tmp_path):
+    """thing: main at c1 then c2, an sdk branch at cs (from c1), a rel
+    branch at c1."""
+    return make_scenario(tmp_path, "clonesamebranch-repo", _build_thing)
 
 
 def _catalog(tmp_path, repo, *, ref=None, openbmc=None):
@@ -214,20 +219,30 @@ def test_ac3_a_default_clone_leaves_a_ref_tree_of_another_branch(
 # ------------------------------------------------------------ AC-4
 
 
-@pytest.fixture
-def release_source(tmp_path, repo):
-    """openbmc, tag 1.0.0, whose recipe pins thing at c1."""
-    recipe = RECIPE.format(url=RECIPE_URL, sha=repo["c1"])
+def _build_release_source(root, c1):
+    (root / "remote").mkdir(exist_ok=True)
+    recipe = RECIPE.format(url=RECIPE_URL, sha=c1)
     files = {
         "meta-phosphor/recipes-phosphor/things/thing_git.bb": recipe,
         "README.md": "distro\n",
     }
     ob_work, _ob_bare, ob_url = make_repo(
-        tmp_path / "remote", "openbmc", files, branch="master"
+        root / "remote", "openbmc", files, branch="master"
     )
     git("tag", "1.0.0", cwd=ob_work)
     push(ob_work, "1.0.0")
     return ob_url
+
+
+@pytest.fixture
+def release_source(tmp_path, repo):
+    """openbmc, tag 1.0.0, whose recipe pins thing at c1."""
+    c1 = repo["c1"]
+    return make_scenario(
+        tmp_path,
+        f"clonesamebranch-release-{c1}",
+        lambda root: _build_release_source(root, c1),
+    )
 
 
 def test_ac4_a_default_clone_landing_on_a_release_tree_answers_without_git(
