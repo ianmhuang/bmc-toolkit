@@ -74,6 +74,74 @@ def _set_origin(config, target) -> None:
     config.write_text(text, encoding="utf-8", newline="")
 
 
+def make_scenario(tmp_path, key, build):
+    """What ``build(root)`` makes under ``root`` (repositories from make_repo
+    plus the commits, tags and pushes a fixture adds) and the data it
+    returns, built once per session under ``key`` and copied into
+    ``tmp_path`` after that, like make_repo's templates. Every commit,
+    push and checkout of a fixture's history is one or more git
+    subprocesses; a copy is none.
+
+    In the returned data a Path or file URI under the template comes back
+    under ``tmp_path``, and tuples come back as lists."""
+    root = REPO_TEMPLATES["root"]
+    if root is None:
+        return build(tmp_path)
+    digest = hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+    template = root / f"scenario-{digest}"
+    tree = template / "tree"
+    if not template.is_dir():
+        tree.mkdir(parents=True)
+        data = _pack(build(tree), tree)
+        configs = [
+            p.relative_to(tree).as_posix()
+            for p in tree.rglob("config")
+            if (p.parent / "objects").is_dir()
+        ]
+        record = {"data": data, "configs": configs}
+        (template / "scenario.json").write_text(
+            json.dumps(record), encoding="utf-8", newline=""
+        )
+    record = json.loads((template / "scenario.json").read_text(encoding="utf-8"))
+    for child in tree.iterdir():
+        shutil.copytree(child, tmp_path / child.name)
+    # git config holds the only absolute paths: each repository's origin
+    for rel in record["configs"]:
+        config = tmp_path / rel
+        text = config.read_text(encoding="utf-8")
+        for old, new in (
+            (str(tree), str(tmp_path)),
+            (tree.as_posix(), tmp_path.as_posix()),
+        ):
+            text = text.replace(old, new)
+        config.write_text(text, encoding="utf-8", newline="")
+    return _unpack(record["data"], tmp_path)
+
+
+def _pack(value, base):
+    if isinstance(value, Path):
+        return {"__path__": value.relative_to(base).as_posix()}
+    if isinstance(value, str) and value.startswith(base.as_uri() + "/"):
+        return {"__uri__": value[len(base.as_uri()) + 1 :]}
+    if isinstance(value, (list, tuple)):
+        return [_pack(v, base) for v in value]
+    if isinstance(value, dict):
+        return {k: _pack(v, base) for k, v in value.items()}
+    return value
+
+
+def _unpack(value, base):
+    if isinstance(value, dict):
+        if set(value) == {"__path__"}:
+            return base / value["__path__"]
+        if set(value) == {"__uri__"}:
+            return base.as_uri() + "/" + value["__uri__"]
+        return {k: _unpack(v, base) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_unpack(v, base) for v in value]
+    return value
+
+
 def _build_repo(tmp_path, name, files, branch):
     work = tmp_path / f"{name}-work"
     work.mkdir()
@@ -143,6 +211,57 @@ def test_make_repo_copies_do_not_share_state(tmp_path):
     origin = git("remote", "get-url", "origin", cwd=work2)
     assert Path(origin).resolve() == bare2.resolve()
     assert url2 == bare2.as_uri()
+
+
+def _two_repos(root):
+    """A scenario: sa with a second commit pushed, sb with a pushed tag."""
+    (root / "s").mkdir()
+    a_work, a_bare, a_url = make_repo(root / "s", "sa", {"a.txt": "a\n"})
+    b_work, _b_bare, b_url = make_repo(root / "s", "sb", {"b.txt": "b\n"})
+    git("tag", "t1", cwd=b_work)
+    push(b_work, "t1")
+    second = commit(a_work, {"a.txt": "a 2\n"}, "second")
+    push(a_work)
+    return {"a": (a_work, a_bare, a_url, second), "b": b_url}
+
+
+def test_make_scenario_copies_are_rerooted_and_do_not_share_state(tmp_path):
+    (tmp_path / "one").mkdir()
+    (tmp_path / "two").mkdir()
+    one = make_scenario(tmp_path / "one", "test-two-repos", _two_repos)
+    work1, bare1, url1, second = one["a"]
+    assert work1 == tmp_path / "one" / "s" / "sa-work"
+    assert bare1 == tmp_path / "one" / "s" / "sa.git"
+    assert url1 == bare1.as_uri()
+    assert one["b"] == (tmp_path / "one" / "s" / "sb.git").as_uri()
+    assert "refs/tags/t1" in _refs(tmp_path / "one" / "s" / "sb.git")
+    assert _refs(bare1)["refs/heads/main"] == second
+    # each repository's origin points inside the copy, not at the template
+    origin = git("remote", "get-url", "origin", cwd=work1)
+    assert Path(origin).resolve() == bare1.resolve()
+    back = git("config", "--get", "remote.origin.url", cwd=bare1)
+    assert Path(back).resolve() == work1.resolve()
+    third = commit(work1, {"a.txt": "a 3\n"}, "third")
+    push(work1)
+    assert _refs(bare1)["refs/heads/main"] == third
+
+    two = make_scenario(tmp_path / "two", "test-two-repos", _two_repos)
+    work2, bare2, _url2, second2 = two["a"]
+    assert second2 == second  # one build, copied
+    assert _refs(bare2)["refs/heads/main"] == second  # the first copy's push stayed
+    assert git("rev-parse", "HEAD", cwd=work2) == second
+    origin = git("remote", "get-url", "origin", cwd=work2)
+    assert Path(origin).resolve() == bare2.resolve()
+
+
+def test_make_scenario_builds_in_place_outside_a_session(tmp_path, monkeypatch):
+    monkeypatch.setitem(REPO_TEMPLATES, "root", None)
+    data = make_scenario(tmp_path, "test-two-repos-in-place", _two_repos)
+    work, bare, url, _second = data["a"]
+    assert work == tmp_path / "s" / "sa-work"
+    assert url == bare.as_uri()
+    origin = git("remote", "get-url", "origin", cwd=work)
+    assert Path(origin).resolve() == bare.resolve()
 
 
 @pytest.fixture
