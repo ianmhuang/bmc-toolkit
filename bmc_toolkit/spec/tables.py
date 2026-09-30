@@ -370,6 +370,9 @@ def _curve_tables(
     vertical = [
         o for o in vertical + curve_v if not any(_inside(o, t.bbox) for t in found)
     ]
+    # _ruled_tables closes the runs of these rules again, so a stray drawn
+    # vertical rule beside a found table may get closing rules here that
+    # the first pass did not give it
     extra = [
         t
         for t in _ruled_tables(page, number, horizontal, vertical)

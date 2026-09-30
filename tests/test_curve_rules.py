@@ -92,6 +92,35 @@ def test_a_table_ruled_with_curves_is_read(tmp_path):
         assert lt.caption == "Table 1 - Codes"
 
 
+def _is_horizontal(item):
+    if item[0] == "fill":  # ("fill", x, y, w, h)
+        return item[3] > item[4]
+    if item[0] == "line":  # ("line", x0, y0, x1, y1)
+        return item[2] == item[4]
+    return item[2] == item[-1]  # ("curve", x0, y0, ..., x1, y1)
+
+
+@pytest.mark.parametrize("style", ["fill", "line"])
+def test_a_grid_of_drawn_rows_and_curve_columns_is_one_table(tmp_path, style):
+    # _curve_tables adds the curves to the drawn rules on purpose (a producer
+    # may stroke only some rules as curves), so rows drawn as rules and
+    # columns as curves make the table the drawn rules alone make. The other
+    # way round is not read: the first pass closes the drawn columns into a
+    # one-row table that hides the curve rows (no instance in the e2e Library)
+    cells = [HEADER, *ROWS_1]
+    drawn = ruled_table(72, 700, WIDTHS, [16] * 3, cells, style=style)
+    curves = curve_grid(72, 700, WIDTHS, [16] * 3)
+    page = [i for i in drawn if len(i) == 3 or _is_horizontal(i)]
+    page += [i for i in curves if not _is_horizontal(i)]
+    with reader(tmp_path, [drawn], "drawn.pdf") as r:
+        (plain,) = r.page(1).tables
+    with reader(tmp_path, [page], "mixed.pdf") as r:
+        (t,) = r.page(1).tables
+    assert t.drawn == T.RULED
+    assert t.rows == plain.rows == cells
+    assert [round(c) for c in t.columns] == [round(c) for c in plain.columns]
+
+
 # ---------------------------------------------------------------- AC-2
 
 
