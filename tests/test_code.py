@@ -83,7 +83,9 @@ def make_scenario(tmp_path, key, build):
     subprocesses; a copy is none.
 
     In the returned data a Path or file URI under the template comes back
-    under ``tmp_path``, and tuples come back as lists."""
+    under ``tmp_path``, and tuples come back as lists. A directory another
+    scenario already made there is merged into; an existing file is never
+    overwritten (FileExistsError)."""
     root = REPO_TEMPLATES["root"]
     if root is None:
         return build(tmp_path)
@@ -103,8 +105,7 @@ def make_scenario(tmp_path, key, build):
             json.dumps(record), encoding="utf-8", newline=""
         )
     record = json.loads((template / "scenario.json").read_text(encoding="utf-8"))
-    for child in tree.iterdir():
-        shutil.copytree(child, tmp_path / child.name)
+    _merge_copy(tree, tmp_path)
     # git config holds the only absolute paths: each repository's origin
     for rel in record["configs"]:
         config = tmp_path / rel
@@ -116,6 +117,19 @@ def make_scenario(tmp_path, key, build):
             text = text.replace(old, new)
         config.write_text(text, encoding="utf-8", newline="")
     return _unpack(record["data"], tmp_path)
+
+
+def _merge_copy(src, dst):
+    for child in src.iterdir():
+        target = dst / child.name
+        if child.is_dir() and target.is_dir():
+            _merge_copy(child, target)
+        elif target.exists():
+            raise FileExistsError(target)
+        elif child.is_dir():
+            shutil.copytree(child, target)
+        else:
+            shutil.copy2(child, target)
 
 
 def _pack(value, base):
@@ -252,6 +266,36 @@ def test_make_scenario_copies_are_rerooted_and_do_not_share_state(tmp_path):
     assert git("rev-parse", "HEAD", cwd=work2) == second
     origin = git("remote", "get-url", "origin", cwd=work2)
     assert Path(origin).resolve() == bare2.resolve()
+
+
+def _third_repo(root):
+    """A second scenario that lands in the same directory as _two_repos."""
+    (root / "s").mkdir()
+    work, _bare, url = make_repo(root / "s", "sc", {"c.txt": "c\n"})
+    return {"work": work, "url": url}
+
+
+def test_make_scenario_merges_into_a_directory_another_one_made(tmp_path):
+    first = make_scenario(tmp_path, "test-two-repos", _two_repos)
+    third = make_scenario(tmp_path, "test-third-repo", _third_repo)
+    assert sorted(p.name for p in (tmp_path / "s").iterdir()) == [
+        "sa-work",
+        "sa.git",
+        "sb-work",
+        "sb.git",
+        "sc-work",
+        "sc.git",
+    ]
+    assert third["work"] == tmp_path / "s" / "sc-work"
+    origin = git("remote", "get-url", "origin", cwd=third["work"])
+    assert Path(origin).resolve() == (tmp_path / "s" / "sc.git").resolve()
+    assert first["b"] == (tmp_path / "s" / "sb.git").as_uri()
+
+
+def test_make_scenario_refuses_to_overwrite_what_is_there(tmp_path):
+    make_scenario(tmp_path, "test-two-repos", _two_repos)
+    with pytest.raises(FileExistsError):
+        make_scenario(tmp_path, "test-two-repos", _two_repos)
 
 
 def test_make_scenario_builds_in_place_outside_a_session(tmp_path, monkeypatch):
