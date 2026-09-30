@@ -16,6 +16,7 @@ from tests.test_code import (
     commit,
     git,
     make_repo,
+    make_scenario,
     push,
 )
 
@@ -27,11 +28,8 @@ def run(capsys, *argv, catalog_file):
     return code, capsys.readouterr().out
 
 
-@pytest.fixture
-def remotes(tmp_path):
-    """thing (a component) and openbmc (the release source with a recipe
-    pinning thing's first commit, tagged 1.0.0)."""
-    work, bare, url = make_repo(tmp_path, "thing", THING_FILES)
+def _build_remotes(root):
+    work, bare, url = make_repo(root, "thing", THING_FILES)
     first = git("rev-parse", "HEAD", cwd=work)
     recipe = RECIPE.format(url=RECIPE_URL, sha=first)
     ob_files = {
@@ -39,7 +37,7 @@ def remotes(tmp_path):
         "meta/unrelated.txt": "big\n",
         "README.md": "distro\n",
     }
-    ob_work, ob_bare, ob_url = make_repo(tmp_path, "openbmc", ob_files, branch="master")
+    ob_work, ob_bare, ob_url = make_repo(root, "openbmc", ob_files, branch="master")
     git("tag", "1.0.0", cwd=ob_work)
     push(ob_work, "1.0.0")
     second = commit(work, {"src/main.cpp": "int main() { return 2; }\n"}, "second")
@@ -48,6 +46,13 @@ def remotes(tmp_path):
         "thing": (work, url, first, second),
         "openbmc": (ob_work, ob_url),
     }
+
+
+@pytest.fixture
+def remotes(tmp_path):
+    """thing (a component) and openbmc (the release source with a recipe
+    pinning thing's first commit, tagged 1.0.0)."""
+    return make_scenario(tmp_path, "codecli-remotes", _build_remotes)
 
 
 @pytest.fixture
