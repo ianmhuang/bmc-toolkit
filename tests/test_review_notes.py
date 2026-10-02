@@ -5,6 +5,7 @@ here; every check goes through ``cli.main``."""
 
 import json
 import re
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -469,7 +470,9 @@ def test_notes_list_filters_by_document_and_is_latest_first(
 
 def test_notes_forget_and_prune(held, library, capsys, catalog_file):
     on(library)
-    current = a_note("5555aaaa", "packet", time="2026-09-02T00:00:00+00:00")
+    # Yesterday, so the 3650-day prune below never reaches it whatever today is.
+    yesterday = (datetime.now(UTC) - timedelta(days=1)).isoformat(timespec="seconds")
+    current = a_note("5555aaaa", "packet", time=yesterday)
     old = a_note(
         "5555bbbb",
         "old packet",
