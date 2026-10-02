@@ -1,6 +1,6 @@
 ---
 name: bmc-spec
-description: Answer questions about BMC specifications (IPMI, DCMI, DMTF MCTP/PLDM/SPDM/NC-SI/SMBIOS, Redfish, NVMe/NVMe-MI, OCP DC-SCM/DC-MHS, I2C, SMBus, CMIS) and about OpenBMC source code (bmcweb, phosphor-host-ipmid, pldm, dbus-sensors and ninety more repositories, at master or at a named OpenBMC release) and the Aspeed and Nuvoton SDK source (vendor kernels, U-Boot, SDK layers), citing document, version, section and page, or repository, commit and line. Use whenever the user asks what a spec says, how a command or field is defined, or how OpenBMC implements something.
+description: Answer questions about BMC specifications (IPMI, DCMI, DMTF MCTP/PLDM/SPDM/NC-SI/SMBIOS, Redfish, NVMe/NVMe-MI, OCP DC-SCM/DC-MHS, I2C, SMBus, CMIS) and about OpenBMC source code (bmcweb, phosphor-host-ipmid, pldm, dbus-sensors and ninety more repositories, at master or at a named OpenBMC release) and the Aspeed and Nuvoton SDK source (vendor kernels, U-Boot, SDK layers), citing document, version, section and page, or repository, commit and line. Use whenever the user asks what a spec says, how a command or field is defined, or how OpenBMC implements something, and to build or decode the raw bytes of an IPMI, MCTP control, PLDM or SPDM command (an `ipmitool raw`, `mctp-client` or `pldmtool raw` invocation, or a response pasted from one).
 allowed-tools: Bash(python *)
 ---
 
@@ -306,6 +306,49 @@ field the code sets that the spec marks optional. A difference is a
 finding, not an error; say which side you would trust for the user's
 purpose and why. Say which commit the code part describes; master today
 and the user's release may differ, and `grep` at both is cheap.
+
+<!-- command-workflow:start -->
+## Command workflow (raw bytes)
+
+A **Command** is a request and response pair a Document defines, known by its
+codes (IPMI NetFn and Cmd, MCTP control, PLDM and SPDM codes); its **Raw
+Request** and **Raw Response** are the bytes; an **Invocation** is a Raw
+Request in one tool's syntax. Same name in two Families (IPMI and PLDM Get
+Sensor Reading): the Family rule of the answering workflow; name the other.
+
+1. Encode ("the command for X"): `find` the Command in the Document's code
+   table and in its request layout, read both with `table`, cite both `cite:`
+   lines. Lay out every byte: multi-byte fields little-endian (IPMI "LS byte
+   first", PLDM, SPDM); a value the user did not give is a `<name>`
+   placeholder. Answer: the Invocation(s), every request byte and its field,
+   the Document Version used, the Citations, one sentence on the response.
+2. Invocations carry no Citation and no connection options (interface, host,
+   user, password, bridging). Syntax per ipmitool be11d948, CodeConstruct/mctp
+   v2.5 and openbmc/pldm b0e6c54e; say another tool version may differ.
+   - IPMI: `ipmitool raw 0x<netfn> 0x<cmd> 0x<byte> ...`, every number with
+     `0x` (bare `08` is read as octal and refused). Appendix G names the NetFn;
+     the request numbers (Table 5-1) are Chassis 0x00, Bridge 0x02, S/E 0x04,
+     App 0x06, Firmware 0x08, Storage 0x0a, Transport 0x0c.
+   - MCTP control, PLDM, SPDM: `mctp-client eid <eid> type <control|pldm|spdm>
+     data <bytes>`, two hex digits per byte, space separated, `data` last; the
+     message type is the `type` name, never a byte in `data`. PLDM also gets
+     `pldmtool raw -m <eid> -d 0x<byte> ...`, header included; say that
+     pldmtool rewrites the instance id.
+3. Headers: an MCTP control or PLDM request starts with `80` (Rq=1, D=0,
+   instance id 0); say so. SPDM byte 0 is SPDMVersion: as the Document fixes
+   it for GET_VERSION, else `<negotiated version>` unless the user names one.
+4. Decode (the user pastes output): name the Command, its purpose as the
+   Document states it, then every field (bytes, value, meaning) with
+   Citations. Why someone ran it beyond that purpose is labelled inference.
+   - `ipmitool raw` prints only the data after the completion code (no bytes
+     when only `00` came back), so decode it with its request; given data
+     alone, ask for the request. `Unable to send RAW command (... netfn=...
+     cmd=... rsp=0xNN)` names the Command: look the completion code up in the
+     Command's own table first, then the generic completion codes.
+   - `pldmtool: Rx:` is a whole PLDM response, header included. `mctp-client`
+     output lacks the message type: decode it when the user names the type or
+     pasted the Invocation, else ask for the type.
+<!-- command-workflow:end -->
 
 ## Citation rules
 
