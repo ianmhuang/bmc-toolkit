@@ -4,6 +4,7 @@ stays an add-on."""
 
 import json
 import re
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -531,7 +532,9 @@ def test_recall_prints_a_note_whole_and_a_superseded_one_as_a_pointer(
 
 def test_notes_list_forget_and_prune(held, library, capsys, catalog_file):
     on(library)
-    current = note("packet", time="2026-09-02T00:00:00+00:00")
+    # Yesterday, so the 30-day prune below never reaches it whatever today is.
+    yesterday = datetime.now(UTC) - timedelta(days=1)
+    current = note("packet", time=yesterday.isoformat(timespec="seconds"))
     old = note(
         "old packet",
         answer="cite: mctp | DSP0236 1.2.0 | 8.1 Overview | PDF page 1 | l | u | p",
