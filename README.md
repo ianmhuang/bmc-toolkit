@@ -114,11 +114,11 @@ per 30 days to ask whether it lists a newer one (reported, never downloaded).
 The skill copies its Citation from the `cite:` line of every printed page.
 What each command does: [docs/COMMANDS.md](docs/COMMANDS.md).
 
-Asked for a named Command, the skill also writes the request as an Invocation,
-each byte explained and cited: `ipmitool raw` for IPMI, `mctp-client` for MCTP
-control, PLDM (base, Platform Monitoring and Control; `pldmtool raw` too) and
-SPDM requests that need no cryptography. A value you did not give is a
-`<placeholder>`. No Invocation was run against hardware or QEMU.
+For a named Command the skill writes the request as an Invocation: IPMI as
+`ipmitool raw`; MCTP control, PLDM (base, Platform Monitoring and Control;
+`pldmtool raw` too) and SPDM requests without cryptography as `mctp-client`.
+Missing values are `<placeholders>`. The model lays out the bytes: check them
+against the cited layout. No Invocation was run against hardware or QEMU.
 
 ## Library location
 

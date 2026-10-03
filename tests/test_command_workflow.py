@@ -97,6 +97,23 @@ def test_description_names_the_tools_the_workflow_writes_for():
         assert tool in description
 
 
+def test_frontmatter_values_are_valid_yaml_scalars():
+    """A plain (unquoted) YAML scalar may hold neither `: ` nor ` #`; the
+    description's "means: the bytes" needs the value quoted."""
+    for skill in sorted((ROOT / "skills").glob("*/SKILL.md")):
+        head = skill.read_text("utf-8").split("\n---\n", 1)[0]
+        for line in head.splitlines()[1:]:
+            key, _, value = line.partition(": ")
+            if value.startswith('"'):
+                assert value.endswith('"'), (skill.parent.name, key)
+                assert '"' not in value[1:-1] and "\\" not in value, key
+            else:
+                assert ": " not in value and " #" not in value, (
+                    skill.parent.name,
+                    key,
+                )
+
+
 def test_readme_says_what_can_be_asked_and_that_nothing_ran_on_hardware():
     text = README.read_text("utf-8")
     start = text.index("## How a question is answered")
@@ -106,4 +123,5 @@ def test_readme_says_what_can_be_asked_and_that_nothing_ran_on_hardware():
     for family in ("IPMI", "MCTP control", "PLDM", "SPDM"):
         assert family in section, family
     assert "placeholder" in section
+    assert "check them against the cited layout" in section
     assert "run against hardware or QEMU" in section
