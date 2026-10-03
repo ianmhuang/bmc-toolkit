@@ -5,8 +5,9 @@ The block is the feature: rules a Session follows when asked for a named
 Command. These tests read SKILL.md the way a Session gets it and check the
 shape of the rules the acceptance criteria name: the markers and the line
 cap, the three tool forms token by token, the header and SPDM version
-rules, the byte count, the absence of rules for a pasted response, and
-that nothing outside the markers depends on the block.
+rules, the byte count, the absence of rules for a pasted response, the
+description as one valid YAML scalar, and that nothing outside the markers
+depends on the block.
 
 Every test locates the block through its markers (or reads the tool names
 from the description), so each one fails on develop, where neither exists.
@@ -53,12 +54,30 @@ def _forms(tool: str) -> list[list[str]]:
 
 
 def _description() -> str:
+    """The description as a YAML reader gets it: the value of its frontmatter
+    line, which has to be one valid scalar. A plain scalar holds neither `: `
+    nor ` #`; a quoted one is closed and holds no quote of its own kind."""
     text = SKILL.read_text("utf-8")
     assert text.startswith("---\n")
     head = text[4:].split("\n---\n", 1)[0]
     found = [ln for ln in head.splitlines() if ln.startswith("description:")]
     assert len(found) == 1, found
-    return found[0]
+    value = found[0][len("description:") :].strip()
+    assert value, "empty description"
+    if value[0] == '"':
+        assert len(value) > 1 and value.endswith('"'), "double quote not closed"
+        inner = value[1:-1]
+        assert '"' not in inner and "\\" not in inner, "needs an escape"
+        return inner
+    if value[0] == "'":
+        assert len(value) > 1 and value.endswith("'"), "single quote not closed"
+        inner = value[1:-1]
+        assert "'" not in inner.replace("''", ""), "lone single quote"
+        return inner.replace("''", "'")
+    assert value[0] not in "[]{}*&!|>%@`#,", "a plain scalar cannot start so"
+    assert ": " not in value and " #" not in value, "plain scalar cannot hold this"
+    assert not value.endswith(":"), "plain scalar cannot end with a colon"
+    return value
 
 
 # ------------------------------------------------------------------ AC-1
@@ -216,10 +235,14 @@ def test_block_names_the_tool_versions_and_says_others_may_differ():
 # ------------------------------------------------------------------ AC-9
 
 
-def test_description_names_the_three_tools():
+def test_description_is_one_yaml_scalar_and_names_the_three_tools():
+    """The sentence that names the tools holds `: `; the loader must still get
+    the whole description, so the value is read here as YAML would read it."""
     description = _description()
     for tool in ("ipmitool raw", "mctp-client", "pldmtool raw"):
         assert tool in description, tool
+    # the sentence with the colon is part of what was parsed, not cut off
+    assert description.rstrip().endswith("."), description[-40:]
 
 
 # ----------------------------------------------------------- AC-1, AC-11
