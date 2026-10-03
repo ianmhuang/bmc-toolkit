@@ -1,8 +1,15 @@
 """The frontmatter of the bmc-spec skill: what a Session reads before it
 decides whether to invoke the skill. `description` and `when_to_use` are the
-whole of it, and the skill listing cuts the two off at 1,536 characters."""
+whole of it, and the skill listing cuts the two off at 1,536 characters.
+
+The sentences pinned here are the wording whose trigger rate was measured
+(2026-10-04, fresh `claude -p` Sessions). These tests cannot tell a wording
+that triggers from one that does not: a rewording is measured again, and the
+phrases below change with it."""
 
 from pathlib import Path
+
+from bmc_toolkit.spec.catalog import load_catalog
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "bmc-spec" / "SKILL.md"
@@ -69,6 +76,20 @@ def test_description_does_not_read_as_the_whole_catalog():
     assert "source catalog" in text
     assert "many more that are not named here" in text
     assert "check the catalog before deciding a document is not covered" in text
+
+
+def test_sizes_the_description_gives_hold_for_the_shipped_catalog():
+    """The description gives two sizes in words; the Source Catalog must stay
+    at least that large while it says so."""
+    description = frontmatter()["description"]
+    catalog = load_catalog()
+    assert "over a hundred documents" in description
+    assert len(catalog.documents) > 100
+    named = ("bmcweb", "phosphor-host-ipmid", "pldm")
+    assert ", ".join(named) + " and ninety more OpenBMC repositories" in description
+    upstream = [repo.id for repo in catalog.repos if not repo.owner]
+    assert set(named) <= set(upstream)
+    assert len(upstream) >= len(named) + 90
 
 
 def test_when_to_use_names_the_three_situations():
