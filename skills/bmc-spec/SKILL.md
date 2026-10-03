@@ -312,9 +312,9 @@ and the user's release may differ, and `grep` at both is cheap.
 
 A **Command** is a request and response pair a Document defines, known by its
 codes (IPMI NetFn and Cmd, MCTP control, PLDM and SPDM codes); its **Raw
-Request** and **Raw Response** are the bytes; an **Invocation** is a Raw
-Request in one tool's syntax. Same name in two Families (IPMI and PLDM Get
-Sensor Reading): the Family rule of the answering workflow; name the other.
+Request** is the bytes of the request; an **Invocation** is a Raw Request in
+one tool's syntax. Same name in two Families (IPMI and PLDM Get Sensor
+Reading): the Family rule of the answering workflow; name the other.
 
 1. Encode ("the command for X"): `find` the Command in the Document's code
    table and in its request layout, read both with `table`, cite both `cite:`
@@ -332,22 +332,14 @@ Sensor Reading): the Family rule of the answering workflow; name the other.
    - MCTP control, PLDM, SPDM: `mctp-client eid <eid> type <control|pldm|spdm>
      data <bytes>`, two hex digits per byte, space separated, `data` last; the
      message type is the `type` name, never a byte in `data`. PLDM also gets
-     `pldmtool raw -m <eid> -d 0x<byte> ...`, header included; say that
-     pldmtool rewrites the instance id.
+     `pldmtool raw -m <eid> -d 0x<byte> ...`, header included.
 3. Headers: an MCTP control or PLDM request starts with `80` (Rq=1, D=0,
-   instance id 0); say so. SPDM byte 0 is SPDMVersion: as the Document fixes
-   it for GET_VERSION, else `<negotiated version>` unless the user names one.
-4. Decode (the user pastes output): name the Command, its purpose as the
-   Document states it, then every field (bytes, value, meaning) with
-   Citations. Why someone ran it beyond that purpose is labelled inference.
-   - `ipmitool raw` prints only the data after the completion code (no bytes
-     when only `00` came back), so decode it with its request; given data
-     alone, ask for the request. `Unable to send RAW command (... netfn=...
-     cmd=... rsp=0xNN)` names the Command: look the completion code up in the
-     Command's own table first, then the generic completion codes.
-   - `pldmtool: Rx:` is a whole PLDM response, header included. `mctp-client`
-     output lacks the message type: decode it when the user names the type or
-     pasted the Invocation, else ask for the type.
+   instance id 0); say so. SPDM byte 0 is SPDMVersion: what the Document fixes
+   for GET_VERSION; in every other request `<negotiated version>` unless the
+   user names one, never the Version of the Document the layout came from.
+4. Before answering, count each Invocation's bytes against the request layout:
+   the sum of its field sizes, plus the header bytes the layout leaves out
+   (NetFn and Cmd; `80` and the codes). State the total in the answer.
 <!-- command-workflow:end -->
 
 ## Citation rules
