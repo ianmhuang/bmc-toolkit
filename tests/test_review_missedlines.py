@@ -4,8 +4,9 @@ missed (AC-1, AC-2, AC-4, AC-5).
 Black-box through ``extract_pdf`` and ``write_result`` on synthetic PDFs from
 ``tests.pdfgen``. Every test holds an assertion that fails on the base
 branch, where a page the page-by-page rules turn down has no Line Map entry.
-A recovered page is always followed by a numbered page here, so both bounds
-AC-1 names exist.
+Between numbered pages both bounds AC-1 names exist; the tests named
+``after_the_last_numbered_page`` cover the open end of the document, where
+only the lower bound holds.
 """
 
 import json
@@ -116,6 +117,26 @@ def test_ac1_a_short_page_is_numbered_without_continuing_the_count(tmp_path):
     assert page_lines(r.text, 2) == ["A drawing fills this page."]
 
 
+def test_ac1_pages_after_the_last_numbered_page_have_the_lower_bound_only(tmp_path):
+    # no numbered page follows pages 3 and 4, so no number is there to stay
+    # under: 109-110 and, further on, 130 are greater than what stands before
+    pages = [
+        pdfgen.numbered_page(100, SIX),
+        margin_lines([106, 108]),  # 107 is missing: this page stays as it is
+        margin_lines([109, 110], text="Tail"),
+        [(MARGIN_X, 700, "130"), (BODY_X, 700, "Change log")],
+    ]
+    r = extract(tmp_path, pages)
+    lm = r.linemap["pages"]
+    # the base branch numbers page 1 only
+    assert list(lm) == ["1", "3", "4"]
+    assert lm["3"] == entry(109, 2)
+    assert lm["4"] == entry(130, 1)
+    assert page_lines(r.text, 3) == ["Tail 0", "Tail 1"]
+    assert page_lines(r.text, 4) == ["Change log"]
+    assert r.numbered_pages == 3
+
+
 # ------------------------------------------------------------------- AC-2
 
 
@@ -175,6 +196,39 @@ def test_ac4_numbers_that_do_not_fit_leave_the_page_as_it_was(tmp_path, numbers)
     got = page_lines(r.text, 2)
     assert [ln.split()[0] for ln in got] == [str(n) for n in numbers]
     # its text is what the page gives in a document without a Line Map
+    alone = extract(tmp_path, [odd], "alone.pdf")
+    assert alone.numbered_pages == 0
+    assert got == page_lines(alone.text, 1)
+
+
+@pytest.mark.parametrize(
+    "numbers",
+    [
+        pytest.param([113, 114], id="starts at the last number"),
+        pytest.param([90, 91], id="below the last number"),
+        pytest.param([114, 116], id="a gap"),
+        pytest.param([115, 114], id="descending"),
+        pytest.param([114, 114], id="a number twice"),
+    ],
+)
+def test_ac4_after_the_last_numbered_page_numbers_that_do_not_fit_stay_text(
+    tmp_path, numbers
+):
+    # the last numbered page ends at 113: a page after it is numbered only
+    # when its numbers are consecutive and greater than 113
+    odd = margin_lines(numbers)
+    pages = [
+        pdfgen.numbered_page(100, SIX),
+        table_page([106, 107], footer=2),  # this one fits: only the base misses it
+        pdfgen.numbered_page(108, SIX),
+        odd,
+    ]
+    r = extract(tmp_path, pages)
+    lm = r.linemap["pages"]
+    assert list(lm) == ["1", "2", "3"]
+    assert lm["2"] == entry(106, 2)
+    got = page_lines(r.text, 4)
+    assert [ln.split()[0] for ln in got] == [str(n) for n in numbers]
     alone = extract(tmp_path, [odd], "alone.pdf")
     assert alone.numbered_pages == 0
     assert got == page_lines(alone.text, 1)
