@@ -131,8 +131,8 @@ names (or the default branch), searched with `grep` and read with `code`.
   fields, separated by ` | `: family, document and version, the sections
   the page spans (joined by `; `; one section for `page --section` and
   `table`), `PDF page N` (or `PDF pages A-B` for a Logical Table), `lines A-B` (or
-  `lines -`, `rendered page`, or `table K` for the K-th table on the first
-  page), origin (download URL or `user-provided`), Library path. A `schema`
+  `lines -`, `lines rendered page`, or `lines table K` for the K-th table on
+  the first page), origin (download URL or `user-provided`), Library path. A `schema`
   Citation has, in the section, page and lines positions: `<Resource>
   vX.Y.Z` (or the index name), `file <name>.json`, and the JSON pointer of
   what was printed. A `code` Citation reads `cite: code | <repo>
@@ -174,7 +174,7 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `grep REPO PATTERN [--ref R \| --release L] [--regex] [--glob G] [--context N] [--max N]` | `git grep` over the selected Code Tree (user checkout first, then the named Ref or Release, then the config Release, then a held tree of the branch the catalog `ref` names, then the default-branch tree): one hit per line `REPO@commit7 path:line \| text`, context lines as `line N:` with `--` between groups, at most 50 hits unless `--max` (0 = all); `no hits`; exit 2 with the `clone` command when the tree is not held. Case-sensitive, a fixed string unless `--regex` |
 | `code REPO PATH [--lines A-B] [--ref R \| --release L]` | a `cite:` line then the file's lines behind their numbers; a file over 200 lines needs `--lines`. Same tree selection as `grep`; a `note:` line says when a user checkout or the config Release was used |
 | `prune [--yes]` | `would remove <path> (...)` for every superseded Code Tree, every `.tmp-*` / `.part` leftover nobody is working on and every stale `.lock` (untouched for 5 minutes), then a `prune:` summary; only with `--yes` are they removed (`removed <path>`). A live lock and a fresh temp file are never listed; a stale lock that another Session takes over while `prune` runs is kept (`kept <path> (...)`, counted as `, N kept` in the summary); one its holder released meanwhile is `gone <path> (released meanwhile)`, counted as `, N gone`. Run `--yes` only when the user asked to free space |
-| `table DOC --page N [--version V] [--index K] [--force] [--all-rows]` | print every Logical Table touching page N, whole (the version is brought to Ready first, as `section` says): a `cite:` line (`PDF pages A-B`, `table K`), a `table:` line (caption or `-`, `ruled` or `cells (no ruling lines)`, page range, columns, rows including the header), then the rows as a grid, columns separated by ` \| `, one physical line per cell line, a rule after the header and after every row with a multi-line cell. A table longer than 300 rows prints a `note:` line and only the rows that start on page N; `--all-rows` prints them all. `--index K` keeps only the K-th table on the page. Read from `tables.json` when the page was read before, unless `--force`. Exit 2 with `no table on page N` when the page has neither kind |
+| `table DOC --page N [--version V] [--index K] [--force] [--all-rows]` | print every Logical Table touching page N, whole (the version is brought to Ready first, as `section` says): a `cite:` line (`PDF pages A-B`, `lines table K`), a `table:` line (caption or `-`, `ruled` or `cells (no ruling lines)`, page range, columns, rows including the header), then the rows as a grid, columns separated by ` \| `, one physical line per cell line, a rule after the header and after every row with a multi-line cell. A table longer than 300 rows prints a `note:` line and only the rows that start on page N; `--all-rows` prints them all. `--index K` keeps only the K-th table on the page. Read from `tables.json` when the page was read before, unless `--force`. Exit 2 with `no table on page N` when the page has neither kind |
 
 Exit codes: 0 done, 1 error (malformed catalog, unreadable file), 2 the
 user must act (unknown document or version, download impossible, document
@@ -348,14 +348,23 @@ Reading): the Family rule of the answering workflow; name the other.
 - Every Citation is copied from a `cite:` line the tool printed in this
   session. Do not compose one from memory, and do not cite a page you did
   not read.
+- Write it as that line, the fields in their order and separated by ` | `,
+  not as prose (a title with a comma would end a prose form early). Keep
+  family, document and version, section, page and lines as printed:
+  `lines table 1` stays `lines table 1`, not `table 1`. Origin and Library
+  path may be left out (a `user-provided` origin stays), and the lines
+  field may be left out only when it reads `lines -`.
+- A page seen only in `find` output has no Citation. Name the document,
+  version and page in prose, say it came from a `find` hit, and write no
+  `cite:` line for it; open the page when the claim needs one.
 - Line numbers appear only when the `page` output printed them for those
   lines; give the range you actually used, not the page's whole range.
 - The `cite:` section field lists every section the page spans: the entry
   in force at the top, then each whose heading is on the page. Copy the
-  field whole, or keep the one your claim sits in when the page text or
-  the section printed by `find` for that hit shows which one it is. A
-  field holding several titles is cited as the `cite:` line itself, not
-  rewritten in prose (a title with a comma would end the prose form early).
+  field whole, or keep the entries your claim sits in, each whole and in
+  the printed order, when the page text or the section printed by `find`
+  for that hit shows which they are. Never shorten a title with `...`,
+  change its number, or put a heading read in the page text in its place.
 - A `~` page comes from a contents page whose offset could not be
   confirmed: open the page and check the heading before citing it.
 - An answer read from a rendered PNG says "read from a rendered page" in
@@ -369,7 +378,7 @@ Reading): the Family rule of the answering workflow; name the other.
   ("bmcweb ae6cec2, master as of 2026-09-03", "pldm 93ad795, the 2.18.0
   pin"), and never present a default-branch answer as what a release does.
 - A value read from a Logical Table is cited with the `cite:` line `table`
-  printed (all the pages the table spans, `table K`), naming the caption
+  printed (all the pages the table spans, `lines table K`), naming the caption
   and the row; it carries no line numbers.
 - A registry answer cites the `cite:` line `registry` printed (bundle
   version, registry and its version, file, `#/Messages/<Key>`), gives the
