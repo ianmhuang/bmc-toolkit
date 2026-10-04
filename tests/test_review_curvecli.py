@@ -114,7 +114,7 @@ def test_ac6_the_store_records_version_4_and_the_drawing(held, catalog_file, cap
         code, out = run(capsys, "table", "DSP0236", "--page", n, catalog_file=catalog_file)
         assert code == 0, out
     data = json.loads((held / "tables.json").read_text("utf-8"))
-    assert data["tables_version"] == 4
+    assert data["tables_version"] == 5
     assert {1, 3} <= set(data["pages_done"])
     drawn = {(t["first"], t["index"]): t["drawn"] for t in data["tables"]}
     assert drawn == {(1, 1): "ruled", (3, 1): "cells"}
@@ -125,7 +125,7 @@ def test_ac6_cli_reads_the_pdf_again_over_a_version_3_store(held, catalog_file, 
     assert code == 0, out
     path = held / "tables.json"
     data = json.loads(path.read_text("utf-8"))
-    assert data["tables_version"] == 4
+    assert data["tables_version"] == 5
     # a store the previous version wrote: it never saw the curve rules, so
     # its rows for the page are wrong (here: a stale row and a stale count)
     data["tables_version"] = 3
@@ -138,6 +138,6 @@ def test_ac6_cli_reads_the_pdf_again_over_a_version_3_store(held, catalog_file, 
     assert "STALE ROW" not in out
     assert out.splitlines()[1].endswith("| 3 columns | 3 rows")
     data = json.loads(path.read_text("utf-8"))
-    assert data["tables_version"] == 4
+    assert data["tables_version"] == 5
     (entry,) = data["tables"]
     assert entry["rows"] == [HEADER, *ROWS_1]

@@ -426,7 +426,7 @@ def test_ac5_prose_between_two_curve_parts_keeps_them_apart(tmp_path):
 
 
 def test_ac6_the_store_is_version_4_and_a_version_3_store_is_discarded(tmp_path):
-    assert T.TABLES_VERSION == 4
+    assert T.TABLES_VERSION == 5
     table = T.LogicalTable(
         first=1,
         last=2,
@@ -442,7 +442,7 @@ def test_ac6_the_store_is_version_4_and_a_version_3_store_is_discarded(tmp_path)
     T.store(tmp_path, [1, 2], [table])
     path = tmp_path / T.TABLES_NAME
     data = json.loads(path.read_text("utf-8"))
-    assert data["tables_version"] == 4
+    assert data["tables_version"] == 5
     assert T.stored_for_page(tmp_path, 1) == [table]
     assert T.stored_for_page(tmp_path, 2) == [table]
     data["tables_version"] = 3  # written before curves were read: rows missing
@@ -452,6 +452,6 @@ def test_ac6_the_store_is_version_4_and_a_version_3_store_is_discarded(tmp_path)
     # storing again replaces the old file with a version 4 one
     T.store(tmp_path, [1, 2], [table])
     data = json.loads(path.read_text("utf-8"))
-    assert data["tables_version"] == 4
+    assert data["tables_version"] == 5
     assert data["pages_done"] == [1, 2]
     assert T.stored_for_page(tmp_path, 2) == [table]
