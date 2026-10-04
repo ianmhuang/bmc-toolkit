@@ -170,7 +170,7 @@ pages it spans are read and joined (a table continues when it is the last
 thing on its page, the next page starts with a table with the same column
 edges, and only running headers, footers and page numbers lie between;
 a repeated header row is dropped), and the result is a `cite:` line with
-`PDF pages A-B` and `table K`, a `table:` line with the caption and how
+`PDF pages A-B` and `lines table K`, a `table:` line with the caption and how
 the table is drawn, and the rows as a text grid. Two drawings are read:
 `ruled` tables, whose cells are bounded by ruling lines (thin filled
 rectangles or stroked lines), and `cells` tables, which have no rules and
