@@ -14,12 +14,12 @@ fields are fixed and separated by `` | ``::
 ``section`` lists every entry the page spans, joined by ``; ``: the one
 owning the page's first line, then each whose heading is on the page (``-``
 when the Outline is empty, ``~`` in front of an entry whose page is
-approximate); a command given a section prints that one alone.
-``lines`` are the first and last printed line numbers on the page, ``-``
-without a Line Map, ``rendered page`` for an image, ``table K`` for a
-Logical Table (whose page field reads ``PDF pages <a>-<b>`` when it spans
-pages); ``origin`` is the recorded download URL or ``user-provided`` for a
-Drop-in.
+approximate); a Logical Table's line names the one entry the table starts
+in. ``lines`` reads ``lines <a>-<b>``, the first and last printed line
+numbers on the page, ``lines -`` without a Line Map, ``lines rendered page``
+for an image, ``lines table K`` for a Logical Table (whose page field reads
+``PDF pages <a>-<b>`` when it spans pages); ``origin`` is the recorded
+download URL or ``user-provided`` for a Drop-in.
 """
 
 import json
@@ -41,6 +41,7 @@ USER_PROVIDED = "user-provided"
 _MARKER = re.compile(r"^=== page (\d+) ===$")
 _SECTION_NUMBER = re.compile(r"^(?P<num>(?:\d+|[A-Z])(?:\.\d+)*)\.?\s+\S")
 _NUMBER_QUERY = re.compile(r"^(?:\d+|[A-Z])(?:\.\d+)*\.?$")
+_UNNUMBERED = re.compile(r"^\d+ ")  # a printed line number in front of a line
 
 
 class SearchError(Exception):
@@ -180,22 +181,29 @@ class Version:
         page) when none is on the page. Body text that quotes a short title
         ("see Overview below") therefore does not steal the heading.
         """
-        wanted = _norm(entry.title)
-        if not wanted:
-            return -1
-        normed = [_norm(ln) for ln in self.lines(page)]
-        for i, ln in enumerate(normed):  # the heading itself
-            if ln == wanted or ln.startswith(wanted + " "):
-                return i
-        for i, ln in enumerate(normed):  # a heading with a trailing note
-            if wanted in ln:
-                return i
-        number = entry.number
-        if number:  # the bookmark's wording differs: settle for the number
-            for i, ln in enumerate(normed):
-                if ln.startswith(number.lower() + " "):
-                    return i
-        return -1
+        return _heading_at(entry, [_norm(ln) for ln in self.lines(page)])
+
+    def section_below(self, page: int, above: list[str]) -> Section | None:
+        """The Outline entry in force just below the lines ``above``, the
+        text of the page down to that point as another reader of the PDF
+        saw it (a table's: printed line numbers still in front).
+
+        The entry owning the top of the page, unless an entry starting on
+        the page has its heading among those lines; the last such entry
+        wins. An entry whose heading is on the page but not among the lines
+        starts further down and does not count.
+        """
+        owner = self.owning_section(page, 0)
+        normed = [_norm(ln) for ln in above]
+        normed += [_UNNUMBERED.sub("", ln) for ln in normed]
+        for e in self.sections():
+            if self.placed_page(e) != page:
+                continue
+            # a heading the Extract does not hold counts as the page top,
+            # the way owning_section reads it
+            if self._heading_index(e, page) < 0 or _heading_at(e, normed) >= 0:
+                owner = e
+        return owner
 
     def match_sections(self, query: str) -> list[tuple[int, Section, int]]:
         """(level, entry, end page) for the entries matching the query. The
@@ -259,16 +267,6 @@ class Version:
 
     # ---------------------------------------------------------- citation
 
-    def find_line(self, page: int, text: str) -> int:
-        """Index of the first line on the page containing ``text``
-        (whitespace and case aside); 0 when none does."""
-        wanted = _norm(text)
-        if wanted:
-            for i, ln in enumerate(self.lines(page)):
-                if wanted in _norm(ln):
-                    return i
-        return 0
-
     def spanned_sections(self, page: int, last: int | None = None) -> list[Section]:
         """The entries pages ``page``-``last`` span: the one owning the first
         line of ``page``, then every entry whose heading is on one of the
@@ -327,6 +325,27 @@ class Version:
                 str(self.path),
             ]
         )
+
+
+def _heading_at(entry: "Section", normed: list[str]) -> int:
+    """Index of the entry's heading among normalised lines, -1 when none
+    is it: a line that is the title or starts with it, else one that
+    contains it, else one starting with the section number."""
+    wanted = _norm(entry.title)
+    if not wanted:
+        return -1
+    for i, ln in enumerate(normed):  # the heading itself
+        if ln == wanted or ln.startswith(wanted + " "):
+            return i
+    for i, ln in enumerate(normed):  # a heading with a trailing note
+        if wanted in ln:
+            return i
+    number = entry.number
+    if number:  # the bookmark's wording differs: settle for the number
+        for i, ln in enumerate(normed):
+            if ln.startswith(number.lower() + " "):
+                return i
+    return -1
 
 
 def _norm(text: str) -> str:

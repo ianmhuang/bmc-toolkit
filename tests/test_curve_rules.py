@@ -230,11 +230,11 @@ def test_two_one_row_curve_parts_across_a_page_break_are_one_table(tmp_path):
 
 
 def test_a_version_3_store_is_read_again(tmp_path):
-    assert T.TABLES_VERSION == 4
+    assert T.TABLES_VERSION == 5
     T.store(tmp_path, 2, [sample_table()])
     path = tmp_path / T.TABLES_NAME
     data = json.loads(path.read_text("utf-8"))
-    assert data["tables_version"] == 4
+    assert data["tables_version"] == 5
     assert T.stored_for_page(tmp_path, 2) is not None
     data["tables_version"] = 3  # may lack the rows curves draw
     path.write_text(json.dumps(data), "utf-8")
