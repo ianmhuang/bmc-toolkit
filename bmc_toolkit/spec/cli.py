@@ -1434,7 +1434,6 @@ def cmd_page(args: argparse.Namespace) -> int:
     version, _, code = _open_version(args)
     if version is None:
         return code
-    sec = None  # an explicit --section is the one the cite: line names
     if args.section is not None:
         matches = version.match_sections(args.section)
         if not matches:
@@ -1463,7 +1462,7 @@ def cmd_page(args: argparse.Namespace) -> int:
     for n in range(first, last + 1):
         if n > first:
             print()
-        print(version.cite(n, section=sec))
+        print(version.cite(n))
         for ln in search_mod.format_page(version, n):
             print(ln)
     return EXIT_OK
@@ -2183,17 +2182,14 @@ def _print_node(
 
 
 def _section_lookup(version: search_mod.Version):
-    """The Outline entry in force at a table's caption (or the page top)."""
+    """The label of the Outline entry in force where a table starts, given
+    the lines of its first page and how many of them are above it."""
 
-    def lookup(page: int, caption: str | None):
-        index = version.find_line(page, caption) if caption else 0
-        return version.owning_section(page, index)
+    def lookup(page: int, start: tables_mod.TableStart) -> str | None:
+        section = version.section_below(page, start.lines, start.above)
+        return section.label if section else None
 
     return lookup
-
-
-def _label(section) -> str | None:
-    return section.label if section else None
 
 
 def cmd_registry(args: argparse.Namespace) -> int:
@@ -2305,9 +2301,7 @@ def cmd_table(args: argparse.Namespace) -> int:
         original = version.original or version.path / "original.pdf"
         try:
             with tables_mod.Reader(original) as reader:
-                tables, found, done = reader.read_page(
-                    n, section_of=lambda page, caption: _label(lookup(page, caption))
-                )
+                tables, found, done = reader.read_page(n, section_of=lookup)
         except ImportError as exc:
             print(f"cannot read tables: {exc}; run: pip install -r requirements.txt")
             return EXIT_ACTION

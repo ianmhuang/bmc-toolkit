@@ -185,25 +185,29 @@ def test_find_hits_keep_their_per_line_section(held, catalog_file, capsys):
 # ---------------------------------------------------------------- AC-4
 
 
-def test_page_section_names_that_section_only_on_every_page(held, catalog_file, capsys):
+def test_page_section_names_the_sections_each_page_spans(held, catalog_file, capsys):
     # 7 runs from page 2 to page 3 (8 opens page 4, so that page holds none
-    # of 7): two pages, each cite: naming 7 alone, though page 2 also holds
-    # 7.1 and page 3 is 7.1
-    code, out = run(
-        capsys, "page", "DSP0236", "--section", "7", catalog_file=catalog_file
-    )
-    assert code == 0, out
-    cites = [ln for ln in out.splitlines() if ln.startswith("cite:")]
-    assert len(cites) == 2
-    assert [c.split(" | ")[2] for c in cites] == ["7 SPDM message exchanges"] * 2
-    code, out = run(
-        capsys, "page", "DSP0236", "--section", "7.1", catalog_file=catalog_file
-    )
-    assert code == 0, out
-    cites = [ln for ln in out.splitlines() if ln.startswith("cite:")]
-    assert [c.split(" | ")[2] for c in cites] == [
-        "7.1 Request and response messages"
-    ] * len(cites)
+    # of 7): two pages, each with the cite: line `page N` prints for it.
+    # Until `page --section` stopped naming the queried section alone, both
+    # lines read `7 SPDM message exchanges`, though page 2 also holds the
+    # end of 6 and the start of 7.1, and page 3 is 7.1
+    spans = [
+        "6 Symbols and abbreviated terms; 7 SPDM message exchanges; "
+        "7.1 Request and response messages",
+        "7.1 Request and response messages",
+    ]
+    for query in ("7", "7.1"):
+        code, out = run(
+            capsys, "page", "DSP0236", "--section", query, catalog_file=catalog_file
+        )
+        assert code == 0, out
+        cites = [ln for ln in out.splitlines() if ln.startswith("cite:")]
+        assert [c.split(" | ")[2] for c in cites] == spans
+        for n, cite in zip((2, 3), cites):
+            code, single = run(
+                capsys, "page", "DSP0236", str(n), catalog_file=catalog_file
+            )
+            assert code == 0 and single.splitlines()[0] == cite
 
 
 # ---------------------------------------------------- AC-2 (Version.cite)

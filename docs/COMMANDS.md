@@ -103,8 +103,10 @@ out; `--only` skips them. `page` prints at most 10 pages per call
 (`--max-pages`). Each printed page and each rendered page comes with a
 `cite:` line: family, document and version, the sections the page spans
 (the one in force at its top, then every one whose heading is on the
-page, joined by `; `; `page --section X` names X only), PDF page, printed
-line range (or `rendered page`), origin URL or `user-provided`, and the
+page, joined by `; `; `page --section X` prints the same line for each
+page it reads as `page N` would), PDF page, the printed line range as
+`lines A-B` (or `lines -` without line numbers, `lines rendered page`),
+origin URL or `user-provided`, and the
 Library path. The Skill copies Citations from those lines and never
 composes them.
 
@@ -170,7 +172,10 @@ pages it spans are read and joined (a table continues when it is the last
 thing on its page, the next page starts with a table with the same column
 edges, and only running headers, footers and page numbers lie between;
 a repeated header row is dropped), and the result is a `cite:` line with
-`PDF pages A-B` and `lines table K`, a `table:` line with the caption and how
+the section in force where the table starts (the last heading above it on
+its first page, else the section at the top of that page; a table without
+a caption is placed the same way), `PDF pages A-B` and `lines table K`, a
+`table:` line with the caption and how
 the table is drawn, and the rows as a text grid. Two drawings are read:
 `ruled` tables, whose cells are bounded by ruling lines (thin filled
 rectangles or stroked lines), and `cells` tables, which have no rules and

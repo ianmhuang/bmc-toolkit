@@ -34,7 +34,7 @@ continuation page repeats, with or without "(continued)", is dropped.
 
 ``tables.json`` in the version directory::
 
-    {"tables_version": 4,
+    {"tables_version": 5,
      "pages_done": [N, ...],          pages whose tables are all stored:
                                       the pages asked for and every page
                                       a table found there runs onto
@@ -50,7 +50,12 @@ the x positions of the column edges on that page, ``rows[0]`` the header,
 ``row_pages[i]`` the page ``rows[i]`` starts on (so a very long table can
 be printed one page at a time).
 Coordinates are PDF points with the origin top-left, as pdfplumber reports
-them. Version 1 stores (no ``drawn``, no cells tables) are read again.
+them. ``section`` is the Outline entry in force where the table starts on
+its first page: the caller is handed the body lines of that page, those
+above the table first (``TableStart``), and names the entry. A store of
+another version is read again: version 1 had no ``drawn`` and no cells
+tables, versions up to 4 took the section from the first line holding the
+caption's words, or the page top without a caption.
 """
 
 import json
@@ -62,7 +67,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
 
-TABLES_VERSION = 4
+TABLES_VERSION = 5
 TABLES_NAME = "tables.json"
 
 RULED = "ruled"
@@ -116,6 +121,16 @@ class PageTable:
     @property
     def bottom(self) -> float:
         return self.bbox[3]
+
+
+@dataclass(frozen=True)
+class TableStart:
+    """What a section lookup is given for a table: the body lines of its
+    first page, the ``above`` lines over the table first, each group top
+    to bottom."""
+
+    lines: list[str]
+    above: int
 
 
 @dataclass
@@ -623,7 +638,7 @@ class Reader:
     def logical_tables(
         self,
         number: int,
-        section_of: Callable[[int, str | None], str | None] | None = None,
+        section_of: Callable[[int, TableStart], str | None] | None = None,
     ) -> list[LogicalTable]:
         """Every Logical Table that touches the page, top to bottom."""
         return self.read_page(number, section_of)[0]
@@ -631,7 +646,7 @@ class Reader:
     def read_page(
         self,
         number: int,
-        section_of: Callable[[int, str | None], str | None] | None = None,
+        section_of: Callable[[int, TableStart], str | None] | None = None,
     ) -> tuple[list[LogicalTable], list[LogicalTable], list[int]]:
         """(the Logical Tables touching the page, top to bottom; every
         Logical Table assembled on the way; the pages whose tables are all
@@ -696,7 +711,13 @@ class Reader:
             row_pages.extend([part.page] * len(more))
             previous = part
         caption = self.caption(first)
-        section = section_of(first.page, caption) if section_of else None
+        section = None
+        if section_of:  # the entry in force where the table starts
+            body = sorted(self.body_lines(first.page), key=lambda ln: ln.top)
+            above = [ln for ln in body if ln.bottom < first.top + BODY_GAP_PT]
+            rest = [ln for ln in body if ln not in above]
+            start = TableStart([ln.text for ln in above + rest], len(above))
+            section = section_of(first.page, start)
         return LogicalTable(
             first=first.page,
             last=parts[-1].page,
@@ -914,6 +935,7 @@ __all__ = [
     "PageTable",
     "Reader",
     "TableError",
+    "TableStart",
     "TextLine",
     "box_grids",
     "columns_match",
