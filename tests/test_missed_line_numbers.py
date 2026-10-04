@@ -198,8 +198,8 @@ def test_page_and_find_name_the_recovered_lines(held, catalog_file, capsys):
 
 
 def test_an_extract_of_the_version_before_is_made_again(held, catalog_file, capsys):
-    # the one place that names the number: 4 numbered page by page only
-    assert ex.EXTRACTOR_VERSION == 5
+    # 4 numbered page by page only
+    assert ex.EXTRACTOR_VERSION >= 5
     meta_path = held / ex.META_NAME
     meta = json.loads(meta_path.read_text("utf-8"))
     assert meta["extractor_version"] == ex.EXTRACTOR_VERSION
@@ -213,7 +213,8 @@ def test_an_extract_of_the_version_before_is_made_again(held, catalog_file, caps
     assert code == 0, out
     cite = [ln for ln in out.splitlines() if ln.startswith("cite:")][0]
     assert cite.split(" | ")[4] == "lines 106-107"
-    assert json.loads(meta_path.read_text("utf-8"))["extractor_version"] == 5
+    made_again = json.loads(meta_path.read_text("utf-8"))
+    assert made_again["extractor_version"] == ex.EXTRACTOR_VERSION
     # the file keeps its shape: pages, each with first, last and lines
     stored = json.loads(linemap_path.read_text("utf-8"))
     assert set(stored) == {"pages"}

@@ -472,8 +472,13 @@ def recover_line_numbers(pages: list[PageText]) -> int:
     integers that start a line in that column are consecutive and lie
     strictly between the last number before the page and the first number
     after it. Anything less leaves the page as it is: a page without numbers
-    is better than one with wrong numbers. A page before the first numbered
-    page is never touched.
+    is better than one with wrong numbers.
+
+    The two ends of the document are not alike. A page before the first
+    numbered page is never touched. A page after the last numbered page has
+    no number after it to stay under, so only the lower bound holds there:
+    documents end in short pages (a change log, a bibliography) whose
+    numbers run on from pages that could not be numbered.
     """
     column = _number_column(pages)
     if column is None:
