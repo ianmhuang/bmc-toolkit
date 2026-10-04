@@ -59,11 +59,16 @@ def test_block_gives_the_header_rules():
     assert "Version of the Document" in text
 
 
-def test_block_makes_the_answer_count_the_bytes():
+def test_block_has_the_helper_lay_out_the_bytes():
+    # the step that had the Session count the bytes itself is gone: the
+    # helper arranges them and counts them
     text = block_text()
-    assert "count" in text
-    assert "sum of its field sizes" in text
-    assert "total" in text
+    form = "`invocation <ipmi|mctp-control|pldm|spdm> '<field>:<size>=<value>' ...`"
+    assert form in text
+    assert "every field in order, the header and codes too" in text
+    assert "Never write bytes by hand" in text
+    assert "copy the line(s) and total it prints" in text
+    assert "sum of its field sizes" not in text
 
 
 def test_block_names_the_tool_versions_it_was_checked_against():
