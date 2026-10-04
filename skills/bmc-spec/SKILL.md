@@ -175,6 +175,7 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `code REPO PATH [--lines A-B] [--ref R \| --release L]` | a `cite:` line then the file's lines behind their numbers; a file over 200 lines needs `--lines`. Same tree selection as `grep`; a `note:` line says when a user checkout or the config Release was used |
 | `prune [--yes]` | `would remove <path> (...)` for every superseded Code Tree, every `.tmp-*` / `.part` leftover nobody is working on and every stale `.lock` (untouched for 5 minutes), then a `prune:` summary; only with `--yes` are they removed (`removed <path>`). A live lock and a fresh temp file are never listed; a stale lock that another Session takes over while `prune` runs is kept (`kept <path> (...)`, counted as `, N kept` in the summary); one its holder released meanwhile is `gone <path> (released meanwhile)`, counted as `, N gone`. Run `--yes` only when the user asked to free space |
 | `table DOC --page N [--version V] [--index K] [--force] [--all-rows]` | print every Logical Table touching page N, whole (the version is brought to Ready first, as `section` says): a `cite:` line (`PDF pages A-B`, `lines table K`), a `table:` line (caption or `-`, `ruled` or `cells (no ruling lines)`, page range, columns, rows including the header), then the rows as a grid, columns separated by ` \| `, one physical line per cell line, a rule after the header and after every row with a multi-line cell. A table longer than 300 rows prints a `note:` line and only the rows that start on page N; `--all-rows` prints them all. `--index K` keeps only the K-th table on the page. Read from `tables.json` when the page was read before, unless `--force`. Exit 2 with `no table on page N` when the page has neither kind |
+| `invocation PROTOCOL 'NAME:SIZE=VALUE' ...` | arrange a request's bytes from its fields, in the order given. PROTOCOL is `ipmi`, `mctp-control`, `pldm` or `spdm`. VALUE is a number (decimal, or hex with `0x`) laid out over SIZE bytes least significant byte first (`NAME:SIZE:be=VALUE`: most significant first), a list of bytes laid out as written (`0xc0,0xa8,0x01,0x0a`), or a `<placeholder>`; quote each field. Prints `bytes: N`, the line(s) to send in each tool's syntax, then one row per field: offset, size, name, its bytes. A field that cannot be laid out is exit 2 naming it, with no line to send. Needs no Library |
 
 Exit codes: 0 done, 1 error (malformed catalog, unreadable file), 2 the
 user must act (unknown document or version, download impossible, document
@@ -338,9 +339,9 @@ Reading): the Family rule of the answering workflow; name the other.
    instance id 0); say so. SPDM byte 0 is SPDMVersion: what the Document fixes
    for GET_VERSION; in every other request `<negotiated version>` unless the
    user names one, never the Version of the Document the layout came from.
-4. Before answering, count each Invocation's bytes against the request layout:
-   the sum of its field sizes, plus the header bytes the layout leaves out
-   (NetFn and Cmd; `80` and the codes). State the total in the answer.
+4. Run `invocation <ipmi|mctp-control|pldm|spdm> '<field>:<size>=<value>' ...`:
+   every field in order, the header and codes too (NetFn and Cmd; `80` and the
+   codes). Never write bytes by hand: copy the line(s) and total it prints.
 <!-- command-workflow:end -->
 
 ## Citation rules

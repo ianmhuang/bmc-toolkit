@@ -117,7 +117,7 @@ What each command does: [docs/COMMANDS.md](docs/COMMANDS.md).
 For a named Command the skill writes the request as an Invocation: IPMI as
 `ipmitool raw`; MCTP control, PLDM (base, Platform Monitoring and Control;
 `pldmtool raw` too) and SPDM requests without cryptography as `mctp-client`.
-Missing values are `<placeholders>`. The model lays out the bytes: check them
+Missing values are `<placeholders>`. The model picks the fields: check them
 against the cited layout. No Invocation was run against hardware or QEMU.
 
 ## Library location

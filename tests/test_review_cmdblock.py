@@ -189,13 +189,21 @@ def test_spdm_version_byte_is_a_placeholder_except_for_get_version():
 # ------------------------------------------------------------------ AC-6
 
 
-def test_block_counts_the_bytes_against_the_layout_and_states_the_total():
+def test_block_takes_the_bytes_and_their_total_from_the_helper():
+    # changed with the `invocation` command: the Session no longer counts
+    # the bytes against the layout itself, the helper lays them out and
+    # prints the total, and the answer copies both
     low = _block().lower()
-    assert re.search(r"\bcount\b[^.]*\blayout\b", low)
-    assert "field sizes" in low
-    assert re.search(r"state the total", low)
-    # the count comes before the answer is given
-    assert "before answering" in low
+    forms = [span for span in _spans() if span.split()[0] == "invocation"]
+    assert len(forms) == 1, forms
+    for protocol in ("ipmi", "mctp-control", "pldm", "spdm"):
+        assert protocol in forms[0], protocol
+    assert "<field>:<size>=<value>" in forms[0]
+    assert re.search(r"every field in order", low)
+    # the header bytes the layout leaves out are fields too
+    assert re.search(r"netfn and cmd; `80` and the codes", low)
+    assert re.search(r"never write bytes by hand", low)
+    assert re.search(r"copy the line\(s\) and total", low)
 
 
 # ------------------------------------------------------------------ AC-7

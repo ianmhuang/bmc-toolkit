@@ -21,6 +21,7 @@ from bmc_toolkit.spec import code as code_mod
 from bmc_toolkit.spec import extract as extract_mod
 from bmc_toolkit.spec import fetch as fetch_mod
 from bmc_toolkit.spec import freshness as fresh_mod
+from bmc_toolkit.spec import invocation as invocation_mod
 from bmc_toolkit.spec import listing as listing_mod
 from bmc_toolkit.spec import lock as lock_mod
 from bmc_toolkit.spec import notes as notes_mod
@@ -271,6 +272,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", dest="doc_version", help="exact version string")
 
     notes_mod.add_parsers(sub)  # recall, notes
+    invocation_mod.add_parsers(sub)  # invocation
     p = sub.add_parser("table", help="print the tables on a page, whole")
     p.add_argument("document", help="document id")
     p.add_argument("--page", type=int, required=True, help="physical page (1-based)")
@@ -2382,6 +2384,7 @@ COMMANDS = {
     "grep": cmd_grep,
     "code": cmd_code,
     **notes_mod.COMMANDS,
+    **invocation_mod.COMMANDS,
 }
 
 

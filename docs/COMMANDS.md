@@ -110,6 +110,31 @@ origin URL or `user-provided`, and the
 Library path. The Skill copies Citations from those lines and never
 composes them.
 
+`invocation PROTOCOL 'NAME:SIZE=VALUE' ...` arranges the bytes of a request
+from its fields and prints them in the syntax of the sending tools. It is
+the one command that reads nothing: no Library, no catalog, no network, no
+lock, nothing written. PROTOCOL is `ipmi` (prints `ipmitool raw 0x.. ...`;
+the first two fields are NetFn and Cmd, one byte each), `mctp-control` or
+`spdm` (`mctp-client eid <eid> type control data .. ..`, `type spdm`), or
+`pldm` (the `mctp-client` line with `type pldm` and `pldmtool raw -m <eid>
+-d 0x.. ...`). A field is `NAME:SIZE=VALUE`, SIZE in bytes. A number
+(decimal, or hex with `0x`) is laid out least significant byte first,
+`NAME:SIZE:be=VALUE` most significant byte first (`:le` spells out the
+default). A comma-separated list of bytes (`0xc0,0xa8,0x01,0x0a`, every
+byte but a zero written with `0x`) is laid out as written and must hold
+SIZE bytes. `<text>` is a placeholder and is printed as it is; for a field
+of N bytes as `<text 0>` to `<text N-1>`, one per byte. The output is
+`bytes: N` (all fields together), the line(s) to send, then `offset | size
+| field | bytes` and one row per field. Refused with exit 2, a line naming
+the field and the reason, and no line to send: a number that does not fit
+SIZE or is negative; a number that is neither decimal nor `0x` hex, or has
+a leading zero (`e1`, `08`: which base is meant is never guessed); a SIZE
+that is missing or not a positive integer; a list of another length or
+with a byte above `0xff`; a field without VALUE; no field; an unknown
+PROTOCOL; `ipmi` with fewer than two fields or a NetFn or Cmd of more than
+one byte. The command knows no Document: the fields are the caller's, and
+a wrong field gives a wrong line.
+
 ## Notes
 
 Off by default. The plugin's Stop hook runs `notes record` at the end of
