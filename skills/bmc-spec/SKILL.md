@@ -351,14 +351,18 @@ Reading): the Family rule of the answering workflow; name the other.
 - Write it as that line, the fields in their order and separated by ` | `,
   not as prose (a title with a comma would end a prose form early). Keep
   family, document and version, section, page and lines as printed:
-  `lines table 1` stays `lines table 1`, not `table 1`. Origin and Library
-  path may be left out (a `user-provided` origin stays), and the lines
-  field may be left out only when it reads `lines -`.
+  `lines table 1` stays `lines table 1`, not `table 1`. Two rules below
+  say what may be cut: a line range narrowed to the lines used, and a
+  section field cut down to the entries the claim sits in. Origin and
+  Library path may be left out, except that a `user-provided` origin stays
+  and its Library path with it; the lines field may be left out only when
+  it reads `lines -`.
 - A page seen only in `find` output has no Citation. Name the document,
   version and page in prose, say it came from a `find` hit, and write no
   `cite:` line for it; open the page when the claim needs one.
 - Line numbers appear only when the `page` output printed them for those
-  lines; give the range you actually used, not the page's whole range.
+  lines; give the range you actually used, not the page's whole range: a
+  claim on one line is `lines N`, on several `lines A-B`.
 - The `cite:` section field lists every section the page spans: the entry
   in force at the top, then each whose heading is on the page. Copy the
   field whole, or keep the entries your claim sits in, each whole and in
@@ -367,8 +371,8 @@ Reading): the Family rule of the answering workflow; name the other.
   change its number, or put a heading read in the page text in its place.
 - A `~` page comes from a contents page whose offset could not be
   confirmed: open the page and check the heading before citing it.
-- An answer read from a rendered PNG says "read from a rendered page" in
-  its Citation.
+- An answer read from a rendered PNG cites the `cite:` line `render`
+  printed; `lines rendered page` stays as it is.
 - A schema answer cites the `cite:` line(s) `schema` printed: the resource
   file and pointer, and for an enum the file that defines it. Say the
   bundle version and the schema version (`Chassis v1.28.0`); the enum's
@@ -384,8 +388,9 @@ Reading): the Family rule of the answering workflow; name the other.
   version, registry and its version, file, `#/Messages/<Key>`), gives the
   MessageId form (`Base.1.23.PropertyValueTypeError`) and quotes the
   `text:` line verbatim; the argument list explains the `%n` markers.
-- Drop-in sources say "user-provided" in the origin field; keep it.
-  Confidential documents are cited by path, never by a URL.
+- Drop-in sources say "user-provided" in the origin field; keep it, and
+  the Library path after it. Confidential documents are cited by path,
+  never by a URL.
 - A statement without a Citation is labelled inference.
 - IPMI questions: `find IPMI ...` searches the base document together with
   IPMI-UPDATE (errata and clarifications) and prints the Update's hits

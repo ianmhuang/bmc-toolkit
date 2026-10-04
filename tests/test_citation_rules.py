@@ -75,6 +75,51 @@ def test_rules_say_how_a_section_field_may_be_cut_down():
         assert phrase in text, phrase
 
 
+def test_the_as_printed_rule_points_at_what_may_be_cut():
+    text = rules()
+    for phrase in (
+        "Two rules below say what may be cut",
+        "a line range narrowed to the lines used",
+        "a section field cut down to the entries the claim sits in",
+    ):
+        assert phrase in text, phrase
+    # the pointer comes before the two rules it names
+    pointer = text.index("Two rules below say what may be cut")
+    assert pointer < text.index("give the range you actually used")
+    assert pointer < text.index("Copy the field whole, or keep the entries")
+
+
+def test_a_user_provided_citation_keeps_its_library_path():
+    text = rules()
+    for phrase in (
+        "a `user-provided` origin stays and its Library path with it",
+        "keep it, and the Library path after it",
+        "Confidential documents are cited by path, never by a URL",
+    ):
+        assert phrase in text, phrase
+
+
+def test_a_rendered_page_is_cited_with_the_line_render_printed():
+    text = rules()
+    for phrase in (
+        "An answer read from a rendered PNG cites the `cite:` line `render` printed",
+        "`lines rendered page` stays as it is",
+    ):
+        assert phrase in text, phrase
+    # the printed field says it; no other words are asked for
+    assert "read from a rendered page" not in text
+
+
+def test_one_line_is_written_as_a_single_number():
+    text = rules()
+    for phrase in (
+        "a claim on one line is `lines N`",
+        "on several `lines A-B`",
+        "Line numbers appear only when the `page` output printed them",
+    ):
+        assert phrase in text, phrase
+
+
 def test_rules_give_a_find_hit_no_citation():
     text = rules()
     for phrase in (
@@ -92,7 +137,6 @@ def test_rules_keep_what_they_said_before():
         "do not cite a page you did not read",
         "give the range you actually used, not the page's whole range",
         "open the page and check the heading before citing it",
-        'says "read from a rendered page"',
         "A schema answer cites the `cite:` line(s) `schema` printed",
         "A code claim cites the `cite:` line `code` printed",
         "A value read from a Logical Table is cited with the `cite:` line",
