@@ -51,10 +51,11 @@ the x positions of the column edges on that page, ``rows[0]`` the header,
 be printed one page at a time).
 Coordinates are PDF points with the origin top-left, as pdfplumber reports
 them. ``section`` is the Outline entry in force where the table starts on
-its first page: the caller is handed the body lines above the table and
-names the entry. A store of another version is read again: version 1 had no
-``drawn`` and no cells tables, versions up to 4 took the section from the
-first line holding the caption's words, or the page top without a caption.
+its first page: the caller is handed the body lines of that page, those
+above the table first (``TableStart``), and names the entry. A store of
+another version is read again: version 1 had no ``drawn`` and no cells
+tables, versions up to 4 took the section from the first line holding the
+caption's words, or the page top without a caption.
 """
 
 import json
@@ -120,6 +121,16 @@ class PageTable:
     @property
     def bottom(self) -> float:
         return self.bbox[3]
+
+
+@dataclass(frozen=True)
+class TableStart:
+    """What a section lookup is given for a table: the body lines of its
+    first page, the ``above`` lines over the table first, each group top
+    to bottom."""
+
+    lines: list[str]
+    above: int
 
 
 @dataclass
@@ -627,7 +638,7 @@ class Reader:
     def logical_tables(
         self,
         number: int,
-        section_of: Callable[[int, list[str]], str | None] | None = None,
+        section_of: Callable[[int, TableStart], str | None] | None = None,
     ) -> list[LogicalTable]:
         """Every Logical Table that touches the page, top to bottom."""
         return self.read_page(number, section_of)[0]
@@ -635,7 +646,7 @@ class Reader:
     def read_page(
         self,
         number: int,
-        section_of: Callable[[int, list[str]], str | None] | None = None,
+        section_of: Callable[[int, TableStart], str | None] | None = None,
     ) -> tuple[list[LogicalTable], list[LogicalTable], list[int]]:
         """(the Logical Tables touching the page, top to bottom; every
         Logical Table assembled on the way; the pages whose tables are all
@@ -702,13 +713,11 @@ class Reader:
         caption = self.caption(first)
         section = None
         if section_of:  # the entry in force where the table starts
-            above = [
-                ln
-                for ln in self.body_lines(first.page)
-                if ln.bottom < first.top + BODY_GAP_PT
-            ]
-            above.sort(key=lambda ln: ln.top)
-            section = section_of(first.page, [ln.text for ln in above])
+            body = sorted(self.body_lines(first.page), key=lambda ln: ln.top)
+            above = [ln for ln in body if ln.bottom < first.top + BODY_GAP_PT]
+            rest = [ln for ln in body if ln not in above]
+            start = TableStart([ln.text for ln in above + rest], len(above))
+            section = section_of(first.page, start)
         return LogicalTable(
             first=first.page,
             last=parts[-1].page,
@@ -926,6 +935,7 @@ __all__ = [
     "PageTable",
     "Reader",
     "TableError",
+    "TableStart",
     "TextLine",
     "box_grids",
     "columns_match",

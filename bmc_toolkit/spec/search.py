@@ -183,25 +183,31 @@ class Version:
         """
         return _heading_at(entry, [_norm(ln) for ln in self.lines(page)])
 
-    def section_below(self, page: int, above: list[str]) -> Section | None:
-        """The Outline entry in force just below the lines ``above``, the
-        text of the page down to that point as another reader of the PDF
-        saw it (a table's: printed line numbers still in front).
+    def section_below(self, page: int, lines: list[str], above: int) -> Section | None:
+        """The Outline entry in force below the first ``above`` of
+        ``lines``, the page's text as another reader of the PDF saw it (the
+        table reader's: printed line numbers still in front, the lines
+        above a table first).
 
         The entry owning the top of the page, unless an entry starting on
-        the page has its heading among those lines; the last such entry
-        wins. An entry whose heading is on the page but not among the lines
-        starts further down and does not count.
+        the page has its heading among those first lines; the last such
+        entry wins. The heading is looked for among all the lines, so a
+        line above that only starts with a section's number or quotes its
+        title does not pass for a heading that stands further down.
         """
         owner = self.owning_section(page, 0)
-        normed = [_norm(ln) for ln in above]
-        normed += [_UNNUMBERED.sub("", ln) for ln in normed]
+        normed = [_norm(ln) for ln in lines]
+        bare = None
+        if self.linemap.get(str(page)):  # printed line numbers on this page
+            bare = [_UNNUMBERED.sub("", ln) for ln in normed]
         for e in self.sections():
             if self.placed_page(e) != page:
                 continue
             # a heading the Extract does not hold counts as the page top,
             # the way owning_section reads it
-            if self._heading_index(e, page) < 0 or _heading_at(e, normed) >= 0:
+            if self._heading_index(e, page) < 0:
+                owner = e
+            elif 0 <= _heading_at(e, normed, bare) < above:
                 owner = e
         return owner
 
@@ -327,25 +333,33 @@ class Version:
         )
 
 
-def _heading_at(entry: "Section", normed: list[str]) -> int:
+def _heading_at(
+    entry: "Section", normed: list[str], also: list[str] | None = None
+) -> int:
     """Index of the entry's heading among normalised lines, -1 when none
     is it: a line that is the title or starts with it, else one that
-    contains it, else one starting with the section number."""
+    contains it, else one starting with the section number. ``also[i]`` is
+    a second reading of line ``i`` (its printed line number removed); a
+    line matches when either reading does."""
     wanted = _norm(entry.title)
     if not wanted:
         return -1
-    for i, ln in enumerate(normed):  # the heading itself
-        if ln == wanted or ln.startswith(wanted + " "):
-            return i
-    for i, ln in enumerate(normed):  # a heading with a trailing note
-        if wanted in ln:
-            return i
-    number = entry.number
-    if number:  # the bookmark's wording differs: settle for the number
-        for i, ln in enumerate(normed):
-            if ln.startswith(number.lower() + " "):
+    readings = [normed] if also is None else [normed, also]
+
+    def first(test) -> int:
+        for i in range(len(normed)):
+            if any(test(reading[i]) for reading in readings):
                 return i
-    return -1
+        return -1
+
+    # the heading itself
+    at = first(lambda ln: ln == wanted or ln.startswith(wanted + " "))
+    if at < 0:  # a heading with a trailing note
+        at = first(lambda ln: wanted in ln)
+    number = entry.number
+    if at < 0 and number:  # the bookmark's wording differs: settle for the number
+        at = first(lambda ln: ln.startswith(number.lower() + " "))
+    return at
 
 
 def _norm(text: str) -> str:

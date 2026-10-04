@@ -178,7 +178,9 @@ def test_a_store_of_the_previous_version_is_read_again(held, catalog_file, capsy
     )
     assert code == 0 and again == first
     data = json.loads(store.read_text("utf-8"))
-    assert data["tables_version"] == tables_mod.TABLES_VERSION != 4
+    # the one place that names the number: 4 was the caption-based section
+    assert tables_mod.TABLES_VERSION == 5
+    assert data["tables_version"] == tables_mod.TABLES_VERSION
     assert [t["section"] for t in data["tables"]] == [
         "5.1 Set",
         "5.1 Set",
@@ -249,3 +251,62 @@ def test_the_lines_field_is_described_with_its_prefix_everywhere():
     doc = flat(search_mod.__doc__)
     assert "``lines rendered page``" in doc and "``lines table K``" in doc
     assert not re.search(r"(?<!lines )(rendered page|table K)``", doc)
+
+
+def numbered_version(linemap):
+    """One page whose Extract has the headings; the table reader's lines
+    are passed to section_below by each test."""
+    return search_mod.Version(
+        family="pldm",
+        document="DSP0240",
+        version="1.2.1",
+        path=Path("lib"),
+        origin="https://example.test/x.pdf",
+        pages=[
+            ["9.1 Terminus", "Text."],
+            ["Text goes on.", "9.1.1 SetTID", "Text.", "9.1.2 GetTID"],
+        ],
+        outline=[
+            {"level": 0, "title": "9.1 Terminus", "page": 1},
+            {"level": 1, "title": "9.1.1 SetTID", "page": 2},
+            {"level": 1, "title": "9.1.2 GetTID", "page": 2},
+        ],
+        linemap=linemap,
+    )
+
+
+def test_section_below_reads_a_heading_behind_its_printed_line_number():
+    lines = [
+        "294 Text goes on.",
+        "295 9.1.1 SetTID",
+        "296 The 2 bytes of the request follow.",
+        "Byte Type Request Data",
+        "298 9.1.2 GetTID",
+        "Byte Type Response Data",
+    ]
+    version = numbered_version({"2": {"first": 294, "last": 298, "lines": {}}})
+    assert version.section_below(2, lines, 0).label == "9.1 Terminus"
+    assert version.section_below(2, lines, 1).label == "9.1 Terminus"
+    assert version.section_below(2, lines, 3).label == "9.1.1 SetTID"
+    assert version.section_below(2, lines, 4).label == "9.1.1 SetTID"
+    assert version.section_below(2, lines, 5).label == "9.1.2 GetTID"
+
+
+def test_section_below_does_not_take_text_above_for_a_heading_below():
+    # above the table: a sentence that quotes 9.1.2's title, and one that
+    # starts with its number; the heading itself is the fourth line
+    lines = [
+        "9.1.1 SetTID",
+        "The reply is described in 9.1.2 GetTID below.",
+        "9.1.2 bytes are reserved.",
+        "9.1.2 GetTID",
+    ]
+    version = numbered_version({})
+    assert version.section_below(2, lines, 3).label == "9.1.1 SetTID"
+    assert version.section_below(2, lines, 4).label == "9.1.2 GetTID"
+    # a number in front of a line is a printed line number only on a page
+    # with a Line Map; the reader's lines here word 9.1.2's heading otherwise
+    lines = ["9.1.1 SetTID", "7 9.1.2 is the next command."]
+    assert version.section_below(2, lines, 2).label == "9.1.1 SetTID"
+    mapped = numbered_version({"2": {"first": 6, "last": 7, "lines": {}}})
+    assert mapped.section_below(2, lines, 2).label == "9.1.2 GetTID"

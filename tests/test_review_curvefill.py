@@ -425,8 +425,8 @@ def test_ac5_prose_between_two_curve_parts_keeps_them_apart(tmp_path):
 # ------------------------------------------------------------------ AC-6
 
 
-def test_ac6_the_store_is_version_4_and_a_version_3_store_is_discarded(tmp_path):
-    assert T.TABLES_VERSION == 5
+def test_ac6_the_store_is_the_current_version_and_a_version_3_store_is_discarded(tmp_path):
+    assert T.TABLES_VERSION > 3
     table = T.LogicalTable(
         first=1,
         last=2,
@@ -442,16 +442,16 @@ def test_ac6_the_store_is_version_4_and_a_version_3_store_is_discarded(tmp_path)
     T.store(tmp_path, [1, 2], [table])
     path = tmp_path / T.TABLES_NAME
     data = json.loads(path.read_text("utf-8"))
-    assert data["tables_version"] == 5
+    assert data["tables_version"] == T.TABLES_VERSION
     assert T.stored_for_page(tmp_path, 1) == [table]
     assert T.stored_for_page(tmp_path, 2) == [table]
     data["tables_version"] = 3  # written before curves were read: rows missing
     path.write_text(json.dumps(data), "utf-8")
     assert T.stored_for_page(tmp_path, 1) is None
     assert T.stored_for_page(tmp_path, 2) is None
-    # storing again replaces the old file with a version 4 one
+    # storing again replaces the old file with one of the current version
     T.store(tmp_path, [1, 2], [table])
     data = json.loads(path.read_text("utf-8"))
-    assert data["tables_version"] == 5
+    assert data["tables_version"] == T.TABLES_VERSION
     assert data["pages_done"] == [1, 2]
     assert T.stored_for_page(tmp_path, 2) == [table]

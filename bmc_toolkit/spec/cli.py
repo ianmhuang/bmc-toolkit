@@ -2183,10 +2183,10 @@ def _print_node(
 
 def _section_lookup(version: search_mod.Version):
     """The label of the Outline entry in force where a table starts, given
-    the lines of its first page above it."""
+    the lines of its first page and how many of them are above it."""
 
-    def lookup(page: int, above: list[str]) -> str | None:
-        section = version.section_below(page, above)
+    def lookup(page: int, start: tables_mod.TableStart) -> str | None:
+        section = version.section_below(page, start.lines, start.above)
         return section.label if section else None
 
     return lookup

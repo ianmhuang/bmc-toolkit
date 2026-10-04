@@ -588,7 +588,7 @@ def test_store_keeps_drawn_and_reads_an_old_store_again(tmp_path):
     (got,) = T.stored_for_page(tmp_path, 2)
     assert got.drawn == T.CELLS
     data = json.loads((tmp_path / T.TABLES_NAME).read_text("utf-8"))
-    assert data["tables_version"] == 5
+    assert data["tables_version"] == T.TABLES_VERSION
     assert data["tables"][0]["drawn"] == "cells"
     del data["tables"][0]["drawn"]  # a version 1 entry has no drawn key
     data["tables_version"] = 1
@@ -603,7 +603,7 @@ def test_a_version_2_store_is_read_again(tmp_path):
     T.store(tmp_path, 2, [sample_table()])
     path = tmp_path / T.TABLES_NAME
     data = json.loads(path.read_text("utf-8"))
-    assert data["tables_version"] == 5
+    assert data["tables_version"] == T.TABLES_VERSION
     assert T.stored_for_page(tmp_path, 2) is not None
     data["tables_version"] = 2
     path.write_text(json.dumps(data), "utf-8")
