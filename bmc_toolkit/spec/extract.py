@@ -4,7 +4,9 @@ Text comes from pypdfium2 character boxes (imported lazily). Characters are
 grouped into lines by baseline, lines are laid out on a character grid whose
 unit is the page's median glyph width, so table columns keep their positions
 across rows. Printed line numbers (DMTF documents) are recognised purely by
-geometry and moved from the text into the Line Map. The Outline comes from
+geometry and moved from the text into the Line Map: page by page first, then
+the pages turned down are read again against the number column the numbered
+pages show. The Outline comes from
 PDF bookmarks, or from the contents pages when a document has none, or when
 its bookmarks are only Word anchors (``Ref_DSP0236``, ``OLE_LINK1``) or two
 or more of them all point at one page of a longer document.
@@ -51,7 +53,9 @@ from bmc_toolkit.spec.library import (
 )
 from bmc_toolkit.spec.tables import remove_store
 
-EXTRACTOR_VERSION = 4  # 4: stacked same-size glyphs are two lines; anchor bookmarks
+# 4: stacked same-size glyphs are two lines; anchor bookmarks
+# 5: pages the page-by-page rules turn down are numbered from the number column
+EXTRACTOR_VERSION = 5
 PAGE_MARKER = "=== page {n} ==="
 EXTRACT_NAME = "extract.txt"
 OUTLINE_NAME = "outline.json"
@@ -80,6 +84,7 @@ SIZE_TOL = 0.02  # of the glyph height: boxes this close in height are one size
 NUMBER_BAND_PT = 3.0  # line numbers share an edge within this many points
 MIN_NUMBERED_LINES = 5
 NUMBER_MARGIN = 0.15  # the number column lies within this fraction of the width
+COLUMN_SHARE = 0.1  # of the numbers seen: an edge position this common is the column
 
 _CONTENTS_LINE = re.compile(
     r"^\s*(?P<num>\d+(?:\.\d+)*)\.?\s+(?P<title>\S.*?)\s*"
@@ -112,6 +117,8 @@ class PageText:
     left: float
     width: float = 612.0
     numbered: bool = False
+    # (x0, x1) of the number segments taken off the lines, once detected
+    number_boxes: list[tuple[float, float]] = field(default_factory=list)
 
 
 @dataclass
@@ -421,12 +428,89 @@ def detect_line_numbers(page: PageText, previous_last: int | None) -> bool:
         return False
     if previous_last is not None and numbers[0] <= previous_last:
         return False
-    for ln, n, _, _ in best:
+    _take_numbers(page, best)
+    return True
+
+
+def _take_numbers(page: PageText, members) -> None:
+    """Move the numbers of ``members`` (line, number, x0, x1) off their lines."""
+    for ln, n, x0, x1 in members:
         ln.number = n
         ln.segments = ln.segments[1:]
+        page.number_boxes.append((x0, x1))
     page.numbered = True
     page.left = min((s.x0 for ln in page.lines for s in ln.segments), default=page.left)
-    return True
+
+
+def _numbers(page: PageText) -> list[int]:
+    """The printed numbers of the page's lines, top to bottom."""
+    return [ln.number for ln in page.lines if ln.number is not None]
+
+
+def _number_column(pages: list[PageText]) -> tuple[int, list[int]] | None:
+    """Where the numbered pages print their numbers: the edge the numbers
+    share (0 the left one, 1 the right one) and its positions, rounded to
+    points. None when no page is numbered."""
+    boxes = [box for page in pages if page.numbered for box in page.number_boxes]
+    if not boxes:
+        return None
+    counts = [Counter(round(box[edge]) for box in boxes) for edge in (0, 1)]
+    edge = 0 if counts[0].most_common(1)[0][1] >= counts[1].most_common(1)[0][1] else 1
+    anchors = [x for x, n in counts[edge].items() if n >= COLUMN_SHARE * len(boxes)]
+    return edge, anchors
+
+
+def recover_line_numbers(pages: list[PageText]) -> int:
+    """Number the pages ``detect_line_numbers`` turned down although their
+    margin carries line numbers; returns how many.
+
+    Page by page a table's column of integers can outnumber the margin
+    numbers, and a page with a few numbers is taken only when it continues
+    the numbered page before it, so one page turned down takes the short
+    pages after it along. With the whole document read, the numbered pages
+    show where the number column is, and a page is numbered when the
+    integers that start a line in that column are consecutive and lie
+    strictly between the last number before the page and the first number
+    after it. Anything less leaves the page as it is: a page without numbers
+    is better than one with wrong numbers. A page before the first numbered
+    page is never touched.
+    """
+    column = _number_column(pages)
+    if column is None:
+        return 0
+    edge, anchors = column
+    following: list[int | None] = [None] * len(pages)
+    upcoming = None  # the first number of the nearest numbered page after
+    for i in range(len(pages) - 1, -1, -1):
+        following[i] = upcoming
+        upcoming = next(iter(_numbers(pages[i])), upcoming)
+    recovered = 0
+    before = None  # the last number of the nearest numbered page before
+    for i, page in enumerate(pages):
+        if page.numbered:
+            before = _numbers(page)[-1]
+            continue
+        if before is None:
+            continue
+        members = []
+        for ln in page.lines:
+            if not ln.segments or not ln.segments[0].text.isdigit():
+                continue
+            first = ln.segments[0]
+            at = (first.x0, first.x1)[edge]
+            if any(abs(at - anchor) <= NUMBER_BAND_PT for anchor in anchors):
+                members.append((ln, int(first.text), first.x0, first.x1))
+        numbers = [n for _, n, _, _ in members]
+        if not numbers or numbers[0] <= before:
+            continue
+        if following[i] is not None and numbers[-1] >= following[i]:
+            continue
+        if any(b != a + 1 for a, b in zip(numbers, numbers[1:], strict=False)):
+            continue
+        _take_numbers(page, members)
+        before = numbers[-1]
+        recovered += 1
+    return recovered
 
 
 # ------------------------------------------------------------------ layout
@@ -792,6 +876,7 @@ def _extract_open(pdf, raw, started: float) -> ExtractResult:
     figure_errors = 0
     numbered = 0
     previous_last: int | None = None
+    pages: list[PageText] = []
     for i in range(count):
         pdf_page = pdf[i]
         page = page_text(pdf_page.get_textpage(), i, pdf_page.get_size()[0])
@@ -806,6 +891,11 @@ def _extract_open(pdf, raw, started: float) -> ExtractResult:
                 "lines": lines_in_regions(page, regions),
             }
         if detect_line_numbers(page, previous_last):
+            previous_last = _numbers(page)[-1]
+        pages.append(page)
+    recover_line_numbers(pages)
+    for i, page in enumerate(pages):
+        if page.numbered:
             numbered += 1
             nums = {}
             for li, ln in enumerate(page.lines):
@@ -817,7 +907,6 @@ def _extract_open(pdf, raw, started: float) -> ExtractResult:
                 "last": values[-1],
                 "lines": nums,
             }
-            previous_last = values[-1]
         lines = render_page(page)
         pages_lines.append(lines)
         chunks.append(PAGE_MARKER.format(n=i + 1))
