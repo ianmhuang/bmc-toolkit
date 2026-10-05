@@ -23,10 +23,12 @@ PROTOCOLS = ("ipmi", "mctp-control", "pldm", "spdm")
 FORM = "NAME:SIZE=VALUE"
 MAX_SIZE = 0xFFFF  # the most a 16-bit length field can state
 FIELD_RE = re.compile(
-    r"(?P<name>.*?):(?P<size>\d+)(?::(?P<order>be|le))?=(?P<value>.*)", re.S
+    r"(?P<name>.*?):(?P<size>[0-9]+)(?::(?P<order>be|le))?=(?P<value>.*)", re.S
 )
 HEX_RE = re.compile(r"0[xX][0-9a-fA-F]+")
-DECIMAL_RE = re.compile(r"0+|[1-9]\d*")
+DECIMAL_RE = re.compile(r"0+|[1-9][0-9]*")
+PIECE = 600  # digits int() converts under any sys.set_int_max_str_digits()
+SHIFT = 10**PIECE
 WRITE_HEX = "write hex with 0x (0x0a), decimal without a leading zero"
 
 
@@ -41,18 +43,25 @@ class Field:
     tokens: list[int | str]  # one per byte, in layout order: a value or a placeholder
 
 
+def _is_number(text: str) -> bool:
+    return bool(HEX_RE.fullmatch(text) or DECIMAL_RE.fullmatch(text))
+
+
+def _decimal(text: str) -> int:
+    # in pieces: int() refuses a decimal longer than the interpreter's limit
+    first = len(text) % PIECE
+    number = int(text[:first] or "0")
+    for start in range(first, len(text), PIECE):
+        number = number * SHIFT + int(text[start : start + PIECE])
+    return number
+
+
 def _number(text: str) -> int:
     if HEX_RE.fullmatch(text):
         return int(text, 16)
     if DECIMAL_RE.fullmatch(text):
-        try:
-            return int(text)
-        except ValueError:  # more digits than int() converts
-            raise FieldError(
-                f"a decimal of {len(text)} digits is too long to read: "
-                "write the value in hex with 0x"
-            ) from None
-    if text.startswith("-"):
+        return _decimal(text)
+    if text.startswith("-") and _is_number(text[1:]):
         raise FieldError(f"{text} is negative")
     raise FieldError(f"{text!r} is not a number: {WRITE_HEX}")
 
@@ -113,8 +122,11 @@ def parse_field(text: str) -> Field:
             "a list of bytes is separated by commas (0x00,0x10); "
             "one number has no space"
         )
-    number = _number(value)
-    if number.bit_length() > 8 * size:
+    # a decimal of d digits is at least 2**(3*(d-1)): one far too long for
+    # SIZE is refused by its length, before the number is built
+    digits = len(value.lstrip("0")) if DECIMAL_RE.fullmatch(value) else 0
+    number = None if 3 * (digits - 1) >= 8 * size else _number(value)
+    if number is None or number.bit_length() > 8 * size:
         raise FieldError(f"{value} does not fit {size} byte{'s' if size > 1 else ''}")
     order = "big" if found["order"] == "be" else "little"
     return Field(name, size, list(number.to_bytes(size, order)))
