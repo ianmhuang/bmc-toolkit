@@ -25,11 +25,14 @@ MAX_SIZE = 0xFFFF  # the most a 16-bit length field can state
 FIELD_RE = re.compile(
     r"(?P<name>.*?):(?P<size>[0-9]+)(?::(?P<order>be|le))?=(?P<value>.*)", re.S
 )
+# \d on purpose: the digits [0-9] leaves out, where a SIZE would stand
+OTHER_SIZE_RE = re.compile(r":\d+(?::(?:be|le))?=")
 HEX_RE = re.compile(r"0[xX][0-9a-fA-F]+")
 DECIMAL_RE = re.compile(r"0+|[1-9][0-9]*")
 PIECE = 600  # digits int() converts under any sys.set_int_max_str_digits()
 SHIFT = 10**PIECE
 WRITE_HEX = "write hex with 0x (0x0a), decimal without a leading zero"
+NO_SIZE = f"SIZE, the field's bytes, is missing or not a number; a field is {FORM}"
 
 
 class FieldError(ValueError):
@@ -88,9 +91,11 @@ def parse_field(text: str) -> Field:
     if not found:
         if "=" not in text:
             raise FieldError(f"no =VALUE; a field is {FORM}")
-        raise FieldError(
-            f"SIZE, the field's bytes, is missing or not a number; a field is {FORM}"
-        )
+        raise FieldError(NO_SIZE)
+    # NAME may hold : and =, so a SIZE in digits of another script would be
+    # read as part of a NAME that ends at a later :N=
+    if OTHER_SIZE_RE.search(found["name"]):
+        raise FieldError(NO_SIZE)
     name, value = found["name"].strip(), found["value"].strip()
     # digits are counted before int() reads them: it raises on very long ones
     digits = found["size"].lstrip("0")
@@ -124,10 +129,13 @@ def parse_field(text: str) -> Field:
         )
     # a decimal of d digits is at least 2**(3*(d-1)): one far too long for
     # SIZE is refused by its length, before the number is built
-    digits = len(value.lstrip("0")) if DECIMAL_RE.fullmatch(value) else 0
-    number = None if 3 * (digits - 1) >= 8 * size else _number(value)
-    if number is None or number.bit_length() > 8 * size:
-        raise FieldError(f"{value} does not fit {size} byte{'s' if size > 1 else ''}")
+    value_digits = len(value.lstrip("0")) if DECIMAL_RE.fullmatch(value) else 0
+    misfit = f"{value} does not fit {size} byte{'s' if size > 1 else ''}"
+    if 3 * (value_digits - 1) >= 8 * size:
+        raise FieldError(misfit)
+    number = _number(value)
+    if number.bit_length() > 8 * size:
+        raise FieldError(misfit)
     order = "big" if found["order"] == "be" else "little"
     return Field(name, size, list(number.to_bytes(size, order)))
 

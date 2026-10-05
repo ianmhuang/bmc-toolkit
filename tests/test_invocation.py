@@ -431,6 +431,40 @@ def test_a_size_in_digits_of_another_script_is_refused(capsys, size):
     assert "65535" not in text
 
 
+@pytest.mark.parametrize(
+    "field",
+    [
+        f"X:{THREE}=A:1=5",
+        f"X:1{THREE}=A:1=5",
+        f"X:{THREE}:be=A:2=5",
+        f"X:{THREE}=<a>:1=5",
+        f"X:{ZERO * 6}{THREE}=0x01,0x02:2=0x0102",
+    ],
+    ids=["one", "after-ascii", "with-order", "placeholder", "seven"],
+)
+def test_a_size_of_another_script_is_not_skipped_for_a_later_one(capsys, field):
+    # NAME may hold : and =, so the text after such a SIZE could be read as
+    # the rest of a NAME that ends at a later :N=
+    text = refused(capsys, "spdm", field)
+    assert field in text
+    assert "SIZE, the field's bytes, is missing or not a number" in text
+
+
+@pytest.mark.parametrize(
+    ("field", "row"),
+    [
+        ("Flags (b0=1):1=0", "0 | 1 | Flags (b0=1) | 00"),
+        ("Byte 1: flags:1=0", "0 | 1 | Byte 1: flags | 00"),
+        ("A:1:2=5", "0 | 2 | A:1 | 05 00"),
+        ("X:1=<see 5: 1=on>", "0 | 1 | X | <see 5: 1=on>"),
+    ],
+)
+def test_a_name_with_a_colon_or_an_equals_sign_is_read_as_before(capsys, field, row):
+    code, lines = run(capsys, "spdm", field)
+    assert code == 0, lines
+    assert lines[-1] == row
+
+
 def test_a_size_in_ascii_digits_keeps_its_leading_zeros(capsys):
     code, lines = run(capsys, "spdm", "Code:003=0x010203")
     assert code == 0, lines
@@ -573,6 +607,7 @@ def test_the_interpreters_limit_on_decimals_changes_nothing(field, code, tail):
             encoding="utf-8",
             errors="replace",
             env=env,
+            timeout=60,
         )
         assert done.returncode == code, (limit, done.stderr[-300:])
         assert done.stderr == "", limit
