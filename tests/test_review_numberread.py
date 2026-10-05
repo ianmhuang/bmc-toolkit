@@ -16,6 +16,10 @@ On develop a SIZE or a VALUE in digits of another script is laid out, a
 4300 digits is refused as too long to read. The tests that pin what must
 stay as it was (AC-7, and the negative numbers of AC-3) depend on the
 ``changed`` fixture, which fails on develop.
+
+Round 2: a SIZE of another script in front of a later ``:N=`` (AC-1). NAME
+may hold ``:`` and ``=``, so such a field must not be read as one with a
+longer NAME; names and values that hold ``:`` or ``=`` stay as they were.
 """
 
 import os
@@ -190,6 +194,52 @@ def test_a_size_of_another_script_is_refused_whatever_the_value(capsys):
     for value in ("0", "<x>", "0x00,0x01,0x02", "66051"):
         line = refusal(capsys, "spdm", f"Code:{other('3')}={value}")
         assert NO_SIZE in line, value
+
+
+# A SIZE of another script in front of a later :N=. NAME may hold : and =,
+# so once that SIZE is no SIZE the text up to the later :N= could be read as
+# a NAME and the field laid out. On develop these are refused with another
+# reason (the text after the first = is no number, or the SIZE is too large).
+THREE = other("3")
+LATER_SIZE = [
+    pytest.param(f"Code:{THREE}=A:1=5", id="one-digit"),
+    pytest.param(f"Code:1{THREE}=A:1=5", id="after-an-ascii-digit"),
+    pytest.param(f"Code:{THREE}1=A:1=5", id="before-an-ascii-digit"),
+    pytest.param(f"Code:{other('0000003')}=0x01,0x02:2=0x0102", id="seven-digits"),
+    pytest.param(f"Code:{THREE}:be=A:2=5", id="most-significant-first"),
+    pytest.param(f"Code:{THREE}:le=A:2=5", id="least-significant-first"),
+    pytest.param(f"Code:{THREE}=A:2:be=5", id="later-one-with-an-order"),
+    pytest.param(f"Code:{THREE}=<a>:1=5", id="placeholder-between"),
+    pytest.param(f"Code:{THREE}=A:1=<a>", id="placeholder-as-value"),
+    pytest.param(f"Code:{THREE}=A:2=0x01,0x02", id="list-as-value"),
+    pytest.param(f"Code:{THREE}=B:{other('2')}=A:1=5", id="two-of-them"),
+    pytest.param(f"a:b=Code:{THREE}=A:1=5", id="after-a-colon-in-the-name"),
+    pytest.param(f"Code:{THREE}=A:1=5:1=5", id="two-later-ones"),
+]
+
+
+@pytest.mark.parametrize("field", LATER_SIZE)
+def test_a_later_size_does_not_hide_one_of_another_script(capsys, field):
+    line = refusal(capsys, "spdm", field)
+    assert "Code" in line
+    assert NO_SIZE in line
+    assert "65535" not in line
+
+
+@pytest.mark.parametrize("zero", list(SCRIPTS.values()), ids=list(SCRIPTS))
+def test_a_later_size_hides_a_size_of_no_script(capsys, zero):
+    three = other("3", zero)
+    for field in (f"Code:{three}=A:1=5", f"Code:{three}:be=A:2=5"):
+        line = refusal(capsys, "spdm", field)
+        assert NO_SIZE in line, field
+
+
+@pytest.mark.parametrize("protocol", sorted(HEADER))
+def test_a_later_size_hides_none_for_any_protocol(capsys, protocol):
+    field = f"Flags:{other('2')}=A:1=5"
+    line = refusal(capsys, protocol, *HEADER[protocol], field, "Last:1=0x01")
+    assert "Flags" in line
+    assert NO_SIZE in line
 
 
 # ------------------------------------------------------------------ AC-2
@@ -531,6 +581,29 @@ SAME_AS_BEFORE = [
 @pytest.mark.parametrize(("field", "data"), SAME_AS_BEFORE)
 def test_a_field_accepted_before_prints_the_same_bytes(capsys, changed, field, data):
     assert spdm_data(capsys, field) == data
+
+
+# NAME may hold : and =, and a VALUE may hold what looks like a SIZE: the
+# refusal of a SIZE of another script must not reach these
+KEPT_NAMES = [
+    ("Flags (b0=1):1=0", "0 | 1 | Flags (b0=1) | 00"),
+    ("Byte 1: flags:1=0", "0 | 1 | Byte 1: flags | 00"),
+    ("A:1:2=5", "0 | 2 | A:1 | 05 00"),
+    ("X:y=A:1=5", "0 | 1 | X:y=A | 05"),
+    ("a:b=c:2:be=0x1234", "0 | 2 | a:b=c | 12 34"),
+    ("X:1=<see 5: 1=on>", "0 | 1 | X | <see 5: 1=on>"),
+    (f"X:1=<see 5:{THREE}=on>", f"0 | 1 | X | <see 5:{THREE}=on>"),
+    (f"Reg {THREE}:1=5", f"0 | 1 | Reg {THREE} | 05"),
+]
+
+
+@pytest.mark.parametrize(("field", "row"), KEPT_NAMES, ids=ascii)
+def test_a_colon_or_an_equals_sign_in_a_name_is_kept(capsys, changed, field, row):
+    code, lines, text = invoke(capsys, "spdm", field)
+    assert code == 0, text[:300]
+    size = row.split(" | ")[1]
+    assert lines[0] == f"bytes: {size}"
+    assert lines[-1] == row
 
 
 def test_a_whole_answer_is_printed_as_before(capsys, changed):
