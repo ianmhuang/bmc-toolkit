@@ -1,6 +1,9 @@
 """The ``invocation`` command: the bytes of a request arranged from the
 fields the caller gives, printed in each sending tool's syntax."""
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -10,6 +13,7 @@ from bmc_toolkit.spec.cli import main
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "bmc-spec" / "SKILL.md"
 COMMANDS_DOC = ROOT / "docs" / "COMMANDS.md"
+LAUNCHER = ROOT / "skills" / "bmc-spec" / "scripts" / "bmcspec.py"
 
 # SPDM GET_CAPABILITIES of DSP0274 1.4.1: 20 bytes, eleven 00 in a row
 CAPABILITIES = [
@@ -372,17 +376,6 @@ def test_one_more_than_fits_is_refused_with_the_same_reason(capsys, field, reaso
     assert reason in text
 
 
-@pytest.mark.parametrize(
-    "value",
-    ["9" * 5000, "0" * 5000, "0," + "0" * 5000],
-    ids=["nines", "zeros", "zeros-in-a-list"],
-)
-def test_a_decimal_too_long_to_read_is_refused(capsys, value):
-    size = value.count(",") + 1
-    text = refused(capsys, "spdm", f"X:{size}={value}")
-    assert "0x" in text
-
-
 def test_commands_doc_lists_the_refusals():
     doc = " ".join(COMMANDS_DOC.read_text("utf-8").split())
     start = doc.index("Refused with exit 2")
@@ -397,6 +390,230 @@ def test_commands_doc_lists_the_refusals():
         "above 65535",
     ):
         assert word in listed, word
+
+
+# ------------------- how a number is read (follow-ups of PR #67 and PR #68)
+
+THREE = "\u0663"  # ARABIC-INDIC DIGIT THREE: int() reads it as 3
+ZERO = "\u0660"  # ARABIC-INDIC DIGIT ZERO
+NINES = 10**4301 - 1  # one digit more than int() converts by default
+NINES_SIZE = (NINES.bit_length() + 7) // 8  # the bytes it just fits
+
+
+def decimal(number):
+    """``str(number)``, whatever its length; the limit is put back after."""
+    limit = sys.get_int_max_str_digits()
+    sys.set_int_max_str_digits(0)
+    try:
+        return str(number)
+    finally:
+        sys.set_int_max_str_digits(limit)
+
+
+def data_of(lines):
+    return tool_lines(lines)[0].split(" data ")[1]
+
+
+def spaced(raw):
+    return " ".join(f"{byte:02x}" for byte in raw)
+
+
+@pytest.mark.parametrize(
+    "size",
+    [THREE, "1" + THREE, ZERO * 6 + THREE, "0" + ZERO * 5 + THREE, "\uff13"],
+    ids=["one", "after-ascii", "seven", "seven-after-ascii-zero", "fullwidth"],
+)
+def test_a_size_in_digits_of_another_script_is_refused(capsys, size):
+    field = f"Code:{size}=0x010203"
+    text = refused(capsys, "spdm", field)
+    assert field in text
+    assert "SIZE, the field's bytes, is missing or not a number" in text
+    assert "65535" not in text
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        f"X:{THREE}=A:1=5",
+        f"X:1{THREE}=A:1=5",
+        f"X:{THREE}:be=A:2=5",
+        f"X:{THREE}=<a>:1=5",
+        f"X:{ZERO * 6}{THREE}=0x01,0x02:2=0x0102",
+    ],
+    ids=["one", "after-ascii", "with-order", "placeholder", "seven"],
+)
+def test_a_size_of_another_script_is_not_skipped_for_a_later_one(capsys, field):
+    # NAME may hold : and =, so the text after such a SIZE could be read as
+    # the rest of a NAME that ends at a later :N=
+    text = refused(capsys, "spdm", field)
+    assert field in text
+    assert "SIZE, the field's bytes, is missing or not a number" in text
+
+
+@pytest.mark.parametrize(
+    ("field", "row"),
+    [
+        ("Flags (b0=1):1=0", "0 | 1 | Flags (b0=1) | 00"),
+        ("Byte 1: flags:1=0", "0 | 1 | Byte 1: flags | 00"),
+        ("A:1:2=5", "0 | 2 | A:1 | 05 00"),
+        ("X:1=<see 5: 1=on>", "0 | 1 | X | <see 5: 1=on>"),
+    ],
+)
+def test_a_name_with_a_colon_or_an_equals_sign_is_read_as_before(capsys, field, row):
+    code, lines = run(capsys, "spdm", field)
+    assert code == 0, lines
+    assert lines[-1] == row
+
+
+def test_a_size_in_ascii_digits_keeps_its_leading_zeros(capsys):
+    code, lines = run(capsys, "spdm", "Code:003=0x010203")
+    assert code == 0, lines
+    assert data_of(lines) == "03 02 01"
+
+
+@pytest.mark.parametrize(
+    "value", ["1" + THREE, THREE, ZERO, "1" + ZERO + "0"], ids=lambda v: ascii(v)
+)
+def test_a_decimal_in_digits_of_another_script_is_refused(capsys, value):
+    text = refused(capsys, "spdm", f"Code:2={value}")
+    assert "is not a number" in text
+
+
+@pytest.mark.parametrize("value", ["-abc", "-", "--5", "-08", "-0x", "-e1"])
+def test_a_dash_before_what_is_no_number_is_not_called_negative(capsys, value):
+    text = refused(capsys, "spdm", f"Code:1={value}")
+    assert f"{value!r} is not a number: write hex with 0x" in text
+    assert "negative" not in text
+
+
+@pytest.mark.parametrize("value", ["-1", "-0x10", "-0", "-65536"])
+def test_a_dash_before_a_number_is_negative(capsys, value):
+    text = refused(capsys, "spdm", f"Code:1={value}")
+    assert f"{value} is negative" in text
+    assert "not a number" not in text
+
+
+@pytest.mark.parametrize(
+    ("order", "raw"),
+    [
+        ("", NINES.to_bytes(NINES_SIZE, "little")),
+        (":le", NINES.to_bytes(NINES_SIZE, "little")),
+        (":be", NINES.to_bytes(NINES_SIZE, "big")),
+    ],
+    ids=["default", "le", "be"],
+)
+def test_a_decimal_longer_than_int_converts_is_laid_out(capsys, order, raw):
+    code, lines = run(capsys, "spdm", f"X:{NINES_SIZE}{order}={'9' * 4301}")
+    assert code == 0, lines[:1]
+    assert lines[0] == f"bytes: {NINES_SIZE}"
+    assert data_of(lines) == spaced(raw)
+
+
+def test_a_decimal_of_any_length_is_read_digit_for_digit():
+    from bmc_toolkit.spec.invocation import render
+
+    lengths = set()
+    # powers of 7: every length around 600, 1200 and 4300 digits
+    for power in (*range(700, 725), *range(1415, 1425), *range(5082, 5095)):
+        number = 7**power
+        written = decimal(number)
+        lengths.add(len(written))
+        size = (number.bit_length() + 7) // 8
+        lines = render("spdm", [f"X:{size}:be={written}"])
+        assert data_of(lines) == spaced(number.to_bytes(size, "big")), len(written)
+    assert lengths >= {599, 600, 601, 1200, 1201, 4300, 4301}
+
+
+def test_a_long_decimal_in_a_larger_field_is_padded_with_zeros(capsys):
+    code, lines = run(capsys, "spdm", "X:65535=" + "9" * 4301)
+    assert code == 0, lines[:1]
+    assert lines[0] == "bytes: 65535"
+    assert data_of(lines) == spaced(NINES.to_bytes(65535, "little"))
+
+
+@pytest.mark.parametrize(
+    ("field", "reason"),
+    [
+        pytest.param("X:4=" + "9" * 5000, "does not fit 4 bytes", id="5000-nines"),
+        pytest.param(
+            f"X:{NINES_SIZE - 1}=" + "9" * 4301,
+            f"does not fit {NINES_SIZE - 1} bytes",
+            id="one-byte-short",
+        ),
+    ],
+)
+def test_a_long_decimal_that_does_not_fit_is_refused_as_any_number(
+    capsys, field, reason
+):
+    text = refused(capsys, "spdm", field)
+    assert text.endswith(reason)
+    assert "too long" not in text
+
+
+@pytest.mark.parametrize(
+    ("value", "data"),
+    [
+        pytest.param("0" * 5000, "00", id="alone"),
+        pytest.param("0," + "0" * 5000, "00 00", id="in-a-list"),
+    ],
+)
+def test_zeros_of_any_number_are_zero(capsys, value, data):
+    code, lines = run(capsys, "spdm", f"X:{value.count(',') + 1}={value}")
+    assert code == 0, lines[:1]
+    assert data_of(lines) == data
+
+
+@pytest.mark.parametrize("size", [1, 2, 3, 4, 8, 16, 64, 1000, 65535])
+def test_the_largest_number_of_a_size_fits_when_written_in_decimal(capsys, size):
+    # the refusal by the count of digits must not reach a number that fits
+    largest = 256**size - 1
+    code, lines = run(capsys, "spdm", f"X:{size}={decimal(largest)}")
+    assert code == 0, lines[:1]
+    assert set(data_of(lines).split(" ")) == {"ff"}
+    text = refused(capsys, "spdm", f"X:{size}={decimal(largest + 1)}")
+    assert text.endswith(f"does not fit {size} byte{'s' if size > 1 else ''}")
+
+
+def test_a_decimal_far_too_long_for_its_size_is_refused_as_not_fitting():
+    # no command line carries a field this long: handed over in process
+    from bmc_toolkit.spec.invocation import FieldError, render
+
+    with pytest.raises(FieldError) as caught:
+        render("spdm", ["X:1=" + "9" * 1_000_000])
+    assert str(caught.value).endswith("does not fit 1 byte")
+
+
+@pytest.mark.parametrize(
+    ("field", "code", "tail"),
+    [
+        pytest.param("X:65535=" + "9" * 4301, 0, " 00 00", id="fits"),
+        pytest.param("X:4=" + "9" * 5000, 2, "does not fit 4 bytes", id="too-big"),
+        pytest.param("X:1=" + "0" * 5000, 0, "0 | 1 | X | 00", id="zeros"),
+        pytest.param("X:2=0," + "0" * 5000, 0, "0 | 2 | X | 00 00", id="zero-list"),
+    ],
+)
+def test_the_interpreters_limit_on_decimals_changes_nothing(field, code, tail):
+    seen = []
+    for limit in ("0", "640", None):
+        env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1")
+        env.pop("CLAUDE_PLUGIN_DATA", None)
+        env.pop("PYTHONINTMAXSTRDIGITS", None)
+        if limit is not None:
+            env["PYTHONINTMAXSTRDIGITS"] = limit
+        done = subprocess.run(
+            [sys.executable, str(LAUNCHER), "invocation", "spdm", field],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=60,
+        )
+        assert done.returncode == code, (limit, done.stderr[-300:])
+        assert done.stderr == "", limit
+        assert done.stdout.rstrip("\n").endswith(tail), limit
+        seen.append(done.stdout)
+    assert seen[0] == seen[1] == seen[2]
 
 
 # ------------------------------------------------------------------ AC-6
