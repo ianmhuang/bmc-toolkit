@@ -129,11 +129,14 @@ of N bytes as `<text 0>` to `<text N-1>`, one per byte. The output is
 the field and the reason, and no line to send: a number that does not fit
 SIZE or is negative; a number that is neither decimal nor `0x` hex, or has
 a leading zero (`e1`, `08`: which base is meant is never guessed); a SIZE
-that is missing or not a positive integer; a list of another length or
-with a byte above `0xff`; a field without VALUE; no field; an unknown
-PROTOCOL; `ipmi` with fewer than two fields or a NetFn or Cmd of more than
-one byte. The command knows no Document: the fields are the caller's, and
-a wrong field gives a wrong line.
+that is missing, not a positive integer or above 65535; a list of another
+length or with a byte above `0xff`; a number or a list written with spaces
+instead of commas (`0xc0 0xa8`); a placeholder that is empty or not closed
+(`<>`, `<x`); more than one placeholder in a field (`<lsb>,<msb>`: each
+gets a field of its own); a field without NAME or without VALUE; no field;
+an unknown PROTOCOL; `ipmi` with fewer than two fields or a NetFn or Cmd of
+more than one byte. The command knows no Document: the fields are the
+caller's, and a wrong field gives a wrong line.
 
 ## Notes
 

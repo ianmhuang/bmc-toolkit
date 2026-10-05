@@ -21,6 +21,7 @@ EXIT_ACTION = 2
 
 PROTOCOLS = ("ipmi", "mctp-control", "pldm", "spdm")
 FORM = "NAME:SIZE=VALUE"
+MAX_SIZE = 0xFFFF  # the most a 16-bit length field can state
 FIELD_RE = re.compile(
     r"(?P<name>.*?):(?P<size>\d+)(?::(?P<order>be|le))?=(?P<value>.*)", re.S
 )
@@ -44,7 +45,13 @@ def _number(text: str) -> int:
     if HEX_RE.fullmatch(text):
         return int(text, 16)
     if DECIMAL_RE.fullmatch(text):
-        return int(text)
+        try:
+            return int(text)
+        except ValueError:  # more digits than int() converts
+            raise FieldError(
+                f"a decimal of {len(text)} digits is too long to read: "
+                "write the value in hex with 0x"
+            ) from None
     if text.startswith("-"):
         raise FieldError(f"{text} is negative")
     raise FieldError(f"{text!r} is not a number: {WRITE_HEX}")
@@ -75,18 +82,27 @@ def parse_field(text: str) -> Field:
         raise FieldError(
             f"SIZE, the field's bytes, is missing or not a number; a field is {FORM}"
         )
-    name, size = found["name"].strip(), int(found["size"])
-    value = found["value"].strip()
+    name, value = found["name"].strip(), found["value"].strip()
+    # digits are counted before int() reads them: it raises on very long ones
+    digits = found["size"].lstrip("0")
+    too_long = len(digits) > len(str(MAX_SIZE))
+    size = MAX_SIZE + 1 if too_long else int(digits or "0")
     if not name:
         raise FieldError(f"no NAME; a field is {FORM}")
     if size < 1:
         raise FieldError("SIZE is 0; it is the number of bytes of the field")
+    if size > MAX_SIZE:
+        raise FieldError(f"SIZE is above {MAX_SIZE}, the most bytes a field takes")
     if not value:
         raise FieldError(f"no VALUE; a field is {FORM}")
     if value.startswith("<") or value.endswith(">"):
         inner = value[1:-1].strip()
         if not (value.startswith("<") and value.endswith(">") and inner):
             raise FieldError("a placeholder is written <text>")
+        if "<" in inner or ">" in inner:
+            raise FieldError(
+                "a field takes one placeholder; give each placeholder its own field"
+            )
         if size == 1:
             return Field(name, size, [f"<{inner}>"])
         return Field(name, size, [f"<{inner} {i}>" for i in range(size)])
@@ -98,7 +114,7 @@ def parse_field(text: str) -> Field:
             "one number has no space"
         )
     number = _number(value)
-    if number >= 256**size:
+    if number.bit_length() > 8 * size:
         raise FieldError(f"{value} does not fit {size} byte{'s' if size > 1 else ''}")
     order = "big" if found["order"] == "be" else "little"
     return Field(name, size, list(number.to_bytes(size, order)))

@@ -255,6 +255,150 @@ def test_one_bad_field_among_good_ones_prints_no_line(capsys):
     assert not tool_lines(lines)
 
 
+# ------------------------------------------- refusals added after PR #67
+
+HEADER = {
+    "ipmi": ["NetFn:1=0x0a", "Cmd:1=0x23"],
+    "mctp-control": ["Header:1=0x80"],
+    "pldm": ["Header:1=0x80"],
+    "spdm": ["Version:1=0x12"],
+}
+
+
+def refused(capsys, *argv):
+    code, lines = run(capsys, *argv)
+    assert code == 2, lines[:3]
+    assert not tool_lines(lines)
+    assert not [ln for ln in lines if ln.startswith("bytes:")]
+    return "\n".join(lines)
+
+
+@pytest.mark.parametrize("protocol", sorted(HEADER))
+@pytest.mark.parametrize(
+    "field",
+    [
+        "Reservation ID:2=<lsb>,<msb>",
+        "X:1=<a> <b>",
+        "X:1=<a><b>",
+        "X:1=<<a>>",
+    ],
+)
+def test_two_placeholders_in_one_field_are_refused(capsys, protocol, field):
+    text = refused(capsys, protocol, *HEADER[protocol], field)
+    assert field in text
+    assert "one placeholder" in text
+
+
+@pytest.mark.parametrize(
+    "inner", ["sensor number", "record id, LSB first", "eid 0x08-0xfe"]
+)
+def test_one_placeholder_may_hold_commas_and_spaces(capsys, inner):
+    code, lines = run(capsys, "spdm", f"One:1=<{inner}>", f"Three:3=<{inner}>")
+    assert code == 0, lines
+    assert tool_lines(lines) == [
+        "mctp-client eid <eid> type spdm data "
+        f"<{inner}> <{inner} 0> <{inner} 1> <{inner} 2>"
+    ]
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "Flags:65536=0",
+        "Flags:99999999999=0",
+        "Flags:65536=<x>",
+        "Flags:65536=0x00,0x01",
+        # more digits than int() converts
+        pytest.param("Flags:" + "9" * 5000 + "=0", id="size-of-5000-digits"),
+    ],
+)
+def test_a_size_above_the_limit_is_refused(capsys, field):
+    text = refused(capsys, "spdm", field)
+    assert field in text
+    assert "65535" in text
+
+
+@pytest.mark.parametrize(
+    ("field", "first"), [("Data:65535=0", "00"), ("Data:65535=1", "01")]
+)
+def test_the_largest_size_is_laid_out(capsys, field, first):
+    code, lines = run(capsys, "spdm", field)
+    assert code == 0, lines[:1]
+    assert lines[0] == "bytes: 65535"
+    data = tool_lines(lines)[0].split(" data ")[1].split(" ")
+    assert len(data) == 65535
+    assert data[0] == first
+    assert set(data[1:]) == {"00"}
+
+
+def test_the_largest_size_takes_a_placeholder(capsys):
+    code, lines = run(capsys, "spdm", "Chain:65535=<chain>")
+    assert code == 0, lines[:1]
+    data = tool_lines(lines)[0].split(" data ")[1]
+    assert data.startswith("<chain 0> <chain 1> ")
+    assert data.endswith(" <chain 65534>")
+
+
+@pytest.mark.parametrize(
+    ("field", "data"),
+    [
+        ("X:1=255", "ff"),
+        ("X:2=0xffff", "ff ff"),
+        ("X:2=65535", "ff ff"),
+        ("X:3:be=0xffffff", "ff ff ff"),
+    ],
+)
+def test_the_largest_number_of_a_size_still_fits(capsys, field, data):
+    code, lines = run(capsys, "spdm", field)
+    assert code == 0, lines
+    assert tool_lines(lines) == ["mctp-client eid <eid> type spdm data " + data]
+
+
+@pytest.mark.parametrize(
+    ("field", "reason"),
+    [
+        ("X:1=256", "does not fit 1 byte"),
+        ("X:2=0x10000", "does not fit 2 bytes"),
+        ("X:2=65536", "does not fit 2 bytes"),
+        pytest.param(
+            "X:65535=0x1" + "00" * 65535,
+            "does not fit 65535 bytes",
+            id="one-more-than-65535-bytes",
+        ),
+    ],
+)
+def test_one_more_than_fits_is_refused_with_the_same_reason(capsys, field, reason):
+    text = refused(capsys, "spdm", field)
+    assert reason in text
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["9" * 5000, "0" * 5000, "0," + "0" * 5000],
+    ids=["nines", "zeros", "zeros-in-a-list"],
+)
+def test_a_decimal_too_long_to_read_is_refused(capsys, value):
+    size = value.count(",") + 1
+    text = refused(capsys, "spdm", f"X:{size}={value}")
+    assert "0x" in text
+
+
+def test_commands_doc_lists_the_refusals():
+    doc = " ".join(COMMANDS_DOC.read_text("utf-8").split())
+    start = doc.index("Refused with exit 2")
+    listed = doc[start : doc.index("The command knows no Document", start)]
+    for word in (
+        "without NAME",
+        "without VALUE",
+        "spaces instead of commas",
+        "`<>`",
+        "`<x`",
+        "more than one placeholder",
+        "above 65535",
+    ):
+        assert word in listed, word
+
+
 # ------------------------------------------------------------------ AC-6
 
 
