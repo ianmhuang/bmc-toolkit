@@ -55,7 +55,8 @@ from bmc_toolkit.spec.tables import remove_store
 
 # 4: stacked same-size glyphs are two lines; anchor bookmarks
 # 5: pages the page-by-page rules turn down are numbered from the number column
-EXTRACTOR_VERSION = 5
+# 6: micro text, oversized boxes and stacked near-size boxes keep lines apart
+EXTRACTOR_VERSION = 6
 PAGE_MARKER = "=== page {n} ==="
 EXTRACT_NAME = "extract.txt"
 OUTLINE_NAME = "outline.json"
@@ -81,6 +82,10 @@ BASELINE_TOL = 0.45  # of the glyph height: stream neighbours share a baseline
 LINE_OVERLAP = 0.5  # of the smaller glyph height: vertical overlap that joins a line
 STACKED = 0.2  # of the narrower glyph width: horizontal overlap that stacks two glyphs
 SIZE_TOL = 0.02  # of the glyph height: boxes this close in height are one size
+NEAR_SIZE = 1.5  # upright boxes whose heights differ less than this times stack
+# Of the page's median glyph height (and, for MICRO_TEXT, width too).
+MICRO_TEXT = 0.25  # a run smaller than this both ways is a line of its own
+ANCHOR_CAP = 3.0  # a box taller than this joins a line but never anchors it
 NUMBER_BAND_PT = 3.0  # line numbers share an edge within this many points
 MIN_NUMBERED_LINES = 5
 NUMBER_MARGIN = 0.15  # the number column lies within this fraction of the width
@@ -207,21 +212,38 @@ def _stream_neighbours(prev, box) -> bool:
 
 
 def _group_lines(chars, unit: float) -> list[Line]:
+    """Lines of the page's glyph boxes, top to bottom.
+
+    Baseline runs come top-down and each joins the line the previous
+    ordinary run went to, or starts a new one (``_LineGroup``). Micro text,
+    a run under MICRO_TEXT of the page's median glyph height and of its
+    median glyph width (a 1.4 pt "End of Note" marker squeezed into a
+    body line), is a line of its own, and the run after it still tries the
+    ordinary line before it, so a marker cannot split a line in two. Small
+    text of normal width (a 2 pt backtick) is not micro text.
+    """
     if not chars:
         return []
     ordered = sorted(chars, key=lambda c: (-c[1], c[0]))
+    height = statistics.median(c[3] - c[1] for c in chars)
+    cap = ANCHOR_CAP * height
     groups: list[_LineGroup] = []
+    last = None  # the line the last ordinary run went to
     for run in _baseline_runs(ordered):
         # A baseline run joins whole or not at all: the leading glyphs of a
         # lower line that starts further left than the upper one have
         # nothing over them, but the glyphs after them do.
-        if groups and all(groups[-1].accepts(c) for c in run):
+        micro = _is_micro(run, height, unit)
+        if not micro and last is not None and all(last.accepts(c) for c in run):
             for c in run:
-                groups[-1].add(c)
-        else:
-            groups.append(_LineGroup(run[0]))
-            for c in run[1:]:
-                groups[-1].add(c)
+                last.add(c)
+            continue
+        group = _LineGroup(run[0], cap)
+        for c in run[1:]:
+            group.add(c)
+        groups.append(group)
+        if not micro:
+            last = group
     lines = []
     for group in groups:
         g = group.chars
@@ -239,6 +261,14 @@ def _group_lines(chars, unit: float) -> list[Line]:
             segments.append(_segment(cur, unit))
         lines.append(Line(y0=g[0][1], x0=segments[0].x0, segments=segments))
     return lines
+
+
+def _is_micro(run, height: float, unit: float) -> bool:
+    """True when the run's glyphs are under MICRO_TEXT of the page's median
+    glyph height and, on average, of its median glyph width."""
+    tall = run[0][3] - run[0][1]
+    wide = statistics.fmean(c[2] - c[0] for c in run)
+    return tall < MICRO_TEXT * height and wide < MICRO_TEXT * unit
 
 
 def _baseline_runs(ordered) -> list[list]:
@@ -305,36 +335,65 @@ class _SizeRun:
 class _LineGroup:
     """The boxes of one line while it is being built.
 
-    A box joins when it overlaps the group's tallest box by half the
-    smaller height (``_same_line``; the tallest box is a fixed anchor, so a
-    staircase of slightly offset labels cannot pull the line down step by
-    step) and when it is not stacked on a box of its own size: glyphs of
-    one size on one line share a baseline, so a same-size box lying under
-    another one without overlapping it by half is the next line. The second
-    rule keeps two body lines apart when a large glyph in another column (a
-    monospace value beside a two-line comment cell) overlaps both by more
-    than half their height and becomes the anchor; ``_group_lines`` applies
-    it to a whole baseline run at once. Super- and subscripts sit beside
-    their neighbours, not over them, so they join whether or not they are
-    smaller.
+    A box joins when it overlaps the group's anchor by half the smaller
+    height (``_same_line``) and when it is not stacked on a box of a near
+    size. The anchor is the tallest box, fixed, so a staircase of slightly
+    offset labels cannot pull the line down step by step; but a box taller
+    than ``cap`` (ANCHOR_CAP of the page's median glyph height: a symbol
+    whose font box reaches far below its line) joins without replacing the
+    anchor, or the next line would join through it. A line can still open
+    with such a box; with the top-down sort that happens only when its
+    bottom is above every neighbouring line's, which no two lines can both
+    overlap by half.
+
+    Glyphs of one size on one line share a baseline, so a box lying under
+    another one of its own size, or of a size within NEAR_SIZE, without
+    overlapping it by half is the next line. This keeps two lines apart when
+    a larger glyph in another column (a monospace value beside a two-line
+    comment cell, an index letter beside two entries) overlaps both by more
+    than half their height and is the anchor; ``_group_lines`` applies it to
+    a whole baseline run at once. Across sizes it holds only for upright
+    boxes: a box wider than it is tall is a rotated glyph, and rotated
+    glyphs stacked in a margin are one word, not two lines. Super- and
+    subscripts sit beside their neighbours, not over them, so they join
+    whether or not they are smaller.
     """
 
-    def __init__(self, first) -> None:
+    def __init__(self, first, cap: float = float("inf")) -> None:
         self.chars = [first]
-        self.ref = first  # the tallest box so far
+        self.ref = first  # the anchor: the first box, then the tallest within cap
+        self._cap = cap
         self._sizes: list[_SizeRun] = []  # one per glyph height
         self._index(first)
 
     def accepts(self, c) -> bool:
         if not _same_line(self.ref, c):
             return False
-        run = self._run(c[3] - c[1])
-        above = run.stacked_on(c) if run is not None else None
-        return above is None or _same_line(above, c)
+        height = c[3] - c[1]
+        own = self._run(height)
+        above = own.stacked_on(c) if own is not None else None
+        if above is not None and not _same_line(above, c):
+            return False
+        if c[2] - c[0] > height:
+            return True  # a rotated glyph: only its own size stacks
+        for run in self._sizes:
+            if run is own or max(run.height, height) > NEAR_SIZE * min(
+                run.height, height
+            ):
+                continue
+            above = run.stacked_on(c)
+            if (
+                above is not None
+                and above[2] - above[0] <= above[3] - above[1]
+                and not _same_line(above, c)
+            ):
+                return False
+        return True
 
     def add(self, c) -> None:
         self.chars.append(c)
-        if c[3] - c[1] > self.ref[3] - self.ref[1]:
+        height = c[3] - c[1]
+        if self.ref[3] - self.ref[1] < height <= self._cap:
             self.ref = c
         self._index(c)
 
@@ -398,7 +457,7 @@ def detect_line_numbers(page: PageText, previous_last: int | None) -> bool:
     cands = []
     for ln in text_lines:
         first = ln.segments[0]
-        if first.text.isdigit():
+        if first.text.isdecimal():
             cands.append((ln, int(first.text), first.x0, first.x1))
     if not cands:
         return False
@@ -419,10 +478,8 @@ def detect_line_numbers(page: PageText, previous_last: int | None) -> bool:
     band_right = max(x1 for _, _, _, x1 in best)
     if band_right > NUMBER_MARGIN * page.width:
         return False
-    chosen = {id(ln) for ln, _, _, _ in best}
-    others = [ln.x0 for ln in text_lines if id(ln) not in chosen]
-    if others and min(others) <= band_right + NUMBER_BAND_PT:
-        return False  # something else starts as far left: not a margin column
+    if _left_of_column(page, best):
+        return False
     body = [ln.segments[1].x0 for ln, _, _, _ in best if len(ln.segments) > 1]
     if body and min(body) <= band_right + NUMBER_BAND_PT:
         return False
@@ -430,6 +487,15 @@ def detect_line_numbers(page: PageText, previous_last: int | None) -> bool:
         return False
     _take_numbers(page, best)
     return True
+
+
+def _left_of_column(page: PageText, members) -> bool:
+    """True when a line other than ``members`` (line, number, x0, x1) starts
+    as far left as the numbers do: the column is not a margin column."""
+    band_right = max(x1 for _, _, _, x1 in members)
+    chosen = {id(ln) for ln, _, _, _ in members}
+    others = [ln.x0 for ln in page.lines if ln.segments and id(ln) not in chosen]
+    return bool(others) and min(others) <= band_right + NUMBER_BAND_PT
 
 
 def _take_numbers(page: PageText, members) -> None:
@@ -472,7 +538,10 @@ def recover_line_numbers(pages: list[PageText]) -> int:
     integers that start a line in that column are consecutive and lie
     strictly between the last number before the page and the first number
     after it. Anything less leaves the page as it is: a page without numbers
-    is better than one with wrong numbers.
+    is better than one with wrong numbers. A column seen on one page only is
+    weak evidence (that page may be a misread table), so while fewer than
+    two pages are numbered a page is also taken only when no other line
+    starts as far left as its numbers, as ``detect_line_numbers`` requires.
 
     The two ends of the document are not alike. A page before the first
     numbered page is never touched. A page after the last numbered page has
@@ -483,6 +552,7 @@ def recover_line_numbers(pages: list[PageText]) -> int:
     column = _number_column(pages)
     if column is None:
         return 0
+    lone = sum(1 for page in pages if page.numbered) < 2
     edge, anchors = column
     following: list[int | None] = [None] * len(pages)
     upcoming = None  # the first number of the nearest numbered page after
@@ -499,7 +569,7 @@ def recover_line_numbers(pages: list[PageText]) -> int:
             continue
         members = []
         for ln in page.lines:
-            if not ln.segments or not ln.segments[0].text.isdigit():
+            if not ln.segments or not ln.segments[0].text.isdecimal():
                 continue
             first = ln.segments[0]
             at = (first.x0, first.x1)[edge]
@@ -511,6 +581,8 @@ def recover_line_numbers(pages: list[PageText]) -> int:
         if following[i] is not None and numbers[-1] >= following[i]:
             continue
         if any(b != a + 1 for a, b in zip(numbers, numbers[1:], strict=False)):
+            continue
+        if lone and _left_of_column(page, members):
             continue
         _take_numbers(page, members)
         before = numbers[-1]
