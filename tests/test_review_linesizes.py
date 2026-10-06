@@ -66,10 +66,14 @@ def test_ac1_micro_run_between_two_runs_of_one_line_does_not_split_it():
     marker = glyphs("End of Note", 80, 700.5, 1.4, width=0.7)
     second = glyphs("session ID]", 120, 699, 7, width=3.5)
     got = words(ex._group_lines(first + marker + second, UNIT))
-    assert got == [
-        ["End", "of", "Note"],
-        ["session", "ID]", "Get", "Session", "Challenge,", "Rs"],
-    ], got
+    # The criterion is the grouping, not the order: the marker's box lies
+    # inside the line's height, so neither is above the other.
+    assert sorted(got) == sorted(
+        [
+            ["End", "of", "Note"],
+            ["session", "ID]", "Get", "Session", "Challenge,", "Rs"],
+        ]
+    ), got
 
 
 def test_ac1_small_text_of_normal_width_is_not_micro_and_joins():

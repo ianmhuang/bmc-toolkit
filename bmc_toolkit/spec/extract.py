@@ -340,8 +340,11 @@ class _LineGroup:
     size. The anchor is the tallest box, fixed, so a staircase of slightly
     offset labels cannot pull the line down step by step; but a box taller
     than ``cap`` (ANCHOR_CAP of the page's median glyph height: a symbol
-    whose font box reaches far below its line) joins without becoming the
-    anchor, or the next line would join through it.
+    whose font box reaches far below its line) joins without replacing the
+    anchor, or the next line would join through it. A line can still open
+    with such a box; with the top-down sort that happens only when its
+    bottom is above every neighbouring line's, which no two lines can both
+    overlap by half.
 
     Glyphs of one size on one line share a baseline, so a box lying under
     another one of its own size, or of a size within NEAR_SIZE, without
@@ -358,7 +361,7 @@ class _LineGroup:
 
     def __init__(self, first, cap: float = float("inf")) -> None:
         self.chars = [first]
-        self.ref = first  # the anchor: the tallest box no taller than cap
+        self.ref = first  # the anchor: the first box, then the tallest within cap
         self._cap = cap
         self._sizes: list[_SizeRun] = []  # one per glyph height
         self._index(first)
