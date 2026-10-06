@@ -11,8 +11,9 @@ Each document version sits at
 marker per physical page, layout preserved), `outline.json` (section
 titles with pages, from PDF bookmarks or from the contents pages; Word
 cross-reference anchors among the bookmarks, `Ref_DSP0236`, `OLE_LINK1`,
-are dropped, and two or more bookmarks that all point at one page of a
-longer document count as none),
+are dropped, so are bookmarks that are table or figure captions
+(`Table 69 – GetPDR command format`), and two or more bookmarks that all
+point at one page of a longer document count as none),
 `linemap.json` (DMTF printed line numbers: per physical page, the first
 and last number and a map from each line's 0-based index within the page
 block to its printed number) and `extract.json` (extractor version,
