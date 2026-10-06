@@ -4,6 +4,10 @@ Each page is a list of items in PDF points, origin bottom-left:
 
     (x, y, text) or (x, y, text, size)    text in Helvetica (base-14, so no
                                           embedding)
+    (x, y, text, size, (a, b, c, d))      text drawn through the text matrix
+                                          [a b c d x y]: (5, 0, 0, 1) stretches
+                                          it five times wide, (0, 1, -1, 0)
+                                          turns it 90 degrees anticlockwise
     ("line", x0, y0, x1, y1)              a stroked line
     ("rect", x, y, w, h)                  a stroked rectangle
     ("fill", x, y, w, h[, gray])          a filled rectangle (black, or the
@@ -81,8 +85,10 @@ def _content(items) -> bytes:
             continue
         x, y, text = item[:3]
         size = item[3] if len(item) > 3 else DEFAULT_SIZE
+        a, b, c, d = item[4] if len(item) > 4 else (1, 0, 0, 1)
         text_ops.append(
-            b"/F1 %d Tf 1 0 0 1 %.2f %.2f Tm (%s) Tj" % (size, x, y, _escape(text))
+            b"/F1 %d Tf %.2f %.2f %.2f %.2f %.2f %.2f Tm (%s) Tj"
+            % (size, a, b, c, d, x, y, _escape(text))
         )
     text_ops.append(b"ET")
     return b"\n".join(draw + text_ops)
