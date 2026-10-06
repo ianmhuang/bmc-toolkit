@@ -9,7 +9,8 @@ the pages turned down are read again against the number column the numbered
 pages show. The Outline comes from
 PDF bookmarks, or from the contents pages when a document has none, or when
 its bookmarks are only Word anchors (``Ref_DSP0236``, ``OLE_LINK1``) or two
-or more of them all point at one page of a longer document.
+or more of them all point at one page of a longer document. Bookmarks that
+are table or figure captions are not taken.
 
 Files written next to the original::
 
@@ -56,7 +57,8 @@ from bmc_toolkit.spec.tables import remove_store
 # 4: stacked same-size glyphs are two lines; anchor bookmarks
 # 5: pages the page-by-page rules turn down are numbered from the number column
 # 6: micro text, oversized boxes and stacked near-size boxes keep lines apart
-EXTRACTOR_VERSION = 6
+# 7: table and figure caption bookmarks are not Outline entries
+EXTRACTOR_VERSION = 7
 PAGE_MARKER = "=== page {n} ==="
 EXTRACT_NAME = "extract.txt"
 OUTLINE_NAME = "outline.json"
@@ -97,6 +99,10 @@ _CONTENTS_LINE = re.compile(
 )
 _INT = re.compile(r"(?<![\w.])(\d{1,4})(?![\w.])")
 _ANCHOR = re.compile(r"^\S*_\S*$")  # a Word anchor name: one token, an underscore
+# "Table 69 – GetPDR command format", "Figure A.1: ...", "Table 6-2. ..."
+_CAPTION = re.compile(
+    r"^(?:Table|Figure)\s+(?:[A-Z][.-]?)?\d+(?:[.-]\d+)*[a-z]?\s*[-–—:.]\s*\S"
+)
 
 
 @dataclass
@@ -612,11 +618,17 @@ def render_page(page: PageText) -> list[str]:
 
 
 def outline_from_bookmarks(pdf) -> list[dict]:
-    """Bookmark entries, without the Word cross-reference anchors.
+    """Bookmark entries, without the Word cross-reference anchors and the
+    table and figure captions.
 
     Word exports every bookmark of the document, and a bookmark placed on a
     reference (``Ref_DSP0236``, ``OLE_LINK1``) is not a heading: a single
-    token with an underscore is dropped. A heading keeps its spaces.
+    token with an underscore is dropped. A heading keeps its spaces. Some
+    documents bookmark every caption too, at the top level (DSP0248,
+    DSP0134): "Table 69 – GetPDR command format" would own the lines under
+    it and end the section it sits in, so a title of "Table" or "Figure", a
+    number and a dash, colon or period is dropped. A title that only names
+    one ("Tables", "Table 100 describes ...") is kept.
     """
     entries = []
     for bm in pdf.get_toc():
@@ -630,7 +642,7 @@ def outline_from_bookmarks(pdf) -> list[dict]:
         if index is None:
             continue
         title = re.sub(r"\s+", " ", bm.get_title()).strip()
-        if _ANCHOR.match(title):
+        if _ANCHOR.match(title) or _CAPTION.match(title):
             continue
         entries.append({"level": bm.level, "title": title, "page": index + 1})
     return entries

@@ -61,7 +61,8 @@ names (or the default branch), searched with `grep` and read with `code`.
 - **Outline**: `outline.json`, the section titles with their physical pages,
   from the PDF bookmarks or parsed from the contents pages (also when the
   bookmarks are only Word anchors such as `Ref_DSP0236`, or two or more of
-  them all point at one page of a longer document). An entry whose page
+  them all point at one page of a longer document). Bookmarks that are
+  table or figure captions (`Table 69 – ...`) are not taken. An entry whose page
   could not be confirmed is *approximate* and is printed with `~`; when
   its heading is found on the page before or after instead, the reading
   commands count it from there.

@@ -38,6 +38,16 @@ def _escape(text: str) -> bytes:
     return raw.replace(b"\\", b"\\\\").replace(b"(", b"\\(").replace(b")", b"\\)")
 
 
+def _title(text: str) -> bytes:
+    """A text string for an outline title: literal when Latin-1 holds it,
+    else UTF-16BE with its byte order mark (an en dash in a caption)."""
+    try:
+        text.encode("latin-1")
+    except UnicodeEncodeError:
+        return b"<FEFF%s>" % text.encode("utf-16-be").hex().upper().encode()
+    return b"(%s)" % _escape(text)
+
+
 def _content(items) -> bytes:
     draw = []
     text_ops = [b"BT"]
@@ -161,8 +171,8 @@ def write_pdf(path: Path, pages, bookmarks=None) -> Path:
             sibs = children[parents[i]]
             pos = sibs.index(i)
             parts = [
-                b"<< /Title (%s) /Parent %d 0 R /Dest [%d 0 R /XYZ 0 %d 0]"
-                % (_escape(title), parents[i], page_nos[page_index], PAGE_H)
+                b"<< /Title %s /Parent %d 0 R /Dest [%d 0 R /XYZ 0 %d 0]"
+                % (_title(title), parents[i], page_nos[page_index], PAGE_H)
             ]
             if pos > 0:
                 parts.append(b"/Prev %d 0 R" % item_nos[sibs[pos - 1]])
