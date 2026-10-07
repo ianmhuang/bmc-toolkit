@@ -215,7 +215,13 @@ draw the rows a page break cut off that way) are read as rules of a
 `ruled` table where neither kind of table was found; a table read from
 them that overlaps one found already is dropped, so they never change
 the tables found without them. A table laid out with spaces alone is not
-detected.
+detected. A box diagram inside a figure (a packet or register layout, a
+ladder diagram, a timing grid) is read as a table too; when no caption
+lies just above it, the `table:` line names the figure's caption, the
+first `Figure N ...` line within 200 points below it, else the nearest
+within 200 points above it (stopping at a line that mentions `Table N`,
+and leaving a caption that has another table between or right under
+it). Check a value read from such a grid with `render`.
 A table longer than 300 rows (DSP2053's property guide is one table over
 the whole document) prints a `note:` line and only the rows that start
 on the page asked for; `--all-rows` prints every row. Tables are read on

@@ -93,7 +93,11 @@ names (or the default branch), searched with `grep` and read with `code`.
   edge, DMTF's current PDFs); the `table:` line says which. Rules drawn
   as path curves are read too where no other table lies (the rows DMTF's
   Redfish guides draw that way after a page break), as `ruled`. A table laid
-  out with spaces alone is not found and stays readable in the Extract.
+  out with spaces alone is not found and stays readable in the Extract. A
+  box diagram inside a figure (packet or register layout, ladder diagram)
+  is read as a table too, and its `table:` line names the figure's caption
+  (`Figure N ...`; NVMe also captions its real tables that way); check a
+  value read from such a grid with `render`.
 - **Code Tree**: a shallow checkout of one catalog repository at one
   commit, at `code/<repo>/<commit>/` in the Library. The commit is its
   identity; the Ref or Release it was reached by is its provenance.

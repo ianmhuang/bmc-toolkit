@@ -26,6 +26,16 @@ part before it is open-bottomed.
 pdfplumber does the cell geometry and the text inside each cell; it is
 imported inside the functions that open a PDF.
 
+A box diagram inside a figure (a packet or register layout, a ladder
+diagram, a timing grid) is read as a table too. When no caption lies in
+the 40 pt above a table, the caption of the figure it is drawn in names
+it: the first ``Figure N ...`` line within 200 pt below it (DMTF, SMBus),
+else the nearest within 200 pt above it (IPMI). The search stops at a line
+mentioning ``Table N``, and a caption with another table between it and
+this one, or (below) a table starting right under it, belongs to that
+other table. Values read from such a grid are checked against the page
+with ``render``.
+
 A table that is the last body content of its page continues on the next
 page when that page's first body content is a table with the same column
 edges. Running headers, footers and page numbers (lines repeated at the same
@@ -34,7 +44,7 @@ continuation page repeats, with or without "(continued)", is dropped.
 
 ``tables.json`` in the version directory::
 
-    {"tables_version": 5,
+    {"tables_version": 6,
      "pages_done": [N, ...],          pages whose tables are all stored:
                                       the pages asked for and every page
                                       a table found there runs onto
@@ -55,7 +65,8 @@ its first page: the caller is handed the body lines of that page, those
 above the table first (``TableStart``), and names the entry. A store of
 another version is read again: version 1 had no ``drawn`` and no cells
 tables, versions up to 4 took the section from the first line holding the
-caption's words, or the page top without a caption.
+caption's words, or the page top without a caption, version 5 named no
+table by its figure's caption.
 """
 
 import json
@@ -67,7 +78,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
 
-TABLES_VERSION = 5
+TABLES_VERSION = 6
 TABLES_NAME = "tables.json"
 
 RULED = "ruled"
@@ -79,12 +90,20 @@ SNAP_X_PT = 6.0  # vertical rules closer than this are one column edge
 SNAP_Y_PT = 4.0  # horizontal rules closer than this are one row edge
 COLUMN_TOL_PT = 6.0  # column edges of two parts match within this
 CAPTION_GAP_PT = 40.0  # the caption lies at most this far above the table
+FIGURE_GAP_PT = 200.0  # a figure's caption lies at most this far from its boxes
 LINE_TOL_PT = 2.0  # words this close vertically form one text line
 FURNITURE_TOL_PT = 3.0  # a running header or footer repeats at this height
 BODY_GAP_PT = 1.0  # text this close to a rule is inside the table, not around it
 CELL_WIDTH = 60  # grid columns wrap beyond this many characters
 
 _CAPTION = re.compile(r"^(?:\d{1,5}\s+)?(?P<text>(?:Table|Figure)\b.*)$", re.IGNORECASE)
+# "Figure", an id (B-1, 6-2, 3.4), an optional separator, then a title: not
+# "Figure 3 shows ...", "Figure 101." or "Figure 223Figure 223)."
+_FIGURE_CAPTION = re.compile(
+    r"^(?:\d{1,5}\s+)?(?P<text>Figure\s+[A-Z]?-?\d+(?:[-.]\d+)*(?!\d)\s*"
+    r"[:,.–—-]?\s*(?P<title>\S.*))$"
+)
+_TABLE_MENTION = re.compile(r"\bTable\s+[A-Z]?-?\d", re.IGNORECASE)
 _CONTINUED = re.compile(r"\s*\((?:continued|cont\.?)\)\s*", re.IGNORECASE)
 _DIGITS = re.compile(r"\d+")
 
@@ -609,18 +628,69 @@ class Reader:
         )
 
     def caption(self, table: PageTable) -> str | None:
-        """The nearest body line above the table that reads like a caption."""
+        """The nearest body line above the table when it reads like a
+        caption, else the caption of the figure the table is drawn in."""
         above = [
             ln
             for ln in self.body_lines(table.page)
             if ln.bottom < table.top + BODY_GAP_PT
             and ln.top >= table.top - CAPTION_GAP_PT
         ]
-        if not above:
-            return None
-        nearest = max(above, key=lambda ln: ln.top)
-        m = _CAPTION.match(nearest.text.strip())
-        return m.group("text").strip() if m else None
+        if above:
+            nearest = max(above, key=lambda ln: ln.top)
+            m = _CAPTION.match(nearest.text.strip())
+            if m:
+                return m.group("text").strip()
+        return self._figure_caption(table)
+
+    def _figure_caption(self, table: PageTable) -> str | None:
+        """A Figure caption within FIGURE_GAP_PT of the table: the first one
+        below it, else the nearest above it. Box diagrams read as tables
+        have their caption under the figure (DMTF, SMBus) or over it
+        (IPMI). A caption with a table right under it names that table
+        (NVMe captions its tables "Figure N" above them), and one with
+        another table between is not this table's."""
+        lines = self.body_lines(table.page)
+        below = sorted(
+            (
+                ln
+                for ln in lines
+                if table.bottom - BODY_GAP_PT < ln.top <= table.bottom + FIGURE_GAP_PT
+            ),
+            key=lambda ln: ln.top,
+        )
+        line = _first_figure_caption(below)
+        if (
+            line is not None
+            and not self._table_between(table, table.bottom, line.top)
+            and not self._table_under(table, line)
+        ):
+            return figure_caption(line.text)
+        above = sorted(
+            (
+                ln
+                for ln in lines
+                if ln.bottom < table.top + BODY_GAP_PT
+                and ln.top >= table.top - FIGURE_GAP_PT
+            ),
+            key=lambda ln: -ln.top,
+        )
+        line = _first_figure_caption(above)
+        if line is not None and not self._table_between(table, line.bottom, table.top):
+            return figure_caption(line.text)
+        return None
+
+    def _table_between(self, table: PageTable, top: float, bottom: float) -> bool:
+        return any(
+            t is not table and t.top < bottom and t.bottom > top
+            for t in self.page(table.page).tables
+        )
+
+    def _table_under(self, table: PageTable, line: TextLine) -> bool:
+        return any(
+            t is not table and line.bottom < t.top <= line.bottom + CAPTION_GAP_PT
+            for t in self.page(table.page).tables
+        )
 
     # ------------------------------------------------- continuation
 
@@ -730,6 +800,31 @@ class Reader:
             drawn=first.drawn,
             row_pages=row_pages,
         )
+
+
+def figure_caption(text: str) -> str | None:
+    """The caption in a line that reads like a Figure caption, without a
+    margin line number; None for prose that starts with "Figure"."""
+    m = _FIGURE_CAPTION.match(text.strip())
+    if not m:
+        return None
+    title = m.group("title")
+    if title[0].islower() or title.startswith(("Figure", ")")):
+        return None
+    if not any(c.isalpha() for c in title):
+        return None
+    return m.group("text").strip()
+
+
+def _first_figure_caption(lines: list[TextLine]) -> TextLine | None:
+    """The first of ``lines`` that is a Figure caption; None when a line
+    mentioning a table comes first (that caption names the table)."""
+    for ln in lines:
+        if _TABLE_MENTION.search(ln.text):
+            return None
+        if figure_caption(ln.text):
+            return ln
+    return None
 
 
 def _holds(table: LogicalTable, part: PageTable) -> bool:
