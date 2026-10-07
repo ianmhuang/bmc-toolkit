@@ -339,7 +339,7 @@ Command no Library Document defines: no Invocation; say why. Other Families
      the request numbers (Table 5-1) are Chassis 0x00, Bridge 0x02, S/E 0x04,
      App 0x06, Firmware 0x08, Storage 0x0a, Transport 0x0c. ipmitool raw
      prints the data after the completion code (the response table's byte 2
-     first); a non-zero code prints an error ending `rsp=0x<code>`, no data.
+     first); a non-zero code prints an error line with `rsp=0x<code>`, no data.
    - MCTP control, PLDM, SPDM: `mctp-client eid <eid> type <control|pldm|spdm>
      data <bytes>`, two hex digits per byte, space separated, `data` last; the
      message type is the `type` name, never a byte in `data`. PLDM also gets

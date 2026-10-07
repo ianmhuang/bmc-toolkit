@@ -102,11 +102,21 @@ def test_block_says_what_ipmitool_raw_prints():
     sentence = (
         "ipmitool raw prints the data after the completion code (the "
         "response table's byte 2 first); a non-zero code prints an error "
-        "ending `rsp=0x<code>`, no data."
+        "line with `rsp=0x<code>`, no data."
     )
     assert sentence in text
+    # the IPMI bullet as the file holds it, up to the next bullet or step
+    lines = block_lines()
+    first = next(i for i, ln in enumerate(lines) if ln.startswith("   - IPMI:"))
+    last = next(
+        i
+        for i in range(first + 1, len(lines))
+        if lines[i].startswith("   - ") or lines[i][:1].isdigit()
+    )
+    bullet = " ".join(" ".join(lines[first:last]).split()).lower()
+    assert "prints the data after the completion code" in bullet
     for word in ("decode", "paste"):
-        assert word not in sentence
+        assert word not in bullet, word
 
 
 def test_other_families_get_no_invocation_and_no_bytes():
