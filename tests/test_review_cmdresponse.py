@@ -111,6 +111,11 @@ def test_ipmi_bullet_says_a_non_zero_code_prints_an_error_and_no_data():
     spans = _spans(bullet)
     assert any(re.fullmatch(r"rsp=0x<[a-z ]+>", span) for span in spans), spans
     assert re.search(r"\bno data\b", low), bullet
+    # round 1 F1: ipmitool's line goes on after the code ("): <text>"), so
+    # the rule must not say the line ends with it
+    error = re.search(r"[^.]*\bnon-?zero\b[^.]*\.", low)
+    assert error, low
+    assert not re.search(r"\bend(s|ing)?\b[^.]*rsp=0x", error.group(0)), error
 
 
 def test_ipmi_output_sentence_is_not_a_decode_rule():
