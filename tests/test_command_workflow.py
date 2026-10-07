@@ -9,8 +9,9 @@ README = ROOT / "README.md"
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-# 32 until the OEM sentence and step 4's own-call and `0x` clause (T33)
-MAX_LINES = 34
+# 32 until the OEM sentence and step 4's own-call and `0x` clause (T33);
+# 34 until what `ipmitool raw` prints and the other Families (T34)
+MAX_LINES = 37
 
 
 def block_lines():
@@ -94,6 +95,31 @@ def test_an_oem_command_without_a_document_gets_no_invocation():
     assert "An OEM Command no Library Document defines: no Invocation; say why." in text
 
 
+def test_block_says_what_ipmitool_raw_prints():
+    # answers called the completion code the first byte the user sees;
+    # ipmitool strips it on success and prints only an error otherwise
+    text = block_text()
+    sentence = (
+        "ipmitool raw prints the data after the completion code (the "
+        "response table's byte 2 first); a non-zero code prints an error "
+        "ending `rsp=0x<code>`, no data."
+    )
+    assert sentence in text
+    for word in ("decode", "paste"):
+        assert word not in sentence
+
+
+def test_other_families_get_no_invocation_and_no_bytes():
+    # NC-SI and NVMe-MI runs gave hand-laid packets and self-computed CRCs
+    text = block_text()
+    assert (
+        "Other Families (NC-SI, NVMe-MI): no Invocation, no bytes to send; "
+        "cite the layout, say why." in text
+    )
+    # the OEM rule keeps its sentence
+    assert "An OEM Command no Library Document defines: no Invocation; say why." in text
+
+
 def test_block_names_the_tool_versions_it_was_checked_against():
     text = block_text()
     for version in ("ipmitool be11d948", "mctp v2.5", "pldm b0e6c54e"):
@@ -109,7 +135,8 @@ def test_block_holds_no_rule_for_a_pasted_response():
         "pastes",
         "Unable to send RAW command",
         "Rx:",
-        "completion code",
+        # "completion code" left this list in T34: the IPMI bullet says what
+        # ipmitool raw prints for the encode answer, which is not decoding
         "rewrites the instance id",
         "Raw Response",
     ):
@@ -151,5 +178,6 @@ def test_readme_says_what_can_be_asked_and_that_nothing_ran_on_hardware():
     for family in ("IPMI", "MCTP control", "PLDM", "SPDM"):
         assert family in section, family
     assert "placeholder" in section
+    assert "other Families (NC-SI, NVMe-MI) get none" in section
     assert "check them against the cited layout" in section
     assert "run against hardware or QEMU" in section

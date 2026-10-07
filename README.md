@@ -114,11 +114,11 @@ per 30 days to ask whether it lists a newer one (reported, never downloaded).
 The skill copies its Citation from the `cite:` line of every printed page.
 What each command does: [docs/COMMANDS.md](docs/COMMANDS.md).
 
-A named Command gets an Invocation: IPMI as `ipmitool raw`; MCTP control, PLDM
-(base, Platform Monitoring and Control; `pldmtool raw` too) and SPDM requests
-without cryptography as `mctp-client`; OEM Commands no Document defines get
-none. Missing values are `<placeholders>`. The model picks the fields: check
-them against the cited layout. None was run against hardware or QEMU.
+A named Command gets an Invocation: IPMI as `ipmitool raw`; MCTP control, PLDM (base,
+Platform Monitoring and Control; `pldmtool raw` too) and SPDM requests without
+cryptography as `mctp-client`; OEM Commands no Document defines and other Families
+(NC-SI, NVMe-MI) get none. Missing values are `<placeholders>`. The model picks the
+fields: check them against the cited layout. None was run against hardware or QEMU.
 
 ## Library location
 
