@@ -235,7 +235,15 @@ the version that added it, description); `--property` or `--definition`
 prints one property or one named definition in full, including every
 value of an enum with its description, following `$ref` into the file that
 defines it. Each block starts with a `cite:` line naming the bundle
-version, the schema file and the JSON pointer. The profile bundle
+version, the schema file and the JSON pointer. `--definition D` looks in
+the resource's newest versioned file, then in its unversioned file
+(`ComputerSystem.json` holds `BootSource`), then in the files the
+versioned file refers to with a `$ref` ending `/definitions/D`
+(`ComputerSystem --definition ResetType` reads `Resource.json`); when that
+last step finds D in more than one file it lists them, with the command
+for each, and exits 2. An action prints, after its `parameters:` list, a
+`parameter <Name>:` line, a `cite:` line and the `values:` of each
+parameter whose type is an enum. The profile bundle
 (DSP8013) holds only the profile schema and is read the same way; its
 object is defined at the file's root, so the pointer is `#`.
 
