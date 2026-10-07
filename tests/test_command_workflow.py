@@ -9,7 +9,8 @@ README = ROOT / "README.md"
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-MAX_LINES = 32
+# 32 until the OEM sentence and step 4's own-call and `0x` clause (T33)
+MAX_LINES = 34
 
 
 def block_lines():
@@ -69,6 +70,28 @@ def test_block_has_the_helper_lay_out_the_bytes():
     assert "Never write bytes by hand" in text
     assert "copy the line(s) and total it prints" in text
     assert "sum of its field sizes" not in text
+
+
+def test_only_the_helper_writes_bytes():
+    # step 1 once said "Lay out every byte" while step 4 said never to
+    text = block_text()
+    assert "Lay out every byte" not in text
+    assert "Work out every field for step 4" in text
+
+
+def test_a_placeholder_takes_no_0x():
+    # the helper prints `<sensor number>`; a run once wrote `0x<sensor number>`
+    assert "(a placeholder takes no `0x`)" in block_text()
+
+
+def test_invocation_runs_as_a_bash_call_of_its_own():
+    # a compound command is refused by the Bash permission rule and retried
+    assert "as a Bash call of its own (no `;`, `&&`, `|`)" in block_text()
+
+
+def test_an_oem_command_without_a_document_gets_no_invocation():
+    text = block_text()
+    assert "An OEM Command no Library Document defines: no Invocation; say why." in text
 
 
 def test_block_names_the_tool_versions_it_was_checked_against():
