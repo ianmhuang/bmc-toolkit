@@ -124,12 +124,14 @@ def test_a_table_caption_just_above_beats_a_figure_caption_below(tmp_path):
     boxes = grid() + [over(14, "Table 2 - Codes"), under(30, "Figure 3 - Packet")]
     ruled = ruled_table(72, GRID_TOP, WIDTHS, [ROW_H, ROW_H], CODES)
     ruled += [over(14, "Table 4 - Rules"), under(30, "Figure 5 - Packet")]
-    # control: the same figure line is taken once the Table caption is gone
-    control = grid() + [under(30, "Figure 3 - Packet")]
+    # control: a figure line at the same gap is taken once the Table caption
+    # is gone (its own title, or it repeats the lines above at the same
+    # height and body_lines drops it as page furniture)
+    control = grid() + [under(30, "Figure 6 - Control")]
     assert caption_per_page(tmp_path, [boxes, ruled, control]) == [
         "Table 2 - Codes",
         "Table 4 - Rules",
-        "Figure 3 - Packet",
+        "Figure 6 - Control",
     ]
 
 
@@ -168,18 +170,19 @@ def test_a_table_mention_between_stops_the_walk_below(tmp_path):
     fig = under(40, "Figure 3 - Packet")
     pages = [
         grid() + [under(15, "The fields are in Table 7."), fig],
-        grid() + [under(15, "The fields are listed later."), fig],
+        grid()
+        + [under(15, "The fields are listed later."), under(40, "Figure 4 - Layout")],
     ]
-    assert caption_per_page(tmp_path, pages) == [None, "Figure 3 - Packet"]
+    assert caption_per_page(tmp_path, pages) == [None, "Figure 4 - Layout"]
 
 
 def test_a_table_mention_between_stops_the_walk_above(tmp_path):
     fig = over(100, "Figure 3 - Packet")
     pages = [
         grid() + [fig, over(60, "See Table 7 for values.")],
-        grid() + [fig, over(60, "See below for values.")],
+        grid() + [over(100, "Figure 4 - Layout"), over(60, "See below for values.")],
     ]
-    assert caption_per_page(tmp_path, pages) == [None, "Figure 3 - Packet"]
+    assert caption_per_page(tmp_path, pages) == [None, "Figure 4 - Layout"]
 
 
 # ---------------------------------------------------------------- AC-6

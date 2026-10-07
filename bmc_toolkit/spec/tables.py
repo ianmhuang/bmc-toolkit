@@ -33,7 +33,8 @@ it: the first ``Figure N ...`` line within 200 pt below it (DMTF, SMBus),
 else the nearest within 200 pt above it (IPMI). The search stops at a line
 mentioning ``Table N``, and a caption with another table between it and
 this one, or (below) a table starting right under it, belongs to that
-other table.
+other table. Values read from such a grid are checked against the page
+with ``render``.
 
 A table that is the last body content of its page continues on the next
 page when that page's first body content is a table with the same column
