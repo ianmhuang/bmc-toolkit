@@ -321,12 +321,13 @@ A **Command** is a request and response pair a Document defines, known by its
 codes (IPMI NetFn and Cmd, MCTP control, PLDM and SPDM codes); its **Raw
 Request** is the bytes of the request; an **Invocation** is a Raw Request in
 one tool's syntax. Same name in two Families (IPMI and PLDM Get Sensor
-Reading): the Family rule of the answering workflow; name the other.
+Reading): the Family rule of the answering workflow; name the other. An OEM
+Command no Library Document defines: no Invocation; say why.
 
 1. Encode ("the command for X"): `find` the Command in the Document's code
    table and in its request layout, read both with `table`, cite both `cite:`
-   lines. Lay out every byte: multi-byte fields little-endian (IPMI "LS byte
-   first", PLDM, SPDM); a value the user did not give is a `<name>`
+   lines. Work out every field for step 4: multi-byte fields little-endian
+   (IPMI "LS byte first", PLDM, SPDM); a value not given is a `<name>`
    placeholder. Answer: the Invocation(s), every request byte and its field,
    the Document Version used, the Citations, one sentence on the response.
 2. Invocations carry no Citation and no connection options (interface, host,
@@ -344,9 +345,10 @@ Reading): the Family rule of the answering workflow; name the other.
    instance id 0); say so. SPDM byte 0 is SPDMVersion: what the Document fixes
    for GET_VERSION; in every other request `<negotiated version>` unless the
    user names one, never the Version of the Document the layout came from.
-4. Run `invocation <ipmi|mctp-control|pldm|spdm> '<field>:<size>=<value>' ...`:
-   every field in order, the header and codes too (NetFn and Cmd; `80` and the
-   codes). Never write bytes by hand: copy the line(s) and total it prints.
+4. Run `invocation <ipmi|mctp-control|pldm|spdm> '<field>:<size>=<value>' ...`
+   as a Bash call of its own (no `;`, `&&`, `|`): every field in order, the
+   header and codes too (NetFn and Cmd; `80` and the codes). Never write bytes
+   by hand: copy the line(s) and total it prints (a placeholder takes no `0x`).
 <!-- command-workflow:end -->
 
 ## Citation rules

@@ -21,7 +21,7 @@ SKILL = ROOT / "skills" / "bmc-spec" / "SKILL.md"
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-MAX_LINES = 32
+MAX_LINES = 34  # 32 until T33 added the OEM sentence and step 4's clause
 
 HEX_BYTE = re.compile(r"0x(<[a-z ]+>|[0-9a-fA-F]{1,2})")
 
