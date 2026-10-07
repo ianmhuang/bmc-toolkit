@@ -2114,13 +2114,24 @@ def _schema_output(args, holding, schemas: bundle_mod.Schemas) -> int:
     defs = schemas.load(res.file).get("definitions", {})
     names = ", ".join(sorted(defs)) if isinstance(defs, dict) and defs else "-"
     if args.definition:
-        where = schemas.definition(res.file, args.definition)
-        if where is None:
+        found = schemas.lookup_definition(res, args.definition)
+        if not found:
             print(
                 f"{res.file} has no definition named {args.definition!r}; "
                 f"bmcspec schema {holding.document} {res.name} lists them"
             )
             return EXIT_ACTION
+        if len(found) > 1:
+            print(
+                f"{res.file} refers to more than one definition named "
+                f"{args.definition!r}; read one with:"
+            )
+            for where in found:
+                key = where.pointer.rsplit("/", 1)[-1]
+                owner = bundle_mod.resource_name(where.file) or where.file
+                print(f"  bmcspec schema {holding.document} {owner} --definition {key}")
+            return EXIT_ACTION
+        where = found[0]
         _print_node(holding, schemas, where, where.pointer.rsplit("/", 1)[-1])
         return EXIT_OK
     main = schemas.main_definition(res)
@@ -2177,6 +2188,11 @@ def _print_node(
                 print(ln)
     for ln in bundle_mod.parameter_lines(schemas, where):
         print(ln)
+    for param, enum in bundle_mod.parameter_enums(schemas, where):
+        print(f"parameter {param}:")
+        print(_bundle_cite(holding, enum.file, enum.pointer))
+        for ln in bundle_mod.enum_lines(enum.node):
+            print(ln)
     if "properties" in node and not is_property:
         print("properties:")
         for ln in bundle_mod.property_lines(schemas, where):
