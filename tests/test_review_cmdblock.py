@@ -21,7 +21,7 @@ SKILL = ROOT / "skills" / "bmc-spec" / "SKILL.md"
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-MAX_LINES = 34  # 32 until T33 added the OEM sentence and step 4's clause
+MAX_LINES = 37  # 32 until T33 (OEM, step 4); 34 until T34 (ipmitool output, Families)
 
 HEX_BYTE = re.compile(r"0x(<[a-z ]+>|[0-9a-fA-F]{1,2})")
 
@@ -221,7 +221,8 @@ def test_block_has_no_rule_for_a_pasted_response():
         "mctp-client output",
         "`mctp-client` output",
         "rewrites the instance id",
-        "completion code",
+        # "completion code" left in T34: the IPMI bullet says what ipmitool
+        # raw prints for the encode answer, which is not a decode rule
     ):
         assert gone not in low, gone
     # the numbered steps are about the request only

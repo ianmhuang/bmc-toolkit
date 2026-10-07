@@ -322,7 +322,8 @@ codes (IPMI NetFn and Cmd, MCTP control, PLDM and SPDM codes); its **Raw
 Request** is the bytes of the request; an **Invocation** is a Raw Request in
 one tool's syntax. Same name in two Families (IPMI and PLDM Get Sensor
 Reading): the Family rule of the answering workflow; name the other. An OEM
-Command no Library Document defines: no Invocation; say why.
+Command no Library Document defines: no Invocation; say why. Other Families
+(NC-SI, NVMe-MI): no Invocation, no bytes to send; cite the layout, say why.
 
 1. Encode ("the command for X"): `find` the Command in the Document's code
    table and in its request layout, read both with `table`, cite both `cite:`
@@ -336,7 +337,9 @@ Command no Library Document defines: no Invocation; say why.
    - IPMI: `ipmitool raw 0x<netfn> 0x<cmd> 0x<byte> ...`, every number with
      `0x` (bare `08` is read as octal and refused). Appendix G names the NetFn;
      the request numbers (Table 5-1) are Chassis 0x00, Bridge 0x02, S/E 0x04,
-     App 0x06, Firmware 0x08, Storage 0x0a, Transport 0x0c.
+     App 0x06, Firmware 0x08, Storage 0x0a, Transport 0x0c. ipmitool raw
+     prints the data after the completion code (the response table's byte 2
+     first); a non-zero code prints an error line with `rsp=0x<code>`, no data.
    - MCTP control, PLDM, SPDM: `mctp-client eid <eid> type <control|pldm|spdm>
      data <bytes>`, two hex digits per byte, space separated, `data` last; the
      message type is the `type` name, never a byte in `data`. PLDM also gets
