@@ -10,8 +10,9 @@ README = ROOT / "README.md"
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
 # 32 until the OEM sentence and step 4's own-call and `0x` clause (T33);
-# 34 until what `ipmitool raw` prints and the other Families (T34)
-MAX_LINES = 37
+# 34 until what `ipmitool raw` prints and the other Families (T34);
+# 37 until no bytes from memory (T36)
+MAX_LINES = 38
 
 
 def block_lines():
@@ -128,6 +129,18 @@ def test_other_families_get_no_invocation_and_no_bytes():
     )
     # the OEM rule keeps its sentence
     assert "An OEM Command no Library Document defines: no Invocation; say why." in text
+
+
+def test_neither_answer_writes_bytes_from_memory():
+    # O2 runs refused the Invocation but still wrote the Dell bytes they
+    # remembered, hedged as community-known or as a `repos --search` string
+    text = block_text()
+    family = (
+        "Other Families (NC-SI, NVMe-MI): no Invocation, no bytes to send; "
+        "cite the layout, say why."
+    )
+    rule = "Neither answer writes bytes from memory, even hedged or as a search term."
+    assert family + " " + rule in text
 
 
 def test_block_names_the_tool_versions_it_was_checked_against():

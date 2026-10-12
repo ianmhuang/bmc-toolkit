@@ -324,6 +324,7 @@ one tool's syntax. Same name in two Families (IPMI and PLDM Get Sensor
 Reading): the Family rule of the answering workflow; name the other. An OEM
 Command no Library Document defines: no Invocation; say why. Other Families
 (NC-SI, NVMe-MI): no Invocation, no bytes to send; cite the layout, say why.
+Neither answer writes bytes from memory, even hedged or as a search term.
 
 1. Encode ("the command for X"): `find` the Command in the Document's code
    table and in its request layout, read both with `table`, cite both `cite:`
