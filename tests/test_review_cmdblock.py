@@ -21,7 +21,9 @@ SKILL = ROOT / "skills" / "bmc-spec" / "SKILL.md"
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-MAX_LINES = 37  # 32 until T33 (OEM, step 4); 34 until T34 (ipmitool output, Families)
+# 32 until T33 (OEM, step 4); 34 until T34 (ipmitool output, Families);
+# 37 until T36 (no bytes from memory)
+MAX_LINES = 38
 
 HEX_BYTE = re.compile(r"0x(<[a-z ]+>|[0-9a-fA-F]{1,2})")
 

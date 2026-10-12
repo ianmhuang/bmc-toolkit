@@ -17,7 +17,7 @@ SKILL = ROOT / "skills" / "bmc-spec" / "SKILL.md"
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-MAX_LINES = 37  # 34 until T34 (ipmitool output, other Families)
+MAX_LINES = 38  # 34 until T34 (ipmitool output, other Families); 37 until T36
 
 
 def _body() -> list[str]:
