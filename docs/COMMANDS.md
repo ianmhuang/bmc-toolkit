@@ -103,10 +103,40 @@ out; `--only` skips them. `page` prints at most 10 pages per call
 (`--max-pages`). Each printed page and each rendered page comes with a
 `cite:` line: family, document and version, the sections the page spans
 (the one in force at its top, then every one whose heading is on the
-page, joined by `; `; `page --section X` names X only), PDF page, printed
-line range (or `rendered page`), origin URL or `user-provided`, and the
+page, joined by `; `; `page --section X` prints the same line for each
+page it reads as `page N` would), PDF page, the printed line range as
+`lines A-B` (or `lines -` without line numbers, `lines rendered page`),
+origin URL or `user-provided`, and the
 Library path. The Skill copies Citations from those lines and never
 composes them.
+
+`invocation PROTOCOL 'NAME:SIZE=VALUE' ...` arranges the bytes of a request
+from its fields and prints them in the syntax of the sending tools. It is
+the one command that reads nothing: no Library, no catalog, no network, no
+lock, nothing written. PROTOCOL is `ipmi` (prints `ipmitool raw 0x.. ...`;
+the first two fields are NetFn and Cmd, one byte each), `mctp-control` or
+`spdm` (`mctp-client eid <eid> type control data .. ..`, `type spdm`), or
+`pldm` (the `mctp-client` line with `type pldm` and `pldmtool raw -m <eid>
+-d 0x.. ...`). A field is `NAME:SIZE=VALUE`, SIZE in bytes. A number
+(decimal, or hex with `0x`) is laid out least significant byte first,
+`NAME:SIZE:be=VALUE` most significant byte first (`:le` spells out the
+default). A comma-separated list of bytes (`0xc0,0xa8,0x01,0x0a`, every
+byte but a zero written with `0x`) is laid out as written and must hold
+SIZE bytes. `<text>` is a placeholder and is printed as it is; for a field
+of N bytes as `<text 0>` to `<text N-1>`, one per byte. The output is
+`bytes: N` (all fields together), the line(s) to send, then `offset | size
+| field | bytes` and one row per field. Refused with exit 2, a line naming
+the field and the reason, and no line to send: a number that does not fit
+SIZE or is negative; a number that is neither decimal nor `0x` hex, or has
+a leading zero (`e1`, `08`: which base is meant is never guessed); a SIZE
+that is missing, not a positive integer or above 65535; a list of another
+length or with a byte above `0xff`; a number or a list written with spaces
+instead of commas (`0xc0 0xa8`); a placeholder that is empty or not closed
+(`<>`, `<x`); more than one placeholder in a field (`<lsb>,<msb>`: each
+gets a field of its own); a field without NAME or without VALUE; no field;
+an unknown PROTOCOL; `ipmi` with fewer than two fields or a NetFn or Cmd of
+more than one byte. The command knows no Document: the fields are the
+caller's, and a wrong field gives a wrong line.
 
 ## Notes
 
@@ -170,7 +200,10 @@ pages it spans are read and joined (a table continues when it is the last
 thing on its page, the next page starts with a table with the same column
 edges, and only running headers, footers and page numbers lie between;
 a repeated header row is dropped), and the result is a `cite:` line with
-`PDF pages A-B` and `table K`, a `table:` line with the caption and how
+the section in force where the table starts (the last heading above it on
+its first page, else the section at the top of that page; a table without
+a caption is placed the same way), `PDF pages A-B` and `lines table K`, a
+`table:` line with the caption and how
 the table is drawn, and the rows as a text grid. Two drawings are read:
 `ruled` tables, whose cells are bounded by ruling lines (thin filled
 rectangles or stroked lines), and `cells` tables, which have no rules and
@@ -182,7 +215,13 @@ draw the rows a page break cut off that way) are read as rules of a
 `ruled` table where neither kind of table was found; a table read from
 them that overlaps one found already is dropped, so they never change
 the tables found without them. A table laid out with spaces alone is not
-detected.
+detected. A box diagram inside a figure (a packet or register layout, a
+ladder diagram, a timing grid) is read as a table too; when no caption
+lies just above it, the `table:` line names the figure's caption, the
+first `Figure N ...` line within 200 points below it, else the nearest
+within 200 points above it (stopping at a line that mentions `Table N`,
+and leaving a caption that has another table between or right under
+it). Check a value read from such a grid with `render`.
 A table longer than 300 rows (DSP2053's property guide is one table over
 the whole document) prints a `note:` line and only the rows that start
 on the page asked for; `--all-rows` prints every row. Tables are read on
@@ -196,7 +235,15 @@ the version that added it, description); `--property` or `--definition`
 prints one property or one named definition in full, including every
 value of an enum with its description, following `$ref` into the file that
 defines it. Each block starts with a `cite:` line naming the bundle
-version, the schema file and the JSON pointer. The profile bundle
+version, the schema file and the JSON pointer. `--definition D` looks in
+the resource's newest versioned file, then in its unversioned file
+(`ComputerSystem.json` holds `BootSource`), then in the files the
+versioned file refers to with a `$ref` ending `/definitions/D`
+(`ComputerSystem --definition ResetType` reads `Resource.json`); when that
+last step finds D in more than one file it lists them, with the command
+for each, and exits 2. An action prints, after its `parameters:` list, a
+`parameter <Name>:` line, a `cite:` line and the `values:` of each
+parameter whose type is an enum. The profile bundle
 (DSP8013) holds only the profile schema and is read the same way; its
 object is defined at the file's root, so the pointer is `#`.
 

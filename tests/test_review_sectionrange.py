@@ -150,7 +150,9 @@ def test_page_section_prints_only_the_pages_holding_the_section(
     )
     assert code == 0, out
     assert cite_pages(out) == ["PDF page 2"]
-    assert cite_fields(out)[2] == "3 Commands"
+    # every section page 2 spans, as `page 2` prints it (it read
+    # `3 Commands` alone while `page --section` named the queried section)
+    assert cite_fields(out)[2] == "2 Scope; 3 Commands; 3.1 Get Device ID"
     assert "4 Transport" not in out  # page 3 is not printed
     code, out = run(
         capsys, "page", "DSP0236", "--section", "3.1", catalog_file=catalog_file
@@ -163,8 +165,10 @@ def test_page_section_prints_only_the_pages_holding_the_section(
     )
     assert code == 0, out
     assert cite_pages(out) == ["PDF page 1", "PDF page 2"]
-    assert cite_fields(out, 0)[2] == "2 Scope"
-    assert cite_fields(out, 1)[2] == "2 Scope"
+    # each page's own sections (both read `2 Scope` while `page --section`
+    # named the queried section alone)
+    assert cite_fields(out, 0)[2] == "1 Introduction; 2 Scope"
+    assert cite_fields(out, 1)[2] == "2 Scope; 3 Commands; 3.1 Get Device ID"
 
 
 def test_an_entry_starting_on_the_page_the_next_one_opens_keeps_that_page():
@@ -412,7 +416,9 @@ def test_the_cli_section_and_page_agree_with_cite_on_an_approximate_entry(
     )
     assert code == 0, out
     assert cite_pages(out) == ["PDF page 2"]
-    assert cite_fields(out)[2] == "3 Commands"
+    # every section page 2 spans, as `page 2` prints it (it read
+    # `3 Commands` alone while `page --section` named the queried section)
+    assert cite_fields(out)[2] == "2 Scope; 3 Commands; 3.1 Get Device ID"
     # placed one page late: 3 Commands' heading is the second line of page
     # 2, so it starts there and 2 Scope keeps page 2
     set_outline_page(held, "4 Transport", 3, approximate=False)
@@ -431,7 +437,8 @@ def test_the_cli_section_and_page_agree_with_cite_on_an_approximate_entry(
     )
     assert code == 0, out
     assert cite_pages(out) == ["PDF page 2"]
-    assert cite_fields(out)[2] == "~3 Commands"
+    # as `page 2` prints it (`~3 Commands` alone before)
+    assert cite_fields(out)[2] == "2 Scope; ~3 Commands; 3.1 Get Device ID"
 
 
 def test_the_cli_cites_an_approximate_entry_where_its_heading_is(

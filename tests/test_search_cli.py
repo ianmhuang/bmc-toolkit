@@ -310,13 +310,13 @@ def test_page_range_section_and_limits(held, catalog_file, capsys):
         "PDF page 2",
     ]
     assert out.count("cite:") == 1
-    # an explicit --section names that section only, on every page it prints
+    # an explicit --section prints each page's own cite: line, the same
+    # one `page 1 --to 2` printed above
     code, out = run(
         capsys, "page", "DSP0236", "--section", "8", catalog_file=catalog_file
     )
     assert code == 0
-    cites = [ln for ln in out.splitlines() if ln.startswith("cite:")]
-    assert [c.split(" | ")[2] for c in cites] == ["8 MCTP base protocol"] * 2
+    assert [ln for ln in out.splitlines() if ln.startswith("cite:")] == cites
     code, out = run(
         capsys,
         "page",

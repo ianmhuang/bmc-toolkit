@@ -21,6 +21,7 @@ from bmc_toolkit.spec import code as code_mod
 from bmc_toolkit.spec import extract as extract_mod
 from bmc_toolkit.spec import fetch as fetch_mod
 from bmc_toolkit.spec import freshness as fresh_mod
+from bmc_toolkit.spec import invocation as invocation_mod
 from bmc_toolkit.spec import listing as listing_mod
 from bmc_toolkit.spec import lock as lock_mod
 from bmc_toolkit.spec import notes as notes_mod
@@ -271,6 +272,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", dest="doc_version", help="exact version string")
 
     notes_mod.add_parsers(sub)  # recall, notes
+    invocation_mod.add_parsers(sub)  # invocation
     p = sub.add_parser("table", help="print the tables on a page, whole")
     p.add_argument("document", help="document id")
     p.add_argument("--page", type=int, required=True, help="physical page (1-based)")
@@ -1434,7 +1436,6 @@ def cmd_page(args: argparse.Namespace) -> int:
     version, _, code = _open_version(args)
     if version is None:
         return code
-    sec = None  # an explicit --section is the one the cite: line names
     if args.section is not None:
         matches = version.match_sections(args.section)
         if not matches:
@@ -1463,7 +1464,7 @@ def cmd_page(args: argparse.Namespace) -> int:
     for n in range(first, last + 1):
         if n > first:
             print()
-        print(version.cite(n, section=sec))
+        print(version.cite(n))
         for ln in search_mod.format_page(version, n):
             print(ln)
     return EXIT_OK
@@ -2113,13 +2114,24 @@ def _schema_output(args, holding, schemas: bundle_mod.Schemas) -> int:
     defs = schemas.load(res.file).get("definitions", {})
     names = ", ".join(sorted(defs)) if isinstance(defs, dict) and defs else "-"
     if args.definition:
-        where = schemas.definition(res.file, args.definition)
-        if where is None:
+        found = schemas.lookup_definition(res, args.definition)
+        if not found:
             print(
                 f"{res.file} has no definition named {args.definition!r}; "
                 f"bmcspec schema {holding.document} {res.name} lists them"
             )
             return EXIT_ACTION
+        if len(found) > 1:
+            print(
+                f"{res.file} refers to more than one definition named "
+                f"{args.definition!r}; read one with:"
+            )
+            for where in found:
+                key = where.pointer.rsplit("/", 1)[-1]
+                owner = bundle_mod.resource_name(where.file) or where.file
+                print(f"  bmcspec schema {holding.document} {owner} --definition {key}")
+            return EXIT_ACTION
+        where = found[0]
         _print_node(holding, schemas, where, where.pointer.rsplit("/", 1)[-1])
         return EXIT_OK
     main = schemas.main_definition(res)
@@ -2176,6 +2188,11 @@ def _print_node(
                 print(ln)
     for ln in bundle_mod.parameter_lines(schemas, where):
         print(ln)
+    for param, enum in bundle_mod.parameter_enums(schemas, where):
+        print(f"parameter {param}:")
+        print(_bundle_cite(holding, enum.file, enum.pointer))
+        for ln in bundle_mod.enum_lines(enum.node):
+            print(ln)
     if "properties" in node and not is_property:
         print("properties:")
         for ln in bundle_mod.property_lines(schemas, where):
@@ -2183,17 +2200,14 @@ def _print_node(
 
 
 def _section_lookup(version: search_mod.Version):
-    """The Outline entry in force at a table's caption (or the page top)."""
+    """The label of the Outline entry in force where a table starts, given
+    the lines of its first page and how many of them are above it."""
 
-    def lookup(page: int, caption: str | None):
-        index = version.find_line(page, caption) if caption else 0
-        return version.owning_section(page, index)
+    def lookup(page: int, start: tables_mod.TableStart) -> str | None:
+        section = version.section_below(page, start.lines, start.above)
+        return section.label if section else None
 
     return lookup
-
-
-def _label(section) -> str | None:
-    return section.label if section else None
 
 
 def cmd_registry(args: argparse.Namespace) -> int:
@@ -2305,9 +2319,7 @@ def cmd_table(args: argparse.Namespace) -> int:
         original = version.original or version.path / "original.pdf"
         try:
             with tables_mod.Reader(original) as reader:
-                tables, found, done = reader.read_page(
-                    n, section_of=lambda page, caption: _label(lookup(page, caption))
-                )
+                tables, found, done = reader.read_page(n, section_of=lookup)
         except ImportError as exc:
             print(f"cannot read tables: {exc}; run: pip install -r requirements.txt")
             return EXIT_ACTION
@@ -2388,6 +2400,7 @@ COMMANDS = {
     "grep": cmd_grep,
     "code": cmd_code,
     **notes_mod.COMMANDS,
+    **invocation_mod.COMMANDS,
 }
 
 

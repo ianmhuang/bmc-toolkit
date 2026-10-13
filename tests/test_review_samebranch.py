@@ -20,7 +20,16 @@ from bmc_toolkit.spec import code as code_mod
 from bmc_toolkit.spec import lock as lock_mod
 from bmc_toolkit.spec.cli import main
 from tests.conftest import MINI_CATALOG
-from tests.test_code import RECIPE, RECIPE_URL, THING_FILES, commit, git, make_repo, push
+from tests.test_code import (
+    RECIPE,
+    RECIPE_URL,
+    THING_FILES,
+    commit,
+    git,
+    make_repo,
+    make_scenario,
+    push,
+)
 
 pytestmark = pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
 
@@ -43,12 +52,9 @@ def library(tmp_path, monkeypatch):
     return root
 
 
-@pytest.fixture
-def repo(tmp_path):
-    """thing: main at c1 then c2, an sdk branch at cs (from c1), a rel
-    branch at c1."""
-    (tmp_path / "remote").mkdir()
-    work, bare, url = make_repo(tmp_path / "remote", "thing", THING_FILES)
+def _build_thing(root):
+    (root / "remote").mkdir(exist_ok=True)
+    work, bare, url = make_repo(root / "remote", "thing", THING_FILES)
     c1 = git("rev-parse", "HEAD", cwd=work)
     git("branch", "rel", c1, cwd=work)
     push(work, "rel")
@@ -62,15 +68,30 @@ def repo(tmp_path):
 
 
 @pytest.fixture
-def openbmc(tmp_path, repo):
-    """openbmc on branch master, tag 1.0.0 at its first commit, whose recipe
-    pins thing at c1; ``_repin`` moves master's recipe to another commit."""
-    recipe = RECIPE.format(url=RECIPE_URL, sha=repo["c1"])
+def repo(tmp_path):
+    """thing: main at c1 then c2, an sdk branch at cs (from c1), a rel
+    branch at c1."""
+    return make_scenario(tmp_path, "samebranch-repo", _build_thing)
+
+
+def _build_openbmc(root, c1):
+    (root / "remote").mkdir(exist_ok=True)
+    recipe = RECIPE.format(url=RECIPE_URL, sha=c1)
     files = {RECIPE_PATH: recipe, "README.md": "distro\n"}
-    work, _bare, url = make_repo(tmp_path / "remote", "openbmc", files, branch="master")
+    work, _bare, url = make_repo(root / "remote", "openbmc", files, branch="master")
     git("tag", "1.0.0", cwd=work)
     push(work, "1.0.0")
     return {"work": work, "url": url}
+
+
+@pytest.fixture
+def openbmc(tmp_path, repo):
+    """openbmc on branch master, tag 1.0.0 at its first commit, whose recipe
+    pins thing at c1; ``_repin`` moves master's recipe to another commit."""
+    c1 = repo["c1"]
+    return make_scenario(
+        tmp_path, f"samebranch-openbmc-{c1}", lambda root: _build_openbmc(root, c1)
+    )
 
 
 def _repin(openbmc, sha):

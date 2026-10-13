@@ -37,7 +37,12 @@ deadline = time.monotonic() + float(sys.argv[2])
 while time.monotonic() < deadline:
     os.utime(d / ".lock", None)
     time.sleep(0.1)
-os.unlink(d / ".lock")
+for attempt in range(100):  # as lock.release: a waiter may be reading it
+    try:
+        os.unlink(d / ".lock")
+        break
+    except PermissionError:
+        time.sleep(0.05)
 """
 
 
@@ -200,6 +205,25 @@ def test_extract_waits_longer_than_the_hold_and_extracts(
         proc.wait(timeout=30)
     assert extract_mod.is_current(vdir)
     assert not (vdir / ".lock").exists()
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32", reason="only Windows refuses to unlink an open file"
+)
+def test_the_helper_releases_while_a_waiter_keeps_reading_the_lock(tmp_path):
+    # The two waits above failed once under load: on Windows the helper's
+    # unlink met a waiter reading .lock (WinError 32), the helper died, and
+    # the lock it left stayed live past --wait. A Session retries that
+    # unlink, so the helper must too. Ten holds against a reader that never
+    # pauses: without the retry about half of them die.
+    for n in range(10):
+        vdir = tmp_path / str(n)
+        proc = holder(vdir, 0.3)
+        while proc.poll() is None:
+            lock_mod.read_holder(vdir / ".lock")
+        proc.communicate()
+        assert proc.returncode == 0, f"hold {n}"
+        assert not (vdir / ".lock").exists(), f"hold {n}"
 
 
 def test_stale_lock_from_a_dead_process_is_taken_over_without_waiting(

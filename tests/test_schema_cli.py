@@ -180,6 +180,12 @@ def test_schema_definition_prints_enum_or_action(held, catalog_file, capsys):
         "description: Resets the thing.",
         "parameters:",
         "  ResetType | enum Level | required | How.",
+        # T35a: an enum parameter's values follow the parameter list
+        "parameter ResetType:",
+        cite(held, "Thing v1.10.0", THING, "#/definitions/Level"),
+        "values:",
+        "  Low: Low.",
+        "  High: High.",
         "properties:",
         "  target | string | writable | - | Link",
     ]

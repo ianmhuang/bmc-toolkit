@@ -20,7 +20,15 @@ import pytest
 from bmc_toolkit.spec import code as code_mod
 from bmc_toolkit.spec.cli import main
 from tests.conftest import MINI_CATALOG, ROOT
-from tests.test_code import RECIPE, RECIPE_URL, commit, git, make_repo, push
+from tests.test_code import (
+    RECIPE,
+    RECIPE_URL,
+    commit,
+    git,
+    make_repo,
+    make_scenario,
+    push,
+)
 
 needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
 
@@ -32,16 +40,12 @@ def run(capsys, *argv, catalog_file):
     return code, capsys.readouterr().out
 
 
-@pytest.fixture
-def remotes(tmp_path):
-    """thing (default branch main, tag v1 on the first commit, a second
-    commit on main) and openbmc (branch master, tag 1.0.0, a recipe that
-    pins thing's first commit)."""
+def _build_remotes(root):
     files = {
         "src/main.cpp": "int main() {\n    return powerState();\n}\n",
         "src/state.hpp": "// CurrentPowerState\nint powerState();\n",
     }
-    work, bare, url = make_repo(tmp_path, "thing", files)
+    work, bare, url = make_repo(root, "thing", files)
     first = git("rev-parse", "HEAD", cwd=work)
     git("tag", "v1", cwd=work)
     push(work, "v1")
@@ -52,13 +56,21 @@ def remotes(tmp_path):
         "meta-phosphor/recipes-phosphor/things/thing_git.bb": recipe,
         "meta/unrelated.txt": "big\n",
     }
-    ob_work, ob_bare, ob_url = make_repo(tmp_path, "openbmc", ob_files, branch="master")
+    ob_work, ob_bare, ob_url = make_repo(root, "openbmc", ob_files, branch="master")
     git("tag", "1.0.0", cwd=ob_work)
     push(ob_work, "1.0.0")
     return {
         "thing": {"work": work, "bare": bare, "url": url, "first": first, "second": second},
         "openbmc": {"work": ob_work, "url": ob_url},
     }
+
+
+@pytest.fixture
+def remotes(tmp_path):
+    """thing (default branch main, tag v1 on the first commit, a second
+    commit on main) and openbmc (branch master, tag 1.0.0, a recipe that
+    pins thing's first commit)."""
+    return make_scenario(tmp_path, "review-codeclone-remotes", _build_remotes)
 
 
 @pytest.fixture

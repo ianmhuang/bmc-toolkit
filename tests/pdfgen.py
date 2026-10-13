@@ -4,6 +4,10 @@ Each page is a list of items in PDF points, origin bottom-left:
 
     (x, y, text) or (x, y, text, size)    text in Helvetica (base-14, so no
                                           embedding)
+    (x, y, text, size, (a, b, c, d))      text drawn through the text matrix
+                                          [a b c d x y]: (5, 0, 0, 1) stretches
+                                          it five times wide, (0, 1, -1, 0)
+                                          turns it 90 degrees anticlockwise
     ("line", x0, y0, x1, y1)              a stroked line
     ("rect", x, y, w, h)                  a stroked rectangle
     ("fill", x, y, w, h[, gray])          a filled rectangle (black, or the
@@ -32,6 +36,16 @@ DEFAULT_SIZE = 10
 def _escape(text: str) -> bytes:
     raw = text.encode("latin-1", "replace")
     return raw.replace(b"\\", b"\\\\").replace(b"(", b"\\(").replace(b")", b"\\)")
+
+
+def _title(text: str) -> bytes:
+    """A text string for an outline title: literal when Latin-1 holds it,
+    else UTF-16BE with its byte order mark (an en dash in a caption)."""
+    try:
+        text.encode("latin-1")
+    except UnicodeEncodeError:
+        return b"<FEFF%s>" % text.encode("utf-16-be").hex().upper().encode()
+    return b"(%s)" % _escape(text)
 
 
 def _content(items) -> bytes:
@@ -81,8 +95,10 @@ def _content(items) -> bytes:
             continue
         x, y, text = item[:3]
         size = item[3] if len(item) > 3 else DEFAULT_SIZE
+        a, b, c, d = item[4] if len(item) > 4 else (1, 0, 0, 1)
         text_ops.append(
-            b"/F1 %d Tf 1 0 0 1 %.2f %.2f Tm (%s) Tj" % (size, x, y, _escape(text))
+            b"/F1 %d Tf %.2f %.2f %.2f %.2f %.2f %.2f Tm (%s) Tj"
+            % (size, a, b, c, d, x, y, _escape(text))
         )
     text_ops.append(b"ET")
     return b"\n".join(draw + text_ops)
@@ -155,8 +171,8 @@ def write_pdf(path: Path, pages, bookmarks=None) -> Path:
             sibs = children[parents[i]]
             pos = sibs.index(i)
             parts = [
-                b"<< /Title (%s) /Parent %d 0 R /Dest [%d 0 R /XYZ 0 %d 0]"
-                % (_escape(title), parents[i], page_nos[page_index], PAGE_H)
+                b"<< /Title %s /Parent %d 0 R /Dest [%d 0 R /XYZ 0 %d 0]"
+                % (_title(title), parents[i], page_nos[page_index], PAGE_H)
             ]
             if pos > 0:
                 parts.append(b"/Prev %d 0 R" % item_nos[sibs[pos - 1]])

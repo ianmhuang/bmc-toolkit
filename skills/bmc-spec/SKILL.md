@@ -1,6 +1,7 @@
 ---
 name: bmc-spec
-description: Answer questions about BMC specifications (IPMI, DCMI, DMTF MCTP/PLDM/SPDM/NC-SI/SMBIOS, Redfish, NVMe/NVMe-MI, OCP DC-SCM/DC-MHS, I2C, SMBus, CMIS) and about OpenBMC source code (bmcweb, phosphor-host-ipmid, pldm, dbus-sensors and ninety more repositories, at master or at a named OpenBMC release) and the Aspeed and Nuvoton SDK source (vendor kernels, U-Boot, SDK layers), citing document, version, section and page, or repository, commit and line. Use whenever the user asks what a spec says, how a command or field is defined, or how OpenBMC implements something.
+description: "Looks up what a BMC specification or the OpenBMC, Aspeed or Nuvoton source says and answers with a citation: document, version, section and page, or repository, commit and line. Use it before answering any question about a BMC protocol, command, field, value or register, even when the answer seems known: an answer from memory carries no citation and may be wrong, so read the document first, and never answer from memory and offer the lookup afterwards. The Source Catalog holds over a hundred documents: IPMI and DCMI, the DMTF families (MCTP, PLDM, SPDM, NC-SI, SMBIOS, Redfish), NVMe and NVMe-MI, OCP DC-SCM and DC-MHS, I2C, SMBus, CMIS and many more that are not named here, so check the catalog before deciding a document is not covered. Code is read from bmcweb, phosphor-host-ipmid, pldm and ninety more OpenBMC repositories and from the Aspeed and Nuvoton kernels, U-Boot and SDK layers. It also writes the `ipmitool raw`, `mctp-client` or `pldmtool raw` line for a named command: the bytes come from the spec."
+when_to_use: "Use when the user (1) asks, in any language, what a specification or a named Command defines: a code, a field layout, the meaning of a value, a property, a register; (2) pastes output of `ipmitool`, `pldmtool` or `mctp-client` (response bytes, Tx and Rx lines, an error line) and wants it explained; (3) asks how OpenBMC or the Aspeed or Nuvoton source implements something. Not for general programming, system administration, or protocols the catalog does not hold."
 allowed-tools: Bash(python *)
 ---
 
@@ -60,7 +61,8 @@ names (or the default branch), searched with `grep` and read with `code`.
 - **Outline**: `outline.json`, the section titles with their physical pages,
   from the PDF bookmarks or parsed from the contents pages (also when the
   bookmarks are only Word anchors such as `Ref_DSP0236`, or two or more of
-  them all point at one page of a longer document). An entry whose page
+  them all point at one page of a longer document). Bookmarks that are
+  table or figure captions (`Table 69 – ...`) are not taken. An entry whose page
   could not be confirmed is *approximate* and is printed with `~`; when
   its heading is found on the page before or after instead, the reading
   commands count it from there.
@@ -91,7 +93,11 @@ names (or the default branch), searched with `grep` and read with `code`.
   edge, DMTF's current PDFs); the `table:` line says which. Rules drawn
   as path curves are read too where no other table lies (the rows DMTF's
   Redfish guides draw that way after a page break), as `ruled`. A table laid
-  out with spaces alone is not found and stays readable in the Extract.
+  out with spaces alone is not found and stays readable in the Extract. A
+  box diagram inside a figure (packet or register layout, ladder diagram)
+  is read as a table too, and its `table:` line names the figure's caption
+  (`Figure N ...`; NVMe also captions its real tables that way); check a
+  value read from such a grid with `render`.
 - **Code Tree**: a shallow checkout of one catalog repository at one
   commit, at `code/<repo>/<commit>/` in the Library. The commit is its
   identity; the Ref or Release it was reached by is its provenance.
@@ -128,10 +134,10 @@ names (or the default branch), searched with `grep` and read with `code`.
   `check` and `clone` ignore it.
 - **Citation**: a `cite:` line printed by `page`, `render` or `table`. Its
   fields, separated by ` | `: family, document and version, the sections
-  the page spans (joined by `; `; one section for `page --section` and
+  the page spans (joined by `; `; the section the table starts in for
   `table`), `PDF page N` (or `PDF pages A-B` for a Logical Table), `lines A-B` (or
-  `lines -`, `rendered page`, or `table K` for the K-th table on the first
-  page), origin (download URL or `user-provided`), Library path. A `schema`
+  `lines -`, `lines rendered page`, or `lines table K` for the K-th table on
+  the first page), origin (download URL or `user-provided`), Library path. A `schema`
   Citation has, in the section, page and lines positions: `<Resource>
   vX.Y.Z` (or the index name), `file <name>.json`, and the JSON pointer of
   what was printed. A `code` Citation reads `cite: code | <repo>
@@ -164,8 +170,8 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `section DOC QUERY [--version V]` | Outline entries matching a section number prefix (`20.1` also matches `20.1.2`) or every word of QUERY; one per line: `LEVEL \| title \| pages FIRST-LAST` (LEVEL 0 is a top-level heading), where LAST is where the next entry of the same or a higher level begins, or the page before it when that heading opens the page (`~` in front of an approximate page). `no matching section` when nothing matches. Like every reading command it first brings the version to Ready (Latest, or `--version V`): `fetched DOC V via ...` and `extracted DOC V: ...` lines come before the answer when the Library lacked it; a download that fails with an older version held prints `note: could not fetch DOC V: ...; answering from held W` and answers from W; with nothing held, exit 2 with the browser URL and the save path; a gated version, exit 2 with the Drop-in instruction; an unknown `--version`, exit 2 listing the known ones (exact match); another Session downloading or extracting the same version, exit 3 (`busy:`). After the answer, a due Freshness Check may add `note: newer DOC: ...` or `note: unreachable DOC: ...` |
 | `find DOC PATTERN [--version V] [--regex] [--case] [--context N] [--max N] [--only]` | search the Extract (the version is brought to Ready first, as `section` says); one line per hit: `DOC p.N [line L] \| section \| [figure] text`. Case-insensitive literal unless `--regex` / `--case`; `--context N` adds the surrounding lines (`line L:` or `row I:`) and a `--` separator; at most 50 hits unless `--max N` (`--max 0` prints all), then a `... more hits` line. Documents the catalog lists in `searched_with` (IPMI-UPDATE for IPMI) are searched too, their hits first; they are brought to Ready the same way, with every line about that as a `note:` (`note: fetched IPMI-UPDATE ...`, or why it could not be), and one that cannot be read is left out; `--only` skips them. `no hits` when nothing matches |
 | `page DOC N [--to M]` or `page DOC --section QUERY [--version V] [--max-pages K]` | print pages of the Extract (the version is brought to Ready first, as `section` says), each starting with a `cite:` line, every line behind its printed line number when there is one, `[figure]` appended to lines inside a figure. Refuses more than 10 pages per call unless `--max-pages` |
-| `render DOC --page N [--version V] [--scale S] [--force]` | write `renders/page-N.png` (S times 72 dpi, default 2) under the version directory (the version is brought to Ready first, as `section` says); prints `rendered <path>` and a `cite:` line with `rendered page`. Reuses an existing file unless `--force` |
-| `schema DOC [RESOURCE] [--property P \| --definition D] [--version V]` | read a schema bundle (downloaded and unpacked first when the Library lacks it, as `section` says). No RESOURCE: every resource, one per line, `Name\tvX.Y.Z` (`-` for an index-only name such as a collection). RESOURCE: a `cite:` line, a `schema:` line (name, version, property count, the file's definitions), then one property per line: `name \| type \| readonly or writable \| added vX.Y.Z or - \| description`; types read `string`, `enum Def`, `object Def`, `array of T`, `odata name`, or the raw `$ref` when its file is not in `schemas/`. `--property P`: its description, longDescription, deprecation and other notes, and when it is an enum, a second `cite:` for the file that defines it (for instance `Resource.json`) followed by `values:` with every value, its description and when it was added. `--definition D`: the same for a named definition of the file (an enum, or an action with its `parameters:`). Names are case-insensitive; an unknown resource lists the names containing the query (exit 2). A schema whose object is defined at the file's root (the profile schema) is read from the root, pointer `#` |
+| `render DOC --page N [--version V] [--scale S] [--force]` | write `renders/page-N.png` (S times 72 dpi, default 2) under the version directory (the version is brought to Ready first, as `section` says); prints `rendered <path>` and a `cite:` line with `lines rendered page`. Reuses an existing file unless `--force` |
+| `schema DOC [RESOURCE] [--property P \| --definition D] [--version V]` | read a schema bundle (downloaded and unpacked first when the Library lacks it, as `section` says). No RESOURCE: every resource, one per line, `Name\tvX.Y.Z` (`-` for an index-only name such as a collection). RESOURCE: a `cite:` line, a `schema:` line (name, version, property count, the file's definitions), then one property per line: `name \| type \| readonly or writable \| added vX.Y.Z or - \| description`; types read `string`, `enum Def`, `object Def`, `array of T`, `odata name`, or the raw `$ref` when its file is not in `schemas/`. `--property P`: its description, longDescription, deprecation and other notes, and when it is an enum, a second `cite:` for the file that defines it (for instance `Resource.json`) followed by `values:` with every value, its description and when it was added. `--definition D`: the same for a named definition (an enum, or an action with its `parameters:`, then `parameter <Name>:`, a `cite:` and `values:` for each enum parameter), looked up in the newest versioned file, then the unversioned `RESOURCE.json`, then the files it `$ref`s (so `ComputerSystem --definition ResetType` reads `Resource.json`; two such files are listed, exit 2). Names are case-insensitive; an unknown resource lists the names containing the query (exit 2). A schema whose object is defined at the file's root (the profile schema) is read from the root, pointer `#` |
 | `registry DOC [REGISTRY] [MESSAGE] [--version V]` | read a registries bundle (downloaded and unpacked first when the Library lacks it, as `section` says). No REGISTRY: every registry, one per line, `Prefix\tversion\tN messages`. REGISTRY: a `cite:` line (`#/Messages`), a `registry:` line (prefix, version, count, the MessageId form `Base.1.23.*`), then one message per line: `Key \| severity \| text`. MESSAGE (a key such as `PropertyMissing`, or a full MessageId): a `cite:` line with `#/Messages/<Key>`, a `message:` line (MessageId, severity, argument count), `text:` (the message verbatim, `%1` and so on for the arguments), `description:`, `longDescription:`, `resolution:`, `args:` (`%n \| type \| what it is`), `added vX.Y.Z` and `deprecated (since vX.Y.Z): ...` when the registry says so. Names are case-insensitive; an unknown registry or key lists the names containing the query (exit 2); a schema bundle is refused with the `schema` command to use |
 | `repos [--topic T]` | the catalog's repositories, one per line, four tab-separated fields: id, held Code Trees (`commit7 provenance`, then `(also NAME, ...)` for the other names a tree answers, `superseded` when re-fetched) or `-`, `user checkout: path` or `-`, topics; a first line `release: L (config.toml) -> openbmc <commit7>` when a default Release is set. Vendor trees are the ids starting `aspeed-` or `nuvoton-` (their topics carry the vendor and SoC names); they are the only vendor repositories `clone` accepts |
 | `repos --search PATTERN` | GitHub code search over the openbmc organisation through `gh` (must be installed and logged in), `repo path` per hit; searches default branches only. For when no topic matches |
@@ -173,7 +179,8 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `grep REPO PATTERN [--ref R \| --release L] [--regex] [--glob G] [--context N] [--max N]` | `git grep` over the selected Code Tree (user checkout first, then the named Ref or Release, then the config Release, then a held tree of the branch the catalog `ref` names, then the default-branch tree): one hit per line `REPO@commit7 path:line \| text`, context lines as `line N:` with `--` between groups, at most 50 hits unless `--max` (0 = all); `no hits`; exit 2 with the `clone` command when the tree is not held. Case-sensitive, a fixed string unless `--regex` |
 | `code REPO PATH [--lines A-B] [--ref R \| --release L]` | a `cite:` line then the file's lines behind their numbers; a file over 200 lines needs `--lines`. Same tree selection as `grep`; a `note:` line says when a user checkout or the config Release was used |
 | `prune [--yes]` | `would remove <path> (...)` for every superseded Code Tree, every `.tmp-*` / `.part` leftover nobody is working on and every stale `.lock` (untouched for 5 minutes), then a `prune:` summary; only with `--yes` are they removed (`removed <path>`). A live lock and a fresh temp file are never listed; a stale lock that another Session takes over while `prune` runs is kept (`kept <path> (...)`, counted as `, N kept` in the summary); one its holder released meanwhile is `gone <path> (released meanwhile)`, counted as `, N gone`. Run `--yes` only when the user asked to free space |
-| `table DOC --page N [--version V] [--index K] [--force] [--all-rows]` | print every Logical Table touching page N, whole (the version is brought to Ready first, as `section` says): a `cite:` line (`PDF pages A-B`, `table K`), a `table:` line (caption or `-`, `ruled` or `cells (no ruling lines)`, page range, columns, rows including the header), then the rows as a grid, columns separated by ` \| `, one physical line per cell line, a rule after the header and after every row with a multi-line cell. A table longer than 300 rows prints a `note:` line and only the rows that start on page N; `--all-rows` prints them all. `--index K` keeps only the K-th table on the page. Read from `tables.json` when the page was read before, unless `--force`. Exit 2 with `no table on page N` when the page has neither kind |
+| `table DOC --page N [--version V] [--index K] [--force] [--all-rows]` | print every Logical Table touching page N, whole (the version is brought to Ready first, as `section` says): a `cite:` line (`PDF pages A-B`, `lines table K`), a `table:` line (caption or `-`, `ruled` or `cells (no ruling lines)`, page range, columns, rows including the header), then the rows as a grid, columns separated by ` \| `, one physical line per cell line, a rule after the header and after every row with a multi-line cell. A table longer than 300 rows prints a `note:` line and only the rows that start on page N; `--all-rows` prints them all. `--index K` keeps only the K-th table on the page. Read from `tables.json` when the page was read before, unless `--force`. Exit 2 with `no table on page N` when the page has neither kind |
+| `invocation PROTOCOL 'NAME:SIZE=VALUE' ...` | arrange a request's bytes from its fields, in the order given. PROTOCOL is `ipmi`, `mctp-control`, `pldm` or `spdm`. VALUE is a number (decimal, or hex with `0x`) laid out over SIZE bytes least significant byte first (`NAME:SIZE:be=VALUE`: most significant first), a list of bytes laid out as written (`0xc0,0xa8,0x01,0x0a`), or a `<placeholder>`; quote each field. Prints `bytes: N`, the line(s) to send in each tool's syntax, then one row per field: offset, size, name, its bytes. A field that cannot be laid out is exit 2 naming it, with no line to send. Needs no Library |
 
 Exit codes: 0 done, 1 error (malformed catalog, unreadable file), 2 the
 user must act (unknown document or version, download impossible, document
@@ -307,23 +314,79 @@ finding, not an error; say which side you would trust for the user's
 purpose and why. Say which commit the code part describes; master today
 and the user's release may differ, and `grep` at both is cheap.
 
+<!-- command-workflow:start -->
+## Command workflow (raw bytes)
+
+A **Command** is a request and response pair a Document defines, known by its
+codes (IPMI NetFn and Cmd, MCTP control, PLDM and SPDM codes); its **Raw
+Request** is the bytes of the request; an **Invocation** is a Raw Request in
+one tool's syntax. Same name in two Families (IPMI and PLDM Get Sensor
+Reading): the Family rule of the answering workflow; name the other. An OEM
+Command no Library Document defines: no Invocation; say why. Other Families
+(NC-SI, NVMe-MI): no Invocation, no bytes to send; cite the layout, say why.
+Neither answer writes bytes from memory, even hedged or as a search term.
+
+1. Encode ("the command for X"): `find` the Command in the Document's code
+   table and in its request layout, read both with `table`, cite both `cite:`
+   lines. Work out every field for step 4: multi-byte fields little-endian
+   (IPMI "LS byte first", PLDM, SPDM); a value not given is a `<name>`
+   placeholder. Answer: the Invocation(s), every request byte and its field,
+   the Document Version used, the Citations, one sentence on the response.
+2. Invocations carry no Citation and no connection options (interface, host,
+   user, password, bridging). Syntax per ipmitool be11d948, CodeConstruct/mctp
+   v2.5 and openbmc/pldm b0e6c54e; say another tool version may differ.
+   - IPMI: `ipmitool raw 0x<netfn> 0x<cmd> 0x<byte> ...`, every number with
+     `0x` (bare `08` is read as octal and refused). Appendix G names the NetFn;
+     the request numbers (Table 5-1) are Chassis 0x00, Bridge 0x02, S/E 0x04,
+     App 0x06, Firmware 0x08, Storage 0x0a, Transport 0x0c. ipmitool raw
+     prints the data after the completion code (the response table's byte 2
+     first); a non-zero code prints an error line with `rsp=0x<code>`, no data.
+   - MCTP control, PLDM, SPDM: `mctp-client eid <eid> type <control|pldm|spdm>
+     data <bytes>`, two hex digits per byte, space separated, `data` last; the
+     message type is the `type` name, never a byte in `data`. PLDM also gets
+     `pldmtool raw -m <eid> -d 0x<byte> ...`, header included.
+3. Headers: an MCTP control or PLDM request starts with `80` (Rq=1, D=0,
+   instance id 0); say so. SPDM byte 0 is SPDMVersion: what the Document fixes
+   for GET_VERSION; in every other request `<negotiated version>` unless the
+   user names one, never the Version of the Document the layout came from.
+   The layout is that Document Version's: say so, and that an older negotiated
+   version can differ. If the user names one: use that Version (`--version`).
+4. Run `invocation <ipmi|mctp-control|pldm|spdm> '<field>:<size>=<value>' ...`
+   as a Bash call of its own (no `;`, `&&`, `|`): every field in order, the
+   header and codes too (NetFn and Cmd; `80` and the codes). Never write bytes
+   by hand: copy the line(s) and total it prints (a placeholder takes no `0x`).
+<!-- command-workflow:end -->
+
 ## Citation rules
 
 - Every Citation is copied from a `cite:` line the tool printed in this
   session. Do not compose one from memory, and do not cite a page you did
   not read.
+- Write it as that line, the fields in their order and separated by ` | `,
+  not as prose (a title with a comma would end a prose form early). Keep
+  family, document and version, section, page and lines as printed:
+  `lines table 1` stays `lines table 1`, not `table 1`. Two rules below
+  say what may be cut: a line range narrowed to the lines used, and a
+  section field cut down to the entries the claim sits in. Origin and
+  Library path may be left out, except that a `user-provided` origin stays
+  and its Library path with it; the lines field may be left out only when
+  it reads `lines -`.
+- A page seen only in `find` output has no Citation. Name the document,
+  version and page in prose, say it came from a `find` hit, and write no
+  `cite:` line for it; open the page when the claim needs one.
 - Line numbers appear only when the `page` output printed them for those
-  lines; give the range you actually used, not the page's whole range.
+  lines; give the range you actually used, not the page's whole range: a
+  claim on one line is `lines N`, on several `lines A-B`.
 - The `cite:` section field lists every section the page spans: the entry
   in force at the top, then each whose heading is on the page. Copy the
-  field whole, or keep the one your claim sits in when the page text or
-  the section printed by `find` for that hit shows which one it is. A
-  field holding several titles is cited as the `cite:` line itself, not
-  rewritten in prose (a title with a comma would end the prose form early).
+  field whole, or keep the entries your claim sits in, each whole and in
+  the printed order, when the page text or the section printed by `find`
+  for that hit shows which they are. Never shorten a title with `...`,
+  change its number, or put a heading read in the page text in its place.
 - A `~` page comes from a contents page whose offset could not be
   confirmed: open the page and check the heading before citing it.
-- An answer read from a rendered PNG says "read from a rendered page" in
-  its Citation.
+- An answer read from a rendered PNG cites the `cite:` line `render`
+  printed; `lines rendered page` stays as it is.
 - A schema answer cites the `cite:` line(s) `schema` printed: the resource
   file and pointer, and for an enum the file that defines it. Say the
   bundle version and the schema version (`Chassis v1.28.0`); the enum's
@@ -333,14 +396,15 @@ and the user's release may differ, and `grep` at both is cheap.
   ("bmcweb ae6cec2, master as of 2026-09-03", "pldm 93ad795, the 2.18.0
   pin"), and never present a default-branch answer as what a release does.
 - A value read from a Logical Table is cited with the `cite:` line `table`
-  printed (all the pages the table spans, `table K`), naming the caption
+  printed (all the pages the table spans, `lines table K`), naming the caption
   and the row; it carries no line numbers.
 - A registry answer cites the `cite:` line `registry` printed (bundle
   version, registry and its version, file, `#/Messages/<Key>`), gives the
   MessageId form (`Base.1.23.PropertyValueTypeError`) and quotes the
   `text:` line verbatim; the argument list explains the `%n` markers.
-- Drop-in sources say "user-provided" in the origin field; keep it.
-  Confidential documents are cited by path, never by a URL.
+- Drop-in sources say "user-provided" in the origin field; keep it, and
+  the Library path after it. Confidential documents are cited by path,
+  never by a URL.
 - A statement without a Citation is labelled inference.
 - IPMI questions: `find IPMI ...` searches the base document together with
   IPMI-UPDATE (errata and clarifications) and prints the Update's hits

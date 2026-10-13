@@ -9,6 +9,7 @@ import sys
 import pytest
 
 from bmc_toolkit.spec.cli import main
+from bmc_toolkit.spec.tables import TABLES_VERSION
 from tests import pdfgen
 from tests.conftest import ok
 
@@ -236,7 +237,7 @@ def test_store_file_has_the_documented_shape(held, catalog_file, capsys):
     code, out = run(capsys, "table", "DSP0236", "--page", "2", catalog_file=catalog_file)
     assert code == 0, out
     data = json.loads((held / "tables.json").read_text("utf-8"))
-    assert data["tables_version"] == 4
+    assert data["tables_version"] == TABLES_VERSION
     assert 2 in data["pages_done"]
     (entry,) = [t for t in data["tables"] if t["first"] == 2]
     assert entry["last"] == 3

@@ -15,7 +15,16 @@ from bmc_toolkit.spec import code as code_mod
 from bmc_toolkit.spec.catalog import CatalogError, load_catalog, parse_catalog
 from bmc_toolkit.spec.cli import main
 from tests.conftest import MINI_CATALOG
-from tests.test_code import RECIPE, RECIPE_URL, THING_FILES, commit, git, make_repo, push
+from tests.test_code import (
+    RECIPE,
+    RECIPE_URL,
+    THING_FILES,
+    commit,
+    git,
+    make_repo,
+    make_scenario,
+    push,
+)
 
 pytestmark = pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
 
@@ -196,12 +205,9 @@ def library(tmp_path, monkeypatch):
     return root
 
 
-@pytest.fixture
-def upstream(tmp_path):
-    """thing (a component, two commits) and openbmc (the release source,
-    tag 1.0.0 pinning thing's first commit)."""
-    (tmp_path / "up").mkdir()
-    work, bare, url = make_repo(tmp_path / "up", "thing", THING_FILES)
+def _build_upstream(root):
+    (root / "up").mkdir()
+    work, bare, url = make_repo(root / "up", "thing", THING_FILES)
     first = git("rev-parse", "HEAD", cwd=work)
     recipe = RECIPE.format(url=RECIPE_URL, sha=first)
     ob_files = {
@@ -209,7 +215,7 @@ def upstream(tmp_path):
         "README.md": "distro\n",
     }
     ob_work, ob_bare, ob_url = make_repo(
-        tmp_path / "up", "openbmc", ob_files, branch="master"
+        root / "up", "openbmc", ob_files, branch="master"
     )
     git("tag", "1.0.0", cwd=ob_work)
     push(ob_work, "1.0.0")
@@ -219,16 +225,27 @@ def upstream(tmp_path):
 
 
 @pytest.fixture
-def vendor(tmp_path):
-    """acme-linux: a vendor fork with main and an sdk-2 branch."""
-    (tmp_path / "vend").mkdir()
-    work, bare, url = make_repo(tmp_path / "vend", "acme-linux", VENDOR_FILES)
+def upstream(tmp_path):
+    """thing (a component, two commits) and openbmc (the release source,
+    tag 1.0.0 pinning thing's first commit)."""
+    return make_scenario(tmp_path, "vendortrees-upstream", _build_upstream)
+
+
+def _build_vendor(root):
+    (root / "vend").mkdir()
+    work, bare, url = make_repo(root / "vend", "acme-linux", VENDOR_FILES)
     main_head = git("rev-parse", "HEAD", cwd=work)
     git("checkout", "-q", "-b", "sdk-2", cwd=work)
     sdk_head = commit(work, {"drivers/soc/acme/sdk2.c": "int sdk2;\n"}, "sdk 2")
     push(work, "sdk-2")
     git("checkout", "-q", "main", cwd=work)
     return {"url": url, "main": main_head, "sdk-2": sdk_head}
+
+
+@pytest.fixture
+def vendor(tmp_path):
+    """acme-linux: a vendor fork with main and an sdk-2 branch."""
+    return make_scenario(tmp_path, "vendortrees-vendor", _build_vendor)
 
 
 def _write_catalog(path, upstream, vendor, *, ref=None):

@@ -21,6 +21,7 @@ from tests.test_code import (
     commit,
     git,
     make_repo,
+    make_scenario,
     push,
 )
 
@@ -51,17 +52,19 @@ def library(tmp_path, monkeypatch):
     return root
 
 
-@pytest.fixture
-def repo(tmp_path):
-    """thing, default branch master: c1 then c2."""
-    (tmp_path / "remote").mkdir()
-    work, bare, url = make_repo(
-        tmp_path / "remote", "thing", THING_FILES, branch="master"
-    )
+def _build_thing(root):
+    (root / "remote").mkdir(exist_ok=True)
+    work, bare, url = make_repo(root / "remote", "thing", THING_FILES, branch="master")
     c1 = git("rev-parse", "HEAD", cwd=work)
     c2 = commit(work, {"README.md": "thing 2\n"}, "second")
     push(work, "master")
     return {"work": work, "bare": bare, "url": url, "c1": c1, "c2": c2}
+
+
+@pytest.fixture
+def repo(tmp_path):
+    """thing, default branch master: c1 then c2."""
+    return make_scenario(tmp_path, "also-names-repo", _build_thing)
 
 
 @pytest.fixture

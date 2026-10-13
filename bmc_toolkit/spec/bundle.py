@@ -313,6 +313,37 @@ class Schemas:
                 return Located(file, f"#/definitions/{key}", node)
         return None
 
+    def lookup_definition(self, res: Resource, name: str) -> list[Located]:
+        """Where ``--definition NAME`` of ``res`` lives: the newest versioned
+        file, else the unversioned ``<Name>.json``, else a file the
+        versioned file ``$ref``s with a pointer ending ``/definitions/NAME``
+        (DSP8010 keeps ``ResetType`` in ``Resource.json`` and
+        ``BootSource`` in ``ComputerSystem.json``). One hit, or every
+        distinct target of the last step, sorted by file; empty when no
+        step finds it."""
+        found = self.definition(res.file, name)
+        if found is not None:
+            return [found]
+        index = f"{res.name}.json"
+        if index != res.file and self.has(index):
+            found = self.definition(index, name)
+            if found is not None:
+                return [found]
+        hits: dict[tuple[str, str], Located] = {}
+        for ref in _refs(self.load(res.file)):
+            m = _REF.match(ref)
+            parts = (m.group("pointer") or "").split("/") if m else []
+            if len(parts) != 3 or parts[1] != "definitions":
+                continue
+            if parts[2].lower() != name.lower():
+                continue
+            target = self.resolve(ref, res.file)
+            if target is None or target.file in (res.file, index):
+                continue
+            if isinstance(target.node, dict):
+                hits.setdefault((target.file, target.pointer), target)
+        return [hits[key] for key in sorted(hits)]
+
     def main_definition(self, res: Resource) -> Located | None:
         """The resource's own definition: the newest versioned node when
         the file has one, else the index entry; the file's root when the
@@ -429,6 +460,19 @@ class Schemas:
         return None
 
 
+def _refs(node):
+    """Every ``$ref`` string under ``node``, in document order."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "$ref" and isinstance(value, str):
+                yield value
+            else:
+                yield from _refs(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _refs(item)
+
+
 def _is_object_like(node: dict) -> bool:
     return "$ref" in node or "properties" in node or node.get("type") == "object"
 
@@ -530,6 +574,22 @@ def parameter_lines(schemas: Schemas, where: Located) -> list[str]:
     return out
 
 
+def parameter_enums(schemas: Schemas, where: Located) -> list[tuple[str, Located]]:
+    """An action's parameters whose type resolves to an enum in an unpacked
+    file, with that enum, in parameter order."""
+    params = where.node.get("parameters")
+    if not isinstance(params, dict):
+        return []
+    out = []
+    for name, node in params.items():
+        if not isinstance(node, dict):
+            continue
+        found = schemas.enum_of(node, where.file, f"{where.pointer}/parameters/{name}")
+        if found is not None:
+            out.append((name, found))
+    return out
+
+
 __all__ = [
     "BUNDLE_VERSION",
     "META_NAME",
@@ -546,6 +606,7 @@ __all__ = [
     "enum_lines",
     "is_current",
     "label_of",
+    "parameter_enums",
     "parameter_lines",
     "property_line",
     "property_lines",
