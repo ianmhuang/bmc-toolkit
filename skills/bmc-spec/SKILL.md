@@ -350,7 +350,7 @@ Neither answer writes bytes from memory, even hedged or as a search term.
    for GET_VERSION; in every other request `<negotiated version>` unless the
    user names one, never the Version of the Document the layout came from.
    The layout is that Document Version's: say so, and that an older negotiated
-   version can differ. A version the user names: `fetch` and use that Version.
+   version can differ. If the user names one: use that Version (`--version`).
 4. Run `invocation <ipmi|mctp-control|pldm|spdm> '<field>:<size>=<value>' ...`
    as a Bash call of its own (no `;`, `&&`, `|`): every field in order, the
    header and codes too (NetFn and Cmd; `80` and the codes). Never write bytes

@@ -73,10 +73,12 @@ def test_spdm_layout_follows_its_document_version():
     )
     rule = (
         "The layout is that Document Version's: say so, and that an older "
-        "negotiated version can differ. A version the user names: `fetch` and "
-        "use that Version."
+        "negotiated version can differ. If the user names one: use that Version "
+        "(`--version`)."
     )
     assert version + " " + rule in text
+    # the reading command brings a named version to Ready; no `fetch` first
+    assert "`fetch`" not in text
     # it stays in step 3, before the `invocation` step
     assert text.index(rule) < text.index("4. Run `invocation")
 
