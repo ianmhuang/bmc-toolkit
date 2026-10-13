@@ -11,8 +11,9 @@ START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
 # 32 until the OEM sentence and step 4's own-call and `0x` clause (T33);
 # 34 until what `ipmitool raw` prints and the other Families (T34);
-# 37 until no bytes from memory (T36)
-MAX_LINES = 38
+# 37 until no bytes from memory (T36);
+# 38 until the SPDM layout follows its Document Version (T39)
+MAX_LINES = 40
 
 
 def block_lines():
@@ -60,6 +61,26 @@ def test_block_gives_the_header_rules():
     assert "GET_VERSION" in text
     assert "`<negotiated version>`" in text
     assert "Version of the Document" in text
+
+
+def test_spdm_layout_follows_its_document_version():
+    # an older negotiated version lays some requests out differently
+    # (GET_CAPABILITIES 12 bytes in 1.1, the GET_MEASUREMENTS Context from 1.3)
+    text = block_text()
+    version = (
+        "in every other request `<negotiated version>` unless the user names "
+        "one, never the Version of the Document the layout came from."
+    )
+    rule = (
+        "The layout is that Document Version's: say so, and that an older "
+        "negotiated version can differ. If the user names one: use that Version "
+        "(`--version`)."
+    )
+    assert version + " " + rule in text
+    # the reading command brings a named version to Ready; no `fetch` first
+    assert "`fetch`" not in text
+    # it stays in step 3, before the `invocation` step
+    assert text.index(rule) < text.index("4. Run `invocation")
 
 
 def test_block_has_the_helper_lay_out_the_bytes():
