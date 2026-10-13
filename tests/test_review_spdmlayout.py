@@ -1,7 +1,7 @@
 """Reviewer acceptance tests for T39: step 3 of the Command workflow block says
 an SPDM layout is that of the Document Version read, that an older negotiated
 version can differ, and that a version the user names is the Version used
-(AC-1 to AC-3).
+(AC-1 to AC-3, AC-10).
 
 The block is the feature, so the tests read SKILL.md the way a Session gets
 it and check the shape of the rule, not one wording: sentences of step 3 that
@@ -9,7 +9,10 @@ come after the SPDMVersion sentence (kept word for word), name the Document
 Version as the layout's, name an older negotiated version as one that can
 differ, and send a user-named version to that Version. AC-2 is the raised
 cap in the five test files with the rule inside it; AC-3 is the author's own
-test, which must exist, pass here, and fail once the rule is cut out.
+test, which must exist, pass here, and fail once the rule is cut out. AC-10
+(round 1, F1): the named-version clause goes through the reading command's
+`--version`, as the Ready rule and step 2 of the answering workflow say, and
+the block holds no `fetch`.
 
 Every test needs the rule after the SPDMVersion sentence, which develop's
 step 3 does not hold, so each one fails on develop.
@@ -129,10 +132,38 @@ def test_step_3_sends_a_user_named_version_to_that_document_version():
     rule = " ".join(_after_version_sentence())
     low = rule.lower()
     assert re.search(r"\buser names\b", low), rule
-    # fetched if needed, through `fetch` or the reading command's `--version`
-    assert re.search(r"`fetch|--version|\bfetch", low), rule
+    # brought to Ready by the reading command's `--version` (AC-10)
+    assert "`--version`" in rule, rule
     assert re.search(r"\buse\b", low), rule
     assert re.search(r"\bthat (document )?version\b", low), rule
+
+
+# ------------------------------------------------------------------ AC-10
+
+
+def test_named_version_clause_agrees_with_the_ready_rule():
+    # round 1 F1: the clause said `fetch` while the Ready rule says never to
+    # run `fetch` before a reading command and step 2 passes the named
+    # version with `--version`; the block now says the same as those two
+    body = _body()
+    rule = " ".join(_after_version_sentence())
+    assert "`--version`" in rule, rule
+    assert not re.search(r"\bfetch", rule.lower()), rule
+    assert not re.search(r"\bfetch", _flat(body).lower()), "no `fetch` in the block"
+    # the rest of SKILL.md still carries the rule the clause now follows
+    text = " ".join(SKILL.read_text("utf-8").split())
+    assert "You never run `fetch` or `extract` before a reading command." in text
+    assert "passed verbatim with `--version`" in text
+
+
+def test_named_version_clause_is_a_sentence_of_its_own_after_the_differ_rule():
+    # the two new rules read as two sentences: the layout one, then the
+    # named-version one, so a Session can follow either without the other
+    after = _after_version_sentence()
+    assert len(after) >= 2, after
+    layout, named = after[0].lower(), " ".join(after[1:]).lower()
+    assert re.search(r"\bolder\b", layout) and re.search(r"\bdiffer", layout), layout
+    assert "user names" in named and "--version" in named, named
 
 
 def test_the_version_rule_sits_in_step_3_and_nowhere_else():
