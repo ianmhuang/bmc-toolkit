@@ -137,12 +137,12 @@ def test_a_field_is_laid_out_over_its_size(capsys, field, data):
 # ------------------------------------------------------------------ AC-3
 
 
-def test_a_placeholder_reaches_the_line_unchanged(capsys):
+def test_a_placeholder_takes_the_0x_of_the_ipmitool_line(capsys):
     code, lines = run(
         capsys, "ipmi", "NetFn:1=0x04", "Cmd:1=0x2d", "Sensor:1=<sensor number>"
     )
     assert code == 0, lines
-    assert tool_lines(lines) == ["ipmitool raw 0x04 0x2d <sensor number>"]
+    assert tool_lines(lines) == ["ipmitool raw 0x04 0x2d 0x<sensor number>"]
 
 
 def test_a_placeholder_of_several_bytes_prints_one_token_per_byte(capsys):
@@ -157,7 +157,7 @@ def test_a_placeholder_of_several_bytes_prints_one_token_per_byte(capsys):
     assert code == 0, lines
     assert tool_lines(lines) == [
         "mctp-client eid <eid> type pldm data 80 02 11 <sensor id 0> <sensor id 1>",
-        "pldmtool raw -m <eid> -d 0x80 0x02 0x11 <sensor id 0> <sensor id 1>",
+        "pldmtool raw -m <eid> -d 0x80 0x02 0x11 0x<sensor id 0> 0x<sensor id 1>",
     ]
     assert lines[0] == "bytes: 5"
 
@@ -662,3 +662,157 @@ def test_skill_table_and_commands_doc_describe_the_command():
     assert "`invocation PROTOCOL" in doc
     for word in ("NAME:SIZE=VALUE", "NAME:SIZE:be=VALUE", "exit 2", "no Library"):
         assert word in doc, word
+
+
+# ------------------------------------------------- T40: a placeholder's 0x
+# ipmitool raw and pldmtool raw read every number with base 0: a placeholder
+# printed bare and replaced by two hex digits (30) sends decimal 30, and 08
+# is refused as octal. Where every byte carries 0x the placeholder does too.
+
+NONCE = "Nonce:32=<nonce>"
+
+
+def test_t40_ac1_ipmi_prints_a_one_byte_placeholder_with_0x(capsys):
+    code, lines = run(
+        capsys, "ipmi", "NetFn:1=0x04", "Cmd:1=0x2d", "Sensor:1=<sensor number>"
+    )
+    assert code == 0, lines
+    assert lines == [
+        "bytes: 3",
+        "ipmitool raw 0x04 0x2d 0x<sensor number>",
+        "offset | size | field | bytes",
+        "0 | 1 | NetFn | 0x04",
+        "1 | 1 | Cmd | 0x2d",
+        "2 | 1 | Sensor | 0x<sensor number>",
+    ]
+
+
+@pytest.mark.parametrize("order", ["", ":be", ":le"])
+def test_t40_ac2_ipmi_prints_one_0x_token_per_placeholder_byte(capsys, order):
+    code, lines = run(
+        capsys,
+        "ipmi",
+        "NetFn:1=0x0a",
+        "Cmd:1=0x23",
+        f"Reservation ID:2{order}=<reservation id>",
+        "Record ID:2=0x0102",
+        "Offset:1=<offset>",
+        "Count:3=<count>",
+    )
+    assert code == 0, lines
+    assert lines == [
+        "bytes: 10",
+        "ipmitool raw 0x0a 0x23 0x<reservation id 0> 0x<reservation id 1> "
+        "0x02 0x01 0x<offset> 0x<count 0> 0x<count 1> 0x<count 2>",
+        "offset | size | field | bytes",
+        "0 | 1 | NetFn | 0x0a",
+        "1 | 1 | Cmd | 0x23",
+        "2 | 2 | Reservation ID | 0x<reservation id 0> 0x<reservation id 1>",
+        "4 | 2 | Record ID | 0x02 0x01",
+        "6 | 1 | Offset | 0x<offset>",
+        "7 | 3 | Count | 0x<count 0> 0x<count 1> 0x<count 2>",
+    ]
+
+
+def test_t40_ac3_pldm_prints_0x_in_pldmtool_only(capsys):
+    code, lines = run(
+        capsys,
+        "pldm",
+        "Header:1=0x80",
+        "PLDM Type:1=0x02",
+        "Command Code:1=0x11",
+        "sensorID:2=<sensor id>",
+        "rearmEventState:1=<rearm>",
+    )
+    assert code == 0, lines
+    assert lines == [
+        "bytes: 6",
+        "mctp-client eid <eid> type pldm data 80 02 11 "
+        "<sensor id 0> <sensor id 1> <rearm>",
+        "pldmtool raw -m <eid> -d 0x80 0x02 0x11 "
+        "0x<sensor id 0> 0x<sensor id 1> 0x<rearm>",
+        "offset | size | field | bytes",
+        "0 | 1 | Header | 80",
+        "1 | 1 | PLDM Type | 02",
+        "2 | 1 | Command Code | 11",
+        "3 | 2 | sensorID | <sensor id 0> <sensor id 1>",
+        "5 | 1 | rearmEventState | <rearm>",
+    ]
+
+
+def test_t40_ac4_spdm_placeholders_stay_bare(capsys):
+    code, lines = run(
+        capsys,
+        "spdm",
+        "SPDMVersion:1=<negotiated version>",
+        "RequestResponseCode:1=0x83",
+        "Param1:1=0",
+        "Param2:1=0xff",
+        NONCE,
+    )
+    assert code == 0, lines
+    nonce = " ".join(f"<nonce {i}>" for i in range(32))
+    assert lines == [
+        "bytes: 36",
+        f"mctp-client eid <eid> type spdm data <negotiated version> 83 00 ff {nonce}",
+        "offset | size | field | bytes",
+        "0 | 1 | SPDMVersion | <negotiated version>",
+        "1 | 1 | RequestResponseCode | 83",
+        "2 | 1 | Param1 | 00",
+        "3 | 1 | Param2 | ff",
+        f"4 | 32 | Nonce | {nonce}",
+    ]
+
+
+def test_t40_ac4_mctp_control_placeholders_stay_bare(capsys):
+    code, lines = run(
+        capsys,
+        "mctp-control",
+        "Header:1=0x80",
+        "Command Code:1=0x01",
+        "Operation:1=0",
+        "EID:1=<eid to assign>",
+    )
+    assert code == 0, lines
+    assert lines == [
+        "bytes: 4",
+        "mctp-client eid <eid> type control data 80 01 00 <eid to assign>",
+        "offset | size | field | bytes",
+        "0 | 1 | Header | 80",
+        "1 | 1 | Command Code | 01",
+        "2 | 1 | Operation | 00",
+        "3 | 1 | EID | <eid to assign>",
+    ]
+
+
+@pytest.mark.parametrize("protocol", sorted(HEADER))
+@pytest.mark.parametrize("value", ["0x<sensor number>", "<sensor number>0"])
+def test_t40_ac5_a_0x_around_a_placeholder_is_still_refused(capsys, protocol, value):
+    field = f"Sensor:1={value}"
+    text = refused(capsys, protocol, *HEADER[protocol], field)
+    assert field in text
+    assert "a placeholder is written <text>" in text
+
+
+@pytest.mark.parametrize("protocol", sorted(HEADER))
+def test_t40_ac5_the_total_counts_a_placeholder_by_its_size(capsys, protocol):
+    head = HEADER[protocol]
+    code, lines = run(capsys, protocol, *head, "A:1=<a>", "B:4=<b>")
+    assert code == 0, lines
+    assert lines[0] == f"bytes: {len(head) + 5}"
+
+
+def test_t40_ac6_docs_say_how_a_placeholder_is_printed():
+    skill = SKILL.read_text("utf-8")
+    (row,) = [ln for ln in skill.splitlines() if ln.startswith("| `invocation ")]
+    assert "`0x<placeholder>`" in row
+    assert "two hex digits" in row
+    doc = " ".join(COMMANDS_DOC.read_text("utf-8").split())
+    assert "printed as it is" not in doc
+    for words in (
+        "two hex digits",
+        "`0x<text>`",
+        "`ipmitool raw`, `pldmtool raw` and the `ipmi` rows",
+        "the `mctp-client` line",
+    ):
+        assert words in doc, words

@@ -145,7 +145,9 @@ def _plain(token: int | str) -> str:
 
 
 def _prefixed(token: int | str) -> str:
-    return token if isinstance(token, str) else f"0x{token:02x}"
+    # a placeholder stands for two hex digits: ipmitool and pldmtool read a
+    # bare 30 as decimal and refuse 08 as octal, so it takes the 0x too
+    return f"0x{token}" if isinstance(token, str) else f"0x{token:02x}"
 
 
 def tool_lines(protocol: str, fields: list[Field]) -> list[str]:

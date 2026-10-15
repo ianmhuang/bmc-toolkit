@@ -122,8 +122,13 @@ the first two fields are NetFn and Cmd, one byte each), `mctp-control` or
 `NAME:SIZE:be=VALUE` most significant byte first (`:le` spells out the
 default). A comma-separated list of bytes (`0xc0,0xa8,0x01,0x0a`, every
 byte but a zero written with `0x`) is laid out as written and must hold
-SIZE bytes. `<text>` is a placeholder and is printed as it is; for a field
-of N bytes as `<text 0>` to `<text N-1>`, one per byte. The output is
+SIZE bytes. `<text>` is a placeholder for two hex digits per byte; a field
+of N bytes gets `<text 0>` to `<text N-1>`, one per byte. In the lines
+whose bytes all carry `0x` (`ipmitool raw`, `pldmtool raw` and the `ipmi`
+rows) each is printed `0x<text>`: both tools read a bare `30` as decimal
+and refuse `08` as octal, so two hex digits put in its place give the
+intended byte. In the `mctp-client` line and the other rows it is printed
+`<text>`. The output is
 `bytes: N` (all fields together), the line(s) to send, then `offset | size
 | field | bytes` and one row per field. Refused with exit 2, a line naming
 the field and the reason, and no line to send: a number that does not fit

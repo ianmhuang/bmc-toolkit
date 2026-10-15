@@ -28,7 +28,9 @@ FIELDS = [
 CLIENT_LINE = (
     "mctp-client eid <eid> type pldm data 80 02 11 <sensor id 0> <sensor id 1> 00"
 )
-TOOL_LINE = "pldmtool raw -m <eid> -d 0x80 0x02 0x11 <sensor id 0> <sensor id 1> 0x00"
+TOOL_LINE = (
+    "pldmtool raw -m <eid> -d 0x80 0x02 0x11 0x<sensor id 0> 0x<sensor id 1> 0x00"
+)
 
 # The entry point with every import outside the standard library and the
 # package itself refused, and every way onto the network closed.
