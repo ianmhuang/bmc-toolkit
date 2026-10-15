@@ -102,9 +102,13 @@ def test_only_the_helper_writes_bytes():
     assert "Work out every field for step 4" in text
 
 
-def test_a_placeholder_takes_no_0x():
-    # the helper prints `<sensor number>`; a run once wrote `0x<sensor number>`
-    assert "(a placeholder takes no `0x`)" in block_text()
+def test_the_printed_placeholder_is_copied_as_it_is():
+    # T33 told the answer to drop the 0x the helper did not print; runs
+    # added it anyway. Since T40 the helper prints `0x<sensor number>` in
+    # the ipmitool and pldmtool lines, and the answer copies the line.
+    text = block_text()
+    assert "placeholder takes no `0x`" not in text
+    assert "copy the line(s) and total it prints." in text
 
 
 def test_invocation_runs_as_a_bash_call_of_its_own():
