@@ -24,7 +24,7 @@ VERSION = "Rev 2.0 Ver 1.0"
 FILE_ID = "13BxuseSrKo647hjIXjp087ei8l5QQVb0"
 DIRECT_URL = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
 VIEWER_URL = f"https://drive.google.com/file/d/{FILE_ID}/view"
-WIKI_PAGE = "Server/MHS/DC-SCM-Specs-and-Designs"
+WIKI_PAGE = "server/data-center-secure-container-module"
 WIKI_URL = L.OCP_WIKI.format(page=WIKI_PAGE)
 
 # The OCP wiki table as the catalog's listing reads it: the Rev 2.0 row still

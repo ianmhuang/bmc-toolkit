@@ -24,7 +24,7 @@ DMTF_PUBLISHED = "https://www.dmtf.org/standards/published_documents"
 DMTF_DSP0236 = "https://www.dmtf.org/dsp/DSP0236"
 NVME_API = "https://nvmexpress.org/wp-json/vtm/v1/specifications"
 OCP_PAGE = "Server/MHS/DC-MHS-Specs-and-Designs"
-OCP_WIKI = f"https://www.opencompute.org/w/index.php?title={OCP_PAGE}"
+OCP_WIKI = f"https://www.opencompute.org/projects/{OCP_PAGE}/"
 
 DSP0236_133_URL = (
     "https://www.dmtf.org/sites/default/files/standards/documents/DSP0236_1.3.3.pdf"

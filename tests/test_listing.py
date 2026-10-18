@@ -238,7 +238,7 @@ def test_listings_fetch_once_and_raise_for_unknown_keys():
             L.DMTF_PUBLISHED: L.Seen and _ok(DMTF_PUBLISHED_HTML.encode(), "text/html"),
             L.DMTF_DSP.format(key="DSP0236"): _ok(DMTF_DSP_HTML.encode(), "text/html"),
             L.NVME_API: _ok(NVME_JSON.encode(), "application/json"),
-            L.OCP_WIKI.format(page="Server/MHS/DC-MHS-Specs-and-Designs"): _ok(
+            L.OCP_WIKI.format(page="server/mhs/dc-mhs-specs-and-designs"): _ok(
                 OCP_WIKI_HTML.encode(), "text/html"
             ),
         }
@@ -253,7 +253,7 @@ def test_listings_fetch_once_and_raise_for_unknown_keys():
     ]
     assert listings.current("nvme:nvme-mi-specification")[0].version == "2.2"
     assert listings.history("nvme:nvme-mi-specification")[0].version == "2.2"
-    key = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-CRPS Base"
+    key = "ocp:server/mhs/dc-mhs-specs-and-designs|M-CRPS Base"
     assert listings.current(key)[0].version == "1.06"
     assert client.calls.count(L.DMTF_PUBLISHED) == 1  # cached
     assert client.calls.count(L.NVME_API) == 1
@@ -262,7 +262,7 @@ def test_listings_fetch_once_and_raise_for_unknown_keys():
     with pytest.raises(L.ListingError, match="no specification 'zzz'"):
         listings.current("nvme:zzz")
     with pytest.raises(L.ListingError, match="no row starting with"):
-        listings.current("ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-ZZZ")
+        listings.current("ocp:server/mhs/dc-mhs-specs-and-designs|M-ZZZ")
     with pytest.raises(L.ListingError, match="not '<page>|<prefix>'"):
         listings.current("ocp:page-without-prefix")
     with pytest.raises(L.ListingError, match="unknown listing source"):
@@ -325,4 +325,27 @@ def test_shipped_catalog_listing_keys():
     for doc in catalog.documents:
         if doc.listing_source == "ocp":
             page, _, prefix = doc.listing_key.partition("|")
-            assert page.startswith("Server/MHS/") and prefix, doc.id
+            assert page.startswith("server/") and prefix, doc.id
+
+
+def test_ocp_listings_point_at_the_project_pages_that_replaced_the_wiki():
+    # T44: opencompute.org retired its MediaWiki; index.php?title=... now
+    # answers with the MHS landing page and an empty table. The catalog's
+    # page keys are paths under /projects/, and the template yields them.
+    pages = set()
+    for doc in load_catalog().documents:
+        if doc.listing_source == "ocp":
+            page, _, _ = doc.listing_key.partition("|")
+            pages.add(page)
+            assert "index.php" not in doc.listing
+    assert pages == {
+        "server/data-center-secure-container-module",
+        "server/mhs/dc-mhs-specs-and-designs",
+    }
+    assert "index.php" not in L.OCP_WIKI
+    assert L.OCP_WIKI.format(page="server/mhs/dc-mhs-specs-and-designs") == (
+        "https://www.opencompute.org/projects/server/mhs/dc-mhs-specs-and-designs/"
+    )
+    assert L.OCP_WIKI.format(page="server/data-center-secure-container-module") == (
+        "https://www.opencompute.org/projects/server/data-center-secure-container-module/"
+    )

@@ -118,7 +118,7 @@ names (or the default branch), searched with `grep` and read with `code`.
   (`[code.checkouts] bmcweb = "/path"`); it wins over every Library Code
   Tree of that repository, whatever it has checked out.
 - **Freshness Check**: `check` asks the publisher (DMTF, nvmexpress.org,
-  the OCP wiki) what versions it lists and reports one the catalog lacks
+  the OCP project pages) what versions it lists and reports one the catalog lacks
   (`newer DOC: ...`). It never downloads or switches versions; the catalog
   stays the authority for Latest until a maintainer updates it. The
   outcome and the time go to `freshness.json` at the Library root. A

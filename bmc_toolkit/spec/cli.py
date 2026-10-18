@@ -72,7 +72,7 @@ ROW_CAP = 300  # a table longer than this is printed one page at a time
 
 MAX_HITS = 50  # find: hits printed per call unless --max says otherwise
 MAX_PAGES = 10  # page: pages printed per call unless --max-pages says otherwise
-OCP_NOTE_CHARS = 60  # check: how much of a wiki row's description is printed
+OCP_NOTE_CHARS = 60  # check: how much of an OCP row's description is printed
 
 # Tests replace this to keep the network out.
 CLIENT_FACTORY = fetch_mod.default_client

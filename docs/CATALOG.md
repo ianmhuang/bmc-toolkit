@@ -40,7 +40,7 @@ over `1.3.0`). A document
 may name companions in `searched_with` (errata, specification updates)
 that `find` searches together with it, and a `listing`
 (`dmtf:<DSP>`, implied for DMTF documents; `nvme:<slug>` of the
-nvmexpress.org API; `ocp:<wiki page>|<description prefix>`) that `check`
+nvmexpress.org API; `ocp:<project page>|<description prefix>`) that `check`
 and `refresh` consult. `refresh` prints the versions the publishers list
 that the catalog lacks (`add`), catalog URLs that moved (`changed`, for
 DMTF and NVMe; a URL has not moved while any row the publisher lists for
@@ -65,7 +65,7 @@ and assigned to the repository owner with that output, or comments on the
 open one; a run that finds nothing,
 or only unreachable listings, opens nothing. OCP is left out because
 opencompute.org answers HTTP 403 to GitHub's runners (the same client
-gets the wiki from a developer machine), so OCP versions come from
+gets the pages from a developer machine), so OCP versions come from
 `refresh` run locally. The catalog itself changes only through a pull
 request: run `refresh --write` locally, confirm any OCP URL by hand,
 verify each new version against `docs/golden-questions.md`, and open the

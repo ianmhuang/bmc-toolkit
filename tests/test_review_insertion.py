@@ -19,7 +19,7 @@ from tests.conftest import MINI_CATALOG, ScriptedClient
 
 DMTF_DSP0236 = "https://www.dmtf.org/dsp/DSP0236"
 OCP_PAGE = "Server/MHS/DC-MHS-Specs-and-Designs"
-OCP_WIKI = f"https://www.opencompute.org/w/index.php?title={OCP_PAGE}"
+OCP_WIKI = f"https://www.opencompute.org/projects/{OCP_PAGE}/"
 DRIVE_URL = "https://drive.google.com/file/d/review-m10/view"
 
 # The catalog's DSP0236 block: 1.3.2 (2024-01-02), 1.3.3 (2024-03-25) and
