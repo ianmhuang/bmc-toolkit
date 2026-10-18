@@ -502,15 +502,15 @@ published = "2026-07-31"
 # human-written and a re-upload may add a numeric suffix; every URL here was
 # confirmed by hand on 2026-09-03. The site rejects non-browser TLS
 # fingerprints. DC-MHS has no umbrella document; it is the set of M-* specs.
-# Publication dates come from the OCP wiki specification tables, which is also
-# what "listing" points at ("ocp:<wiki page>|<description prefix>"); the wiki
+# Publication dates come from the OCP project pages' specification tables, also
+# what "listing" points at ("ocp:<project page>|<description prefix>"); the pages
 # links newer versions to Google Drive, so `check` reports them and a human
 # finds the opencompute.org/documents slug.
 
 [[documents]]
 id = "DC-SCM"
 family = "ocp-dcscm"
-listing = "ocp:Server/MHS/DC-SCM-Specs-and-Designs|OCP DC-SCM"
+listing = "ocp:server/data-center-secure-container-module|OCP DC-SCM"
 title = "Datacenter-ready Secure Control Module (DC-SCM) Specification"
 access = "open"
 fetch = "direct"
@@ -567,7 +567,7 @@ published = "2025-08-11"
 [[documents]]
 id = "M-CRPS"
 family = "ocp-dcmhs"
-listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-CRPS Base"
+listing = "ocp:server/mhs/dc-mhs-specs-and-designs|M-CRPS Base"
 title = "DC-MHS Modular Hardware System Common Redundant Power Supply (M-CRPS) Base Specification"
 access = "open"
 fetch = "direct"
@@ -589,7 +589,7 @@ notes = "The OCP wiki lists it as 1.06 and links it to Google Drive; the URL is 
 [[documents]]
 id = "M-PIC"
 family = "ocp-dcmhs"
-listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-PIC Base"
+listing = "ocp:server/mhs/dc-mhs-specs-and-designs|M-PIC Base"
 title = "DC-MHS Platform Infrastructure Connectivity (M-PIC) Specification"
 access = "open"
 fetch = "direct"
@@ -603,7 +603,7 @@ published = "2025-03-25"
 [[documents]]
 id = "M-XIO"
 family = "ocp-dcmhs"
-listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-XIO Base"
+listing = "ocp:server/mhs/dc-mhs-specs-and-designs|M-XIO Base"
 title = "DC-MHS Extensible I/O (M-XIO) Specification"
 access = "open"
 fetch = "direct"
@@ -624,7 +624,7 @@ published = "2024-02-28"
 [[documents]]
 id = "M-DNO"
 family = "ocp-dcmhs"
-listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-DNO Base"
+listing = "ocp:server/mhs/dc-mhs-specs-and-designs|M-DNO Base"
 title = "DC-MHS Densified Node Operation (M-DNO) Specification"
 access = "open"
 fetch = "direct"
@@ -644,7 +644,7 @@ published = "2024-03-21"
 [[documents]]
 id = "M-FLW"
 family = "ocp-dcmhs"
-listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-FLW Base"
+listing = "ocp:server/mhs/dc-mhs-specs-and-designs|M-FLW Base"
 title = "DC-MHS Full Width HPM (M-FLW) Specification"
 access = "open"
 fetch = "direct"
@@ -658,7 +658,7 @@ published = "2024-10-10"
 [[documents]]
 id = "M-PESTI"
 family = "ocp-dcmhs"
-listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-PESTI Base"
+listing = "ocp:server/mhs/dc-mhs-specs-and-designs|M-PESTI Base"
 title = "DC-MHS Peripheral Sideband Tunneling Interface (M-PESTI) Specification"
 access = "open"
 fetch = "direct"
@@ -678,7 +678,7 @@ published = "2024-03-14"
 [[documents]]
 id = "M-SDNO"
 family = "ocp-dcmhs"
-listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-SDNO Base"
+listing = "ocp:server/mhs/dc-mhs-specs-and-designs|M-SDNO Base"
 title = "DC-MHS Shared-Infrastructure Densified Node Operation (M-SDNO) Specification"
 access = "open"
 fetch = "direct"

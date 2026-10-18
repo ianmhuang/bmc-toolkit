@@ -53,7 +53,7 @@ family = "ocp"
 title = "M-CRPS Base Specification"
 access = "open"
 fetch = "direct"
-listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-CRPS Base"
+listing = "ocp:server/mhs/dc-mhs-specs-and-designs|M-CRPS Base"
 
 [[documents.versions]]
 version = "R1 v1.0 RC4"
@@ -83,7 +83,7 @@ def pages(scripted):
             L.DMTF_PUBLISHED: html(DMTF_PUBLISHED_HTML),
             L.DMTF_DSP.format(key="DSP0236"): html(DMTF_DSP_HTML),
             L.NVME_API: ok(NVME_JSON.encode(), "application/json"),
-            L.OCP_WIKI.format(page="Server/MHS/DC-MHS-Specs-and-Designs"): html(
+            L.OCP_WIKI.format(page="server/mhs/dc-mhs-specs-and-designs"): html(
                 OCP_WIKI_HTML
             ),
         }
@@ -219,7 +219,7 @@ def test_check_one_document_current_newer_and_records(
     assert not list(library.root.glob("specs/**/*"))
     code, out = run(capsys, "check", "M-CRPS", catalog_file=catalog_file)
     assert out.splitlines()[0] == (
-        "newer M-CRPS: catalog latest R1 v1.0 RC4, the OCP wiki lists 1.06 "
+        "newer M-CRPS: catalog latest R1 v1.0 RC4, the OCP project page lists 1.06 "
         "(2026-04-24) https://drive.google.com/file/d/abc/view "
         "(URL to confirm by hand) [M-CRPS Base Specification]"
     )

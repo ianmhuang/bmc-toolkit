@@ -289,3 +289,7 @@ command format was Table 31 there). The same `refresh` could not read
 the OCP wiki rows of DC-SCM and the seven DC-MHS documents (`no row
 starting with` the catalog's title: the wiki tables changed shape), so
 those eight are unchecked since 2026-09-22 until the scanner is updated.
+Later that day the listings moved to the project pages that replaced the
+wiki (`/projects/server/data-center-secure-container-module/` and
+`/projects/server/mhs/dc-mhs-specs-and-designs/`, same tables), and
+`check` on the eight printed `current` again.

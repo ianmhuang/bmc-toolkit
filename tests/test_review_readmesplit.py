@@ -155,7 +155,7 @@ COMMANDS_VERBATIM = [
     "[code.checkouts]\nbmcweb = \"/home/me/src/bmcweb\"",
     "Publishers add versions faster than a catalog is maintained. `check DOC`\n"
     "asks the publisher what it lists now and compares with the catalog:",
-    "OCP versions are mostly Google Drive links on the wiki, so `check`\n"
+    "OCP versions are mostly Google Drive links on the OCP pages, so `check`\n"
     "reports them with `(URL to confirm by hand)`.",
 ]
 
@@ -178,7 +178,7 @@ NETWORK_VERBATIM = [
     "`https://www.dmtf.org/standards/published_documents` and "
     "`https://www.dmtf.org/dsp/<DSP>`, "
     "`https://nvmexpress.org/wp-json/vtm/v1/specifications`, and "
-    "`https://www.opencompute.org/w/index.php?title=<page>` for the pages "
+    "`https://www.opencompute.org/projects/<page>/` for the pages "
     "named in the catalog's `listing` keys. They download no document.",
     "- Runs `git` as a subprocess for `clone` (shallow, one commit; "
     "`--filter=blob:none --sparse` for the `openbmc` repository and for "

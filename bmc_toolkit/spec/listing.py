@@ -8,7 +8,7 @@ Three sources, named by a document's ``listing`` key in the Source Catalog:
 - ``nvme:<slug>``: the nvmexpress.org specifications API (JSON) gives the
   current file of each specification; earlier versions appear only as
   attachment ids, so the history is the current version alone.
-- ``ocp:<wiki page>|<description prefix>``: the OCP wiki's specification
+- ``ocp:<project page>|<description prefix>``: the OCP project page's specification
   tables (Description, Version or Revision, Submit Date, Link). Links are
   mostly Google Drive viewers, so a human confirms the download URL.
 
@@ -30,9 +30,9 @@ from bmc_toolkit.spec.fetch import HttpClient
 DMTF_PUBLISHED = "https://www.dmtf.org/standards/published_documents"
 DMTF_DSP = "https://www.dmtf.org/dsp/{key}"
 NVME_API = "https://nvmexpress.org/wp-json/vtm/v1/specifications"
-OCP_WIKI = "https://www.opencompute.org/w/index.php?title={page}"
+OCP_WIKI = "https://www.opencompute.org/projects/{page}/"
 
-PUBLISHER_NAMES = {"dmtf": "DMTF", "nvme": "NVM Express", "ocp": "the OCP wiki"}
+PUBLISHER_NAMES = {"dmtf": "DMTF", "nvme": "NVM Express", "ocp": "the OCP project page"}
 
 _MONTHS = {
     m: i
@@ -63,7 +63,7 @@ class Seen:
     version: str
     url: str = ""  # "" when the listing gives no direct file
     published: str = ""  # ISO date, "" when the listing gives none
-    note: str = ""  # a status or the wiki description
+    note: str = ""  # a status or the OCP row's description
 
 
 def parse_listing(listing: str) -> tuple[str, str]:
@@ -75,7 +75,7 @@ def parse_listing(listing: str) -> tuple[str, str]:
 
 def version_key(source: str, version: str) -> str:
     """What makes two version strings the same version: verbatim for DMTF
-    and NVMe; for OCP the leading number and the RC token, so the wiki's
+    and NVMe; for OCP the leading number and the RC token, so the page's
     ``1.2 RC3`` matches the catalog's ``R1 v1.2 RC3``. The number is
     compared through ``catalog.version_numbers``, the same reading the
     catalog orders versions by, so ``1.0`` and ``1.00`` are one version."""
@@ -256,7 +256,7 @@ def parse_nvme(body: bytes | str) -> dict[str, Seen]:
 
 
 def ocp_date(text: str) -> str:
-    """The first date in a wiki cell (``4/24/26``, ``3/21/2024``,
+    """The first date in an OCP table cell (``4/24/26``, ``3/21/2024``,
     ``October 16, 2025``) as ISO; "" when none."""
     m = _OCP_DATE.search(text)
     if not m:
@@ -315,7 +315,7 @@ class Listings:
 
     def current(self, listing: str) -> list[Seen]:
         """What the publisher lists now for the key: one version for DMTF
-        and NVMe, the matching wiki rows for OCP (newest first as listed).
+        and NVMe, the matching OCP rows (newest first as listed).
         ListingError when the key is not on the page."""
         source, key = parse_listing(listing)
         if source == "dmtf":
@@ -334,7 +334,9 @@ class Listings:
                 raise ListingError(f"ocp key '{key}' is not '<page>|<prefix>'")
             rows = parse_ocp(self._text(OCP_WIKI.format(page=page)), prefix)
             if not rows:
-                raise ListingError(f"no row starting with '{prefix}' on wiki {page}")
+                raise ListingError(
+                    f"no row starting with '{prefix}' on OCP page {page}"
+                )
             return rows
         raise ListingError(f"unknown listing source '{source}'")
 
