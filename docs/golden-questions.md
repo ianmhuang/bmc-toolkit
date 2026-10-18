@@ -38,9 +38,9 @@ on its newest open version and the row says so.
 | G10 | SMBus command code carrying MCTP | DSP0237 1.2.0 | DSP0237 1.2.0, section 6.3, page 12 | `find DSP0237 "command code"` |
 | G11 | PLDM message header layout | DSP0240 1.2.1 | DSP0240 1.2.1, section 8.1, Figure 1 and Table 4, pages 25-27 | `page DSP0240 25 --to 27` |
 | G12 | PLDM type numbers | DSP0245 1.4.0 | DSP0245 1.4.0, section 8, Table 1 (written in binary) | `find DSP0245 "PLDM Types"`, `table DSP0245 --page 11` (cell boxes) |
-| G13 | GetPDR request fields and command code | DSP0248 1.3.1 | DSP0248 1.3.1, section 26.2.1, Table 69, page 122; Table 110, page 200 | `table DSP0248 --page 122` (joins pages 122-123) |
+| G13 | GetPDR request fields and command code | DSP0248 1.4.0 | DSP0248 1.4.0, section 30.2.1, Table 87, pages 171-172; Table 95, page 189 | `table DSP0248 --page 172` (joins pages 171-172) |
 | G14 | RequestUpdate request fields | DSP0267 1.3.0 | DSP0267 1.3.0 (two fields more than 1.1.0), section 10 command tables | `find DSP0267 RequestUpdate`, `table` on the hit page |
-| G15 | GetSensorReading response, spec and code | DSP0248 1.3.1 | DSP0248 1.3.1 Table 33; libpldm `decode_get_sensor_reading_resp`; pldm `platform-mc` | the two-part workflow |
+| G15 | GetSensorReading response, spec and code | DSP0248 1.4.0 | DSP0248 1.4.0 Table 32, page 102 (the response blocks on pages 102-103 print `table: -`); libpldm `decode_get_sensor_reading_resp`; pldm `platform-mc` | the two-part workflow |
 | G16 | SPDM request and response codes for GET_VERSION, GET_CAPABILITIES, NEGOTIATE_ALGORITHMS | DSP0274 1.4.1 | DSP0274 1.4.1, Tables 4 and 5, pages 39-42 | `table DSP0274 --page 39` (Table 4, pages 39-41) and `table DSP0274 --page 42` (Table 5, pages 41-43); both drawn as cell boxes |
 | G17 | Values of Chassis.PowerState | DSP8010 2026.2 | DSP8010 2026.2, `Chassis.v1_29_0.json` referring to `Resource.json#/definitions/PowerState`: seven values | `schema DSP8010 Chassis --property PowerState` |
 | G18 | Creating a Redfish session and authenticating later requests | DSP0266 1.25.0 | DSP0266 1.25.0, sections 13.3.4.1 and 13.3.4.2, pages 188-190 | `section DSP0266 13.3.4` |
@@ -103,7 +103,7 @@ on its newest open version and the row says so.
 | G48 | How an MCTP packet is framed on a serial link | DSP0253 1.0.0 | DSP0253 1.0.0, section 7, page 10: 0x7E flag first and last; 0x7E in the data becomes 0x7D 0x5E and 0x7D becomes 0x7D 0x5D; CRC-16 CCITT frame check; packet size is byte count + 4 | `find DSP0253 0x7E`, `page DSP0253 10` |
 | G49 | Transport-specific MCTP control commands of the KCS binding | DSP0254 1.0.0 | DSP0254 1.0.0, section 7, Table 6, page 14: Register Endpoint 0xF0, Get MCTP Packet 0xF1, Enable MCTP SMS_ATN 0xF2 | `find DSP0254 "Register Endpoint"`, `table DSP0254 --page 14` |
 | G50 | How a host finds an MCTP Host Interface in the SMBIOS tables | DSP0256 2.0.0 | DSP0256 2.0.0, section 9.1, Table 2, page 18: a Type 42 structure whose Interface Type is in the MCTP Host Interfaces range of DSP0239, with a Protocol Record of type MCTP (03h) carrying MCTP protocol version (WORD, 0x0103 for 1.3.1), link-layer type, instance number and characteristics | `find DSP0256 "Type 42"`, `page DSP0256 18`, `table DSP0256 --page 18` |
-| G51 | USB interface descriptor values that identify an MCTP over USB interface | DSP0283 1.1.0 | DSP0283 1.1.0, section 6.2.1.1, Table 1, page 13: class 0x14, sub-class 0x0 (MC and managed device, no packet spanning; 0x1 host interface), protocol 0x1 (MCTP 1.x), two bulk endpoints; sub-class 0x2 with packet spanning in 6.2.2.1, page 15 | `find DSP0283 "Class code"`, `page DSP0283 13` |
+| G51 | USB interface descriptor values that identify an MCTP over USB interface | DSP0283 1.1.1 | DSP0283 1.1.1, section 6.2.1.1, Table 1, page 13: class 0x14, sub-class 0x0 (MC and managed device, no packet spanning; 0x1 host interface), protocol 0x1 (MCTP 1.x), two bulk endpoints; sub-class 0x2 with packet spanning in 6.2.2.1, page 15 | `find DSP0283 "Class code"`, `page DSP0283 13` |
 | G52 | How an MCTP packet sits in an MMBI packet | DSP0284 1.0.1 | DSP0284 1.0.1, section 5.2, Table 1, page 10: MMBI packet type 0100b, header version 0001b, Null destination and source EIDs, padding to a 4-byte multiple | `find DSP0284 "Packet Type"`, `section DSP0284 5.2`, `page DSP0284 10` (Figure 1's rotated labels extract as single letters) |
 | G53 | Layout of an MCTP message in an Extended PCC subspace | DSP0292 1.0.0 | DSP0292 1.0.0, sections 8.4 and 8.4.1, Figure 2, page 14: 16-byte header (PCC Signature, Flags, Length, Command = "MCTP", little-endian 0x5054434D), MCTP transport header at offset 16, message body from offset 20 | `find DSP0292 Signature`, `page DSP0292 14` |
 | G54 | Which transport bindings NVMe Management Messages over MCTP are defined for, and where the message type number lives | DSP0235 1.0.1 | DSP0235 1.0.1, sections 7.1 and 7.2, page 9: DSP0237 (SMBus) and DSP0238 (PCIe); the number itself is assigned in DSP0239 (0x04, see G9) | `find DSP0235 "transport bindings"`, `page DSP0235 9` |
@@ -242,7 +242,7 @@ Questions on the SoC vendors' Code Trees and the upstream kernel docs they are r
 | IPMI 2.0 Table 5-1 Network Function Codes | `table IPMI --page 68` | one Logical Table, pages 67-68, header once |
 | IPMI 2.0 Table G-1 Command Number Assignments and Privilege Levels | `table IPMI --page 615` | one Logical Table, pages 613-617, 213 rows |
 | IPMI 2.0 Table 42-3 Sensor Type Codes | `table IPMI --page 540` | one Logical Table, pages 531-544, 48 rows; the row cut at 535/536 joined |
-| DSP0248 Table 69 GetPDR command format | `table DSP0248 --page 122` | pages 122-123, the `(continued)` header row dropped |
+| DSP0248 Table 87 GetPDR command format (cell boxes since 1.4.0) | `table DSP0248 --page 172` | pages 171-172, 15 rows, no repeated header (1.3.1's Table 69 was ruled, pages 122-123, its `(continued)` header row dropped) |
 | DSP0239 Table 1 MCTP Message Types (cell boxes, no ruling lines) | `table DSP0239 --page 13` | one Logical Table, pages 13-14, 14 rows; the `table:` line says `cells (no ruling lines)` |
 | DSP0274 Table 4 SPDM request codes (cell boxes) | `table DSP0274 --page 39` | pages 39-41, 32 rows, the header repeated on each page dropped |
 | DSP2053 the property guide (one cell-box table over the whole document) | `table DSP2053 --page 220` | a `note:` line, then only the rows that start on page 220; `--all-rows` prints all 4406; PowerDistribution (Actions > PowerControl (Action)) ends page 220 and OutletGroup starts page 221 as rows of their own |
@@ -276,3 +276,16 @@ G17, G18, G74, G75, G76, G79, G80, G101) were re-checked on the newest
 version. G80 and G101 changed with the documents (the property name
 argument is now quoted, Base 1.24.0), and G79 gained PowerDistribution;
 the other rows hold, some on new pages.
+
+`refresh` on 2026-10-18 found two DMTF versions: DSP0283 1.1.1
+(2026-10-08) and DSP0248 1.4.0 (2026-10-12), added with `refresh --write
+--skip-source ocp`, each fetched and extracted, `check` current. G51
+holds on DSP0283 1.1.1 (same section, table and pages). DSP0248 1.4.0
+renumbers its sections and tables and draws them as cell boxes: G13's
+GetPDR is section 30.2.1, Table 87, pages 171-172, and the command
+numbers are Table 95, page 189; G15's GetSensorReading is Table 32, page
+102 (the earlier row's "Table 33" was SetSensorThresholds in 1.3.1; the
+command format was Table 31 there). The same `refresh` could not read
+the OCP wiki rows of DC-SCM and the seven DC-MHS documents (`no row
+starting with` the catalog's title: the wiki tables changed shape), so
+those eight are unchecked since 2026-09-22 until the scanner is updated.
