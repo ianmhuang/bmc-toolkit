@@ -59,7 +59,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0253` MCTP Serial Transport Binding Specification | open | 1.0.0 | PASS | Some PDF bookmarks are cross-reference anchors; a cite may name one instead of the heading. |
 | `DSP0254` MCTP KCS Transport Binding Specification | open | 1.0.0 | PASS | Some PDF bookmarks are cross-reference anchors; a cite may name one instead of the heading. |
 | `DSP0256` Management Component Transport Protocol (MCTP) Host Interface Specification | open | 2.0.0 | PASS | - |
-| `DSP0283` Management Component Transport Protocol (MCTP) Universal Serial Bus (USB) Transport Binding Specification | open | 1.1.0 | PASS | - |
+| `DSP0283` Management Component Transport Protocol (MCTP) Universal Serial Bus (USB) Transport Binding Specification | open | 1.1.1 | PASS | - |
 | `DSP0284` Management Component Transport Protocol (MCTP) Memory-Mapped Buffer Interface (MMBI) Transport Binding Specification | open | 1.0.1 | PASS | PDF bookmarks are cross-reference anchors as well as headings: section 5.2 is found, but a page cite can name the anchor before the heading (page 10 cites 5.1.3 for section 5.2); check the heading in the page text. Figure 1's rotated labels extract as single letters; use render. |
 | `DSP0292` Management Component Transport Protocol (MCTP) PCC Transport Binding Specification | open | 1.0.0 | PASS | - |
 | `DSP0235` NVMe™ (NVMe Express™) Management Messages over MCTP Binding Specification | open | 1.0.1 | PASS | PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page. |
@@ -77,7 +77,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0245` Platform Level Data Model (PLDM) IDs and Codes Specification | open | 1.4.0 | PASS | - |
 | `DSP0246` Platform Level Data Model (PLDM) for SMBIOS Transfer Specification | open | 1.0.1 | PASS | - |
 | `DSP0247` Platform Level Data Model (PLDM) for BIOS Control and Configuration Specification | open | 1.0.0 | PASS | - |
-| `DSP0248` PLDM Platform Monitoring and Control Specification | open | 1.3.1 | PASS | - |
+| `DSP0248` PLDM Platform Monitoring and Control Specification | open | 1.4.0 | PASS | - |
 | `DSP0249` Platform Level Data Model (PLDM) State Set Specification | open | 1.4.0 | PASS | - |
 | `DSP0257` Platform Level Data Model (PLDM) for FRU Data Specification | open | 2.0.0 | PASS | - |
 | `DSP0267` Platform Level Data Model (PLDM) for Firmware Update Specification | open | 1.3.0 | PASS | - |

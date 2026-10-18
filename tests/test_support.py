@@ -501,7 +501,7 @@ def test_shipped_golden_questions_verify_every_open_document_but_the_bundles():
     expected = {d.id.lower() for d in catalog.documents if d.access == "open"}
     assert set(verified) == expected
     assert [q for q, _ in verified["ipmi"]] == ["G1", "G2", "G3", "G4", "G5"]
-    assert verified["dsp0248"] == [("G13", "1.3.1"), ("G15", "1.3.1")]
+    assert verified["dsp0248"] == [("G13", "1.4.0"), ("G15", "1.4.0")]
 
 
 # ------------------------------------------ M8 follow-ups: verified version

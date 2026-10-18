@@ -30,7 +30,7 @@ layer); `catalog --table` prints the Support Level table from the catalog
 (family, document, access, latest, fetch, Verified, known limit), and
 `--golden docs/golden-questions.md` fills the Verified column from that
 file's `Document` column with the question ids per version they were
-checked on (`G13, G15 (1.3.1)`); `--by-family` prints the reader's form
+checked on (`G13, G15 (<version>)`); `--by-family` prints the reader's form
 kept in `docs/SUPPORT.md`: a heading and a table per family, without the
 Fetch column, Verified reduced to `PASS` or `-`, and documents marked
 `unlisted = true` in the catalog left out (the BMC SoC datasheets are).
