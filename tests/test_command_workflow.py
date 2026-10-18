@@ -13,8 +13,9 @@ END = "<!-- command-workflow:end -->"
 # 34 until what `ipmitool raw` prints and the other Families (T34);
 # 37 until no bytes from memory (T36);
 # 38 until the SPDM layout follows its Document Version (T39);
-# 40 until the PLDM header's Type byte (T41)
-MAX_LINES = 42
+# 40 until the PLDM header's Type byte (T41);
+# 42 until every Invocation line comes from `invocation` (T43)
+MAX_LINES = 44
 
 
 def block_lines():
@@ -104,6 +105,22 @@ def test_block_has_the_helper_lay_out_the_bytes():
     assert "Never write bytes by hand" in text
     assert "copy the line(s) and total it prints" in text
     assert "sum of its field sizes" not in text
+
+
+def test_every_invocation_line_comes_from_the_helper():
+    # T43: the line asked for was copied from `invocation`, then a filled-in
+    # example (`ipmitool raw 0x04 0x2d 0x30`) or a follow-up Command the
+    # user did not ask for was written by hand, marked as inference
+    text = block_text()
+    after = text[text.index("Never write bytes by hand") :]
+    rule = (
+        "That holds for every Invocation line the answer writes, an example "
+        "with a value filled in or a Command not asked for: no call, no line; "
+        "name the Command instead."
+    )
+    assert rule in after
+    # it closes step 4, before the block ends
+    assert "5." not in after[after.index(rule) :]
 
 
 def test_only_the_helper_writes_bytes():
