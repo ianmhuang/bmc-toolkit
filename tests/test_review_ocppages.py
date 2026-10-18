@@ -107,9 +107,7 @@ def test_template_yields_the_project_page_urls_for_the_catalog_keys():
 
 
 def test_listings_request_the_project_page_and_not_the_old_wiki_url():
-    client = ScriptedClient(
-        {MHS_URL: _html(_mhs_page({"M-CRPS": "1.06"}))}
-    )
+    client = ScriptedClient({MHS_URL: _html(_mhs_page({"M-CRPS": "1.06"}))})
     rows = L.Listings(client).current(f"ocp:{MHS_PAGE}|M-CRPS Base")
     assert [r.version for r in rows] == ["1.06"]
     assert rows[0].published == "2026-04-24"
@@ -136,7 +134,9 @@ def test_missing_row_message_names_the_ocp_page_not_a_wiki():
     assert "wiki" not in message.lower()
 
 
-def test_publisher_name_for_ocp_is_the_project_page(tmp_path, library, scripted, capsys):
+def test_publisher_name_for_ocp_is_the_project_page(
+    tmp_path, library, scripted, capsys
+):
     assert "wiki" not in L.PUBLISHER_NAMES["ocp"].lower()
     assert "project page" in L.PUBLISHER_NAMES["ocp"]
     text = (
@@ -212,5 +212,6 @@ def test_refresh_over_ocp_reports_nothing_unreachable_and_ignores_the_empty_row(
     lines = out.splitlines()
     assert not any(ln.startswith("unreachable ") for ln in lines), out
     assert "0.70" not in out  # the empty-description row matches no prefix
-    assert lines[-1].startswith("summary: add 0, confirm 0, changed 0, unreachable 0"), out
+    summary = "summary: add 0, confirm 0, changed 0, unreachable 0"
+    assert lines[-1].startswith(summary), out
     assert sorted(set(scripted.calls)) == sorted([DCSCM_URL, MHS_URL])
