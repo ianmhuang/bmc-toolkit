@@ -346,9 +346,11 @@ Neither answer writes bytes from memory, even hedged or as a search term.
      message type is the `type` name, never a byte in `data`. PLDM also gets
      `pldmtool raw -m <eid> -d 0x<byte> ...`, header included.
 3. Headers: an MCTP control or PLDM request starts with `80` (Rq=1, D=0,
-   instance id 0); say so. SPDM byte 0 is SPDMVersion: what the Document fixes
-   for GET_VERSION; in every other request `<negotiated version>` unless the
-   user names one, never the Version of the Document the layout came from.
+   instance id 0); say so. PLDM byte 1 is the Type whose Document defines the
+   Command (DSP0240's base Commands: `00`), not a Type asked about, which is a
+   request field. SPDM byte 0 is SPDMVersion: what the Document fixes for
+   GET_VERSION; in every other request `<negotiated version>` unless the user
+   names one, never the Version of the Document the layout came from.
    The layout is that Document Version's: say so, and that an older negotiated
    version can differ. If the user names one: use that Version (`--version`).
 4. Run `invocation <ipmi|mctp-control|pldm|spdm> '<field>:<size>=<value>' ...`

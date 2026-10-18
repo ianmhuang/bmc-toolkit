@@ -24,7 +24,7 @@ AUTHOR_TESTS = ROOT / "tests" / "test_command_workflow.py"
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-MAX_LINES = 40  # AC-2: 37 until T36; 38 until T39
+MAX_LINES = 42  # AC-2: 37 until T36; 38 until T39; 40 until T41
 
 HEX_BYTE = re.compile(r"\b0x[0-9a-fA-F]{1,2}\b")
 
