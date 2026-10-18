@@ -10,9 +10,7 @@ from tests.conftest import MINI_CATALOG, ScriptedClient
 
 DMTF_DSP0236 = "https://www.dmtf.org/dsp/DSP0236"
 NVME_API = "https://nvmexpress.org/wp-json/vtm/v1/specifications"
-OCP_WIKI = (
-    "https://www.opencompute.org/w/index.php?title=Server/MHS/DC-MHS-Specs-and-Designs"
-)
+OCP_WIKI = "https://www.opencompute.org/projects/server/mhs/dc-mhs-specs-and-designs/"
 
 # DSP0236 (DMTF, implied listing) from the mini catalog plus one NVMe and
 # one OCP document with explicit listings.
@@ -47,7 +45,7 @@ family = "ocp"
 title = "M-CRPS Base Specification"
 access = "open"
 fetch = "direct"
-listing = "ocp:Server/MHS/DC-MHS-Specs-and-Designs|M-CRPS Base"
+listing = "ocp:server/mhs/dc-mhs-specs-and-designs|M-CRPS Base"
 
 [[documents.versions]]
 version = "1.05"

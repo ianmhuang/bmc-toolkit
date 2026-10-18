@@ -29,7 +29,7 @@ Schema (``schema_version = 1``)::
                                source dmtf (key: the DSP id; the default for
                                DMTF documents), nvme (key: the specification
                                slug of the nvmexpress.org API) or ocp (key:
-                               "<wiki page title>|<description prefix>")
+                               "<project page path>|<description prefix>")
 
     [[documents.versions]]     in publication order, same-day versions
                                ascending by version number (refresh --write

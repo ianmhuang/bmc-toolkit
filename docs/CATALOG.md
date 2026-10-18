@@ -30,7 +30,7 @@ layer); `catalog --table` prints the Support Level table from the catalog
 (family, document, access, latest, fetch, Verified, known limit), and
 `--golden docs/golden-questions.md` fills the Verified column from that
 file's `Document` column with the question ids per version they were
-checked on (`G13, G15 (1.3.1)`); `--by-family` prints the reader's form
+checked on (`G13, G15 (<version>)`); `--by-family` prints the reader's form
 kept in `docs/SUPPORT.md`: a heading and a table per family, without the
 Fetch column, Verified reduced to `PASS` or `-`, and documents marked
 `unlisted = true` in the catalog left out (the BMC SoC datasheets are).
@@ -40,7 +40,7 @@ over `1.3.0`). A document
 may name companions in `searched_with` (errata, specification updates)
 that `find` searches together with it, and a `listing`
 (`dmtf:<DSP>`, implied for DMTF documents; `nvme:<slug>` of the
-nvmexpress.org API; `ocp:<wiki page>|<description prefix>`) that `check`
+nvmexpress.org API; `ocp:<project page>|<description prefix>`) that `check`
 and `refresh` consult. `refresh` prints the versions the publishers list
 that the catalog lacks (`add`), catalog URLs that moved (`changed`, for
 DMTF and NVMe; a URL has not moved while any row the publisher lists for
@@ -65,7 +65,7 @@ and assigned to the repository owner with that output, or comments on the
 open one; a run that finds nothing,
 or only unreachable listings, opens nothing. OCP is left out because
 opencompute.org answers HTTP 403 to GitHub's runners (the same client
-gets the wiki from a developer machine), so OCP versions come from
+gets the pages from a developer machine), so OCP versions come from
 `refresh` run locally. The catalog itself changes only through a pull
 request: run `refresh --write` locally, confirm any OCP URL by hand,
 verify each new version against `docs/golden-questions.md`, and open the

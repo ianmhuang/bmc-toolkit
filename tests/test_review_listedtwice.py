@@ -153,7 +153,7 @@ def test_shipped_m_crps_1_06_is_known_so_the_wiki_row_is_not_confirm(
     # catalog's direct download URL: an OCP row is never `changed`, and a
     # version the catalog holds is not `confirm`.
     scripted.responses[
-        L.OCP_WIKI.format(page="Server/MHS/DC-MHS-Specs-and-Designs")
+        L.OCP_WIKI.format(page="server/mhs/dc-mhs-specs-and-designs")
     ] = _html(OCP_WIKI_HTML)
     code = main(["refresh", "M-CRPS"])
     out = capsys.readouterr().out

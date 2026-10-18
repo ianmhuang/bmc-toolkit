@@ -25,7 +25,7 @@ DMTF_PUBLISHED = "https://www.dmtf.org/standards/published_documents"
 DMTF_DSP0236 = "https://www.dmtf.org/dsp/DSP0236"
 NVME_API = "https://nvmexpress.org/wp-json/vtm/v1/specifications"
 OCP_PAGE = "Server/MHS/DC-MHS-Specs-and-Designs"
-OCP_WIKI = f"https://www.opencompute.org/w/index.php?title={OCP_PAGE}"
+OCP_WIKI = f"https://www.opencompute.org/projects/{OCP_PAGE}/"
 
 URL_132 = "https://example.test/DSP0236_1.3.2.pdf"
 URL_133 = "https://example.test/DSP0236_1.3.3.pdf"
@@ -539,7 +539,7 @@ def test_unknown_document_still_wins_over_the_skip(catalog_file, client, capsys)
 
 # ----------------------------------------------------------------- AC-8
 
-RELEASE = "1.4.1"
+RELEASE = "1.4.2"
 
 
 def test_version_1_1_0_in_the_four_records():
