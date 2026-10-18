@@ -12,8 +12,9 @@ END = "<!-- command-workflow:end -->"
 # 32 until the OEM sentence and step 4's own-call and `0x` clause (T33);
 # 34 until what `ipmitool raw` prints and the other Families (T34);
 # 37 until no bytes from memory (T36);
-# 38 until the SPDM layout follows its Document Version (T39)
-MAX_LINES = 40
+# 38 until the SPDM layout follows its Document Version (T39);
+# 40 until the PLDM header's Type byte (T41)
+MAX_LINES = 42
 
 
 def block_lines():
@@ -61,6 +62,16 @@ def test_block_gives_the_header_rules():
     assert "GET_VERSION" in text
     assert "`<negotiated version>`" in text
     assert "Version of the Document" in text
+
+
+def test_block_says_which_type_a_pldm_header_carries():
+    # T41: asked for GetPLDMVersion of type 2, answers wrote the 2 into the
+    # header's Type byte as well as into the request's PLDMType field
+    text = block_text()
+    after = text[text.index("instance id 0); say so.") :][:260]
+    assert "PLDM byte 1 is the Type whose Document defines the Command" in after
+    assert "DSP0240's base Commands: `00`" in after
+    assert "not a Type asked about, which is a request field" in after
 
 
 def test_spdm_layout_follows_its_document_version():

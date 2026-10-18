@@ -22,7 +22,7 @@ SKILL = ROOT / "skills" / "bmc-spec" / "SKILL.md"
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-MAX_LINES = 40  # AC-3: 34 until T34; 37 until T36; 38 until T39
+MAX_LINES = 42  # AC-3: 34 until T34; 37 until T36; 38 until T39; 40 until T41
 
 
 def _body() -> list[str]:
