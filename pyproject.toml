@@ -1,6 +1,6 @@
 [project]
 name = "bmc-toolkit"
-version = "1.4.2"
+version = "1.4.3"
 description = "Claude Code skills for BMC firmware developers."
 readme = "README.md"
 license = { file = "LICENSE" }
