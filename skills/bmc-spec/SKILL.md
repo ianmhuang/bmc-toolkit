@@ -356,7 +356,9 @@ Neither answer writes bytes from memory, even hedged or as a search term.
 4. Run `invocation <ipmi|mctp-control|pldm|spdm> '<field>:<size>=<value>' ...`
    as a Bash call of its own (no `;`, `&&`, `|`): every field in order, the
    header and codes too (NetFn and Cmd; `80` and the codes). Never write bytes
-   by hand: copy the line(s) and total it prints.
+   by hand: copy the line(s) and total it prints. That holds for every
+   Invocation line the answer writes, an example with a value filled in or a
+   Command not asked for: no call, no line; name the Command instead.
 <!-- command-workflow:end -->
 
 ## Citation rules
