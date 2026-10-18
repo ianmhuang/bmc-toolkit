@@ -101,12 +101,12 @@ def test_each_placeholder_in_a_field_of_its_own_is_laid_out(capsys):
     assert code == 0, lines
     assert lines == [
         "bytes: 4",
-        "ipmitool raw 0x0a 0x43 <lsb> <msb>",
+        "ipmitool raw 0x0a 0x43 0x<lsb> 0x<msb>",
         "offset | size | field | bytes",
         "0 | 1 | NetFn | 0x0a",
         "1 | 1 | Cmd | 0x43",
-        "2 | 1 | Reservation ID LSB | <lsb>",
-        "3 | 1 | Reservation ID MSB | <msb>",
+        "2 | 1 | Reservation ID LSB | 0x<lsb>",
+        "3 | 1 | Reservation ID MSB | 0x<msb>",
     ]
 
 
@@ -137,17 +137,19 @@ def test_one_placeholder_prints_as_before_and_two_of_it_are_refused(capsys, inne
 def test_ipmitool_takes_one_placeholder_as_before(capsys, inner):
     one = f"<{inner}>"
     two = f"<{inner} 0> <{inner} 1>"
+    # T40: every ipmitool byte carries 0x, a placeholder too
+    one_0x, two_0x = f"0x{one}", f"0x<{inner} 0> 0x<{inner} 1>"
     head = HEADER["ipmi"]
     code, lines, _ = invoke(capsys, "ipmi", *head, f"Two:2={one}", f"One:1={one}")
     assert code == 0, lines
     assert lines == [
         "bytes: 5",
-        f"ipmitool raw 0x0a 0x43 {two} {one}",
+        f"ipmitool raw 0x0a 0x43 {two_0x} {one_0x}",
         "offset | size | field | bytes",
         "0 | 1 | NetFn | 0x0a",
         "1 | 1 | Cmd | 0x43",
-        f"2 | 2 | Two | {two}",
-        f"4 | 1 | One | {one}",
+        f"2 | 2 | Two | {two_0x}",
+        f"4 | 1 | One | {one_0x}",
     ]
 
     line = refusal(capsys, "ipmi", *head, f"Two:2={one} {one}", f"One:1={one}")
@@ -159,13 +161,15 @@ def test_ipmitool_takes_one_placeholder_as_before(capsys, inner):
 def test_both_pldm_lines_take_one_placeholder_as_before(capsys, inner):
     one = f"<{inner}>"
     two = f"<{inner} 0> <{inner} 1>"
+    # T40: pldmtool's bytes carry 0x, mctp-client's and the rows' do not
+    two_0x = f"0x<{inner} 0> 0x<{inner} 1>"
     head = HEADER["pldm"]
     code, lines, _ = invoke(capsys, "pldm", *head, f"sensorID:2:be={one}")
     assert code == 0, lines
     assert lines == [
         "bytes: 5",
         f"mctp-client eid <eid> type pldm data 80 02 11 {two}",
-        f"pldmtool raw -m <eid> -d 0x80 0x02 0x11 {two}",
+        f"pldmtool raw -m <eid> -d 0x80 0x02 0x11 {two_0x}",
         "offset | size | field | bytes",
         "0 | 1 | Header | 80",
         "1 | 1 | PLDM Type | 02",

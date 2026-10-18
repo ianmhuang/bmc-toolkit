@@ -12,8 +12,9 @@ END = "<!-- command-workflow:end -->"
 # 32 until the OEM sentence and step 4's own-call and `0x` clause (T33);
 # 34 until what `ipmitool raw` prints and the other Families (T34);
 # 37 until no bytes from memory (T36);
-# 38 until the SPDM layout follows its Document Version (T39)
-MAX_LINES = 40
+# 38 until the SPDM layout follows its Document Version (T39);
+# 40 until the PLDM header's Type byte (T41)
+MAX_LINES = 42
 
 
 def block_lines():
@@ -63,6 +64,16 @@ def test_block_gives_the_header_rules():
     assert "Version of the Document" in text
 
 
+def test_block_says_which_type_a_pldm_header_carries():
+    # T41: asked for GetPLDMVersion of type 2, answers wrote the 2 into the
+    # header's Type byte as well as into the request's PLDMType field
+    text = block_text()
+    after = text[text.index("instance id 0); say so.") :][:260]
+    assert "PLDM byte 1 is the Type whose Document defines the Command" in after
+    assert "DSP0240's base Commands: `00`" in after
+    assert "not a Type asked about, which is a request field" in after
+
+
 def test_spdm_layout_follows_its_document_version():
     # an older negotiated version lays some requests out differently
     # (GET_CAPABILITIES 12 bytes in 1.1, the GET_MEASUREMENTS Context from 1.3)
@@ -102,9 +113,13 @@ def test_only_the_helper_writes_bytes():
     assert "Work out every field for step 4" in text
 
 
-def test_a_placeholder_takes_no_0x():
-    # the helper prints `<sensor number>`; a run once wrote `0x<sensor number>`
-    assert "(a placeholder takes no `0x`)" in block_text()
+def test_the_printed_placeholder_is_copied_as_it_is():
+    # T33 told the answer to drop the 0x the helper did not print; runs
+    # added it anyway. Since T40 the helper prints `0x<sensor number>` in
+    # the ipmitool and pldmtool lines, and the answer copies the line.
+    text = block_text()
+    assert "placeholder takes no `0x`" not in text
+    assert "copy the line(s) and total it prints." in text
 
 
 def test_invocation_runs_as_a_bash_call_of_its_own():

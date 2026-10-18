@@ -23,7 +23,8 @@ PROTOCOLS = ("ipmi", "mctp-control", "pldm", "spdm")
 IPMITOOL = "ipmitool raw "
 PLDMTOOL = "pldmtool raw -m <eid> -d "
 # a placeholder is one token even with spaces inside
-TOKEN = re.compile(r"<[^>]*>|\S+")
+# T40: a placeholder in a 0x line is printed 0x<text>, one token with its 0x
+TOKEN = re.compile(r"(?:0x)?<[^>]*>|\S+")
 
 
 def mctp(kind: str) -> str:
@@ -289,8 +290,8 @@ def test_a_one_byte_placeholder_is_printed_as_written_for_ipmitool(capsys):
         capsys, "ipmi", "NetFn:1=0x04", "Cmd:1=0x27", "Sensor Number:1=<sensor number>"
     )
     assert code == 0, lines
-    # no 0x in front of it: it is not a number
-    assert sent(lines) == ["ipmitool raw 0x04 0x27 <sensor number>"]
+    # T40: the 0x of every ipmitool byte, so two hex digits fill it
+    assert sent(lines) == ["ipmitool raw 0x04 0x27 0x<sensor number>"]
     assert lines[0] == "bytes: 3"
 
 
@@ -323,7 +324,7 @@ def test_a_placeholder_of_n_bytes_is_n_numbered_tokens_in_both_pldm_lines(capsys
     assert code == 0, lines
     assert sorted(sent(lines)) == [
         "mctp-client eid <eid> type pldm data 80 02 11 <sensor id 0> <sensor id 1> 00",
-        "pldmtool raw -m <eid> -d 0x80 0x02 0x11 <sensor id 0> <sensor id 1> 0x00",
+        "pldmtool raw -m <eid> -d 0x80 0x02 0x11 0x<sensor id 0> 0x<sensor id 1> 0x00",
     ]
     assert lines[0] == "bytes: 6"
 
@@ -344,10 +345,10 @@ def test_a_long_placeholder_keeps_one_token_per_byte(capsys, order):
     assert tokens == [
         "0x06",
         "0x01",
-        "<address 0>",
-        "<address 1>",
-        "<address 2>",
-        "<address 3>",
+        "0x<address 0>",
+        "0x<address 1>",
+        "0x<address 2>",
+        "0x<address 3>",
         "0x77",
     ]
     assert lines[0] == f"bytes: {len(tokens)}"

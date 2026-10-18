@@ -5,7 +5,8 @@ The block is the feature: the rules a Session follows when asked for a named
 Command. These tests read it the way a Session gets it and check the shape
 of each rule the acceptance criteria name, not the author's exact words:
 step 1 works out fields and leaves byte writing to the helper, a placeholder
-carries no `0x`, `invocation` runs as a Bash call of its own, an OEM Command
+is copied as the helper prints it (since T40 the block no longer says it
+carries no `0x`), `invocation` runs as a Bash call of its own, an OEM Command
 without a Document gets no Invocation, and the block stays within its cap.
 """
 
@@ -17,8 +18,9 @@ SKILL = ROOT / "skills" / "bmc-spec" / "SKILL.md"
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-# 34 until T34 (ipmitool output, other Families); 37 until T36; 38 until T39
-MAX_LINES = 40
+# 34 until T34 (ipmitool output, other Families); 37 until T36; 38 until T39;
+# 40 until T41 (PLDM header Type byte)
+MAX_LINES = 42
 
 
 def _body() -> list[str]:
@@ -96,13 +98,15 @@ def test_only_the_helper_step_speaks_of_writing_bytes():
 # ------------------------------------------------------------------ AC-2
 
 
-def test_a_placeholder_carries_no_0x_prefix():
+def test_the_block_leaves_a_placeholders_0x_to_the_helper():
+    # T40 inverts the T33 rule: the helper prints `0x<text>` in the lines
+    # whose bytes carry 0x, so the block no longer tells the answer to drop it
     low = _flat(_body()).lower()
-    assert re.search(
+    assert not re.search(
         r"placeholder[^.()]*\bno `0x`|\bno `0x`[^.()]*placeholder", low
     ), low
-    # the rule sits with the helper step, where the bytes are copied from
-    assert re.search(r"placeholder[^.]*no `0x`", _invocation_step().lower())
+    # the helper step still has the answer copy what was printed
+    assert re.search(r"copy the line\(s\)", _invocation_step().lower())
 
 
 def test_block_does_not_ask_for_per_byte_placeholders_one_by_one():
