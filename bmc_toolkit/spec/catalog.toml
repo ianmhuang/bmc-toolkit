@@ -504,7 +504,7 @@ published = "2026-07-31"
 # fingerprints. DC-MHS has no umbrella document; it is the set of M-* specs.
 # Publication dates come from the OCP project pages' specification tables, also
 # what "listing" points at ("ocp:<project page>|<description prefix>"); the pages
-# links newer versions to Google Drive, so `check` reports them and a human
+# link newer versions to Google Drive, so `check` reports them and a human
 # finds the opencompute.org/documents slug.
 
 [[documents]]
@@ -3650,9 +3650,11 @@ published = "2026-09-14"
 notes = "Informational"
 
 # ---------------------------------------------------------------- OCP Security and NIC
-# OCP Security and OCP NIC: current version only; the OCP wiki pages for
-# these groups have no specification table the ocp listing source can read,
-# so `check` reports them as unchecked. URLs confirmed 2026-09-04.
+# OCP Security and OCP NIC: current version only; as of 2026-09-04 the OCP
+# wiki pages for these groups had no specification table the ocp listing
+# source could read, so `check` reports them as unchecked. The project pages
+# that replaced the wiki have not been checked for one. URLs confirmed
+# 2026-09-04.
 
 [[documents]]
 id = "CALIPTRA"
