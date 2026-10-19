@@ -131,7 +131,9 @@ intended byte. In the `mctp-client` line and the other rows it is printed
 `<text>`. The output is
 `bytes: N` (all fields together), the line(s) to send, then `offset | size
 | field | bytes` and one row per field. Refused with exit 2, a line naming
-the field and the reason, and no line to send: a number that does not fit
+the field and the reason (a field or value longer than 80 characters is
+shown cut there, followed by its length), and no line to send: a number
+that does not fit
 SIZE or is negative; a number that is neither decimal nor `0x` hex, or has
 a leading zero (`e1`, `08`: which base is meant is never guessed); a SIZE
 that is missing, not a positive integer or above 65535; a list of another

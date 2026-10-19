@@ -29,7 +29,9 @@ MAX_SIZE = 0xFFFF  # the most a 16-bit length field can state
 FIELD_RE = re.compile(
     r"(?P<name>.*?):(?P<size>[0-9]+)(?::(?P<order>be|le))?=(?P<value>.*)", re.S
 )
-# \d on purpose: the digits [0-9] leaves out, where a SIZE would stand
+# \d on purpose: the lazy NAME match stops at the first ASCII :N=, so a
+# NAME never holds one; what \d finds there is a SIZE written in digits
+# outside [0-9], which FIELD_RE did not take as one
 OTHER_SIZE_RE = re.compile(r":\d+(?::(?:be|le))?=")
 HEX_RE = re.compile(r"0[xX][0-9a-fA-F]+")
 DECIMAL_RE = re.compile(r"0+|[1-9][0-9]*")
@@ -37,6 +39,7 @@ PIECE = 600  # digits int() converts under any sys.set_int_max_str_digits()
 SHIFT = 10**PIECE
 WRITE_HEX = "write hex with 0x (0x0a), decimal without a leading zero"
 NO_SIZE = f"SIZE, the field's bytes, is missing or not a number; a field is {FORM}"
+SHOWN = 80  # characters of the caller's text a refusal echoes
 
 
 class FieldError(ValueError):
@@ -48,6 +51,16 @@ class Field:
     name: str
     size: int
     tokens: list[int | str]  # one per byte, in layout order: a value or a placeholder
+
+
+def _shown(text: str, quoted: bool = False) -> str:
+    """The caller's text as a refusal echoes it: whole up to SHOWN
+    characters, else cut there and followed by its length, so a field of
+    any length gives a short line."""
+    if len(text) <= SHOWN:
+        return repr(text) if quoted else text
+    head = repr(text[:SHOWN]) if quoted else text[:SHOWN]
+    return f"{head}... ({len(text)} characters)"
 
 
 def _is_number(text: str) -> bool:
@@ -69,8 +82,8 @@ def _number(text: str) -> int:
     if DECIMAL_RE.fullmatch(text):
         return _decimal(text)
     if text.startswith("-") and _is_number(text[1:]):
-        raise FieldError(f"{text} is negative")
-    raise FieldError(f"{text!r} is not a number: {WRITE_HEX}")
+        raise FieldError(f"{_shown(text)} is negative")
+    raise FieldError(f"{_shown(text, True)} is not a number: {WRITE_HEX}")
 
 
 def _byte_list(value: str, size: int) -> list[int | str]:
@@ -79,10 +92,12 @@ def _byte_list(value: str, size: int) -> list[int | str]:
     for part in parts:
         # a bare 10 in a list of bytes may be meant as 0x10: never guessed
         if not HEX_RE.fullmatch(part) and part.strip("0"):
-            raise FieldError(f"byte {part!r} of the list: write every byte with 0x")
+            raise FieldError(
+                f"byte {_shown(part, True)} of the list: write every byte with 0x"
+            )
         number = _number(part)
         if number > 0xFF:
-            raise FieldError(f"{part} of the list is more than one byte")
+            raise FieldError(f"{_shown(part)} of the list is more than one byte")
         out.append(number)
     if len(out) != size:
         raise FieldError(f"the list holds {len(out)} bytes, SIZE is {size}")
@@ -134,7 +149,7 @@ def parse_field(text: str) -> Field:
     # a decimal of d digits is at least 2**(3*(d-1)): one far too long for
     # SIZE is refused by its length, before the number is built
     value_digits = len(value.lstrip("0")) if DECIMAL_RE.fullmatch(value) else 0
-    misfit = f"{value} does not fit {size} byte{'s' if size > 1 else ''}"
+    misfit = f"{_shown(value)} does not fit {size} byte{'s' if size > 1 else ''}"
     if 3 * (value_digits - 1) >= 8 * size:
         raise FieldError(misfit)
     number = _number(value)
@@ -173,7 +188,8 @@ def render(protocol: str, texts: list[str]) -> list[str]:
     :class:`FieldError` naming the first one that cannot be laid out."""
     if protocol not in PROTOCOLS:
         raise FieldError(
-            f"unknown protocol {protocol!r}; it is one of {', '.join(PROTOCOLS)}"
+            f"unknown protocol {_shown(protocol, True)}; "
+            f"it is one of {', '.join(PROTOCOLS)}"
         )
     if not texts:
         raise FieldError(f"no field given; a field is {FORM}")
@@ -182,13 +198,15 @@ def render(protocol: str, texts: list[str]) -> list[str]:
         try:
             fields.append(parse_field(text))
         except FieldError as exc:
-            raise FieldError(f"field {text!r}: {exc}") from None
+            raise FieldError(f"field {_shown(text, True)}: {exc}") from None
     if protocol == "ipmi":
         if len(fields) < 2:
             raise FieldError("ipmi: the first two fields are NetFn and Cmd")
         for field, text in zip(fields[:2], texts[:2], strict=True):
             if field.size != 1:
-                raise FieldError(f"field {text!r}: NetFn and Cmd are one byte each")
+                raise FieldError(
+                    f"field {_shown(text, True)}: NetFn and Cmd are one byte each"
+                )
     show = _prefixed if protocol == "ipmi" else _plain
     out = [f"bytes: {sum(field.size for field in fields)}"]
     out.extend(tool_lines(protocol, fields))
