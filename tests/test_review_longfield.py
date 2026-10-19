@@ -51,7 +51,7 @@ def test_a_field_of_81_characters_is_cut_with_its_length_and_keeps_its_quotes():
     field = "X:1=" + "9" * (SHOWN - 3)
     assert len(field) == SHOWN + 1
     text = refusal("spdm", field)
-    assert text == f"{cut(field, True)}: {field[4:]} does not fit 1 byte"
+    assert text == f"field {cut(field, True)}: {field[4:]} does not fit 1 byte"
     # the quotes stay around the 80 characters, the length follows them
     assert text.startswith(f"field '{field[:SHOWN]}'... (81 characters): ")
 
@@ -60,7 +60,7 @@ def test_a_value_of_80_characters_is_whole_while_the_field_around_it_is_cut():
     # the field is 84 characters and cut; its VALUE is 80 and shown whole
     field = "X:1=" + NINES_80
     text = refusal("spdm", field)
-    assert text == f"{cut(field, True)}: {NINES_80} does not fit 1 byte"
+    assert text == f"field {cut(field, True)}: {NINES_80} does not fit 1 byte"
 
 
 def test_a_value_of_81_characters_is_cut_in_does_not_fit():
