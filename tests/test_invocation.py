@@ -318,7 +318,11 @@ def test_one_placeholder_may_hold_commas_and_spaces(capsys, inner):
 )
 def test_a_size_above_the_limit_is_refused(capsys, field):
     text = refused(capsys, "spdm", field)
-    assert field in text
+    # a field over 80 characters is echoed cut, followed by its length
+    if len(field) > 80:
+        assert field[:80] in text and f"({len(field)} characters)" in text
+    else:
+        assert field in text
     assert "65535" in text
 
 
@@ -823,3 +827,140 @@ def test_t40_ac6_docs_say_how_a_placeholder_is_printed():
         "the `mctp-client` line",
     ):
         assert words in doc, words
+
+
+# ------------------------------------------------- a long field in a refusal
+# The refusal echoes the field, and most reasons echo its value again: a
+# field of a million digits made a line of two million characters. Text
+# over SHOWN characters is cut to SHOWN and followed by its length.
+
+SHOWN = 80
+
+SHORT_REFUSALS = [
+    ("spdm", ["Code:1=-0x10"], "field 'Code:1=-0x10': -0x10 is negative"),
+    (
+        "spdm",
+        ["Code:1=08"],
+        "field 'Code:1=08': '08' is not a number: write hex with 0x (0x0a), "
+        "decimal without a leading zero",
+    ),
+    ("spdm", ["Code:1=300"], "field 'Code:1=300': 300 does not fit 1 byte"),
+    (
+        "spdm",
+        ["L:2=0x01,10"],
+        "field 'L:2=0x01,10': byte '10' of the list: write every byte with 0x",
+    ),
+    (
+        "spdm",
+        ["L:2=0x01,0x100"],
+        "field 'L:2=0x01,0x100': 0x100 of the list is more than one byte",
+    ),
+    (
+        "spdm",
+        ["L:3=0x01,0x02"],
+        "field 'L:3=0x01,0x02': the list holds 2 bytes, SIZE is 3",
+    ),
+    (
+        "spdm",
+        ["Flags:65536=0"],
+        "field 'Flags:65536=0': SIZE is above 65535, the most bytes a field takes",
+    ),
+    (
+        "nvme",
+        ["X:1=0"],
+        "unknown protocol 'nvme'; it is one of ipmi, mctp-control, pldm, spdm",
+    ),
+    (
+        "ipmi",
+        ["NetFn:2=0x06", "Cmd:1=0x01"],
+        "field 'NetFn:2=0x06': NetFn and Cmd are one byte each",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("protocol", "fields", "message"), SHORT_REFUSALS, ids=lambda v: str(v)[:20]
+)
+def test_a_short_field_is_refused_with_the_same_text(protocol, fields, message):
+    from bmc_toolkit.spec.invocation import FieldError, render
+
+    with pytest.raises(FieldError) as caught:
+        render(protocol, fields)
+    assert str(caught.value) == message
+
+
+def test_a_field_of_80_characters_is_shown_whole_and_81_is_cut():
+    from bmc_toolkit.spec.invocation import FieldError, render
+
+    for length, cut in ((SHOWN, False), (SHOWN + 1, True)):
+        field = "X:1=" + "9" * (length - 4)
+        with pytest.raises(FieldError) as caught:
+            render("spdm", [field])
+        text = str(caught.value)
+        assert (f"({length} characters)" in text) is cut
+        if not cut:
+            assert text == f"field {field!r}: {field[4:]} does not fit 1 byte"
+
+
+def test_a_long_field_is_cut_with_its_length():
+    from bmc_toolkit.spec.invocation import FieldError, render
+
+    field = "X:1=" + "9" * 1000
+    with pytest.raises(FieldError) as caught:
+        render("spdm", [field])
+    assert str(caught.value) == (
+        f"field {field[:SHOWN]!r}... (1004 characters): "
+        f"{'9' * SHOWN}... (1000 characters) does not fit 1 byte"
+    )
+
+
+LONG_REFUSALS = [
+    pytest.param("spdm", "X:1=" + "9" * 1_000_000, "does not fit 1 byte", id="1M"),
+    pytest.param(
+        "spdm",
+        "Flags:65536=" + ",".join(["0x00"] * 65536),
+        "65535",
+        id="list-65536",
+    ),
+    pytest.param("spdm", "Flags:" + "9" * 5000 + "=0", "65535", id="size-5000"),
+    pytest.param("spdm", "X:1=" + "q" * 10000, "is not a number", id="not-a-number"),
+    pytest.param("spdm", "X:1=-" + "9" * 10000, "is negative", id="negative"),
+    pytest.param(
+        "spdm", "X:2=0x01," + "z" * 10000, "write every byte with 0x", id="list-byte"
+    ),
+    pytest.param(
+        "spdm",
+        "X:2=0x01,0x" + "f" * 10000,
+        "of the list is more than one byte",
+        id="list-hex",
+    ),
+    pytest.param("p" * 10000, "X:1=0", "unknown protocol", id="protocol"),
+]
+
+
+@pytest.mark.parametrize(("protocol", "field", "reason"), LONG_REFUSALS)
+def test_a_long_field_gives_a_short_refusal(protocol, field, reason):
+    from bmc_toolkit.spec.invocation import FieldError, render
+
+    with pytest.raises(FieldError) as caught:
+        render(protocol, [field])
+    text = str(caught.value)
+    assert len(text) <= 300, len(text)
+    assert reason in text
+    # the field, or the protocol refused before any field is read
+    assert (field if protocol == "spdm" else protocol)[:5] in text
+    assert "characters)" in text
+
+
+def test_a_long_field_is_refused_on_the_command_line_in_one_short_line(capsys):
+    field = "X:1=" + "9" * 5000
+    code, lines = run(capsys, "spdm", "Code:1=0x84", field)
+    assert code == 2
+    assert len(lines) == 1 and len(lines[0]) <= 300
+    assert lines[0].startswith("invocation: field 'X:1=999")
+    assert lines[0].endswith("does not fit 1 byte")
+
+
+def test_commands_doc_says_a_long_field_is_shown_cut():
+    text = " ".join(COMMANDS_DOC.read_text(encoding="utf-8").split())
+    assert "longer than 80 characters" in text
