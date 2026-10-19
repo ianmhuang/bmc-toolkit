@@ -184,7 +184,9 @@ def test_spdm_version_byte_is_a_placeholder_except_for_get_version():
     assert "GET_VERSION" in text
     assert "<negotiated version>" in _spans()
     assert text.index("GET_VERSION") < text.index("<negotiated version>")
-    after = text[text.index("<negotiated version>") :][:200]
+    # the rest of the sentence only: the next one also names the Document
+    after = text[text.index("<negotiated version>") :]
+    after = after[: after.index(". ") + 1]
     assert "unless the user names" in after
     # the Version of the Document that was read is not the byte's value
     assert re.search(r"\b(never|not)\b[^.]*\bDocument\b", after), after

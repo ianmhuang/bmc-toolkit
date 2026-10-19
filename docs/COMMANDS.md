@@ -110,28 +110,31 @@ origin URL or `user-provided`, and the
 Library path. The Skill copies Citations from those lines and never
 composes them.
 
-`invocation PROTOCOL 'NAME:SIZE=VALUE' ...` arranges the bytes of a request
-from its fields and prints them in the syntax of the sending tools. It
-reads no Document, no catalog and no network, takes no lock and writes
-nothing; its one Library read is `--subcommand` (below). PROTOCOL is `ipmi` (prints `ipmitool raw 0x.. ...`;
-the first two fields are NetFn and Cmd, one byte each), `mctp-control` or
-`spdm` (`mctp-client eid <eid> type control data .. ..`, `type spdm`), or
-`pldm` (the `mctp-client` line with `type pldm` and `pldmtool raw -m <eid>
--d 0x.. ...`). A field is `NAME:SIZE=VALUE`, SIZE in bytes. A number
-(decimal, or hex with `0x`) is laid out least significant byte first,
-`NAME:SIZE:be=VALUE` most significant byte first (`:le` spells out the
-default). A comma-separated list of bytes (`0xc0,0xa8,0x01,0x0a`, every
-byte but a zero written with `0x`) is laid out as written and must hold
-SIZE bytes. `<text>` is a placeholder for two hex digits per byte; a field
-of N bytes gets `<text 0>` to `<text N-1>`, one per byte. In the lines
-whose bytes all carry `0x` (`ipmitool raw`, `pldmtool raw` and the `ipmi`
-rows) each is printed `0x<text>`: both tools read a bare `30` as decimal
-and refuse `08` as octal, so two hex digits put in its place give the
-intended byte. In the `mctp-client` line and the other rows it is printed
-`<text>`. The output is
-`bytes: N` (all fields together), the line(s) to send, then `offset | size
-| field | bytes` and one row per field. Refused with exit 2, a line naming
-the field and the reason, and no line to send: a number that does not fit
+`invocation PROTOCOL 'NAME:SIZE=VALUE' ...` arranges the bytes of a
+request from its fields and prints them in the syntax of the sending
+tools. It reads no Document, no catalog and no network, takes no lock and
+writes nothing; its one Library read is `--subcommand` (below). PROTOCOL
+is `ipmi` (prints `ipmitool raw 0x.. ...`; the first two fields are NetFn
+and Cmd, one byte each), `mctp-control` or `spdm` (`mctp-client eid <eid>
+type control data .. ..`, `type spdm`), or `pldm` (the `mctp-client` line
+with `type pldm` and `pldmtool raw -m <eid> -d 0x.. ...`). A field is
+`NAME:SIZE=VALUE`, SIZE in bytes. SIZE and every number take ASCII digits
+only (`0`-`9`, and `a`-`f` or `A`-`F` after `0x`); digits of another
+script are refused. A number (decimal, or hex with `0x`) is laid out least
+significant byte first, `NAME:SIZE:be=VALUE` most significant byte first
+(`:le` spells out the default). A comma-separated list of bytes
+(`0xc0,0xa8,0x01,0x0a`, every byte but a zero written with `0x`) is laid
+out as written and must hold SIZE bytes. `<text>` is a placeholder for two
+hex digits per byte; a field of N bytes gets `<text 0>` to `<text N-1>`,
+one per byte. In the lines whose bytes all carry `0x` (`ipmitool raw`,
+`pldmtool raw` and the `ipmi` rows) each is printed `0x<text>`: both tools
+read a bare `30` as decimal and refuse `08` as octal, so two hex digits
+put in its place give the intended byte. In the `mctp-client` line and the
+other rows it is printed `<text>`. The output is `bytes: N` (all fields
+together), the line(s) to send, then `offset | size | field | bytes` and
+one row per field. Refused with exit 2, a line naming the field and the
+reason (a field or value longer than 80 characters is shown cut there,
+followed by its length), and no line to send: a number that does not fit
 SIZE or is negative; a number that is neither decimal nor `0x` hex, or has
 a leading zero (`e1`, `08`: which base is meant is never guessed); a SIZE
 that is missing, not a positive integer or above 65535; a list of another
@@ -139,8 +142,8 @@ length or with a byte above `0xff`; a number or a list written with spaces
 instead of commas (`0xc0 0xa8`); a placeholder that is empty or not closed
 (`<>`, `<x`); more than one placeholder in a field (`<lsb>,<msb>`: each
 gets a field of its own); a field without NAME or without VALUE; no field;
-an unknown PROTOCOL; `ipmi` with fewer than two fields or a NetFn or Cmd of
-more than one byte. The command knows no Document: the fields are the
+an unknown PROTOCOL; `ipmi` with fewer than two fields or a NetFn or Cmd
+of more than one byte. The command knows no Document: the fields are the
 caller's, and a wrong field gives a wrong line.
 
 `invocation pldm --subcommand NAME 'FIELD' ...` prints all of the above,
@@ -165,12 +168,12 @@ the raw line above it runs on any. NAME is matched
 case-insensitively. Three other outcomes, all exit 0 with the byte lines
 printed first: `subcommand: none in pldmtool/` when no `add_subcommand`
 carries the name (a name in the table GetPLDMCommands labels its output
-with is not one; a type such as `base`, and `raw`, are not subcommands
-of a type); `subcommand: pldm Code Tree not held; clone pldm` when the
-Library holds no pldm tree (nothing is cloned); and, when the subcommand
-is registered but no option call could be read (the options are added
-outside the constructor, or the class or constructor was not found), a
-template of `-m <eid>` only and `subcommand: options not read; see the
+with is not one; a type such as `base` or `oem-ibm`, and `raw`, are not
+subcommands of a type); `subcommand: pldm Code Tree not held; clone pldm`
+when the Library holds no pldm tree (nothing is cloned); and, when the
+subcommand is registered but no option call could be read (the options are
+added outside the constructor, or the class or constructor was not found),
+a template of `-m <eid>` only and `subcommand: options not read; see the
 lines above` (`no constructor found` when there were no lines to print).
 `--subcommand` with another PROTOCOL is refused with
 exit 2. The parse of the C++ is best effort: the source lines are always
