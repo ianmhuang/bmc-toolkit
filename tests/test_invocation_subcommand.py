@@ -461,9 +461,11 @@ RAW = [
 
 
 def _run(capsys, argv, tree_for=None):
+    # as `cli.main` does: the option ahead of the positionals first, or
+    # argparse before 3.12.7 (CI's 3.11) refuses the fields after it
     parser = __import__("argparse").ArgumentParser()
     invocation.add_parsers(parser.add_subparsers(dest="command"))
-    args = parser.parse_args(["invocation", *argv])
+    args = parser.parse_args(invocation.reorder_argv(["invocation", *argv]))
     code = invocation.cmd_invocation(args, tree_for)
     return code, capsys.readouterr().out.splitlines()
 
