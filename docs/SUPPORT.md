@@ -54,7 +54,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0236` Management Component Transport Protocol (MCTP) Base Specification | open | 1.4.0 | PASS | - |
 | `DSP0237` Management Component Transport Protocol (MCTP) SMBus/I2C Transport Binding Specification | open | 1.2.0 | PASS | PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page. |
 | `DSP0238` Management Component Transport Protocol (MCTP) PCIe® VDM Transport Binding Specification | open | 1.4.0 | PASS | - |
-| `DSP0239` Management Component Transport Protocol (MCTP) IDs and Codes Specification | open | 1.12.0 | PASS | One page holds an emoji that breaks pdfium's character order; extracted without layout. |
+| `DSP0239` Management Component Transport Protocol (MCTP) IDs and Codes Specification | open | 1.12.0 | PASS | One page holds an emoji that breaks pdfium's character order; extracted without layout. Pages 13, 15 and 17 print line numbers the extraction does not read: their cites say `lines -`. |
 | `DSP0233` Management Component Transport Protocol (MCTP) I3C Transport Binding Specification | open | 1.0.1 | PASS | - |
 | `DSP0253` MCTP Serial Transport Binding Specification | open | 1.0.0 | PASS | Some PDF bookmarks are cross-reference anchors; a cite may name one instead of the heading. |
 | `DSP0254` MCTP KCS Transport Binding Specification | open | 1.0.0 | PASS | Some PDF bookmarks are cross-reference anchors; a cite may name one instead of the heading. |
