@@ -22,9 +22,12 @@ AUTHOR_TESTS = TESTS / "test_command_workflow.py"
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-# develop's block is 42 lines; AC-2 lets it grow by at most two
+# develop's block was 42 lines when T43 landed; its AC-2 let it grow by at
+# most two. T46 then added two lines to step 2's PLDM bullet (`invocation
+# --subcommand`), so the block cut where T43's step 4 ended is 42 + 2 lines.
 DEVELOP_LINES = 42
-MAX_LINES = 44
+LATER_GROWTH = 2  # T46, outside step 4
+MAX_LINES = 46  # 44 until T46
 
 # where develop's step 4, and its block, ended
 DEVELOP_TAIL = "copy the line(s) and total it prints."
@@ -121,7 +124,7 @@ def test_the_growth_is_the_tail_of_step_4_only(tmp_path):
     stub = tmp_path / "SKILL.md"
     stub.write_text("\n".join(_develop_shape(_lines())) + "\n", "utf-8", newline="")
     trimmed = _body(stub)
-    assert len(trimmed) == DEVELOP_LINES, len(trimmed)
+    assert len(trimmed) == DEVELOP_LINES + LATER_GROWTH, len(trimmed)
     # and the lines before the tail are the file's own, word for word
     assert _body()[: len(trimmed) - 1] == trimmed[:-1]
     assert _body()[len(trimmed) - 1].startswith(trimmed[-1])
