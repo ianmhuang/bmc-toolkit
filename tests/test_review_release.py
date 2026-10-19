@@ -12,7 +12,7 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-RELEASE = "1.5.0"  # the pin moves with every bump (CONVENTIONS.md, Versions)
+RELEASE = "1.5.1"  # the pin moves with every bump (CONVENTIONS.md, Versions)
 
 
 def _read(*parts):
