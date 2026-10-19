@@ -1,5 +1,5 @@
 """pldmtool's subcommand for a PLDM Command, read from the held openbmc/pldm
-Code Tree (ADR 0007).
+Code Tree.
 
 ``invocation pldm --subcommand NAME`` asks: does pldmtool register a
 subcommand called NAME, under which type, with which options? The answer
@@ -115,10 +115,12 @@ def _registrations(text: str) -> list[dict]:
     return regs
 
 
-def _type_of(reg: dict, regs: list[dict], path: str) -> str:
+def _type_of(reg: dict, regs: list[dict], path: str) -> str | None:
     """The type a registration sits under: the string its parent variable
     was registered with (`auto base = app.add_subcommand("base", ...)`), or
-    the oem directory name for a file under ``pldmtool/oem/``."""
+    the oem directory name for a file under ``pldmtool/oem/``; None when
+    the parent is the application itself (a type such as ``base``, or
+    ``raw``), which is not a subcommand of a type."""
     parents = {r["var"]: r["name"] for r in regs if r["var"]}
     found = parents.get(reg["parent"])
     if found is not None:
@@ -126,7 +128,7 @@ def _type_of(reg: dict, regs: list[dict], path: str) -> str:
     parts = PurePosixPath(path).parts
     if len(parts) > 2 and parts[1] == "oem":
         return f"oem-{parts[2]}"
-    return reg["parent"]
+    return None
 
 
 def _class_for(text: str, var: str | None, name: str) -> str | None:
@@ -146,23 +148,48 @@ def _class_for(text: str, var: str | None, name: str) -> str | None:
     return None
 
 
-def _constructor_span(text: str, class_name: str) -> tuple[int, int, bool] | None:
-    """(first, last, explicit) 1-based lines of the class's constructor:
-    from `explicit Class(` to the brace that closes its body, or the one
-    `using CommandInterface::CommandInterface;` line (explicit False);
-    None when neither."""
+def _class_body(text: str, class_name: str) -> tuple[int, int] | None:
+    """(start, end) offsets of the class's declaration up to its closing
+    `};` or the next class, so a constructor or `using` line of another
+    class is never taken for this one; None when the declaration is not
+    in this file."""
     decl = re.search(r"\bclass\s+" + re.escape(class_name) + r"\s*:", text)
-    start = decl.start() if decl else 0
-    ctor = re.compile(r"\bexplicit\s+" + re.escape(class_name) + r"\s*\(").search(
-        text, start
+    if decl is None:
+        return None
+    end = re.compile(r"^\};|^class\s", re.M).search(text, decl.end())
+    return decl.start(), end.start() if end else len(text)
+
+
+def _constructor_body(text: str, class_name: str, start: int, end: int):
+    """The match of the constructor that has a body, `Class(` with or
+    without `explicit`: not the destructor `~Class()`, not a declaration
+    ended by `;` before any `{` (`Class() = delete;`)."""
+    pattern = re.compile(
+        r"(?<![~\w])(?:explicit\s+)?" + re.escape(class_name) + r"\s*\("
     )
+    for m in pattern.finditer(text, start, end):
+        brace = text.find("{", m.end(), end)
+        semicolon = text.find(";", m.end(), end)
+        if brace >= 0 and (semicolon < 0 or brace < semicolon):
+            return m, brace
+    return None, -1
+
+
+def _constructor_span(text: str, class_name: str) -> tuple[int, int, bool] | None:
+    """(first, last, body) 1-based lines of the class's constructor:
+    from `Class(` (with or without `explicit`) to the brace that closes
+    its body (body True), or the one `using
+    CommandInterface::CommandInterface;` line (body False); None when the
+    class is not in this file or its body holds neither."""
+    span = _class_body(text, class_name)
+    if span is None:
+        return None
+    start, end = span
+    ctor, brace = _constructor_body(text, class_name, start, end)
     if ctor:
         first = _line_of(text, ctor.start())
-        brace = text.find("{", ctor.end())
-        if brace < 0:
-            return first, first, True
         depth, i = 0, brace
-        while i < len(text):
+        while i < end:
             ch = text[i]
             if ch == "{":
                 depth += 1
@@ -171,10 +198,10 @@ def _constructor_span(text: str, class_name: str) -> tuple[int, int, bool] | Non
                 if depth == 0:
                     break
             i += 1
-        last = _line_of(text, i if i < len(text) else len(text) - 1)
+        last = _line_of(text, i if i < end else end - 1)
         return first, last, True
     using = re.compile(r"using\s+CommandInterface::CommandInterface\s*;").search(
-        text, start
+        text, start, end
     )
     if using:
         line = _line_of(text, using.start())
@@ -227,9 +254,10 @@ def find(tree: code_mod.Tree, name: str) -> Match | None:
         reg = next((r for r in regs if r["name"].lower() == name.lower()), None)
         if reg is None:
             continue
-        match = Match(
-            path, reg["name"], _type_of(reg, regs, path), reg["line"], reg["end"]
-        )
+        type_ = _type_of(reg, regs, path)
+        if type_ is None:  # a type (`base`) or `raw`: not a subcommand of one
+            continue
+        match = Match(path, reg["name"], type_, reg["line"], reg["end"])
         match.class_name = _class_for(text, reg["var"], reg["name"])
         if match.class_name is None:
             return match
@@ -279,10 +307,13 @@ def describe(tree: code_mod.Tree, name: str, origin: str) -> list[str]:
         out.append(code_mod.cite(tree, path, first, last, origin))
         out.extend(_numbered(lines, first, last))
     out.append(f"subcommand: {match.template()}")
-    if match.explicit and not match.options:
+    using_constructor = bool(match.first) and not match.explicit
+    if not match.options and not using_constructor:
         # a constructor that adds its options somewhere this parse does not
-        # follow; a `using` constructor has none by design
-        out.append("subcommand: options not read; see the lines above")
+        # follow, or a class or constructor not found at all; a `using`
+        # constructor has no options by design
+        where = "see the lines above" if match.first else "no constructor found"
+        out.append(f"subcommand: options not read; {where}")
     out.append(note(tree, match))
     return out
 
@@ -290,7 +321,7 @@ def describe(tree: code_mod.Tree, name: str, origin: str) -> list[str]:
 def note(tree: code_mod.Tree, match: Match) -> str:
     """The line after the template naming the tree the spellings came from
     and how to check them on the target, whose pldmtool may be another
-    version (ADR 0007)."""
+    version."""
     return (
         f"note: spellings of {tree.label} "
         f"({tree.provenance.label(tree.fetched_at)}); the target's pldmtool "

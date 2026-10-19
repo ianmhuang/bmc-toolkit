@@ -170,10 +170,10 @@ output formats and `config.toml`: [docs/COMMANDS.md](docs/COMMANDS.md).
   unless `config.toml` says `notes = true`, then keeps the answer in
   `notes.jsonl` and serves it again, unverified and marked as such
   ([docs/COMMANDS.md](docs/COMMANDS.md#notes)).
-- Runs `git` as a subprocess for `clone`, `grep` and `code`, and
-  `gh search code` for `repos --search`; `clone` writes only under the
-  Library's `code/` directory. Nothing else is executed, and nothing is
-  re-uploaded or redistributed. Full list: [docs/COMMANDS.md](docs/COMMANDS.md).
+- Runs `git` as a subprocess for `clone`, `grep`, `code` and, with a user
+  checkout, `invocation --subcommand`; `gh search code` for `repos --search`;
+  `clone` writes only under the Library's `code/` directory. Nothing else is
+  executed, nothing is re-uploaded or redistributed. Full list: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Further reading
 

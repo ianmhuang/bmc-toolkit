@@ -165,13 +165,20 @@ the raw line above it runs on any. NAME is matched
 case-insensitively. Three other outcomes, all exit 0 with the byte lines
 printed first: `subcommand: none in pldmtool/` when no `add_subcommand`
 carries the name (a name in the table GetPLDMCommands labels its output
-with is not one); `subcommand: pldm Code Tree not held; clone pldm` when
-the Library holds no pldm tree (nothing is cloned); and, when the class
-is found but its options cannot be read, the registration, cite and lines
-with a template of `-m <eid>` only and `subcommand: options not read; see
-the lines above`. `--subcommand` with another PROTOCOL is refused with
-exit 2. The parse of the C++ is best effort (ADR 0007): the source lines
-are always printed and are what to trust.
+with is not one; a type such as `base`, and `raw`, are not subcommands
+of a type); `subcommand: pldm Code Tree not held; clone pldm` when the
+Library holds no pldm tree (nothing is cloned); and, when the subcommand
+is registered but no option call could be read (the options are added
+outside the constructor, or the class or constructor was not found), a
+template of `-m <eid>` only and `subcommand: options not read; see the
+lines above` (`no constructor found` when there were no lines to print).
+`--subcommand` with another PROTOCOL is refused with
+exit 2. The parse of the C++ is best effort: the source lines are always
+printed and are what to trust. With a user checkout of pldm in
+`config.toml`, the option reads the checkout's `HEAD` with `git`, as
+`grep` and `code` do; a config Release that is not held is reported with
+the clone to run (`subcommand: pldm Code Tree not held; clone pldm
+--release X`).
 
 ## Notes
 

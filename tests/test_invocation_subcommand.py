@@ -1,5 +1,5 @@
 """`invocation pldm --subcommand NAME`: pldmtool's subcommand read from a
-held openbmc/pldm Code Tree (ADR 0007). The tree is synthetic: the shapes
+held openbmc/pldm Code Tree. The tree is synthetic: the shapes
 of pldmtool 71b1b2b's registrations, classes and option calls, written by
 the tests; never a copy of the real files."""
 
@@ -566,3 +566,141 @@ def test_cli_reads_the_held_pldm_tree_and_the_clone_hint_without_one(
     )
     assert out[-2] == "subcommand: pldmtool base GetTID -m <eid>"
     assert out[-1].startswith("note: spellings of pldm ")
+
+
+# Round 1 of the review.
+
+
+def test_subcommand_option_is_moved_before_the_positionals():
+    # argparse before 3.12.7 (3.11 has no fix) reads `invocation pldm
+    # --subcommand NAME FIELD...` with an empty FIELD list and refuses the
+    # fields; the option first parses the same on every version
+    fields = ["a:1=1", "b:2=2"]
+    want = ["invocation", "--subcommand", "GetTID", "pldm", *fields]
+    assert (
+        invocation.reorder_argv(
+            ["invocation", "pldm", "--subcommand", "GetTID", *fields]
+        )
+        == want
+    )
+    assert (
+        invocation.reorder_argv(
+            ["invocation", "pldm", *fields, "--subcommand", "GetTID"]
+        )
+        == want
+    )
+    assert invocation.reorder_argv(want) == want
+    assert invocation.reorder_argv(
+        ["invocation", "pldm", *fields, "--subcommand=GetTID"]
+    ) == [
+        "invocation",
+        "--subcommand=GetTID",
+        "pldm",
+        *fields,
+    ]
+    # global options before the command stay where they are
+    assert invocation.reorder_argv(
+        ["--wait", "0", "invocation", "pldm", "--subcommand", "X"]
+    ) == [
+        "--wait",
+        "0",
+        "invocation",
+        "--subcommand",
+        "X",
+        "pldm",
+    ]
+    # other commands and a dangling option are left alone
+    assert invocation.reorder_argv(["code", "pldm", "--subcommand", "X"]) == [
+        "code",
+        "pldm",
+        "--subcommand",
+        "X",
+    ]
+    assert invocation.reorder_argv(["invocation", "pldm", "--subcommand"]) == [
+        "invocation",
+        "pldm",
+        "--subcommand",
+    ]
+
+
+def test_not_held_line_names_the_clone_the_selector_asked_for():
+    # a config Release that is not held: a plain `clone pldm` would not
+    # satisfy the next selection, so the hint keeps the release
+    assert (
+        invocation.not_held_line(
+            "pldm is not held at release 2.17.0; "
+            "run: bmcspec clone pldm --release 2.17.0"
+        )
+        == "subcommand: pldm Code Tree not held; clone pldm --release 2.17.0"
+    )
+    assert invocation.not_held_line(
+        "pldm is not in the Library; run: bmcspec clone pldm"
+    ) == (invocation.NOT_HELD)
+    assert invocation.not_held_line("no Library") == invocation.NOT_HELD
+
+
+def test_cli_not_held_hint_carries_the_release(capsys, tree):
+    def selector(args):
+        raise code_mod.CodeError(
+            "pldm is not held at release 2.17.0; "
+            "run: bmcspec clone pldm --release 2.17.0"
+        )
+
+    code, out = _run(capsys, ["pldm", "--subcommand", "GetTID", *FIELDS], selector)
+    assert code == 0
+    assert out[-1] == "subcommand: pldm Code Tree not held; clone pldm --release 2.17.0"
+
+
+def test_a_type_or_raw_is_not_a_subcommand(tree):
+    # `base` is registered on the application itself; it is a type, not a
+    # subcommand of one, and `pldmtool app base` would not run
+    assert pldmtool.find(tree, "base") is None
+    assert pldmtool.describe(tree, "base", ORIGIN) == ["subcommand: none in pldmtool/"]
+
+
+def test_constructor_search_stays_inside_the_class(tmp_path):
+    # a constructor without `explicit`, followed by a class whose
+    # constructor is a `using`: the first class's options are read, and
+    # the second class's `using` line is not taken for the first
+    text = (
+        "class Plain : public CommandInterface\n{\n  public:\n"
+        "    Plain(const char* type, const char* name, CLI::App* app) :\n"
+        "        CommandInterface(type, name, app)\n    {\n"
+        '        app->add_option("-i, --id", id, "the id")->required();\n'
+        "    }\n};\n\n"
+        "class Bare : public CommandInterface\n{\n  public:\n"
+        "    using CommandInterface::CommandInterface;\n};\n\n"
+        "void registerCommand(CLI::App& app)\n{\n"
+        '    auto base = app.add_subcommand("base", "base type command");\n'
+        '    auto plain = base->add_subcommand("Plain", "plain constructor");\n'
+        '    commands.push_back(std::make_unique<Plain>("base", "Plain", plain));\n'
+        '    auto bare = base->add_subcommand("Bare", "using constructor");\n'
+        '    commands.push_back(std::make_unique<Bare>("base", "Bare", bare));\n'
+        '    auto lost = base->add_subcommand("Lost", "class not in this tree");\n'
+        '    commands.push_back(std::make_unique<Lost>("base", "Lost", lost));\n'
+        "}\n"
+    )
+    root = tmp_path / "t"
+    _write(root, {"pldmtool/pldm_base_cmd.cpp": text})
+    tree = code_mod.Tree(
+        "pldm", ORIGIN, "b" * 40, root, code_mod.Provenance("default", "master")
+    )
+    plain = pldmtool.find(tree, "Plain")
+    assert plain.explicit and (plain.first, plain.last) == (4, 8)
+    assert [o.item() for o in plain.options] == ["-i <id>"]
+    bare = pldmtool.find(tree, "Bare")
+    assert not bare.explicit and bare.first == 14 and bare.options == []
+    out = pldmtool.describe(tree, "Bare", ORIGIN)
+    assert out[-2] == "subcommand: pldmtool base Bare -m <eid>"
+    assert out[-1].startswith("note:")  # a `using` constructor: no warning
+    # a registration whose class is not in the tree: the template is
+    # `-m <eid>` only, and the answer is told the options were not read
+    out = pldmtool.describe(tree, "Lost", ORIGIN)
+    assert out[0].endswith(
+        '| auto lost = base->add_subcommand("Lost", "class not in this tree");'
+    )
+    assert out[1:] == [
+        "subcommand: pldmtool base Lost -m <eid>",
+        "subcommand: options not read; no constructor found",
+        pldmtool.note(tree, pldmtool.find(tree, "Lost")),
+    ]

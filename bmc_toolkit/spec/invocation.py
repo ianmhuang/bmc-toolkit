@@ -10,8 +10,8 @@ printed line always holds exactly the bytes the fields add up to.
 Nothing here touches the Catalog or the network, and nothing reads a
 Document. The one Library read is ``--subcommand NAME`` for ``pldm``: the
 held openbmc/pldm Code Tree is opened for the spelling of pldmtool's
-subcommand and its options (:mod:`pldmtool`, ADR 0007); the values in the
-line it prints are placeholders, as every value here is the Session's.
+subcommand and its options (:mod:`pldmtool`); the values in the line it
+prints are placeholders, as every value here is the Session's.
 """
 
 from __future__ import annotations
@@ -229,15 +229,53 @@ def cmd_invocation(args, tree_for: Callable[..., tuple] | None = None) -> int:
         tree, origin = tree_for(args)
         print("\n".join(pldmtool.describe(tree, name, origin)))
     except CodeError as exc:
+        message = str(exc)
         if (
-            "not held" in str(exc)
-            or "not in the Library" in str(exc)
-            or "no Library" in str(exc)
+            "not held" in message
+            or "not in the Library" in message
+            or "no Library" in message
         ):
-            print(NOT_HELD)
+            print(not_held_line(message))
         else:
             print(f"subcommand: {exc}")
     return EXIT_OK
+
+
+def not_held_line(message: str) -> str:
+    """The not-held line with the clone the tree selector asked for: its
+    message ends in ``run: bmcspec clone pldm [--release X]`` when a
+    config Release is not held, and a plain ``clone pldm`` would not
+    satisfy that selection."""
+    _, found, hint = message.partition("run: bmcspec ")
+    if found and hint.strip():
+        return f"subcommand: pldm Code Tree not held; {hint.strip()}"
+    return NOT_HELD
+
+
+def reorder_argv(argv: list[str]) -> list[str]:
+    """``--subcommand NAME`` moved to just after ``invocation``. argparse
+    before CPython 3.12.7 / 3.13 (3.11 never got the fix, gh-59317) reads
+    ``invocation pldm --subcommand NAME FIELD...`` with an empty FIELD list
+    and refuses the fields as unrecognized; the option before the
+    positionals parses the same everywhere."""
+    if "invocation" not in argv:
+        return argv
+    at = argv.index("invocation")
+    head, rest = argv[: at + 1], argv[at + 1 :]
+    option, tail, i = [], [], 0
+    while i < len(rest):
+        tok = rest[i]
+        if tok == "--subcommand" and i + 1 < len(rest):
+            option = [tok, rest[i + 1]]
+            i += 2
+            continue
+        if tok.startswith("--subcommand="):
+            option = [tok]
+            i += 1
+            continue
+        tail.append(tok)
+        i += 1
+    return head + option + tail
 
 
 COMMANDS: dict[str, Callable[..., int]] = {"invocation": cmd_invocation}
