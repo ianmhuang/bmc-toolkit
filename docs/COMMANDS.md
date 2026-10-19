@@ -120,9 +120,10 @@ type control data .. ..`, `type spdm`), or `pldm` (the `mctp-client` line
 with `type pldm` and `pldmtool raw -m <eid> -d 0x.. ...`). A field is
 `NAME:SIZE=VALUE`, SIZE in bytes. SIZE and every number take ASCII digits
 only (`0`-`9`, and `a`-`f` or `A`-`F` after `0x`); digits of another
-script are refused. A number (decimal, or hex with `0x` or `0X`) is laid
-out least significant byte first, `NAME:SIZE:be=VALUE` most significant
-byte first (`:le` spells out the default). A comma-separated list of bytes
+script are refused. In a VALUE, `0X` is read as `0x` wherever this page
+says `0x`. A number (decimal, or hex with `0x`) is laid out least
+significant byte first, `NAME:SIZE:be=VALUE` most significant byte first
+(`:le` spells out the default). A comma-separated list of bytes
 (`0xc0,0xa8,0x01,0x0a`, every byte but a zero written with `0x`) is laid
 out as written and must hold SIZE bytes. `<text>` is a placeholder for two
 hex digits per byte; a field of N bytes gets `<text 0>` to `<text N-1>`,
