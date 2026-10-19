@@ -14,8 +14,9 @@ END = "<!-- command-workflow:end -->"
 # 37 until no bytes from memory (T36);
 # 38 until the SPDM layout follows its Document Version (T39);
 # 40 until the PLDM header's Type byte (T41);
-# 42 until every Invocation line comes from `invocation` (T43)
-MAX_LINES = 44
+# 42 until every Invocation line comes from `invocation` (T43);
+# 44 until the pldmtool subcommand from `invocation --subcommand` (T46)
+MAX_LINES = 46
 
 
 def block_lines():
@@ -53,6 +54,27 @@ def test_block_gives_the_syntax_of_each_tool():
         "`<name>` placeholder",
     ):
         assert rule in text, rule
+
+
+def test_pldm_answers_copy_the_subcommand_line_the_helper_prints():
+    # T46: pldmtool has a subcommand for many PLDM Commands; T45 had the
+    # Session look it up itself and it skipped the lookup in 11 of 42 runs,
+    # so `invocation --subcommand` now reads the held openbmc/pldm tree and
+    # prints the line, and the answer copies it as it copies the raw lines
+    text = block_text()
+    bullet = text[text.index("- MCTP control, PLDM, SPDM:") :]
+    bullet = bullet[: bullet.index("3. ")]
+    raw_form = "`pldmtool raw -m <eid> -d 0x<byte> ...`"
+    # the `note:` line names the tree the spellings came from and the
+    # `--help` check: the target's pldmtool may be another version
+    rule = (
+        "PLDM: add `--subcommand <Name>` to the helper call of step 4; copy its "
+        "`subcommand:` and `note:` lines, values filled, with cite; `none`: raw only."
+    )
+    assert raw_form in bullet and rule in bullet
+    assert bullet.index(raw_form) < bullet.index(rule)
+    # the lookup is the helper's, not a grep the Session runs
+    assert "grep pldm" not in text
 
 
 def test_block_gives_the_header_rules():

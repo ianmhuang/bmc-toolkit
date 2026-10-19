@@ -2404,6 +2404,31 @@ COMMANDS = {
 }
 
 
+PLDM_REPO = "pldm"
+
+
+def _pldm_tree(args: argparse.Namespace) -> tuple[code_mod.Tree, str]:
+    """(tree, origin URL) of the openbmc/pldm Code Tree `grep pldm` would
+    read, for `invocation --subcommand`; CodeError when none is held."""
+    catalog, library, config, code = _code_setup(args)
+    if code != EXIT_OK:
+        raise code_mod.CodeError("the Library is not readable")
+    repo = catalog.get_repo(PLDM_REPO)
+    if repo is None:
+        # a catalog without pldm: a held tree still names its origin;
+        # nothing is printed here, the caller prints one subcommand: line
+        held = library.trees(PLDM_REPO)
+        if not held:
+            raise code_mod.CodeError(f"{PLDM_REPO} is not in the Library")
+        repo = Repo(PLDM_REPO, held[0].url, (), ())
+    selector = argparse.Namespace(ref=None, release=None)
+    tree, _notes = _select_tree(selector, catalog, library, config, repo)
+    return tree, repo.url
+
+
+COMMANDS["invocation"] = lambda args: invocation_mod.cmd_invocation(args, _pldm_tree)
+
+
 def _check_when_due(args: argparse.Namespace) -> None:
     """After a reading command's output: the Freshness Check of the document
     it answered from, when the last one is older than ``freshness_days``,
@@ -2453,6 +2478,7 @@ def _utf8_stdout() -> None:
 
 def main(argv: list[str] | None = None) -> int:
     _utf8_stdout()
+    argv = invocation_mod.reorder_argv(sys.argv[1:] if argv is None else list(argv))
     args = build_parser().parse_args(argv)
     if args.wait < 0:
         print("--wait takes a number of seconds, 0 or more")

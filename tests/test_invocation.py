@@ -660,7 +660,14 @@ def test_skill_table_and_commands_doc_describe_the_command():
         assert word in rows[0], word
     doc = " ".join(COMMANDS_DOC.read_text("utf-8").split())
     assert "`invocation PROTOCOL" in doc
-    for word in ("NAME:SIZE=VALUE", "NAME:SIZE:be=VALUE", "exit 2", "no Library"):
+    # T46: the one Library read is `--subcommand`; the claim was "no Library"
+    for word in (
+        "NAME:SIZE=VALUE",
+        "NAME:SIZE:be=VALUE",
+        "exit 2",
+        "reads no Document",
+        "`--subcommand`",
+    ):
         assert word in doc, word
 
 

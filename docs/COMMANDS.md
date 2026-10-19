@@ -111,9 +111,9 @@ Library path. The Skill copies Citations from those lines and never
 composes them.
 
 `invocation PROTOCOL 'NAME:SIZE=VALUE' ...` arranges the bytes of a request
-from its fields and prints them in the syntax of the sending tools. It is
-the one command that reads nothing: no Library, no catalog, no network, no
-lock, nothing written. PROTOCOL is `ipmi` (prints `ipmitool raw 0x.. ...`;
+from its fields and prints them in the syntax of the sending tools. It
+reads no Document, no catalog and no network, takes no lock and writes
+nothing; its one Library read is `--subcommand` (below). PROTOCOL is `ipmi` (prints `ipmitool raw 0x.. ...`;
 the first two fields are NetFn and Cmd, one byte each), `mctp-control` or
 `spdm` (`mctp-client eid <eid> type control data .. ..`, `type spdm`), or
 `pldm` (the `mctp-client` line with `type pldm` and `pldmtool raw -m <eid>
@@ -142,6 +142,43 @@ gets a field of its own); a field without NAME or without VALUE; no field;
 an unknown PROTOCOL; `ipmi` with fewer than two fields or a NetFn or Cmd of
 more than one byte. The command knows no Document: the fields are the
 caller's, and a wrong field gives a wrong line.
+
+`invocation pldm --subcommand NAME 'FIELD' ...` prints all of the above,
+then what pldmtool's own subcommand for the Command looks like, read from
+the openbmc/pldm Code Tree that `grep pldm` would read (a user checkout,
+the config Release, else the held default branch): the `add_subcommand`
+registration line (`pldm <commit7> pldmtool/pldm_base_cmd.cpp:597 | ...`),
+a `cite: code` line and the numbered constructor lines of the subcommand's
+class (at most 60), the lines of a name map an option is checked against
+(`-t,--type` and its `pldmTypes`) under their own cite, and
+`subcommand: pldmtool <type> <Name> -m <eid> -i <sensor_id> -r <rearm>`:
+one item per `add_option` / `add_flag` in source order, the option as the
+source spells it (short form first), the placeholder the long name
+without dashes, an option without `->required()` in brackets
+(`[-s <state_set_id>]`), a flag as `[-a]`. Every value is a placeholder;
+the caller fills them as it fills the fields. Last comes
+`note: spellings of pldm <commit7> (<branch and date, or release N, or
+user checkout>); the target's pldmtool may differ: check with pldmtool
+<type> <Name> --help`: the subcommand names and option spellings are
+those of the tree read, and the BMC's pldmtool may be another version;
+the raw line above it runs on any. NAME is matched
+case-insensitively. Three other outcomes, all exit 0 with the byte lines
+printed first: `subcommand: none in pldmtool/` when no `add_subcommand`
+carries the name (a name in the table GetPLDMCommands labels its output
+with is not one; a type such as `base`, and `raw`, are not subcommands
+of a type); `subcommand: pldm Code Tree not held; clone pldm` when the
+Library holds no pldm tree (nothing is cloned); and, when the subcommand
+is registered but no option call could be read (the options are added
+outside the constructor, or the class or constructor was not found), a
+template of `-m <eid>` only and `subcommand: options not read; see the
+lines above` (`no constructor found` when there were no lines to print).
+`--subcommand` with another PROTOCOL is refused with
+exit 2. The parse of the C++ is best effort: the source lines are always
+printed and are what to trust. With a user checkout of pldm in
+`config.toml`, the option reads the checkout's `HEAD` with `git`, as
+`grep` and `code` do; a config Release that is not held is reported with
+the clone to run (`subcommand: pldm Code Tree not held; clone pldm
+--release X`).
 
 ## Notes
 

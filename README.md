@@ -114,8 +114,8 @@ per 30 days to ask whether it lists a newer one (reported, never downloaded).
 The skill copies its Citation from the `cite:` line of every printed page.
 What each command does: [docs/COMMANDS.md](docs/COMMANDS.md).
 
-A named Command gets an Invocation: IPMI as `ipmitool raw`; MCTP control, PLDM (base,
-Platform Monitoring and Control; `pldmtool raw` too) and SPDM requests without
+A named Command gets an Invocation: IPMI as `ipmitool raw`; MCTP control, PLDM
+(`pldmtool raw` too, plus the subcommand its source defines) and SPDM requests without
 cryptography as `mctp-client`; OEM Commands no Document defines and other Families
 (NC-SI, NVMe-MI) get none. Missing values are `<placeholders>`. The model picks the
 fields: check them against the cited layout. None was run against hardware or QEMU.
@@ -170,10 +170,10 @@ output formats and `config.toml`: [docs/COMMANDS.md](docs/COMMANDS.md).
   unless `config.toml` says `notes = true`, then keeps the answer in
   `notes.jsonl` and serves it again, unverified and marked as such
   ([docs/COMMANDS.md](docs/COMMANDS.md#notes)).
-- Runs `git` as a subprocess for `clone`, `grep` and `code`, and
-  `gh search code` for `repos --search`; `clone` writes only under the
-  Library's `code/` directory. Nothing else is executed, and nothing is
-  re-uploaded or redistributed. Full list: [docs/COMMANDS.md](docs/COMMANDS.md).
+- Runs `git` as a subprocess for `clone`, `grep`, `code` and, with a user
+  checkout, `invocation --subcommand`; `gh search code` for `repos --search`;
+  `clone` writes only under the Library's `code/` directory. Nothing else is
+  executed, nothing is re-uploaded or redistributed. Full list: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Further reading
 

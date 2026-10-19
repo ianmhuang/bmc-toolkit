@@ -29,8 +29,8 @@ AUTHOR_TESTS = TESTS / "test_command_workflow.py"
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-# develop's block was 40 lines; T41 AC-2 let it grow by two; 42 until T43
-MAX_LINES = 44
+# develop's block was 40 lines; T41 AC-2 let it grow by two; 42 until T43; 44 until T46
+MAX_LINES = 46
 
 # every test file that pins the cap (AC-2)
 CAPPED = (
