@@ -1046,7 +1046,7 @@ family = "mctp"
 title = "Management Component Transport Protocol (MCTP) IDs and Codes Specification"
 access = "open"
 fetch = "direct"
-limits = "One page holds an emoji that breaks pdfium's character order; extracted without layout."
+limits = "One page holds an emoji that breaks pdfium's character order; extracted without layout. Pages 13, 15 and 17 print line numbers the extraction does not read: their cites say `lines -`."
 
 [[documents.versions]]
 version = "1.0.0"
