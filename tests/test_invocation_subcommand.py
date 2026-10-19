@@ -706,3 +706,89 @@ def test_constructor_search_stays_inside_the_class(tmp_path):
         "subcommand: options not read; no constructor found",
         pldmtool.note(tree, pldmtool.find(tree, "Lost")),
     ]
+
+
+# The oem type's own registration (review F1 of #91).
+
+OEM_POINTER_CMD = """\
+class GetFileTable : public CommandInterface
+{
+  public:
+    explicit GetFileTable(const char* type, const char* name, CLI::App* app) :
+        CommandInterface(type, name, app)
+    {
+        app->add_option("-t, --table", table, "table")->required();
+    }
+};
+
+void registerCommand(CLI::App& app)
+{
+    CLI::App* oem = app.add_subcommand("oem-ibm", "oem ibm type command");
+    auto getFileTable = oem->add_subcommand("GetFileTable", "get file table");
+    commands.push_back(std::make_unique<GetFileTable>(
+        "oem_ibm", "getFileTable", getFileTable));
+}
+"""
+
+OEM_ACME_CMD = """\
+class GetWidget : public CommandInterface
+{
+  public:
+    using CommandInterface::CommandInterface;
+};
+
+void registerCommand(CLI::App& app)
+{
+    auto acme = app.add_subcommand("oem-acme", "oem acme type command");
+    auto getWidget = acme->add_subcommand("GetWidget", "get a widget");
+    commands.push_back(
+        std::make_unique<GetWidget>("oem_acme", "getWidget", getWidget));
+}
+"""
+
+
+@pytest.fixture
+def oem_tree(tmp_path):
+    # the type kept by a `CLI::App*` pointer instead of `auto`, and a
+    # second oem directory
+    root = tmp_path / "oem-tree"
+    _write(
+        root,
+        {
+            "pldmtool/oem/ibm/pldm_oem_ibm.cpp": OEM_POINTER_CMD,
+            "pldmtool/oem/acme/pldm_oem_acme.cpp": OEM_ACME_CMD,
+        },
+    )
+    return code_mod.Tree(
+        "pldm", ORIGIN, "c" * 40, root, code_mod.Provenance("default", "master")
+    )
+
+
+@pytest.mark.parametrize("asked", ["oem-ibm", "OEM-IBM", "Oem-Ibm"])
+def test_the_oem_type_itself_is_not_a_subcommand(tree, oem_tree, asked):
+    for held in (tree, oem_tree):
+        assert pldmtool.find(held, asked) is None
+        assert pldmtool.describe(held, asked, ORIGIN) == [
+            "subcommand: none in pldmtool/"
+        ]
+
+
+def test_command_says_none_for_the_oem_type(tree, capsys):
+    code, out = _run(
+        capsys,
+        ["pldm", "--subcommand", "oem-ibm", *FIELDS],
+        lambda a: (tree, ORIGIN),
+    )
+    assert code == 0
+    _code, plain = _run(capsys, ["pldm", *FIELDS])
+    assert out == [*plain, "subcommand: none in pldmtool/"]
+
+
+def test_the_oem_type_follows_the_directory_name(oem_tree):
+    assert pldmtool.find(oem_tree, "oem-acme") is None
+    widget = pldmtool.find(oem_tree, "getwidget")
+    assert widget.type_ == "oem-acme"
+    assert widget.template() == "pldmtool oem-acme GetWidget -m <eid>"
+    table = pldmtool.find(oem_tree, "GetFileTable")
+    assert table.type_ == "oem-ibm"
+    assert table.template() == "pldmtool oem-ibm GetFileTable -m <eid> -t <table>"
