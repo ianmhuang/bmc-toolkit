@@ -119,15 +119,17 @@ def _type_of(reg: dict, regs: list[dict], path: str) -> str | None:
     """The type a registration sits under: the string its parent variable
     was registered with (`auto base = app.add_subcommand("base", ...)`), or
     the oem directory name for a file under ``pldmtool/oem/``; None when
-    the parent is the application itself (a type such as ``base``, or
-    ``raw``), which is not a subcommand of a type."""
+    the parent is the application itself (a type such as ``base`` or
+    ``oem-ibm``, or ``raw``), which is not a subcommand of a type."""
     parents = {r["var"]: r["name"] for r in regs if r["var"]}
     found = parents.get(reg["parent"])
     if found is not None:
         return found
     parts = PurePosixPath(path).parts
     if len(parts) > 2 and parts[1] == "oem":
-        return f"oem-{parts[2]}"
+        oem_type = f"oem-{parts[2]}"
+        if reg["name"].lower() != oem_type.lower():
+            return oem_type
     return None
 
 

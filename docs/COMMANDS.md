@@ -165,8 +165,8 @@ the raw line above it runs on any. NAME is matched
 case-insensitively. Three other outcomes, all exit 0 with the byte lines
 printed first: `subcommand: none in pldmtool/` when no `add_subcommand`
 carries the name (a name in the table GetPLDMCommands labels its output
-with is not one; a type such as `base`, and `raw`, are not subcommands
-of a type); `subcommand: pldm Code Tree not held; clone pldm` when the
+with is not one; a type such as `base` or `oem-ibm`, and `raw`, are not
+subcommands of a type); `subcommand: pldm Code Tree not held; clone pldm` when the
 Library holds no pldm tree (nothing is cloned); and, when the subcommand
 is registered but no option call could be read (the options are added
 outside the constructor, or the class or constructor was not found), a
