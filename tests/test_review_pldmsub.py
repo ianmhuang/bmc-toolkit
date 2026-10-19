@@ -12,10 +12,18 @@ same call prints without the option.
 
 On develop ``--subcommand`` is not an option: argparse leaves through
 SystemExit before anything is printed, so every test fails there.
+
+Round 2 adds the shapes round 1 found wanting: the option at any position
+of the call (argparse before 3.12.7 read the documented form with an empty
+FIELD list), a constructor without ``explicit`` followed by a class with a
+``using`` constructor, a registration whose class is in no file, a type
+registration asked for by name, the clone hint of a config Release that
+is not held, a catalog without pldm, and a user checkout.
 """
 
 import json
 import re
+import shutil
 from pathlib import Path
 
 import pytest
@@ -194,6 +202,57 @@ void registerCommand(CLI::App& app)
 } // namespace pldmtool
 """
 
+# round 2: a constructor without `explicit` after a deleted copy constructor,
+# a class whose constructor is a `using` line, a registration whose class is
+# declared in no file, and a `raw` registered on the application itself
+BIOS_CMD = """\
+namespace pldmtool
+{
+namespace bios
+{
+class GetDateTime : public CommandInterface
+{
+  public:
+    ~GetDateTime() override = default;
+    GetDateTime(const GetDateTime&) = delete;
+
+    GetDateTime(const char* type, const char* name, CLI::App* app) :
+        CommandInterface(type, name, app)
+    {
+        app->add_option("-f, --format", format, "the format")->required();
+    }
+};
+
+class GetBIOSTable : public CommandInterface
+{
+  public:
+    ~GetBIOSTable() override = default;
+    using CommandInterface::CommandInterface;
+};
+
+void registerCommand(CLI::App& app)
+{
+    auto bios = app.add_subcommand("bios", "bios type command");
+    bios->require_subcommand(1);
+
+    auto getDateTime = bios->add_subcommand("GetDateTime", "get date and time");
+    commands.push_back(
+        std::make_unique<GetDateTime>("bios", "getDateTime", getDateTime));
+
+    auto getBIOSTable = bios->add_subcommand("GetBIOSTable", "get a bios table");
+    commands.push_back(
+        std::make_unique<GetBIOSTable>("bios", "getBIOSTable", getBIOSTable));
+
+    auto setDateTime = bios->add_subcommand("SetDateTime", "class elsewhere");
+    commands.push_back(
+        std::make_unique<SetDateTime>("bios", "setDateTime", setDateTime));
+
+    app.add_subcommand("raw", "send a raw request");
+}
+} // namespace bios
+} // namespace pldmtool
+"""
+
 # a constructor of 70 lines: the printout stops at 60, the template does not
 LONG_OPTIONS = 33
 
@@ -254,6 +313,7 @@ void registerCommand(CLI::App& app)
 FILES = {
     "pldmtool/pldm_platform_cmd.cpp": PLATFORM_CMD,
     "pldmtool/pldm_fw_update_cmd.cpp": FW_CMD,
+    "pldmtool/pldm_bios_cmd.cpp": BIOS_CMD,
     "pldmtool/oem/ibm/pldm_oem_ibm.cpp": OEM_CMD,
     "pldmtool/pldm_cmd_helper.hpp": HELPER_HPP,
     "libpldmresponder/platform.cpp": OUTSIDE_CPP,
@@ -606,3 +666,200 @@ def test_the_lookup_writes_nothing_under_the_library(held, capsys):
         assert code == 0
     assert _snapshot(library) == before
     assert not list(library.rglob(".lock*"))
+
+
+# ------------------------------------------------------- round 2: AC-1
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["pldm", "--subcommand", "GetDateTime", *FIELDS],  # the documented form
+        ["pldm", *FIELDS, "--subcommand", "GetDateTime"],
+        ["--subcommand", "GetDateTime", "pldm", *FIELDS],
+        ["pldm", "--subcommand=GetDateTime", *FIELDS],
+    ],
+)
+def test_the_option_parses_the_same_at_every_position_of_the_call(held, capsys, argv):
+    # argparse before CPython 3.12.7 read an option between two positionals
+    # as the end of the FIELD list; whatever the interpreter, every FIELD
+    # must reach the table and the block must follow
+    catalog, _library = held
+    code, plain = _run(capsys, catalog, "invocation", "pldm", *FIELDS)
+    assert code == 0, plain
+    code, out = _run(capsys, catalog, "invocation", *argv)
+    assert code == 0, out
+    assert out[: len(plain)] == plain
+    size = sum(int(f.split(":")[1].split("=")[0]) for f in FIELDS)
+    assert out[0] == f"bytes: {size}"
+    rows = [ln for ln in plain if " | " in ln and not ln.startswith("offset")]
+    assert len(rows) == len(FIELDS), plain
+    assert out[-2] == "subcommand: pldmtool bios GetDateTime -m <eid> -f <format>"
+    assert out[-1].endswith("check with pldmtool bios GetDateTime --help")
+
+
+# ------------------------------------------------------- round 2: AC-2
+
+
+@pytest.mark.parametrize("asked", ["platform", "bios", "fw_update", "raw"])
+def test_a_type_or_raw_registered_on_the_application_is_none(held, capsys, asked):
+    # `pldmtool app platform` runs nothing: a registration whose parent is
+    # the application is a type (or `raw`), not a subcommand of one
+    catalog, _library = held
+    code, out = _invoke(capsys, catalog, asked, *FIELDS)
+    assert code == 0, out
+    assert out[1:3] == [MCTP_LINE, RAW_LINE]
+    assert out[-1] == NONE
+    assert not _cites(out)
+    assert not any(ln.startswith(f"pldm {SHORT} ") for ln in out)
+
+
+# ------------------------------------------------------- round 2: AC-3
+
+
+def test_a_constructor_without_explicit_is_read_inside_its_own_class(held, capsys):
+    # the deleted copy constructor before it is not the constructor, and the
+    # `using` line of the next class is not taken for this one
+    catalog, _library = held
+    code, out = _invoke(capsys, catalog, "GetDateTime", *FIELDS)
+    assert code == 0, out
+    first = _line(BIOS_CMD, "    GetDateTime(const char* type,")
+    last = _line_after(BIOS_CMD, first, "    }")
+    cites = _cites(out)
+    assert len(cites) == 1, cites
+    assert f"pldmtool/pldm_bios_cmd.cpp lines {first}-{last}" in out[cites[0]]
+    code, ref = _code(capsys, catalog, "pldmtool/pldm_bios_cmd.cpp", first, last)
+    assert code == 0, ref
+    assert out[cites[0] : cites[0] + 1 + (last - first + 1)] == ref
+    assert not any("using CommandInterface" in ln for ln in out)
+    assert out[-2] == "subcommand: pldmtool bios GetDateTime -m <eid> -f <format>"
+    assert not any(ln.startswith("subcommand: options not read") for ln in out)
+
+
+def test_a_using_constructor_cites_its_own_line_without_a_warning(held, capsys):
+    catalog, _library = held
+    code, out = _invoke(capsys, catalog, "GetBIOSTable", *FIELDS)
+    assert code == 0, out
+    first = _line(BIOS_CMD, "class GetBIOSTable :")
+    using_line = "    using CommandInterface::CommandInterface;"
+    using = _line_after(BIOS_CMD, first, using_line)
+    cites = _cites(out)
+    assert len(cites) == 1, cites
+    assert f"pldmtool/pldm_bios_cmd.cpp lines {using}-{using}" in out[cites[0]]
+    assert _numbers(out[cites[0] + 1 :]) == [using]
+    assert out[-2] == "subcommand: pldmtool bios GetBIOSTable -m <eid>"
+    assert out[-1].startswith("note: ")
+    assert not any(ln.startswith("subcommand: options not read") for ln in out)
+
+
+# ------------------------------------------------------- round 2: AC-4
+
+
+def test_a_class_in_no_file_gives_the_registration_and_no_constructor_found(
+    held, capsys
+):
+    catalog, _library = held
+    code, out = _invoke(capsys, catalog, "SetDateTime", *FIELDS)
+    assert code == 0, out
+    assert out[1:3] == [MCTP_LINE, RAW_LINE]
+    reg = _line(BIOS_CMD, 'auto setDateTime = bios->add_subcommand("SetDateTime"')
+    assert f"pldmtool/pldm_bios_cmd.cpp:{reg}" in _registration(out)
+    assert not _cites(out)
+    assert out[-3] == "subcommand: pldmtool bios SetDateTime -m <eid>"
+    assert out[-2] == "subcommand: options not read; no constructor found"
+    assert out[-1].endswith("check with pldmtool bios SetDateTime --help")
+
+
+def test_a_config_release_that_is_not_held_names_the_clone_to_run(held, capsys):
+    # a plain `clone pldm` would not satisfy the next call: the config
+    # Release still wins the selection, so the hint carries it
+    catalog, library = held
+    (library / "config.toml").write_text(
+        '[code]\nrelease = "2.17.0"\n', encoding="utf-8", newline=""
+    )
+    before = _snapshot(library)
+    code, out = _invoke(capsys, catalog, "GetDateTime", *FIELDS)
+    assert code == 0, out
+    assert out[1:3] == [MCTP_LINE, RAW_LINE]
+    assert out[-1] == f"{NOT_HELD} --release 2.17.0"
+    assert not _cites(out)
+    assert sum(ln.startswith("subcommand:") for ln in out) == 1
+    assert _snapshot(library) == before
+
+
+def test_a_held_config_release_is_read_and_named_in_the_note(held, capsys):
+    catalog, library = held
+    (library / "config.toml").write_text(
+        '[code]\nrelease = "2.17.0"\n', encoding="utf-8", newline=""
+    )
+    other = "c" * 40
+    tree = library / "code" / "pldm" / other
+    _write(tree, FILES)
+    meta = {
+        "repo": "pldm",
+        "url": ORIGIN,
+        "commit": other,
+        "provenance": {"kind": "release", "name": "2.17.0"},
+        "fetched_at": "2026-10-18T00:00:00.000000+00:00",
+    }
+    (tree / ".bmc-tree.json").write_text(
+        json.dumps(meta), encoding="utf-8", newline=""
+    )
+    code, out = _invoke(capsys, catalog, "GetDateTime", *FIELDS)
+    assert code == 0, out
+    cites = _cites(out)
+    assert len(cites) == 1, cites
+    expected = f"cite: code | pldm {other[:7]} | release 2.17.0 | "
+    assert out[cites[0]].startswith(expected)
+    assert out[-1] == (
+        f"note: spellings of pldm {other[:7]} (release 2.17.0); the target's "
+        "pldmtool may differ: check with pldmtool bios GetDateTime --help"
+    )
+
+
+@pytest.mark.parametrize("tree_held", [True, False])
+def test_a_catalog_without_pldm_prints_one_subcommand_line_and_nothing_else(
+    held, tmp_path, capsys, tree_held
+):
+    # the held tree names its origin; without one the not-held line is all
+    # that follows the table (no 'unknown repository' in between)
+    _catalog_with_pldm, library = held
+    if not tree_held:
+        shutil.rmtree(library / "code" / "pldm")
+    catalog = tmp_path / "bare-catalog.toml"
+    catalog.write_text(MINI_CATALOG, encoding="utf-8", newline="")
+    code, plain = _run(capsys, catalog, "invocation", "pldm", *FIELDS)
+    assert code == 0, plain
+    code, out = _invoke(capsys, catalog, "GetDateTime", *FIELDS)
+    assert code == 0, out
+    assert out[: len(plain)] == plain
+    block = out[len(plain) :]
+    if tree_held:
+        assert block[0].startswith(f"pldm {SHORT} pldmtool/pldm_bios_cmd.cpp:")
+        assert out[-2] == "subcommand: pldmtool bios GetDateTime -m <eid> -f <format>"
+    else:
+        assert block == [NOT_HELD]
+    assert not any("unknown repository" in ln for ln in out), out
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
+def test_a_user_checkout_is_read_at_its_head_and_named_as_one(held, tmp_path, capsys):
+    # the checkout outranks the held tree, as it does for grep and code;
+    # the cite and the note say the spellings are the user's own tree's
+    from tests.test_code import git, make_repo
+
+    catalog, library = held
+    work, _bare, _url = make_repo(tmp_path, "pldm", FILES)
+    config = f'[code.checkouts]\npldm = "{work.as_posix()}"\n'
+    (library / "config.toml").write_text(config, encoding="utf-8", newline="")
+    head = git("rev-parse", "HEAD", cwd=work)[:7]
+    code, out = _invoke(capsys, catalog, "GetDateTime", *FIELDS)
+    assert code == 0, out
+    assert out[1:3] == [MCTP_LINE, RAW_LINE]
+    reg = next(ln for ln in out if ln.startswith(f"pldm {head} "))
+    assert "pldmtool/pldm_bios_cmd.cpp:" in reg
+    cites = _cites(out)
+    assert len(cites) == 1, cites
+    assert out[cites[0]].startswith(f"cite: code | pldm {head} | user checkout | ")
+    assert out[-2] == "subcommand: pldmtool bios GetDateTime -m <eid> -f <format>"
+    assert out[-1].startswith(f"note: spellings of pldm {head} (user checkout); ")
