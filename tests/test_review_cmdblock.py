@@ -23,8 +23,9 @@ START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
 # 32 until T33 (OEM, step 4); 34 until T34 (ipmitool output, Families);
 # 37 until T36 (no bytes from memory); 38 until T39 (SPDM Version layout);
-# 40 until T41 (PLDM header Type byte); 42 until T43 (every line from `invocation`)
-MAX_LINES = 44
+# 40 until T41 (PLDM header Type byte); 42 until T43 (every line from `invocation`);
+# 44 until T46 (the pldmtool subcommand from `invocation --subcommand`)
+MAX_LINES = 46
 
 HEX_BYTE = re.compile(r"0x(<[a-z ]+>|[0-9a-fA-F]{1,2})")
 

@@ -39,7 +39,7 @@ CAPPED = (
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-MAX_LINES = 44  # AC-2: 38 until T39; 40 until T41; 42 until T43
+MAX_LINES = 46  # AC-2: 38 until T39; 40 until T41; 42 until T43; 44 until T46
 
 # the SPDMVersion sentence as develop holds it (AC-1: stays word for word)
 SPDM_VERSION_SENTENCE = (

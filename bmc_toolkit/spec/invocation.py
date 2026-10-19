@@ -7,7 +7,11 @@ It knows no Document and no Command: what is wrong in the fields is wrong
 in the line. A field it cannot lay out is refused rather than guessed, so a
 printed line always holds exactly the bytes the fields add up to.
 
-Nothing here touches the Library, the Catalog or the network.
+Nothing here touches the Catalog or the network, and nothing reads a
+Document. The one Library read is ``--subcommand NAME`` for ``pldm``: the
+held openbmc/pldm Code Tree is opened for the spelling of pldmtool's
+subcommand and its options (:mod:`pldmtool`); the values in the line it
+prints are placeholders, as every value here is the Session's.
 """
 
 from __future__ import annotations
@@ -197,14 +201,81 @@ def render(protocol: str, texts: list[str]) -> list[str]:
     return out
 
 
-def cmd_invocation(args) -> int:
+NOT_HELD = "subcommand: pldm Code Tree not held; clone pldm"
+
+
+def cmd_invocation(args, tree_for: Callable[..., tuple] | None = None) -> int:
+    """``tree_for(args)`` gives (Tree, origin URL) of the held openbmc/pldm
+    Code Tree for ``--subcommand``, or raises ``code.CodeError``; the CLI
+    supplies it, a bare call has none and prints the not-held line."""
     try:
         lines = render(args.protocol, args.fields)
     except FieldError as exc:
         print(f"invocation: {exc}")
         return EXIT_ACTION
+    name = getattr(args, "subcommand", None)
+    if name is not None and args.protocol != "pldm":
+        print(f"invocation: --subcommand is for pldm, not {args.protocol}")
+        return EXIT_ACTION
     print("\n".join(lines))
+    if name is None:
+        return EXIT_OK
+    from . import pldmtool
+    from .code import CodeError
+
+    try:
+        if tree_for is None:
+            raise CodeError("no Library")
+        tree, origin = tree_for(args)
+        print("\n".join(pldmtool.describe(tree, name, origin)))
+    except CodeError as exc:
+        message = str(exc)
+        if (
+            "not held" in message
+            or "not in the Library" in message
+            or "no Library" in message
+        ):
+            print(not_held_line(message))
+        else:
+            print(f"subcommand: {exc}")
     return EXIT_OK
+
+
+def not_held_line(message: str) -> str:
+    """The not-held line with the clone the tree selector asked for: its
+    message ends in ``run: bmcspec clone pldm [--release X]`` when a
+    config Release is not held, and a plain ``clone pldm`` would not
+    satisfy that selection."""
+    _, found, hint = message.partition("run: bmcspec ")
+    if found and hint.strip():
+        return f"subcommand: pldm Code Tree not held; {hint.strip()}"
+    return NOT_HELD
+
+
+def reorder_argv(argv: list[str]) -> list[str]:
+    """``--subcommand NAME`` moved to just after ``invocation``. argparse
+    before CPython 3.12.7 / 3.13 (3.11 never got the fix, gh-59317) reads
+    ``invocation pldm --subcommand NAME FIELD...`` with an empty FIELD list
+    and refuses the fields as unrecognized; the option before the
+    positionals parses the same everywhere."""
+    if "invocation" not in argv:
+        return argv
+    at = argv.index("invocation")
+    head, rest = argv[: at + 1], argv[at + 1 :]
+    option, tail, i = [], [], 0
+    while i < len(rest):
+        tok = rest[i]
+        if tok == "--subcommand" and i + 1 < len(rest):
+            option = [tok, rest[i + 1]]
+            i += 2
+            continue
+        if tok.startswith("--subcommand="):
+            option = [tok]
+            i += 1
+            continue
+        tail.append(tok)
+        i += 1
+    return head + option + tail
 
 
 COMMANDS: dict[str, Callable[..., int]] = {"invocation": cmd_invocation}
@@ -215,6 +286,13 @@ def add_parsers(sub) -> None:
         "invocation", help="a request's bytes from its fields, in each tool's syntax"
     )
     p.add_argument("protocol", help=" | ".join(PROTOCOLS))
+    p.add_argument(
+        "--subcommand",
+        metavar="NAME",
+        help="pldm only: pldmtool's subcommand for the Command, read from the "
+        "held openbmc/pldm Code Tree (its source lines, a code cite and a "
+        "template with placeholders)",
+    )
     p.add_argument(
         "fields",
         nargs="*",
