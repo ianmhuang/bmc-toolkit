@@ -120,7 +120,8 @@ type control data .. ..`, `type spdm`), or `pldm` (the `mctp-client` line
 with `type pldm` and `pldmtool raw -m <eid> -d 0x.. ...`). A field is
 `NAME:SIZE=VALUE`, SIZE in bytes. SIZE and every number take ASCII digits
 only (`0`-`9`, and `a`-`f` or `A`-`F` after `0x`); digits of another
-script are refused. A number (decimal, or hex with `0x`) is laid out least
+script are refused. In a VALUE, `0X` is read as `0x` wherever this page
+says `0x`. A number (decimal, or hex with `0x`) is laid out least
 significant byte first, `NAME:SIZE:be=VALUE` most significant byte first
 (`:le` spells out the default). A comma-separated list of bytes
 (`0xc0,0xa8,0x01,0x0a`, every byte but a zero written with `0x`) is laid
@@ -139,11 +140,12 @@ SIZE or is negative; a number that is neither decimal nor `0x` hex, or has
 a leading zero (`e1`, `08`: which base is meant is never guessed); a SIZE
 that is missing, not a positive integer or above 65535; a list of another
 length or with a byte above `0xff`; a number or a list written with spaces
-instead of commas (`0xc0 0xa8`); a placeholder that is empty or not closed
-(`<>`, `<x`); more than one placeholder in a field (`<lsb>,<msb>`: each
-gets a field of its own); a field without NAME or without VALUE; no field;
-an unknown PROTOCOL; `ipmi` with fewer than two fields or a NetFn or Cmd
-of more than one byte. The command knows no Document: the fields are the
+instead of commas (`0xc0 0xa8`); a placeholder that is empty, not opened
+or not closed (`<>`, `x>`, `<x`); more than one placeholder in a field, or
+a bracket inside one (`<lsb>,<msb>`, `<a>b>`, `<>>`: each placeholder gets
+a field of its own); a field without NAME or without VALUE; no field; an
+unknown PROTOCOL; `ipmi` with fewer than two fields or a NetFn or Cmd of
+more than one byte. The command knows no Document: the fields are the
 caller's, and a wrong field gives a wrong line.
 
 `invocation pldm --subcommand NAME 'FIELD' ...` prints all of the above,

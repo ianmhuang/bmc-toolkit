@@ -56,7 +56,10 @@ class Field:
 def _shown(text: str, quoted: bool = False) -> str:
     """The caller's text as a refusal echoes it: whole up to SHOWN
     characters, else cut there and followed by its length, so a field of
-    any length gives a short line."""
+    any length gives a short line. SHOWN counts the caller's characters:
+    a quoted head goes through repr, which spells a control character or
+    a backslash as an escape, so it can show more than SHOWN; the line
+    stays bounded all the same."""
     if len(text) <= SHOWN:
         return repr(text) if quoted else text
     head = repr(text[:SHOWN]) if quoted else text[:SHOWN]
