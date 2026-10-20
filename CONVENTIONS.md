@@ -41,10 +41,14 @@ Things a linter cannot check; formatting is not listed.
   no longer read by the previous version, or a command is removed. Minor: a
   new command, flag, exit code or catalog document. Patch: fixes and
   wording. Docs: README, `docs/`, tests or CI only.
-- A release is due once `develop` holds something an installed user gets:
-  code under `bmc_toolkit/`, the Source Catalog, SKILL.md, hooks. The
-  bump is the highest label since the last tag. `develop` is protected,
-  so the bump reaches it through its own pull request: from a
+- A release is not cut for every merge. It is due once `develop` holds at
+  least one `minor` or `major` change and a week has passed since the last
+  tag; patches merged in the meantime wait and ship with it. The exception
+  is a fix for something that breaks users on install or gives wrong
+  bytes: it ships at once, as a patch release. Only what an installed user
+  gets counts: code under `bmc_toolkit/`, the Source Catalog, SKILL.md,
+  hooks. The bump is the highest label since the last tag. `develop` is
+  protected, so the bump reaches it through its own pull request: from a
   `release/v<version>` branch into `develop`, labelled `skip-changelog`,
   changing only the version records (`plugin.json`, `pyproject.toml`,
   `bmc_toolkit/__init__.py`, the README status line) and the `RELEASE`
