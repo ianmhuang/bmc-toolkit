@@ -182,7 +182,7 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `code REPO PATH [--lines A-B] [--ref R \| --release L]` | a `cite:` line then the file's lines behind their numbers; a file over 200 lines needs `--lines`. Same tree selection as `grep`; a `note:` line says when a user checkout or the config Release was used |
 | `prune [--yes]` | `would remove <path> (...)` for every superseded Code Tree, every `.tmp-*` / `.part` leftover nobody is working on and every stale `.lock` (untouched for 5 minutes), then a `prune:` summary; only with `--yes` are they removed (`removed <path>`). A live lock and a fresh temp file are never listed; a stale lock that another Session takes over while `prune` runs is kept (`kept <path> (...)`, counted as `, N kept` in the summary); one its holder released meanwhile is `gone <path> (released meanwhile)`, counted as `, N gone`. Run `--yes` only when the user asked to free space |
 | `table DOC --page N [--version V] [--index K] [--force] [--all-rows]` | print every Logical Table touching page N, whole (the version is brought to Ready first, as `section` says): a `cite:` line (`PDF pages A-B`, `lines table K`), a `table:` line (caption or `-`, `ruled` or `cells (no ruling lines)`, page range, columns, rows including the header), then the rows as a grid, columns separated by ` \| `, one physical line per cell line, a rule after the header and after every row with a multi-line cell. A table longer than 300 rows prints a `note:` line and only the rows that start on page N; `--all-rows` prints them all. `--index K` keeps only the K-th table on the page. Read from `tables.json` when the page was read before, unless `--force`. Exit 2 with `no table on page N` when the page has neither kind |
-| `invocation PROTOCOL 'NAME:SIZE=VALUE' ...` | arrange a request's bytes from its fields, in the order given. PROTOCOL is `ipmi`, `mctp-control`, `pldm` or `spdm`. VALUE is a number (decimal, or hex with `0x`) laid out over SIZE bytes least significant byte first (`NAME:SIZE:be=VALUE`: most significant first), a list of bytes laid out as written (`0xc0,0xa8,0x01,0x0a`), or a `<placeholder>` for two hex digits per byte (printed `0x<placeholder>` where every byte has `0x`); quote each field. Prints `bytes: N`, the line(s) to send in each tool's syntax, then one row per field: offset, size, name, its bytes. A field that cannot be laid out is exit 2 naming it, with no line to send. `pldm --subcommand <Name>` adds the subcommand the openbmc/pldm tool defines for the Command, from the held Code Tree: its source lines with a code cite and a `subcommand:` template whose values are placeholders; `none` or `not held; clone pldm` otherwise. Reads no Library but that |
+| `invocation PROTOCOL 'NAME:SIZE=VALUE' ...` | arrange a request's bytes from its fields, in the order given. PROTOCOL is `ipmi`, `mctp-control`, `nc-si`, `pldm` or `spdm`. VALUE is a number (decimal, or hex with `0x`) laid out over SIZE bytes least significant byte first (`NAME:SIZE:be=VALUE`: most significant first), a list of bytes laid out as written (`0xc0,0xa8,0x01,0x0a`), or a `<placeholder>` for two hex digits per byte (printed `0x<placeholder>` where every byte has `0x`); quote each field. Prints `bytes: N`, the line(s) to send in each tool's syntax, then one row per field: offset, size, name, its bytes. A field that cannot be laid out is exit 2 naming it, with no line to send. `pldm --subcommand <Name>` adds the subcommand the openbmc/pldm tool defines for the Command, from the held Code Tree: its source lines with a code cite and a `subcommand:` template whose values are placeholders; `none` or `not held; clone pldm` otherwise. `nc-si --type T --package P --channel C [--iid I]` takes the payload fields only and builds the NC-SI header, padding and checksum: `payload bytes: N`, `packet bytes: M`, the lines to send over netlink and over MCTP, the whole packet from MC ID, `note:` lines, one row per header field too. Reads no Library but that |
 
 Exit codes: 0 done, 1 error (malformed catalog, unreadable file), 2 the
 user must act (unknown document or version, download impossible, document
@@ -325,7 +325,7 @@ Request** is the bytes of the request; an **Invocation** is a Raw Request in
 one tool's syntax. Same name in two Families (IPMI and PLDM Get Sensor
 Reading): the Family rule of the answering workflow; name the other. An OEM
 Command no Library Document defines: no Invocation; say why. Other Families
-(NC-SI, NVMe-MI): no Invocation, no bytes to send; cite the layout, say why.
+(NVMe-MI): no Invocation, no bytes to send; cite the layout, say why.
 Neither answer writes bytes from memory, even hedged or as a search term.
 
 1. Encode ("the command for X"): `find` the Command in the Document's code
@@ -336,7 +336,8 @@ Neither answer writes bytes from memory, even hedged or as a search term.
    the Document Version used, the Citations, one sentence on the response.
 2. Invocations carry no Citation and no connection options (interface, host,
    user, password, bridging). Syntax per ipmitool be11d948, CodeConstruct/mctp
-   v2.5 and openbmc/pldm b0e6c54e; say another tool version may differ.
+   v2.5, openbmc/pldm b0e6c54e and phosphor-networkd 1c55a45 (`ncsi-cmd`);
+   say another tool version may differ.
    - IPMI: `ipmitool raw 0x<netfn> 0x<cmd> 0x<byte> ...`, every number with
      `0x` (bare `08` is read as octal and refused). Appendix G names the NetFn;
      the request numbers (Table 5-1) are Chassis 0x00, Bridge 0x02, S/E 0x04,
@@ -349,6 +350,10 @@ Neither answer writes bytes from memory, even hedged or as a search term.
      `pldmtool raw -m <eid> -d 0x<byte> ...`, header included.
      PLDM: add `--subcommand <Name>` to the helper call of step 4; copy its
      `subcommand:` and `note:` lines, values filled, with cite; `none`: raw only.
+   - NC-SI (OEM 0x50: none): fields big-endian (`:be`); the helper builds
+     header, length, padding and checksum. Give its `ncsi-cmd` lines (`-i`
+     netlink, `-m` MCTP), its mctp-client line (type nc-si) and `note:`
+     lines. Reply: `Response N bytes:`, 16-byte header, Response, Reason Code.
 3. Headers: an MCTP control or PLDM request starts with `80` (Rq=1, D=0,
    instance id 0); say so. PLDM byte 1 is the Type whose Document defines the
    Command (DSP0240's base Commands: `00`), not a Type asked about, which is a
@@ -358,6 +363,7 @@ Neither answer writes bytes from memory, even hedged or as a search term.
    The layout is that Document Version's: say so, and that an older negotiated
    version can differ. If the user names one: use that Version (`--version`).
 4. Run `invocation <ipmi|mctp-control|pldm|spdm> '<field>:<size>=<value>' ...`
+   (NC-SI: `nc-si --type <t> --package <p> --channel <c>`, payload fields)
    as a Bash call of its own (no `;`, `&&`, `|`): every field in order, the
    header and codes too (NetFn and Cmd; `80` and the codes). Never write bytes
    by hand: copy the line(s) and total it prints. That holds for every

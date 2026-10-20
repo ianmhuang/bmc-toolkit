@@ -12,6 +12,12 @@ Document. The one Library read is ``--subcommand NAME`` for ``pldm``: the
 held openbmc/pldm Code Tree is opened for the spelling of pldmtool's
 subcommand and its options (:mod:`pldmtool`); the values in the line it
 prints are placeholders, as every value here is the Session's.
+
+``nc-si`` is the one protocol whose header is built here: the Session
+gives the Control Packet Type, package, channel and IID as options and
+the payload as fields, and the DSP0222 header, Payload Length, padding
+and checksum are fixed-format arithmetic over those bytes (ADR 0008 of
+the design workspace).
 """
 
 from __future__ import annotations
@@ -23,7 +29,7 @@ from dataclasses import dataclass
 EXIT_OK = 0
 EXIT_ACTION = 2
 
-PROTOCOLS = ("ipmi", "mctp-control", "pldm", "spdm")
+PROTOCOLS = ("ipmi", "mctp-control", "nc-si", "pldm", "spdm")
 FORM = "NAME:SIZE=VALUE"
 MAX_SIZE = 0xFFFF  # the most a 16-bit length field can state
 FIELD_RE = re.compile(
@@ -186,22 +192,34 @@ def tool_lines(protocol: str, fields: list[Field]) -> list[str]:
     return lines
 
 
-def render(protocol: str, texts: list[str]) -> list[str]:
-    """What the command prints for the fields ``texts``; raises
-    :class:`FieldError` naming the first one that cannot be laid out."""
-    if protocol not in PROTOCOLS:
-        raise FieldError(
-            f"unknown protocol {_shown(protocol, True)}; "
-            f"it is one of {', '.join(PROTOCOLS)}"
-        )
-    if not texts:
-        raise FieldError(f"no field given; a field is {FORM}")
+def _parse_all(texts: list[str]) -> list[Field]:
     fields = []
     for text in texts:
         try:
             fields.append(parse_field(text))
         except FieldError as exc:
             raise FieldError(f"field {_shown(text, True)}: {exc}") from None
+    return fields
+
+
+def render(
+    protocol: str, texts: list[str], header: NcsiHeader | None = None
+) -> list[str]:
+    """What the command prints for the fields ``texts``; raises
+    :class:`FieldError` naming the first one that cannot be laid out.
+    ``header`` is the NC-SI header's options, for ``nc-si`` only."""
+    if protocol not in PROTOCOLS:
+        raise FieldError(
+            f"unknown protocol {_shown(protocol, True)}; "
+            f"it is one of {', '.join(PROTOCOLS)}"
+        )
+    if protocol == "nc-si":
+        if header is None:
+            raise FieldError("nc-si takes --type, --package and --channel")
+        return render_ncsi(header, texts)
+    if not texts:
+        raise FieldError(f"no field given; a field is {FORM}")
+    fields = _parse_all(texts)
     if protocol == "ipmi":
         if len(fields) < 2:
             raise FieldError("ipmi: the first two fields are NetFn and Cmd")
@@ -222,6 +240,175 @@ def render(protocol: str, texts: list[str]) -> list[str]:
     return out
 
 
+# ---------------------------------------------------------------- nc-si
+# DSP0222 1.2.1 Table 10 (header), 8.2.2.2 (padding), 8.2.2.3 (checksum);
+# the ncsi-cmd syntax is phosphor-networkd 1c55a45 src/ncsi_cmd.cpp
+
+NCSI_OPTIONS = ("type", "package", "channel", "iid")
+NCSI_MAX_PAYLOAD = 0xFFF  # Payload Length is 12 bits
+NETLINK = "ncsi-cmd -i <ifindex in hex>"
+OVER_MCTP = "ncsi-cmd -m <eid in decimal>"
+NOTE_NUMBERS = (
+    "note: ncsi-cmd reads -i, -p, -c, TYPE and every payload byte as hex "
+    "without 0x, so an ifindex written in decimal (10 for 0x0a) reaches "
+    "another interface; -m takes [NET,]EID in decimal"
+)
+NOTE_IID = (
+    "note: the IID (packet byte 3) is 0x01..0xff and differs from the "
+    "previous command's, or the controller takes the packet as a retry "
+    "(DSP0222 6.2.2.2); ncsi-cmd picks its own"
+)
+NOTE_CHANNEL = (
+    "note: Channel ID is the package in bits 7..5 and the channel in bits "
+    "4..0 (channel 0x1f: the whole package)"
+)
+NOTE_CHECKSUM = (
+    "note: checksum 00 00 00 00: the packet holds placeholders, and zero "
+    "means no checksum (DSP0222 8.2.2.3); give every value to have it computed"
+)
+
+
+@dataclass
+class NcsiHeader:
+    type: int
+    package: int | str
+    channel: int | str
+    iid: int | str
+
+
+def _ncsi_option(flag: str, text: str, low: int, high: int, what: str) -> int | str:
+    """One header option: a number in low..high, or a ``<placeholder>``."""
+    if text.startswith("<") or text.endswith(">"):
+        inner = text[1:-1].strip()
+        if not (text.startswith("<") and text.endswith(">") and inner):
+            raise FieldError(f"{flag}: a placeholder is written <text>")
+        if "<" in inner or ">" in inner:
+            raise FieldError(f"{flag}: a placeholder holds no < or >")
+        return f"<{inner}>"
+    try:
+        number = _number(text)
+    except FieldError as exc:
+        raise FieldError(f"{flag}: {exc}") from None
+    if not low <= number <= high:
+        raise FieldError(f"{flag} {_shown(text)}: {what}")
+    return number
+
+
+def ncsi_header(args) -> NcsiHeader | None:
+    """The NC-SI header options of ``args``: None for another protocol,
+    which must not carry them."""
+    given = [name for name in NCSI_OPTIONS if getattr(args, name, None) is not None]
+    if args.protocol != "nc-si":
+        if given and args.protocol in PROTOCOLS:
+            raise FieldError(f"--{given[0]} is for nc-si, not {args.protocol}")
+        return None
+    for name, what in (
+        ("type", "the Control Packet Type"),
+        ("package", "the package"),
+        ("channel", "the channel, or package"),
+    ):
+        if name not in given:
+            raise FieldError(f"nc-si: --{name}, {what}, is missing")
+    kind = _ncsi_option(
+        "--type",
+        args.type,
+        0,
+        0x7F,
+        "the Control Packet Type is 0x00..0x7f (bit 7 marks a response)",
+    )
+    if isinstance(kind, str):
+        raise FieldError(
+            "--type: the Control Packet Type is a number, not a placeholder"
+        )
+    package = _ncsi_option(
+        "--package", args.package, 0, 7, "a package is 0..7 (Channel ID bits 7..5)"
+    )
+    channel = (
+        0x1F
+        if args.channel == "package"
+        else _ncsi_option(
+            "--channel",
+            args.channel,
+            0,
+            0x1F,
+            "a channel is 0x00..0x1f, or package (0x1f) for the whole package",
+        )
+    )
+    iid = (
+        "<iid>"
+        if args.iid is None
+        else _ncsi_option("--iid", args.iid, 1, 0xFF, "the IID is 0x01..0xff")
+    )
+    return NcsiHeader(kind, package, channel, iid)
+
+
+def ncsi_checksum(data: bytes) -> int:
+    """DSP0222 8.2.2.3: the two's complement of the 32-bit sum of the
+    header and payload read as 16-bit big-endian words; an odd last byte
+    pairs with the zero padding byte after it."""
+    data += bytes(len(data) % 2)
+    total = sum(int.from_bytes(data[i : i + 2], "big") for i in range(0, len(data), 2))
+    return -total & 0xFFFFFFFF
+
+
+def render_ncsi(header: NcsiHeader, texts: list[str]) -> list[str]:
+    """What ``invocation nc-si`` prints: the ncsi-cmd lines, which carry
+    the payload alone, and the whole packet from MC ID for mctp-client."""
+    fields = _parse_all(texts)
+    size = sum(field.size for field in fields)
+    if size > NCSI_MAX_PAYLOAD:
+        raise FieldError(
+            f"the payload is {size} bytes; Payload Length holds at most "
+            f"{NCSI_MAX_PAYLOAD} (0xfff)"
+        )
+    known = isinstance(header.package, int) and isinstance(header.channel, int)
+    channel_id = header.package << 5 | header.channel if known else "<channel id>"
+    parts: list[tuple[str, list[int | str]]] = [
+        ("MC ID", [0x00]),
+        ("Header Revision", [0x01]),
+        ("Reserved", [0x00]),
+        ("IID", [header.iid]),
+        ("Control Packet Type", [header.type]),
+        ("Channel ID", [channel_id]),
+        ("Flags and Payload Length", list(size.to_bytes(2, "big"))),
+        ("Reserved", [0x00] * 8),
+    ]
+    parts.extend((field.name, field.tokens) for field in fields)
+    summed = [token for _, tokens in parts for token in tokens]
+    placeholders = any(isinstance(token, str) for token in summed)
+    if size % 4:
+        parts.append(("Padding", [0x00] * (4 - size % 4)))
+    checksum = 0 if placeholders else ncsi_checksum(bytes(summed))
+    parts.append(("Checksum", list(checksum.to_bytes(4, "big"))))
+    payload = [token for field in fields for token in field.tokens]
+    options = " ".join(
+        ["-p", _plain(header.package), "-c", _plain(header.channel), "raw"]
+        + [_plain(token) for token in (header.type, *payload)]
+    )
+    packet = [token for _, tokens in parts for token in tokens]
+    out = [
+        f"payload bytes: {size}",
+        f"packet bytes: {len(packet)}",
+        f"{NETLINK} {options}",
+        f"{OVER_MCTP} {options}",
+        f"mctp-client eid <eid> type nc-si data {' '.join(map(_plain, packet))}",
+        NOTE_NUMBERS,
+        NOTE_IID,
+    ]
+    if not known:
+        out.append(NOTE_CHANNEL)
+    if placeholders:
+        out.append(NOTE_CHECKSUM)
+    out.append("offset | size | field | bytes")
+    offset = 0
+    for name, tokens in parts:
+        out.append(
+            f"{offset} | {len(tokens)} | {name} | {' '.join(map(_plain, tokens))}"
+        )
+        offset += len(tokens)
+    return out
+
+
 NOT_HELD = "subcommand: pldm Code Tree not held; clone pldm"
 
 
@@ -230,7 +417,7 @@ def cmd_invocation(args, tree_for: Callable[..., tuple] | None = None) -> int:
     Code Tree for ``--subcommand``, or raises ``code.CodeError``; the CLI
     supplies it, a bare call has none and prints the not-held line."""
     try:
-        lines = render(args.protocol, args.fields)
+        lines = render(args.protocol, args.fields, ncsi_header(args))
     except FieldError as exc:
         print(f"invocation: {exc}")
         return EXIT_ACTION
@@ -273,30 +460,33 @@ def not_held_line(message: str) -> str:
     return NOT_HELD
 
 
+MOVED_OPTIONS = ("--subcommand", *(f"--{name}" for name in NCSI_OPTIONS))
+
+
 def reorder_argv(argv: list[str]) -> list[str]:
-    """``--subcommand NAME`` moved to just after ``invocation``. argparse
-    before CPython 3.12.7 / 3.13 (3.11 never got the fix, gh-59317) reads
-    ``invocation pldm --subcommand NAME FIELD...`` with an empty FIELD list
-    and refuses the fields as unrecognized; the option before the
-    positionals parses the same everywhere."""
+    """``--subcommand NAME`` and the nc-si options moved to just after
+    ``invocation``. argparse before CPython 3.12.7 / 3.13 (3.11 never got
+    the fix, gh-59317) reads ``invocation pldm --subcommand NAME FIELD...``
+    with an empty FIELD list and refuses the fields as unrecognized; the
+    options before the positionals parse the same everywhere."""
     if "invocation" not in argv:
         return argv
     at = argv.index("invocation")
     head, rest = argv[: at + 1], argv[at + 1 :]
-    option, tail, i = [], [], 0
+    options, tail, i = [], [], 0
     while i < len(rest):
         tok = rest[i]
-        if tok == "--subcommand" and i + 1 < len(rest):
-            option = [tok, rest[i + 1]]
+        if tok in MOVED_OPTIONS and i + 1 < len(rest):
+            options += [tok, rest[i + 1]]
             i += 2
             continue
-        if tok.startswith("--subcommand="):
-            option = [tok]
+        if tok.startswith(tuple(f"{name}=" for name in MOVED_OPTIONS)):
+            options.append(tok)
             i += 1
             continue
         tail.append(tok)
         i += 1
-    return head + option + tail
+    return head + options + tail
 
 
 COMMANDS: dict[str, Callable[..., int]] = {"invocation": cmd_invocation}
@@ -313,6 +503,22 @@ def add_parsers(sub) -> None:
         help="pldm only: pldmtool's subcommand for the Command, read from the "
         "held openbmc/pldm Code Tree (its source lines, a code cite and a "
         "template with placeholders)",
+    )
+    p.add_argument(
+        "--type",
+        metavar="T",
+        help="nc-si only: the Control Packet Type (0x00..0x7f)",
+    )
+    p.add_argument("--package", metavar="P", help="nc-si only: the package (0..7)")
+    p.add_argument(
+        "--channel",
+        metavar="C",
+        help="nc-si only: the channel (0x00..0x1f), or package for the whole package",
+    )
+    p.add_argument(
+        "--iid",
+        metavar="I",
+        help="nc-si only: the Instance ID (0x01..0xff); <iid> when not given",
     )
     p.add_argument(
         "fields",

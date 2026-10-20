@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "bmc-spec" / "SKILL.md"
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-MAX_LINES = 46  # unchanged by T40 (AC-7); 40 until T41; 42 until T43; 44 until T46
+MAX_LINES = 52  # unchanged by T40 (AC-7); 40 until T41; 42 until T43; 44 until T46; 46 until T52
 
 TOOLS = ("ipmitool", "mctp-client", "pldmtool")
 HEADER = {

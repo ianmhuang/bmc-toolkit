@@ -30,7 +30,7 @@ AUTHOR_TESTS = TESTS / "test_command_workflow.py"
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
 # develop's block was 40 lines; T41 AC-2 let it grow by two; 42 until T43; 44 until T46
-MAX_LINES = 46
+MAX_LINES = 52  # 46 until T52 (NC-SI Invocation)
 
 # every test file that pins the cap (AC-2)
 CAPPED = (
@@ -178,11 +178,13 @@ def test_a_type_the_request_names_goes_into_a_request_field_not_the_header():
     rule = _pldm_type_sentence()
     low = rule.lower()
     # a Type the user asks about (names, asks for) ...
-    assert re.search(r"\b(asked|asks|named|names|request names|user names)\b", low), rule
-    # ... is a request field, not the header's byte
-    assert re.search(r"\b(request|payload)('s)? field\b|\bfield of the request\b", low), (
+    assert re.search(r"\b(asked|asks|named|names|request names|user names)\b", low), (
         rule
     )
+    # ... is a request field, not the header's byte
+    assert re.search(
+        r"\b(request|payload)('s)? field\b|\bfield of the request\b", low
+    ), rule
     assert re.search(r"\bnot\b|\bnever\b", low), rule
 
 
@@ -219,7 +221,7 @@ def test_the_earlier_rules_the_cap_was_raised_for_are_still_there():
         "another tool version may differ",
         "no connection options",
         "even hedged or as a search term",
-        "Other Families (NC-SI, NVMe-MI)",
+        "Other Families (NVMe-MI)",  # NC-SI left in T52
         "An OEM Command no Library Document defines: no Invocation; say why.",
         "header included",
     ):
@@ -250,7 +252,9 @@ def test_no_capped_file_pins_a_stale_cap():
 
 
 def _author_module():
-    spec = importlib.util.spec_from_file_location("author_cmd_workflow_t41", AUTHOR_TESTS)
+    spec = importlib.util.spec_from_file_location(
+        "author_cmd_workflow_t41", AUTHOR_TESTS
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

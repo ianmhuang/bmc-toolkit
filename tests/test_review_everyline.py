@@ -26,8 +26,8 @@ END = "<!-- command-workflow:end -->"
 # most two. T46 then added two lines to step 2's PLDM bullet (`invocation
 # --subcommand`), so the block cut where T43's step 4 ended is 42 + 2 lines.
 DEVELOP_LINES = 42
-LATER_GROWTH = 2  # T46, outside step 4
-MAX_LINES = 46  # 44 until T46
+LATER_GROWTH = 8  # T46: 2, outside step 4; T52: 6 (step 2, step 4's call)
+MAX_LINES = 52  # 44 until T46; 46 until T52
 
 # where develop's step 4, and its block, ended
 DEVELOP_TAIL = "copy the line(s) and total it prints."
@@ -164,7 +164,9 @@ def test_no_other_test_file_pins_a_stale_cap():
 
 
 def _author_module():
-    spec = importlib.util.spec_from_file_location("author_cmd_workflow_t43", AUTHOR_TESTS)
+    spec = importlib.util.spec_from_file_location(
+        "author_cmd_workflow_t43", AUTHOR_TESTS
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -185,7 +187,9 @@ def _author_tests_about_the_rule(module):
 
 def test_author_keeps_every_test_develop_held():
     module = _author_module()
-    names = {n for n, fn in vars(module).items() if n.startswith("test_") and callable(fn)}
+    names = {
+        n for n, fn in vars(module).items() if n.startswith("test_") and callable(fn)
+    }
     missing = [n for n in DEVELOP_AUTHOR_TESTS if n not in names]
     assert not missing, missing
 
