@@ -294,6 +294,8 @@ def test_the_whole_package_is_channel_1f_in_both_places(capsys, channel):
         ("<pkg>", "2", "-p <pkg in hex> -c 02"),
         ("3", "<chan>", "-p 03 -c <chan in hex>"),
         ("<pkg>", "<chan>", "-p <pkg in hex> -c <chan in hex>"),
+        # one that already says hex is not told twice
+        ("<pkg in hex>", "<chan in hex>", "-p <pkg in hex> -c <chan in hex>"),
     ],
 )
 def test_a_package_or_channel_placeholder_is_one_packet_byte_and_no_checksum(
@@ -348,6 +350,26 @@ def test_without_iid_the_packet_iid_is_a_placeholder_and_the_checksum_zero(capsy
     # the ncsi-cmd lines carry no IID: the tool picks one
     assert lines[2] == NETLINK + "-p 00 -c 01 raw 0a"
     assert "<iid>" not in lines[2] and "<iid>" not in lines[3]
+
+
+def test_an_iid_placeholder_given_is_the_packet_byte_and_the_checksum_zero(capsys):
+    # round 2: the description says --iid takes a placeholder as -p and -c do
+    code, lines = invoke(
+        capsys, "nc-si", "--type", "0x0a", "--package", "0", "--channel", "1",
+        "--iid", "<next iid>",
+    )  # fmt: skip
+    assert code == 0, lines
+    got = packet(lines)
+    assert len(got) == 20, got
+    assert got[3] == "<next iid>"
+    assert [t for t in got if t.startswith("<")] == ["<next iid>"], got
+    assert got[16:] == ["00", "00", "00", "00"]
+    assert "8.2.2.3" in " ".join(notes(lines))
+    # the IID is not an ncsi-cmd option: the lines carry no placeholder
+    assert lines[2] == NETLINK + "-p 00 -c 01 raw 0a"
+    assert lines[3] == OVER_MCTP + "-p 00 -c 01 raw 0a"
+    rows = table(lines)
+    assert rows[3][:2] == (3, 1) and rows[3][3] == ["<next iid>"], rows
 
 
 def test_with_every_byte_known_the_checksum_is_the_sum_and_no_note_says_zero(
