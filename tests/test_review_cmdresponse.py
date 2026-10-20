@@ -22,7 +22,7 @@ SKILL = ROOT / "skills" / "bmc-spec" / "SKILL.md"
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-MAX_LINES = 46  # AC-3: 34 until T34; 37 until T36; 38 until T39; 40 until T41; 42 until T43; 44 until T46
+MAX_LINES = 52  # AC-3: 34 until T34; 37 until T36; 38 until T39; 40 until T41; 42 until T43; 44 until T46; 46 until T52
 
 
 def _body() -> list[str]:
@@ -134,8 +134,9 @@ def test_ipmi_output_sentence_is_not_a_decode_rule():
 
 def test_other_families_get_no_invocation_and_the_layout_with_a_reason():
     intro = _intro()
-    sentence = _sentence_with(intro, "nc-si")
-    assert "nvme-mi" in sentence, sentence
+    # NC-SI got an Invocation in T52; NVMe-MI keeps the sentence
+    sentence = _sentence_with(intro, "nvme-mi")
+    assert "nc-si" not in sentence, sentence
     assert re.search(r"\bno invocation\b", sentence), sentence
     assert "layout" in sentence, sentence
     assert re.search(r"\bcite\b|\bcitation", sentence), sentence
@@ -149,7 +150,7 @@ def test_other_families_rule_sits_with_the_oem_rule_which_keeps_its_meaning():
     intro = _intro()
     low = intro.lower()
     oem = re.search(r"[^.]*\boem command\b[^.]*\.", low)
-    other = re.search(r"[^.]*\bnc-si\b[^.]*\.", low)
+    other = re.search(r"[^.]*\bnvme-mi\b[^.]*\.", low)  # nc-si until T52
     assert oem and other, low
     # one sentence, or the two sentences next to each other
     if oem.span() != other.span():

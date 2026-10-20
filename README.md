@@ -116,9 +116,9 @@ What each command does: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 A named Command gets an Invocation: IPMI as `ipmitool raw`; MCTP control, PLDM
 (`pldmtool raw` too, plus the subcommand its source defines) and SPDM requests without
-cryptography as `mctp-client`; OEM Commands no Document defines and other Families
-(NC-SI, NVMe-MI) get none. Missing values are `<placeholders>`. The model picks the
-fields: check them against the cited layout. None was run against hardware or QEMU.
+cryptography as `mctp-client`; NC-SI as `ncsi-cmd` and the whole packet for `mctp-client`;
+OEM Commands no Document defines and other Families (NVMe-MI) get none. Missing values are
+`<placeholders>`. The model picks the fields: check them against the cited layout. None was run against hardware or QEMU.
 
 ## Library location
 

@@ -117,7 +117,8 @@ writes nothing; its one Library read is `--subcommand` (below). PROTOCOL
 is `ipmi` (prints `ipmitool raw 0x.. ...`; the first two fields are NetFn
 and Cmd, one byte each), `mctp-control` or `spdm` (`mctp-client eid <eid>
 type control data .. ..`, `type spdm`), or `pldm` (the `mctp-client` line
-with `type pldm` and `pldmtool raw -m <eid> -d 0x.. ...`). A field is
+with `type pldm` and `pldmtool raw -m <eid> -d 0x.. ...`), or `nc-si`
+(below). A field is
 `NAME:SIZE=VALUE`, SIZE in bytes. SIZE and every number take ASCII digits
 only (`0`-`9`, and `a`-`f` or `A`-`F` after `0x`); digits of another
 script are refused. In a VALUE, `0X` is read as `0x` wherever this page
@@ -147,6 +148,40 @@ a field of its own); a field without NAME or without VALUE; no field; an
 unknown PROTOCOL; `ipmi` with fewer than two fields or a NetFn or Cmd of
 more than one byte. The command knows no Document: the fields are the
 caller's, and a wrong field gives a wrong line.
+
+`invocation nc-si --type T --package P --channel C [--iid I] 'FIELD' ...`
+is the one protocol whose header the command builds. The fields are the
+NC-SI payload alone (none for a Command without one), NAME:SIZE:be for
+NC-SI's big-endian numbers. T is the Control Packet Type, P the package
+(0..7), C the channel (`0x00`..`0x1f`, or `package` for `0x1f`, the whole
+package), I the Instance ID (`0x01`..`0xff`); each is a number as a VALUE
+is, P, C and I may be a `<placeholder>`, and without `--iid` the IID is
+`<iid>`. A P or C placeholder is printed in the `ncsi-cmd` lines with ` in
+hex` added (`<chan>` as `<chan in hex>`): a channel said as 10 is `0a` there. The output is `payload bytes: N`, `packet bytes: M` (16 + N +
+padding + 4), then `ncsi-cmd -i <ifindex in hex> -p PP -c CC raw TT B...`
+(netlink: the kernel adds header and checksum) and `ncsi-cmd -m <eid in
+decimal> -p PP -c CC raw TT B...` (MCTP), both in the syntax of
+phosphor-networkd 1c55a45, every number two hex digits without `0x`. Then
+`mctp-client eid <eid> type nc-si data ..`, the whole packet from MC ID as
+DSP0222 Table 10 lays it out: MC ID `00`, Header Revision `01`, Reserved,
+IID, Control Packet Type, Channel ID (package in bits 7..5, channel in
+4..0), Flags and the 12-bit Payload Length big-endian, 8 reserved bytes,
+the payload, `00` padding to four bytes and the checksum (the two's
+complement of the 32-bit sum of 16-bit big-endian words, DSP0222 8.2.2.3).
+When the IID, package, channel or a payload byte is a placeholder the
+Channel ID is `<channel id>` where unknown and the checksum is printed
+`00 00 00 00`, which DSP0222 reads as no checksum. `note:` lines say that
+ncsi-cmd reads `-i`, `-p`, `-c`, TYPE and the payload as hex (an ifindex
+written in decimal reaches another interface) and `-m` in decimal, that
+the IID must change between sends or the controller takes a retry
+(DSP0222 6.2.2.2), and why the checksum is zero when it is. The table has
+one row per header field, payload field, padding and checksum, offsets
+from MC ID. Refused with exit 2 and one line, besides the field refusals
+above: `--type` missing, not a number or above `0x7f` (bit 7 marks a
+response); `--package` missing or above 7; `--channel` missing or above
+`0x1f`; `--iid` 0 or above `0xff`; a payload above `0xfff` (4095) bytes;
+`--type`, `--package`, `--channel` or `--iid` with another protocol
+(`--type is for nc-si, not ipmi`).
 
 `invocation pldm --subcommand NAME 'FIELD' ...` prints all of the above,
 then what pldmtool's own subcommand for the Command looks like, read from

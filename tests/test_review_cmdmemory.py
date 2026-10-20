@@ -24,7 +24,7 @@ AUTHOR_TESTS = ROOT / "tests" / "test_command_workflow.py"
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-MAX_LINES = 46  # AC-2: 37 until T36; 38 until T39; 40 until T41; 42 until T43; 44 until T46
+MAX_LINES = 52  # AC-2: 37 until T36; 38 until T39; 40 until T41; 42 until T43; 44 until T46; 46 until T52
 
 HEX_BYTE = re.compile(r"\b0x[0-9a-fA-F]{1,2}\b")
 
@@ -84,7 +84,10 @@ def test_memory_rule_covers_hedged_bytes_and_search_terms():
 
 def test_memory_rule_follows_the_other_families_sentence():
     sentences = _sentences(_intro())
-    family = [i for i, s in enumerate(sentences) if "nc-si" in s and "nvme-mi" in s]
+    # NC-SI left the Families sentence in T52
+    family = [
+        i for i, s in enumerate(sentences) if "other families" in s and "nvme-mi" in s
+    ]
     assert len(family) == 1, sentences
     memory = [i for i, s in enumerate(sentences) if re.search(r"\bmemory\b", s)]
     assert memory == [family[0] + 1], (sentences[family[0]], sentences[memory[0]])

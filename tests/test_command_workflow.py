@@ -16,7 +16,7 @@ END = "<!-- command-workflow:end -->"
 # 40 until the PLDM header's Type byte (T41);
 # 42 until every Invocation line comes from `invocation` (T43);
 # 44 until the pldmtool subcommand from `invocation --subcommand` (T46)
-MAX_LINES = 46
+MAX_LINES = 52  # 46 until T52 (NC-SI Invocation)
 
 
 def block_lines():
@@ -199,7 +199,7 @@ def test_other_families_get_no_invocation_and_no_bytes():
     # NC-SI and NVMe-MI runs gave hand-laid packets and self-computed CRCs
     text = block_text()
     assert (
-        "Other Families (NC-SI, NVMe-MI): no Invocation, no bytes to send; "
+        "Other Families (NVMe-MI): no Invocation, no bytes to send; "
         "cite the layout, say why." in text
     )
     # the OEM rule keeps its sentence
@@ -211,7 +211,7 @@ def test_neither_answer_writes_bytes_from_memory():
     # remembered, hedged as community-known or as a `repos --search` string
     text = block_text()
     family = (
-        "Other Families (NC-SI, NVMe-MI): no Invocation, no bytes to send; "
+        "Other Families (NVMe-MI): no Invocation, no bytes to send; "
         "cite the layout, say why."
     )
     rule = "Neither answer writes bytes from memory, even hedged or as a search term."
@@ -276,6 +276,7 @@ def test_readme_says_what_can_be_asked_and_that_nothing_ran_on_hardware():
     for family in ("IPMI", "MCTP control", "PLDM", "SPDM"):
         assert family in section, family
     assert "placeholder" in section
-    assert "other Families (NC-SI, NVMe-MI) get none" in section
+    # NC-SI got an Invocation in T52
+    assert "other Families (NVMe-MI) get none" in section
     assert "check them against the cited layout" in section
     assert "run against hardware or QEMU" in section

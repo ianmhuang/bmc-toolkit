@@ -30,7 +30,7 @@ AUTHOR_TESTS = TESTS / "test_command_workflow.py"
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
 # develop's block was 40 lines; T41 AC-2 let it grow by two; 42 until T43; 44 until T46
-MAX_LINES = 46
+MAX_LINES = 52  # 46 until T52 (NC-SI Invocation)
 
 # every test file that pins the cap (AC-2)
 CAPPED = (
@@ -219,7 +219,7 @@ def test_the_earlier_rules_the_cap_was_raised_for_are_still_there():
         "another tool version may differ",
         "no connection options",
         "even hedged or as a search term",
-        "Other Families (NC-SI, NVMe-MI)",
+        "Other Families (NVMe-MI)",  # NC-SI left in T52
         "An OEM Command no Library Document defines: no Invocation; say why.",
         "header included",
     ):

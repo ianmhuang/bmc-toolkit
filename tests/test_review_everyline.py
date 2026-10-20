@@ -26,8 +26,8 @@ END = "<!-- command-workflow:end -->"
 # most two. T46 then added two lines to step 2's PLDM bullet (`invocation
 # --subcommand`), so the block cut where T43's step 4 ended is 42 + 2 lines.
 DEVELOP_LINES = 42
-LATER_GROWTH = 2  # T46, outside step 4
-MAX_LINES = 46  # 44 until T46
+LATER_GROWTH = 8  # T46: 2, outside step 4; T52: 6 (step 2, step 4's call)
+MAX_LINES = 52  # 44 until T46; 46 until T52
 
 # where develop's step 4, and its block, ended
 DEVELOP_TAIL = "copy the line(s) and total it prints."
