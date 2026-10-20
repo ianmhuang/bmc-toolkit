@@ -10,7 +10,8 @@ pages show. The Outline comes from
 PDF bookmarks, or from the contents pages when a document has none, or when
 its bookmarks are only Word anchors (``Ref_DSP0236``, ``OLE_LINK1``) or two
 or more of them all point at one page of a longer document. Bookmarks that
-are table or figure captions are not taken.
+are table or figure captions are not taken, nor are top-level bookmarks
+without a clause number between two numbered top-level ones.
 
 Files written next to the original::
 
@@ -58,7 +59,8 @@ from bmc_toolkit.spec.tables import remove_store
 # 5: pages the page-by-page rules turn down are numbered from the number column
 # 6: micro text, oversized boxes and stacked near-size boxes keep lines apart
 # 7: table and figure caption bookmarks are not Outline entries
-EXTRACTOR_VERSION = 7
+# 8: unnumbered top-level bookmarks between numbered clauses are not either
+EXTRACTOR_VERSION = 8
 PAGE_MARKER = "=== page {n} ==="
 EXTRACT_NAME = "extract.txt"
 OUTLINE_NAME = "outline.json"
@@ -102,6 +104,14 @@ _ANCHOR = re.compile(r"^\S*_\S*$")  # a Word anchor name: one token, an undersco
 # "Table 69 – GetPDR command format", "Figure A.1: ...", "Table 6-2. ..."
 _CAPTION = re.compile(
     r"^(?:Table|Figure)\s+(?:[A-Z][.-]?)?\d+(?:[.-]\d+)*[a-z]?\s*[-–—:.]\s*\S"
+)
+# a clause number and a title: "7 Structure", "7.15 Group", "1. Introduction",
+# "35b. Command", "A.2 Examples", "C1-1 IPMI", "E-1 Notation", "ANNEX A ...",
+# "Annex A. Sanitize", "Appendix C1 - Locating", "Appendix A— Acronyms",
+# "Appendix IV", "Annex 1"
+_CLAUSE = re.compile(
+    r"^(?:(?:\d+[a-z]?(?:\.\d+)*\.?|[A-Z]\d*(?:[.-]\d+)+\.?)\s+\S"
+    r"|(?:ANNEX|Annex|APPENDIX|Appendix)\s+(?:[A-Z]\d*|[IVXL]+|\d+)(?![A-Za-z0-9]))"
 )
 
 
@@ -618,8 +628,9 @@ def render_page(page: PageText) -> list[str]:
 
 
 def outline_from_bookmarks(pdf) -> list[dict]:
-    """Bookmark entries, without the Word cross-reference anchors and the
-    table and figure captions.
+    """Bookmark entries, without the Word cross-reference anchors, the
+    table and figure captions, and the unnumbered top-level entries
+    between numbered clauses.
 
     Word exports every bookmark of the document, and a bookmark placed on a
     reference (``Ref_DSP0236``, ``OLE_LINK1``) is not a heading: a single
@@ -628,7 +639,16 @@ def outline_from_bookmarks(pdf) -> list[dict]:
     DSP0134): "Table 69 – GetPDR command format" would own the lines under
     it and end the section it sits in, so a title of "Table" or "Figure", a
     number and a dash, colon or period is dropped. A title that only names
-    one ("Tables", "Table 100 describes ...") is kept.
+    one ("Tables", "Table 100 describes ...") is kept here; see below.
+
+    DSP0134 also bookmarks every abbreviation of its clause 4 and some
+    example lines of clause 7 at the top level, where they would end the
+    clause in the same way. A top-level entry without a clause number
+    that lies between two numbered top-level entries is dropped; one
+    before the first (Foreword) or after the last (Bibliography) is kept,
+    and so is every entry of a document with fewer than two numbered
+    top-level entries. Entries below a dropped one stay, and so fall under
+    the numbered clause above it.
     """
     entries = []
     for bm in pdf.get_toc():
@@ -645,7 +665,19 @@ def outline_from_bookmarks(pdf) -> list[dict]:
         if _ANCHOR.match(title) or _CAPTION.match(title):
             continue
         entries.append({"level": bm.level, "title": title, "page": index + 1})
-    return entries
+    numbered = [
+        i
+        for i, e in enumerate(entries)
+        if e["level"] == 0 and _CLAUSE.match(e["title"])
+    ]
+    if len(numbered) < 2:
+        return entries
+    first, last = numbered[0], numbered[-1]
+    return [
+        e
+        for i, e in enumerate(entries)
+        if not (first < i < last and e["level"] == 0 and not _CLAUSE.match(e["title"]))
+    ]
 
 
 def bookmarks_usable(entries: list[dict], page_count: int) -> bool:

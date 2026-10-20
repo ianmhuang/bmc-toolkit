@@ -64,11 +64,13 @@ def test_ac1_a_caption_bookmark_is_not_an_outline_entry(tmp_path, title):
 
 @pytest.mark.parametrize("title", MENTIONS)
 def test_ac1_a_title_that_only_mentions_a_table_or_figure_is_kept(tmp_path, title):
+    # after the last numbered clause: between two, an unnumbered top-level
+    # bookmark is dropped as no heading (test_heading_bookmarks.py)
     r = extracted_outline(
-        tmp_path, [(0, "1 Scope", 0), (0, title, 1), (0, "2 Commands", 2)]
+        tmp_path, [(0, "1 Scope", 0), (0, "2 Commands", 1), (0, title, 2)]
     )
     assert r.outline_source == "bookmarks"
-    assert [e["title"] for e in r.outline] == ["1 Scope", title, "2 Commands"]
+    assert [e["title"] for e in r.outline] == ["1 Scope", "2 Commands", title]
 
 
 def test_ac1_a_nested_caption_bookmark_is_dropped_too(tmp_path):
@@ -119,9 +121,9 @@ def test_ac1_a_caption_without_text_after_the_dash_is_not_a_caption(tmp_path):
     # AC-1 asks for a dash, colon or period *then text*: a bare "Table 1 –"
     # is not what the rule describes and stays
     r = extracted_outline(
-        tmp_path, [(0, "1 Scope", 0), (0, "Table 1 –", 1), (0, "2 Commands", 2)]
+        tmp_path, [(0, "1 Scope", 0), (0, "2 Commands", 1), (0, "Table 1 –", 2)]
     )
-    assert [e["title"] for e in r.outline] == ["1 Scope", "Table 1 –", "2 Commands"]
+    assert [e["title"] for e in r.outline] == ["1 Scope", "2 Commands", "Table 1 –"]
 
 
 # ------------------------------------------------------------------- AC-2
@@ -195,8 +197,8 @@ def test_ac2_real_headings_with_captions_stay_bookmarks(tmp_path):
 # ------------------------------------------------------------------- AC-4
 
 
-def test_ac4_the_extractor_version_is_seven():
-    assert ex.EXTRACTOR_VERSION == 7
+def test_ac4_the_extractor_version_is_eight():
+    assert ex.EXTRACTOR_VERSION == 8
 
 
 def test_ac4_a_version_6_extraction_is_not_current(tmp_path):
