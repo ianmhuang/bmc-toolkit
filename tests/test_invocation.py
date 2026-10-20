@@ -964,3 +964,30 @@ def test_a_long_field_is_refused_on_the_command_line_in_one_short_line(capsys):
 def test_commands_doc_says_a_long_field_is_shown_cut():
     text = " ".join(COMMANDS_DOC.read_text(encoding="utf-8").split())
     assert "longer than 80 characters" in text
+
+
+# ------------------------- what the docs say a placeholder and hex may be
+# A placeholder without its `<`, and a bracket inside one, were refused
+# without the docs naming them; `0X` was taken without the docs saying so.
+
+
+def _refusal_docs() -> str:
+    doc = " ".join(COMMANDS_DOC.read_text("utf-8").split())
+    start = doc.index("`invocation PROTOCOL")
+    return doc[start : doc.index("The command knows no Document", start)]
+
+
+def test_docs_name_the_placeholder_forms_and_0X():
+    text = _refusal_docs()
+    for word in ("`x>`", "`<>>`", "`<a>b>`", "`0X`"):
+        assert word in text, word
+
+
+def test_the_forms_the_docs_name_are_handled_as_they_say(capsys):
+    text = refused(capsys, "spdm", "X:1=x>")
+    assert text.endswith("a placeholder is written <text>")
+    for value in ("<>>", "<a>b>"):
+        text = refused(capsys, "spdm", f"X:1={value}")
+        assert "a field takes one placeholder" in text, value
+    code, lines = run(capsys, "spdm", "X:1=0X1f")
+    assert code == 0 and lines[-1] == "0 | 1 | X | 1f"
