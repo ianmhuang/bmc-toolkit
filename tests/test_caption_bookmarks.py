@@ -63,10 +63,12 @@ def test_ac1_a_caption_bookmark_is_dropped(tmp_path, title):
     ids=["tables", "figures", "contents", "sentence", "mention", "example"],
 )
 def test_ac1_a_title_that_only_mentions_a_table_is_kept(tmp_path, title):
-    assert outline_titles(tmp_path, ["1 Scope", title, "2 Commands"]) == [
+    # after the last numbered clause: between two, an unnumbered top-level
+    # bookmark is dropped as no heading (test_heading_bookmarks.py)
+    assert outline_titles(tmp_path, ["1 Scope", "2 Commands", title]) == [
         "1 Scope",
-        title,
         "2 Commands",
+        title,
     ]
 
 

@@ -169,6 +169,6 @@ def test_ac4_a_version_6_library_is_re_extracted_on_next_use(
     assert code == 0, out
     assert "1 | 2.1 GetPDR | pages 2-3" in out.splitlines(), out
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    assert meta["extractor_version"] == ex.EXTRACTOR_VERSION == 7
+    assert meta["extractor_version"] == ex.EXTRACTOR_VERSION == 8
     outline = json.loads(outline_path.read_text(encoding="utf-8"))
     assert "Table 1 – GetPDR format" not in [e["title"] for e in outline]
