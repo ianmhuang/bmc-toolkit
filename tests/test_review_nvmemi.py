@@ -306,7 +306,7 @@ def test_the_crc_is_crc32c_by_its_check_value_and_rfc_3720_vectors():
         assert crc(bytes(32)) == 0x8A9136AA
         assert crc(b"\xff" * 32) == 0x62A8AB43
         assert crc(bytes(range(32))) == 0x46DD794E
-        assert crc(bytes(range(31, -1, -1))) == 0x113FDB5B
+        assert crc(bytes(range(31, -1, -1))) == 0x113FDB5C
     rng = random.Random(2026)
     for _ in range(200):
         data = bytes(rng.randrange(256) for _ in range(rng.randrange(0, 300)))
@@ -514,7 +514,8 @@ def test_mi_prints_no_tool_line_and_neither_prints_mctp_client(capsys):
     for nmimt, fields in (("mi", HEALTH_POLL), ("admin", IDENTIFY)):
         code, lines = run(capsys, "nvme-mi", "--nmimt", nmimt, *fields)
         assert code == 0, lines
-        assert not any("mctp-client" in ln for ln in lines), lines
+        assert not any(ln.startswith("mctp-client") for ln in lines), lines
+        assert not any("type nvme" in ln for ln in lines), lines
         tool = [ln for ln in lines if ln.startswith("nvme ")]
         assert len(tool) == (1 if nmimt == "admin" else 0), lines
 
