@@ -156,7 +156,8 @@ NC-SI's big-endian numbers. T is the Control Packet Type, P the package
 (0..7), C the channel (`0x00`..`0x1f`, or `package` for `0x1f`, the whole
 package), I the Instance ID (`0x01`..`0xff`); each is a number as a VALUE
 is, P, C and I may be a `<placeholder>`, and without `--iid` the IID is
-`<iid>`. The output is `payload bytes: N`, `packet bytes: M` (16 + N +
+`<iid>`. A P or C placeholder is printed in the `ncsi-cmd` lines with ` in
+hex` added (`<chan>` as `<chan in hex>`): a channel said as 10 is `0a` there. The output is `payload bytes: N`, `packet bytes: M` (16 + N +
 padding + 4), then `ncsi-cmd -i <ifindex in hex> -p PP -c CC raw TT B...`
 (netlink: the kernel adds header and checksum) and `ncsi-cmd -m <eid in
 decimal> -p PP -c CC raw TT B...` (MCTP), both in the syntax of

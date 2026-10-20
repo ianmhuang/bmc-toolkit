@@ -263,11 +263,26 @@ def test_a_missing_iid_is_a_placeholder_and_zeroes_the_checksum(capsys):
     assert one(lines, NETLINK) == NETLINK + "-p 00 -c 00 raw 15"
 
 
+def test_an_iid_placeholder_given_is_kept_and_zeroes_the_checksum(capsys):
+    # COMMANDS.md: --iid takes a placeholder as --package and --channel do
+    code, lines = run(
+        capsys, "nc-si", "--type", "0x15", "--package", "0", "--channel", "0",
+        "--iid", "<next iid>",
+    )  # fmt: skip
+    assert code == 0, lines
+    got = packet(lines)
+    assert got[3] == "<next iid>"
+    assert got[-4:] == ["00", "00", "00", "00"]
+    assert "8.2.2.3" in notes(lines)
+
+
 @pytest.mark.parametrize(
     ("option", "value", "netlink"),
     [
-        ("--package", "<package>", "-p <package> -c 01"),
-        ("--channel", "<channel>", "-p 00 -c <channel>"),
+        ("--package", "<package>", "-p <package in hex> -c 01"),
+        ("--channel", "<channel>", "-p 00 -c <channel in hex>"),
+        # a placeholder that already says hex is not told twice
+        ("--channel", "<ch in hex>", "-p 00 -c <ch in hex>"),
     ],
 )
 def test_a_package_or_channel_placeholder_is_one_packet_byte(

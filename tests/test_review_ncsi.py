@@ -290,9 +290,10 @@ def test_the_whole_package_is_channel_1f_in_both_places(capsys, channel):
 @pytest.mark.parametrize(
     ("package", "channel", "options"),
     [
-        ("<pkg>", "2", "-p <pkg> -c 02"),
-        ("3", "<chan>", "-p 03 -c <chan>"),
-        ("<pkg>", "<chan>", "-p <pkg> -c <chan>"),
+        # review-1 F2: the ncsi-cmd lines say the placeholder is hex (AC-3)
+        ("<pkg>", "2", "-p <pkg in hex> -c 02"),
+        ("3", "<chan>", "-p 03 -c <chan in hex>"),
+        ("<pkg>", "<chan>", "-p <pkg in hex> -c <chan in hex>"),
     ],
 )
 def test_a_package_or_channel_placeholder_is_one_packet_byte_and_no_checksum(

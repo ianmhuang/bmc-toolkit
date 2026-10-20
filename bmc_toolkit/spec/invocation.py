@@ -342,6 +342,14 @@ def ncsi_header(args) -> NcsiHeader | None:
     return NcsiHeader(kind, package, channel, iid)
 
 
+def _hex_option(value: int | str) -> str:
+    # a package or channel is said in decimal ("channel 10"), and ncsi-cmd
+    # reads -p and -c as hex: the placeholder says so, as <ifindex in hex>
+    if not isinstance(value, str):
+        return f"{value:02x}"
+    return value if value[:-1].endswith(" in hex") else f"{value[:-1]} in hex>"
+
+
 def ncsi_checksum(data: bytes) -> int:
     """DSP0222 8.2.2.3: the two's complement of the 32-bit sum of the
     header and payload read as 16-bit big-endian words; an odd last byte
@@ -382,7 +390,7 @@ def render_ncsi(header: NcsiHeader, texts: list[str]) -> list[str]:
     parts.append(("Checksum", list(checksum.to_bytes(4, "big"))))
     payload = [token for field in fields for token in field.tokens]
     options = " ".join(
-        ["-p", _plain(header.package), "-c", _plain(header.channel), "raw"]
+        ["-p", _hex_option(header.package), "-c", _hex_option(header.channel), "raw"]
         + [_plain(token) for token in (header.type, *payload)]
     )
     packet = [token for _, tokens in parts for token in tokens]

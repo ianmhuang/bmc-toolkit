@@ -164,9 +164,7 @@ def test_no_other_test_file_pins_a_stale_cap():
 
 
 def _author_module():
-    spec = importlib.util.spec_from_file_location(
-        "author_cmd_workflow_t43", AUTHOR_TESTS
-    )
+    spec = importlib.util.spec_from_file_location("author_cmd_workflow_t43", AUTHOR_TESTS)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -187,9 +185,7 @@ def _author_tests_about_the_rule(module):
 
 def test_author_keeps_every_test_develop_held():
     module = _author_module()
-    names = {
-        n for n, fn in vars(module).items() if n.startswith("test_") and callable(fn)
-    }
+    names = {n for n, fn in vars(module).items() if n.startswith("test_") and callable(fn)}
     missing = [n for n in DEVELOP_AUTHOR_TESTS if n not in names]
     assert not missing, missing
 

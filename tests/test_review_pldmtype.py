@@ -178,13 +178,11 @@ def test_a_type_the_request_names_goes_into_a_request_field_not_the_header():
     rule = _pldm_type_sentence()
     low = rule.lower()
     # a Type the user asks about (names, asks for) ...
-    assert re.search(r"\b(asked|asks|named|names|request names|user names)\b", low), (
+    assert re.search(r"\b(asked|asks|named|names|request names|user names)\b", low), rule
+    # ... is a request field, not the header's byte
+    assert re.search(r"\b(request|payload)('s)? field\b|\bfield of the request\b", low), (
         rule
     )
-    # ... is a request field, not the header's byte
-    assert re.search(
-        r"\b(request|payload)('s)? field\b|\bfield of the request\b", low
-    ), rule
     assert re.search(r"\bnot\b|\bnever\b", low), rule
 
 
@@ -252,9 +250,7 @@ def test_no_capped_file_pins_a_stale_cap():
 
 
 def _author_module():
-    spec = importlib.util.spec_from_file_location(
-        "author_cmd_workflow_t41", AUTHOR_TESTS
-    )
+    spec = importlib.util.spec_from_file_location("author_cmd_workflow_t41", AUTHOR_TESTS)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
