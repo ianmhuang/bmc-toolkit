@@ -6,8 +6,11 @@ first and the last numbered top-level bookmark is not an Outline entry.
 AC-2: one before the first or after the last is kept, so is an unnumbered
 entry below the top level, every entry of an Outline with fewer than two
 numbered top-level entries, and an Outline parsed from the contents pages.
-AC-3: each of the listed clause and annex forms counts as numbered. AC-4:
-the extractor version is 8 and a version 7 extract is not current.
+AC-3: each of the listed clause and annex forms counts as numbered, and
+since round 2 so do Roman-numeral and digit annex labels (``Appendix II``,
+``Annex 1``), while a word that merely starts with a Roman letter after
+``Annex`` does not. AC-4: the extractor version is 8 and a version 7
+extract is not current.
 Black-box through ``extract_pdf`` on synthetic PDFs; the contents-page case
 stubs ``parse_contents`` since the real parser yields numbered lines only.
 """
@@ -208,6 +211,12 @@ NUMBERED = [
     "Annex A. Sanitize Operation Considerations (Informative)",
     "Appendix C1 - Locating IPMI System Interfaces via SM BIOS Tables",
     "Appendix A— Acronyms",
+    # round 2 (F3): Roman-numeral and digit annex labels
+    "Appendix II Notes",
+    "ANNEX IV (informative) Conformance",
+    "Annex VIII Examples",
+    "Annex 1 Overview",
+    "Appendix 12 - Tables",
 ]
 
 
@@ -215,6 +224,55 @@ NUMBERED = [
 def test_ac3_a_numbered_title_between_clauses_is_kept(tmp_path, title):
     marks = [(0, "1 Scope"), (0, title), (0, "99 Last")]
     assert outline_of(tmp_path, marks) == marks
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "3.1",
+        "Appendix",
+        "Annexes",
+        "Appendixes and notes",
+        "Annex Introduction",
+        "Appendix Values",
+        "A note on terms",
+    ],
+    ids=[
+        "bare-number",
+        "appendix-word",
+        "annexes",
+        "appendixes",
+        "annex-then-word-starting-I",
+        "appendix-then-word-starting-V",
+        "article",
+    ],
+)
+def test_ac3_a_title_that_only_looks_numbered_is_dropped(tmp_path, title):
+    # the Roman-numeral alternative must not read the first letter of an
+    # ordinary word ("Introduction", "Values") as a label
+    marks = [(0, "1 Scope"), (0, title), (0, "2 Terms")]
+    assert outline_of(tmp_path, marks) == [(0, "1 Scope"), (0, "2 Terms")]
+
+
+def test_ac2_children_of_a_dropped_entry_stay_under_the_clause_above(tmp_path):
+    # round 1 F1, accepted as documented: only the unnumbered top-level
+    # entry goes; its nested entries stay and follow the previous clause
+    got = outline_of(
+        tmp_path,
+        [
+            (0, "1 Scope"),
+            (0, "Revision History"),
+            (1, "Version 1.1"),
+            (2, "Changes"),
+            (0, "2 Terms"),
+        ],
+    )
+    assert got == [
+        (0, "1 Scope"),
+        (1, "Version 1.1"),
+        (2, "Changes"),
+        (0, "2 Terms"),
+    ]
 
 
 @pytest.mark.parametrize("title", NUMBERED)
