@@ -16,7 +16,7 @@ SKILL = ROOT / "skills" / "bmc-spec" / "SKILL.md"
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
 DEVELOP_LINES = 46  # the cap before T52
-MAX_LINES = 52  # 46 until T52 (NC-SI Invocation)
+MAX_LINES = 58  # 46 until T52 (NC-SI Invocation); 52 until T53
 
 # the ten files the change description names as pinning the cap
 CAPPED = (

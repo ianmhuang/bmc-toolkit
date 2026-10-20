@@ -13,11 +13,14 @@ held openbmc/pldm Code Tree is opened for the spelling of pldmtool's
 subcommand and its options (:mod:`pldmtool`); the values in the line it
 prints are placeholders, as every value here is the Session's.
 
-``nc-si`` is the one protocol whose header is built here: the Session
-gives the Control Packet Type, package, channel and IID as options and
-the payload as fields, and the DSP0222 header, Payload Length, padding
-and checksum are fixed-format arithmetic over those bytes (ADR 0008 of
-the design workspace).
+``nc-si`` and ``nvme-mi`` are the protocols whose header is built here:
+for ``nc-si`` the Session gives the Control Packet Type, package, channel
+and IID as options and the payload as fields, and the DSP0222 header,
+Payload Length, padding and checksum are fixed-format arithmetic over
+those bytes (ADR 0008 of the design workspace); for ``nvme-mi`` it gives
+the message type (NMIMT) and Command Slot as options and the request from
+the opcode on as fields, and the four header bytes and the CRC-32C MIC are
+built here (ADR 0009).
 """
 
 from __future__ import annotations
@@ -29,7 +32,7 @@ from dataclasses import dataclass
 EXIT_OK = 0
 EXIT_ACTION = 2
 
-PROTOCOLS = ("ipmi", "mctp-control", "nc-si", "pldm", "spdm")
+PROTOCOLS = ("ipmi", "mctp-control", "nc-si", "nvme-mi", "pldm", "spdm")
 FORM = "NAME:SIZE=VALUE"
 MAX_SIZE = 0xFFFF  # the most a 16-bit length field can state
 FIELD_RE = re.compile(
@@ -203,20 +206,26 @@ def _parse_all(texts: list[str]) -> list[Field]:
 
 
 def render(
-    protocol: str, texts: list[str], header: NcsiHeader | None = None
+    protocol: str,
+    texts: list[str],
+    header: NcsiHeader | NvmeMiHeader | None = None,
 ) -> list[str]:
     """What the command prints for the fields ``texts``; raises
     :class:`FieldError` naming the first one that cannot be laid out.
-    ``header`` is the NC-SI header's options, for ``nc-si`` only."""
+    ``header`` is the header's options, for ``nc-si`` and ``nvme-mi`` only."""
     if protocol not in PROTOCOLS:
         raise FieldError(
             f"unknown protocol {_shown(protocol, True)}; "
             f"it is one of {', '.join(PROTOCOLS)}"
         )
     if protocol == "nc-si":
-        if header is None:
+        if not isinstance(header, NcsiHeader):
             raise FieldError("nc-si takes --type, --package and --channel")
         return render_ncsi(header, texts)
+    if protocol == "nvme-mi":
+        if not isinstance(header, NvmeMiHeader):
+            raise FieldError(f"nvme-mi takes --nmimt mi or admin; {NO_BYTES}")
+        return render_nvme_mi(header, texts)
     if not texts:
         raise FieldError(f"no field given; a field is {FORM}")
     fields = _parse_all(texts)
@@ -417,6 +426,200 @@ def render_ncsi(header: NcsiHeader, texts: list[str]) -> list[str]:
     return out
 
 
+# ---------------------------------------------------------------- nvme-mi
+# NVMe-MI 2.2 Figure 20 (message header), Figure 21 (MIC), Figure 67 (NVMe-MI
+# Command request), Figure 139 (NVMe Admin Command request); the nvme-cli
+# syntax is nvme-cli 2.16 faf7326 and libnvme 1.16.2 07d6c32
+
+NVME_MI_OPTIONS = ("nmimt", "csi")
+NMIMT = {"mi": 1, "admin": 2}
+NVME_MI_TYPE = 0x84  # IC 1, MCTP message type 4
+NVME_MI_MAX_MESSAGE = 4224  # 4 KiB of data plus header and MIC
+NVME_MI_MAX_DLEN = 4096
+MCTP_BASELINE = 64  # bytes of message an MCTP baseline packet carries
+NO_BYTES = "PCIe Commands and Control Primitives get no bytes"
+MI_REQUEST = 12  # opcode, 3 reserved, NMD0, NMD1
+ADMIN_REQUEST = 64  # opcode to SQE Dword 15
+# (option, offset in the request from the opcode, placeholder): the
+# dwords nvme admin-passthru carries, in the order it is printed with
+PASSTHRU_DWORDS = (
+    ("namespace-id", 4, "<nsid>"),
+    ("cdw2", 8, "<cdw2>"),
+    ("cdw3", 12, "<cdw3>"),
+    *((f"cdw{n}", 40 + 4 * (n - 10), f"<cdw{n}>") for n in range(10, 16)),
+    ("data-len", 28, "<dlen>"),
+)
+NOT_SENT = (16, 20, 24)  # SQE Dwords 4 and 5, DOFST: nvme-cli sends 0
+PASSTHRU = "nvme admin-passthru mctp:<net>,<eid>:"
+NOTE_NO_TOOL = (
+    "note: no command on an OpenBMC BMC sends an NVMe-MI command-set message: "
+    "mctp-client cannot set the IC bit and adds no MIC, and nvme-cli sends "
+    "Admin Commands only; the message is for a capture or a libnvme program"
+)
+NOTE_NVME_CLI = (
+    "note: nvme-cli 2.16 (libnvme 1.16.2), which probes the endpoint before "
+    "the first command; mctp: takes NET, EID and the controller id in decimal"
+)
+NOTE_DIRECTION = (
+    "note: nvme-cli takes the data direction from the opcode's bits 1..0 "
+    "(no -r or -w); request data goes on stdin or -i <file>"
+)
+NOTE_DIFFERS = (
+    "note: nvme-cli sends DOFST 0 and SQE Dwords 4-5 as 0, so the message it "
+    "sends differs from the one above there"
+)
+NOTE_MIC = (
+    "note: MIC <mic>: the message holds placeholders; give every value to "
+    "have it computed"
+)
+NOTE_PACKETS = (
+    f"note: the message is above {MCTP_BASELINE} bytes, so MCTP carries it in "
+    f"several packets ({MCTP_BASELINE}-byte baseline transmission unit)"
+)
+
+
+@dataclass
+class NvmeMiHeader:
+    nmimt: str
+    csi: int
+
+
+def nvme_mi_header(args) -> NvmeMiHeader | None:
+    """The NVMe-MI header options of ``args``: None for another protocol,
+    which must not carry them."""
+    given = [name for name in NVME_MI_OPTIONS if getattr(args, name, None) is not None]
+    if args.protocol != "nvme-mi":
+        if given and args.protocol in PROTOCOLS:
+            raise FieldError(f"--{given[0]} is for nvme-mi, not {args.protocol}")
+        return None
+    if "nmimt" not in given:
+        raise FieldError(f"nvme-mi: --nmimt, mi or admin, is missing; {NO_BYTES}")
+    if args.nmimt not in NMIMT:
+        raise FieldError(
+            f"--nmimt {_shown(args.nmimt, True)}: mi (an NVMe-MI command) or "
+            f"admin (an NVMe Admin Command); {NO_BYTES}"
+        )
+    csi = 0
+    if args.csi is not None:
+        try:
+            csi = _number(args.csi)
+        except FieldError as exc:
+            raise FieldError(f"--csi: {exc}") from None
+        if csi > 1:
+            raise FieldError(f"--csi {_shown(args.csi)}: the Command Slot is 0 or 1")
+    return NvmeMiHeader(args.nmimt, csi)
+
+
+def nvme_mi_crc(data: bytes) -> int:
+    """NVMe-MI 2.2 Figure 21: CRC-32C (Castagnoli), reflected polynomial
+    0x82F63B78, initial value and final XOR 0xFFFFFFFF."""
+    crc = 0xFFFFFFFF
+    for byte in data:
+        crc ^= byte
+        for _ in range(8):
+            crc = (crc >> 1) ^ 0x82F63B78 if crc & 1 else crc >> 1
+    return crc ^ 0xFFFFFFFF
+
+
+def _dword(request: list[int | str], at: int) -> int | None:
+    """The little-endian dword at ``at``; None when a byte is a placeholder."""
+    found = request[at : at + 4]
+    if any(isinstance(token, str) for token in found):
+        return None
+    return int.from_bytes(bytes(found), "little")
+
+
+def passthru_line(request: list[int | str]) -> str:
+    """``nvme admin-passthru`` for an Admin request laid out from its opcode:
+    the dwords libnvme carries, each one that is not zero."""
+    known = all(isinstance(token, int) for token in request[2:4])
+    ctrl = int.from_bytes(bytes(request[2:4]), "little") if known else "<ctrl id>"
+    opcode = request[0]
+    options = [f"--opcode={_prefixed(opcode) if isinstance(opcode, int) else opcode}"]
+    for name, at, placeholder in PASSTHRU_DWORDS:
+        value = _dword(request, at)
+        if value is None:
+            options.append(f"--{name}={placeholder}")
+        elif value:
+            options.append(f"--{name}={value:#x}")
+    return f"{PASSTHRU}{ctrl} {' '.join(options)}"
+
+
+def render_nvme_mi(header: NvmeMiHeader, texts: list[str]) -> list[str]:
+    """What ``invocation nvme-mi`` prints: the whole message with its MIC,
+    and for an Admin Command the nvme-cli line that sends it."""
+    fields = _parse_all(texts)
+    request = [token for field in fields for token in field.tokens]
+    admin = header.nmimt == "admin"
+    if admin and len(request) < ADMIN_REQUEST:
+        raise FieldError(
+            f"nvme-mi --nmimt admin: an NVMe Admin Command request is at least "
+            f"{ADMIN_REQUEST} bytes from the opcode (to SQE Dword 15); the "
+            f"fields hold {len(request)}"
+        )
+    if not admin and len(request) < MI_REQUEST:
+        raise FieldError(
+            f"nvme-mi --nmimt mi: an NVMe-MI command request is at least "
+            f"{MI_REQUEST} bytes from the opcode (opcode, 3 reserved, NMD0, "
+            f"NMD1); the fields hold {len(request)}"
+        )
+    size = 4 + len(request) + 4
+    if size > NVME_MI_MAX_MESSAGE:
+        raise FieldError(
+            f"the message is {size} bytes; an NVMe-MI message is at most "
+            f"{NVME_MI_MAX_MESSAGE}"
+        )
+    if admin:
+        opcode, dlen = request[0], _dword(request, 28)
+        if isinstance(opcode, int) and opcode & 3 == 3:
+            raise FieldError(
+                f"opcode {_prefixed(opcode)}: bits 1..0 are 11 (bidirectional), "
+                "which nvme-cli over MCTP refuses"
+            )
+        if dlen is not None and dlen > NVME_MI_MAX_DLEN:
+            raise FieldError(
+                f"DLEN is {dlen}; an Admin Command over NVMe-MI moves at most "
+                f"{NVME_MI_MAX_DLEN} bytes"
+            )
+    parts: list[tuple[str, list[int | str]]] = [
+        ("IC and Message Type", [NVME_MI_TYPE]),
+        ("NMP (ROR, NMIMT, CSI)", [NMIMT[header.nmimt] << 3 | header.csi]),
+        ("CIAP and MEB", [0x00]),
+        ("Reserved", [0x00]),
+    ]
+    parts.extend((field.name, field.tokens) for field in fields)
+    body = [token for _, tokens in parts for token in tokens]
+    placeholders = any(isinstance(token, str) for token in body)
+    mic: list[int | str] = (
+        ["<mic>"] * 4
+        if placeholders
+        else list(nvme_mi_crc(bytes(body)).to_bytes(4, "little"))
+    )
+    parts.append(("MIC", mic))
+    out = [f"request bytes: {len(request)}", f"message bytes: {size}"]
+    if admin:
+        out.append(passthru_line(request))
+    out.append(f"message: {' '.join(map(_plain, body + mic))}")
+    if admin:
+        out += [NOTE_NVME_CLI, NOTE_DIRECTION]
+        if any(_dword(request, at) != 0 for at in NOT_SENT):
+            out.append(NOTE_DIFFERS)
+    else:
+        out.append(NOTE_NO_TOOL)
+    if placeholders:
+        out.append(NOTE_MIC)
+    if size > MCTP_BASELINE:
+        out.append(NOTE_PACKETS)
+    out.append("offset | size | field | bytes")
+    offset = 0
+    for name, tokens in parts:
+        out.append(
+            f"{offset} | {len(tokens)} | {name} | {' '.join(map(_plain, tokens))}"
+        )
+        offset += len(tokens)
+    return out
+
+
 NOT_HELD = "subcommand: pldm Code Tree not held; clone pldm"
 
 
@@ -425,7 +628,9 @@ def cmd_invocation(args, tree_for: Callable[..., tuple] | None = None) -> int:
     Code Tree for ``--subcommand``, or raises ``code.CodeError``; the CLI
     supplies it, a bare call has none and prints the not-held line."""
     try:
-        lines = render(args.protocol, args.fields, ncsi_header(args))
+        # both run: each refuses its options given with another protocol
+        ncsi, nvme_mi = ncsi_header(args), nvme_mi_header(args)
+        lines = render(args.protocol, args.fields, ncsi or nvme_mi)
     except FieldError as exc:
         print(f"invocation: {exc}")
         return EXIT_ACTION
@@ -468,11 +673,14 @@ def not_held_line(message: str) -> str:
     return NOT_HELD
 
 
-MOVED_OPTIONS = ("--subcommand", *(f"--{name}" for name in NCSI_OPTIONS))
+MOVED_OPTIONS = (
+    "--subcommand",
+    *(f"--{name}" for name in (*NCSI_OPTIONS, *NVME_MI_OPTIONS)),
+)
 
 
 def reorder_argv(argv: list[str]) -> list[str]:
-    """``--subcommand NAME`` and the nc-si options moved to just after
+    """``--subcommand NAME`` and the nc-si and nvme-mi options moved to just after
     ``invocation``. argparse before CPython 3.12.7 / 3.13 (3.11 never got
     the fix, gh-59317) reads ``invocation pldm --subcommand NAME FIELD...``
     with an empty FIELD list and refuses the fields as unrecognized; the
@@ -527,6 +735,17 @@ def add_parsers(sub) -> None:
         "--iid",
         metavar="I",
         help="nc-si only: the Instance ID (0x01..0xff); <iid> when not given",
+    )
+    p.add_argument(
+        "--nmimt",
+        metavar="M",
+        help="nvme-mi only: mi (an NVMe-MI command) or admin (an NVMe Admin "
+        "Command), the message type of byte 1",
+    )
+    p.add_argument(
+        "--csi",
+        metavar="S",
+        help="nvme-mi only: the Command Slot (0 or 1); 0 when not given",
     )
     p.add_argument(
         "fields",

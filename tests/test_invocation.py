@@ -868,8 +868,9 @@ SHORT_REFUSALS = [
     (
         "nvme",
         ["X:1=0"],
-        # T52 added nc-si to the protocols this line names
-        "unknown protocol 'nvme'; it is one of ipmi, mctp-control, nc-si, pldm, spdm",
+        # T52 added nc-si to the protocols this line names, T53 nvme-mi
+        "unknown protocol 'nvme'; it is one of ipmi, mctp-control, nc-si, "
+        "nvme-mi, pldm, spdm",
     ),
     (
         "ipmi",

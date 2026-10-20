@@ -39,8 +39,9 @@ CAPPED = (
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-# AC-2: 38 until T39; 40 until T41; 42 until T43; 44 until T46; 46 until T52
-MAX_LINES = 52
+# AC-2: 38 until T39; 40 until T41; 42 until T43; 44 until T46; 46 until T52;
+# 52 until T53
+MAX_LINES = 58
 
 # the SPDMVersion sentence as develop holds it (AC-1: stays word for word)
 SPDM_VERSION_SENTENCE = (
@@ -202,7 +203,7 @@ def test_block_stays_within_the_raised_cap_with_the_rule_inside():
         "another tool version may differ",
         "no connection options",
         "even hedged or as a search term",
-        "Other Families (NVMe-MI)",  # NC-SI left in T52
+        "PCIe Commands and Control Primitives, and other Families",  # T53
     ):
         assert kept in text, kept
 
