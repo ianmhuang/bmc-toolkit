@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "bmc-spec" / "SKILL.md"
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-MAX_LINES = 52  # develop's 44 plus the two lines AC-7 allows; 46 until T52
+MAX_LINES = 58  # develop's 44 plus the two lines AC-7 allows; 46 until T52; 52 until T53
 
 
 def _body() -> list[str]:

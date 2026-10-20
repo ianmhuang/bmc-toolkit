@@ -19,7 +19,7 @@ README = ROOT / "README.md"
 
 START = "<!-- command-workflow:start -->"
 END = "<!-- command-workflow:end -->"
-MAX_LINES = 52  # AC-6: 46 until T52
+MAX_LINES = 58  # AC-6: 46 until T52; 52 until T53
 # sha256 of SKILL.md's front matter on develop 1d2f2d7 (AC-6: unchanged)
 FRONT_MATTER_SHA = "46edbffa30899ddf84be501e93d260d25163b63bf7f6fcf49c1ec13efeced22a"
 
@@ -422,8 +422,10 @@ def test_the_four_protocols_print_what_they_did(capsys):
 def test_the_unknown_protocol_line_names_nc_si():
     with pytest.raises(invocation.FieldError) as raised:
         invocation.render("nvme", ["X:1=0"])
+    # nvme-mi joined the list in T53
     assert str(raised.value) == (
-        "unknown protocol 'nvme'; it is one of ipmi, mctp-control, nc-si, pldm, spdm"
+        "unknown protocol 'nvme'; it is one of ipmi, mctp-control, nc-si, "
+        "nvme-mi, pldm, spdm"
     )
 
 
@@ -478,7 +480,8 @@ def test_the_block_gives_nc_si_an_invocation():
         assert word in text, word
     # NC-SI fields are big-endian
     assert re.search(r"NC-SI[^.]*big-endian|big-endian[^.]*NC-SI", text), text
-    assert "Other Families (NVMe-MI): no Invocation, no bytes to send;" in text
+    # T53 gave NVMe-MI an Invocation: what is left keeps the sentence
+    assert "and other Families: no Invocation, no bytes to send;" in text
     assert "Other Families (NC-SI, NVMe-MI)" not in text
     assert "OEM 0x50: none" in text
 

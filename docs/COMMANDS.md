@@ -150,7 +150,7 @@ more than one byte. The command knows no Document: the fields are the
 caller's, and a wrong field gives a wrong line.
 
 `invocation nc-si --type T --package P --channel C [--iid I] 'FIELD' ...`
-is the one protocol whose header the command builds. The fields are the
+builds the NC-SI header around the fields given. The fields are the
 NC-SI payload alone (none for a Command without one), NAME:SIZE:be for
 NC-SI's big-endian numbers. T is the Control Packet Type, P the package
 (0..7), C the channel (`0x00`..`0x1f`, or `package` for `0x1f`, the whole
@@ -182,6 +182,46 @@ response); `--package` missing or above 7; `--channel` missing or above
 `0x1f`; `--iid` 0 or above `0xff`; a payload above `0xfff` (4095) bytes;
 `--type`, `--package`, `--channel` or `--iid` with another protocol
 (`--type is for nc-si, not ipmi`).
+
+`invocation nvme-mi --nmimt mi|admin [--csi S] 'FIELD' ...` builds an
+NVMe-MI message over MCTP. The fields are the request from the opcode on,
+little-endian as NVMe-MI writes its numbers: for `mi` (an NVMe-MI
+command) the opcode, three reserved bytes, NMD0, NMD1 and any request
+data, at least 12 bytes; for `admin` (an NVMe Admin Command) the opcode,
+CFLGS, CTLID, SQE Dwords 1 to 5, DOFST, DLEN, 8 reserved bytes, SQE
+Dwords 10 to 15 and any request data, at least 64 bytes. S is the Command
+Slot, 0 or 1 (0 when not given). The output is `request bytes: N`,
+`message bytes: M` (4 + N + 4); for `admin`, `nvme admin-passthru
+mctp:<net>,<eid>:C --opcode=0xOO ...` in the syntax of nvme-cli 2.16, C
+the CTLID in decimal and then `--namespace-id`, `--cdw2`, `--cdw3`,
+`--cdw10` to `--cdw15` and `--data-len` for each of those dwords that is
+not zero, read from their offsets in the fields, in hex with `0x` (a dword
+holding a placeholder is `--cdw10=<cdw10>`, `--namespace-id=<nsid>`,
+`--data-len=<dlen>`; a placeholder CTLID is `<ctrl id>`). Then
+`message:`, the whole message as NVMe-MI 2.2 Figure 20 lays it out: `84`
+(IC 1, message type 4), ROR 0 with NMIMT (1 or 2) and CSI, `00 00`, the
+fields, and the MIC: CRC-32C (Castagnoli, reflected, initial value and
+final XOR `0xffffffff`) over every byte from the first, least
+significant byte first. When a byte is a placeholder the MIC is four
+`<mic>` bytes. No `mctp-client` line: it sends the message type with the
+IC bit clear and no MIC, which an endpoint discards. `note:` lines say,
+for `mi`, that no command on an OpenBMC BMC sends an NVMe-MI command-set
+message, so the message is for a capture or a libnvme program; for
+`admin`, the nvme-cli and libnvme versions and libnvme's probe before the
+first command, that `mctp:` takes NET, EID and the controller in decimal,
+that the opcode's bits 1..0 give the data direction and request data goes
+on stdin or `-i <file>`, and, when the fields hold a DOFST or SQE Dword 4
+or 5 that is not zero, that nvme-cli sends them as 0; why the MIC is
+`<mic>` when it is; and that MCTP carries a message above 64 bytes in
+several packets. The table has one row per header byte, field and the
+MIC, offsets from byte 0. Refused with exit 2 and one line, besides the
+field refusals above: `--nmimt` missing or not `mi` or `admin` (PCIe
+Commands and Control Primitives get no bytes); `--csi` not 0 or 1; fewer
+request bytes than 12 (`mi`) or 64 (`admin`); a message above 4224 bytes;
+for `admin`, a DLEN above 4096 or an opcode whose bits 1..0 are 11
+(bidirectional, which nvme-cli over MCTP refuses); `--nmimt` or `--csi`
+with another protocol (`--nmimt is for nvme-mi, not ipmi`), and the nc-si
+options with `nvme-mi`.
 
 `invocation pldm --subcommand NAME 'FIELD' ...` prints all of the above,
 then what pldmtool's own subcommand for the Command looks like, read from
