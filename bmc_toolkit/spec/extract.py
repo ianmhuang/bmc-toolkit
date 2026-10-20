@@ -107,10 +107,11 @@ _CAPTION = re.compile(
 )
 # a clause number and a title: "7 Structure", "7.15 Group", "1. Introduction",
 # "35b. Command", "A.2 Examples", "C1-1 IPMI", "E-1 Notation", "ANNEX A ...",
-# "Annex A. Sanitize", "Appendix C1 - Locating", "Appendix A— Acronyms"
+# "Annex A. Sanitize", "Appendix C1 - Locating", "Appendix A— Acronyms",
+# "Appendix IV", "Annex 1"
 _CLAUSE = re.compile(
     r"^(?:(?:\d+[a-z]?(?:\.\d+)*\.?|[A-Z]\d*(?:[.-]\d+)+\.?)\s+\S"
-    r"|(?:ANNEX|Annex|APPENDIX|Appendix)\s+[A-Z]\d*(?![A-Za-z0-9]))"
+    r"|(?:ANNEX|Annex|APPENDIX|Appendix)\s+(?:[A-Z]\d*|[IVXL]+|\d+)(?![A-Za-z0-9]))"
 )
 
 
@@ -627,8 +628,9 @@ def render_page(page: PageText) -> list[str]:
 
 
 def outline_from_bookmarks(pdf) -> list[dict]:
-    """Bookmark entries, without the Word cross-reference anchors and the
-    table and figure captions.
+    """Bookmark entries, without the Word cross-reference anchors, the
+    table and figure captions, and the unnumbered top-level entries
+    between numbered clauses.
 
     Word exports every bookmark of the document, and a bookmark placed on a
     reference (``Ref_DSP0236``, ``OLE_LINK1``) is not a heading: a single
@@ -645,7 +647,8 @@ def outline_from_bookmarks(pdf) -> list[dict]:
     that lies between two numbered top-level entries is dropped; one
     before the first (Foreword) or after the last (Bibliography) is kept,
     and so is every entry of a document with fewer than two numbered
-    top-level entries.
+    top-level entries. Entries below a dropped one stay, and so fall under
+    the numbered clause above it.
     """
     entries = []
     for bm in pdf.get_toc():

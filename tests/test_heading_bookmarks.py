@@ -158,6 +158,20 @@ def test_ac2_unnumbered_entries_below_the_top_level_are_kept(tmp_path):
     assert outline_of(tmp_path, marks) == marks
 
 
+def test_ac2_entries_below_a_dropped_one_stay_under_the_clause_above(tmp_path):
+    # #100 reviewer F1: only the unnumbered top-level entry goes
+    got = outline_of(
+        tmp_path,
+        [
+            (0, "1 Scope"),
+            (0, "Revision History"),
+            (1, "Version 1.1"),
+            (0, "2 Terms"),
+        ],
+    )
+    assert got == [(0, "1 Scope"), (1, "Version 1.1"), (0, "2 Terms")]
+
+
 @pytest.mark.parametrize(
     "marks",
     [
@@ -206,6 +220,9 @@ def test_ac2_contents_page_entries_are_not_judged(tmp_path, monkeypatch):
         "Annex A. Sanitize Operation Considerations (Informative)",
         "Appendix C1 - Locating IPMI System Interfaces via SM BIOS Tables",
         "Appendix A— Acronyms",
+        "Appendix II Notes",
+        "ANNEX IV (informative)",
+        "Annex 1 Overview",
     ],
     ids=[
         "number",
@@ -219,6 +236,9 @@ def test_ac2_contents_page_entries_are_not_judged(tmp_path, monkeypatch):
         "Annex-period",
         "Appendix-digit",
         "Appendix-em-dash",
+        "Appendix-roman",
+        "ANNEX-roman",
+        "Annex-digit",
     ],
 )
 def test_ac3_a_numbered_title_between_clauses_is_kept(tmp_path, title):
