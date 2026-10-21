@@ -971,12 +971,31 @@ def cmd_refresh(args: argparse.Namespace) -> int:
                 return EXIT_ERROR
             written += len(to_write)
             print(f"wrote {len(to_write)} version(s) of {doc.id} to {path}")
+    unlisted = ""
+    # The whole page against the whole catalog: not for one document, and
+    # not for a catalog that follows no DMTF document.
+    if not args.document and "dmtf" not in skipped and catalog.dmtf_listed():
+        unlisted = f", unlisted {_print_unlisted(catalog, listings, counts)}"
     print(
         f"summary: add {counts['add']}, confirm {counts['confirm']}, "
         f"changed {counts['changed']}, unreachable {counts['unreachable']}"
+        + unlisted
         + (f", written {written}" if args.write else " (dry run; --write adds them)")
     )
     return EXIT_OK
+
+
+def _print_unlisted(catalog: Catalog, listings, counts: dict) -> int:
+    """The ``unlisted`` lines of ``refresh``; returns how many."""
+    try:
+        found = refresh_mod.unlisted(catalog, listings)
+    except listing_mod.ListingError as exc:
+        print(f"unreachable unlisted: {exc}")
+        counts["unreachable"] += 1
+        return 0
+    for item in found:
+        print(f'unlisted {item.dsp} {item.seen.version} "{item.title}" {item.seen.url}')
+    return len(found)
 
 
 def _extract_one(holding, force: bool) -> str:

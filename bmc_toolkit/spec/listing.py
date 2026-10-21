@@ -185,17 +185,25 @@ def dmtf_version_of_url(url: str) -> str:
     return m.group("version") if m else ""
 
 
-def parse_dmtf_published(html: str) -> dict[str, Seen]:
-    """DSP id -> the current version, from the published-documents page."""
-    out = {}
+def _dmtf_published_rows(html: str):
+    """(DSP id, current version, title) of every row of the page."""
     for rec in _records(html, "dsp", "version", "title"):
         dsp = _column(rec, "dsp")[0].upper()
         version = _column(rec, "version")[0]
         title, href = _column(rec, "title")
         if not dsp.startswith("DSP") or not version:
             continue
-        out[dsp] = Seen(version, urllib.parse.urljoin(DMTF_PUBLISHED, href))
-    return out
+        yield dsp, Seen(version, urllib.parse.urljoin(DMTF_PUBLISHED, href)), title
+
+
+def parse_dmtf_published(html: str) -> dict[str, Seen]:
+    """DSP id -> the current version, from the published-documents page."""
+    return {dsp: seen for dsp, seen, _ in _dmtf_published_rows(html)}
+
+
+def parse_dmtf_titles(html: str) -> dict[str, str]:
+    """DSP id -> its title, from the published-documents page."""
+    return {dsp: title for dsp, _, title in _dmtf_published_rows(html)}
 
 
 def parse_dmtf_versions(html: str) -> list[Seen]:
@@ -340,6 +348,17 @@ class Listings:
             return rows
         raise ListingError(f"unknown listing source '{source}'")
 
+    def dmtf_published(self) -> dict[str, tuple[Seen, str]]:
+        """Every DSP id on the published-documents page: its current
+        version and its title. ListingError when the page cannot be read
+        or has no DSP rows (a changed layout)."""
+        html = self._text(DMTF_PUBLISHED)
+        titles = parse_dmtf_titles(html)
+        rows = {k: (s, titles[k]) for k, s in parse_dmtf_published(html).items()}
+        if not rows:
+            raise ListingError(f"no DSP rows on {DMTF_PUBLISHED}")
+        return rows
+
     def history(self, listing: str) -> list[Seen]:
         """Every version the publisher lists with dates where it gives
         them: the DMTF per-DSP page; for NVMe and OCP the same as
@@ -368,6 +387,7 @@ __all__ = [
     "nvme_version_of_url",
     "ocp_date",
     "parse_dmtf_published",
+    "parse_dmtf_titles",
     "parse_dmtf_versions",
     "parse_listing",
     "parse_nvme",

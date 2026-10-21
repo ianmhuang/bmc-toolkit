@@ -10,6 +10,9 @@ block whose ``version`` or ``published`` line the text scan cannot read
 (``UnreadableBlock``) makes the document be skipped rather than edited at
 the wrong place.
 OCP versions are only reported: their links are viewers, not files.
+A DSP id on DMTF's published-documents page that the catalog neither
+lists nor names in ``[listings.dmtf] not_taken`` is reported
+(``unlisted``) and never written.
 """
 
 import json
@@ -18,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bmc_toolkit.spec.catalog import (
+    Catalog,
     CatalogError,
     Document,
     load_catalog,
@@ -109,6 +113,28 @@ def proposals(doc: Document, listings: Listings) -> list[Proposal]:
         ):
             out.append(Proposal("changed", doc.id, s))
     return out
+
+
+@dataclass(frozen=True)
+class Unlisted:
+    """A DSP id on DMTF's published-documents page that the catalog
+    neither lists nor names in ``[listings.dmtf] not_taken``."""
+
+    dsp: str
+    seen: Seen
+    title: str
+
+
+def unlisted(catalog: Catalog, listings: Listings) -> list[Unlisted]:
+    """The page's ids the catalog has not decided on, in id order; an id a
+    document lists is never one, whatever ``not_taken`` covers.
+    ListingError when the page cannot be read."""
+    listed = catalog.dmtf_listed()
+    return [
+        Unlisted(dsp, seen, title)
+        for dsp, (seen, title) in sorted(listings.dmtf_published().items())
+        if dsp not in listed and not catalog.dmtf_not_taken_covers(dsp)
+    ]
 
 
 def _toml_string(value: str) -> str:

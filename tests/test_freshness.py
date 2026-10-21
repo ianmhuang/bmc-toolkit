@@ -388,8 +388,13 @@ def test_refresh_reports_and_writes_only_file_versions(
     assert lines[2].startswith("changed DSP0236 1.4.0 (2027-01-01) ")  # the WIP entry
     assert lines[3].startswith("add NVME-MI 2.2 (2026-07-31) https://nvmexpress.org/")
     assert lines[4].startswith("confirm M-CRPS 1.06 (2026-04-24) https://drive.google")
+    # the published-documents page lists DSP8010, which the catalog lacks
     assert lines[5] == (
-        "summary: add 2, confirm 1, changed 2, unreachable 0 "
+        'unlisted DSP8010 2026.1 "Redfish Schema Bundle" '
+        "https://www.dmtf.org/sites/default/files/standards/documents/DSP8010_2026.1.zip"
+    )
+    assert lines[6] == (
+        "summary: add 2, confirm 1, changed 2, unreachable 0, unlisted 1 "
         "(dry run; --write adds them)"
     )
     before = catalog_file.read_text("utf-8")
@@ -397,7 +402,7 @@ def test_refresh_reports_and_writes_only_file_versions(
     assert code == 0, out
     assert "wrote 1 version(s) of DSP0236" in out
     assert "wrote 1 version(s) of NVME-MI" in out
-    assert out.splitlines()[-1].endswith("unreachable 0, written 2")
+    assert out.splitlines()[-1].endswith("unreachable 0, unlisted 1, written 2")
     after = catalog_file.read_text("utf-8")
     catalog = load_catalog(catalog_file)
     doc = catalog.get("DSP0236")

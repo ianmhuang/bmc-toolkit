@@ -51,6 +51,16 @@ Schema (``schema_version = 1``)::
                                from the document's (newer versions gated)
     notes = "..."              optional
 
+    [listings.dmtf]            optional; above the first [[documents]], since
+                               refresh --write reads a document's block as
+                               the lines up to the next block
+    not_taken = ["DSP08"]      DMTF documents reviewed and left out of the
+                               catalog: DSP ids, or prefixes of them
+                               ("DSP08" covers DSP0800 to DSP0899);
+                               refresh reports every other id on DMTF's
+                               published-documents page that no document
+                               lists (`unlisted`)
+
     [[repos]]                  one entry per code repository (Code Trees)
     id = "bmcweb"              unique, matched case-insensitively; also the
                                directory name under the Library's code/
@@ -202,6 +212,7 @@ class Catalog:
     families: dict[str, Family]
     documents: list[Document]
     repos: list[Repo] = field(default_factory=list)
+    dmtf_not_taken: tuple[str, ...] = ()  # upper-cased DSP ids or prefixes
     _index: dict[str, Document] = field(default_factory=dict, repr=False)
     _repo_index: dict[str, Repo] = field(default_factory=dict, repr=False)
 
@@ -226,6 +237,24 @@ class Catalog:
     def by_topic(self, topic: str) -> list[Repo]:
         wanted = topic.strip().lower()
         return [r for r in self.repos if wanted in (t.lower() for t in r.topics)]
+
+    def dmtf_listed(self) -> dict[str, str]:
+        """Upper-cased DSP id -> the document whose DMTF listing names it."""
+        return _dmtf_listed(self.documents)
+
+    def dmtf_not_taken_covers(self, dsp_id: str) -> bool:
+        """True when an entry of ``[listings.dmtf] not_taken`` is the id or
+        a prefix of it."""
+        wanted = dsp_id.strip().upper()
+        return any(wanted.startswith(entry) for entry in self.dmtf_not_taken)
+
+
+def _dmtf_listed(documents) -> dict[str, str]:
+    return {
+        d.listing_key.strip().upper(): d.id
+        for d in documents
+        if d.listing_source == "dmtf"
+    }
 
 
 def _expect(table: dict, key: str, kind, where: str, default=None, required=True):
@@ -437,7 +466,42 @@ def parse_catalog(data: dict) -> Catalog:
             raise CatalogError(f"repos[{i}].id: duplicate id '{repo.id}'")
         repo_ids.add(repo.id.lower())
         repos.append(repo)
-    return Catalog(families, documents, repos)
+    return Catalog(families, documents, repos, _parse_listings(data, documents))
+
+
+def _parse_listings(data: dict, documents: list[Document]) -> tuple[str, ...]:
+    """``[listings.dmtf] not_taken``, upper-cased and checked."""
+    raw = _expect(data, "listings", dict, "catalog", default={}, required=False)
+    for source in raw:
+        if source != "dmtf":
+            raise CatalogError(
+                f"listings.{source}: unknown publisher, only 'dmtf' is read"
+            )
+    dmtf = raw.get("dmtf", {})
+    if not isinstance(dmtf, dict):
+        raise CatalogError("listings.dmtf: expected a table")
+    for key in dmtf:
+        if key != "not_taken":
+            raise CatalogError(f"listings.dmtf.{key}: unknown key, expected not_taken")
+    entries = _expect(
+        dmtf, "not_taken", list, "listings.dmtf", default=[], required=False
+    )
+    listed = _dmtf_listed(documents)
+    out: list[str] = []
+    for i, item in enumerate(entries):
+        where = f"listings.dmtf.not_taken[{i}]"
+        if not isinstance(item, str) or not item.strip().upper().startswith("DSP"):
+            raise CatalogError(f"{where}: {item!r} is not a DSP id or a prefix of one")
+        entry = item.strip().upper()
+        if entry in out:
+            raise CatalogError(f"{where}: duplicate entry '{entry}'")
+        if entry in listed:
+            raise CatalogError(
+                f"{where}: '{entry}' is the listing of {listed[entry]}, "
+                f"which the catalog takes"
+            )
+        out.append(entry)
+    return tuple(out)
 
 
 def load_catalog(path: Path | None = None) -> Catalog:
