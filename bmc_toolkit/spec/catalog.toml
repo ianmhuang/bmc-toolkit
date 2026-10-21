@@ -171,8 +171,9 @@ publisher = "Nuvoton"
 # and DSP5xxx policies. The ids are CIM, WBEM, WS-Management, CMDBf,
 # OVF, CADF and CIMI documents, white papers and XML schemas, and
 # documents near the BMC families not taken yet (DSP0285 RedPath,
-# DSP0294, the PMCI, SPDM and Redfish white papers): taking one removes
-# it from this list.
+# DSP0294, the PMCI white papers DSP2015, DSP2016 and DSP2037, the SPDM
+# post-quantum white paper DSP2072, the PLDM modeling white papers and
+# the Redfish white papers): taking one removes it from this list.
 
 [listings.dmtf]
 not_taken = [
@@ -4649,6 +4650,7 @@ version = "1.0.0"
 url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2058_1.0.0_1.pdf"
 type = "pdf"
 published = "2020-09-04"
+notes = "DMTF lists this version under a re-upload file name (_1)."
 
 [[documents.versions]]
 version = "1.1.0"

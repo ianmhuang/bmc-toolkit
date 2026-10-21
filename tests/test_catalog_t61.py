@@ -54,8 +54,13 @@ def test_the_dmtf_ones_left_not_taken():
         assert not cat.dmtf_not_taken_covers(dsp), dsp
     text = (ROOT / "bmc_toolkit" / "spec" / "catalog.toml").read_text("utf-8")
     comment = text[text.index("DMTF left out") : text.index("[listings.dmtf]")]
-    for dsp in ("DSP0282", "DSP0288", "DSP0293"):
+    for dsp in ("DSP0282", "DSP0288", "DSP0293", "DSP2058"):
         assert dsp not in comment, dsp
+    # DSP2058 is the SPDM Architecture White Paper: the SPDM white paper
+    # still left out is named by its id
+    flat = " ".join(comment.replace("#", " ").split())
+    assert "SPDM and Redfish white papers" not in flat
+    assert "SPDM post-quantum white paper DSP2072" in flat
 
 
 def test_limits_name_the_caption_cases_and_where_to_read_them():
