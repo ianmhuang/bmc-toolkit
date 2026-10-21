@@ -225,14 +225,14 @@ def test_numbering_rows_and_the_table_line(tmp_path):
 
 
 def test_a_version_5_store_is_read_again(tmp_path):
-    assert T.TABLES_VERSION == 7
+    assert T.TABLES_VERSION == 8
     pdf = pdfgen.write_pdf(tmp_path / "f.pdf", [boxes() + [below(30, "Figure 3 - P")]])
     with T.Reader(pdf) as r:
         found = r.logical_tables(1)
     T.store(tmp_path, [1], found)
     path = tmp_path / T.TABLES_NAME
     data = json.loads(path.read_text("utf-8"))
-    assert data["tables_version"] == 7
+    assert data["tables_version"] == 8
     assert data["tables"][0]["caption"] == "Figure 3 - P"
     assert T.stored_for_page(tmp_path, 1) is not None
     data["tables_version"] = 5

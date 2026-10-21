@@ -180,8 +180,8 @@ def test_a_store_of_the_previous_version_is_read_again(held, catalog_file, capsy
     data = json.loads(store.read_text("utf-8"))
     # the one place that names the number: 4 was the caption-based section,
     # 5 named no table by its figure's caption, 6 joined words a narrow gap
-    # apart
-    assert tables_mod.TABLES_VERSION == 7
+    # apart, 7 did so in the lines around a table
+    assert tables_mod.TABLES_VERSION == 8
     assert data["tables_version"] == tables_mod.TABLES_VERSION
     assert [t["section"] for t in data["tables"]] == [
         "5.1 Set",
