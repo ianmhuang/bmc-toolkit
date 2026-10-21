@@ -10,8 +10,8 @@ local library of the documents and repositories you have asked about, defaults
 to the latest published version of each document, serves any specific version
 on request, and cites document, version, section and page in every answer.
 
-**Status: 1.5.2.** The Source Catalog lists 114 documents in
-35 families. The 94 open ones are downloaded by the tool and every one of
+**Status: 1.5.2.** The Source Catalog lists 119 documents in
+35 families. The 99 open ones are downloaded by the tool and every one of
 them has been checked against the acceptance questions in
 `docs/golden-questions.md`; the 20 gated, member and NDA documents are
 listed with their tier and registered from your own copy. Which documents,

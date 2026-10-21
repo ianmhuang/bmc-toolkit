@@ -386,8 +386,11 @@ def test_the_shipped_catalog_carries_the_reviewed_list():
     # the ranges with nothing BMC-related, and candidates not taken yet
     for dsp in ("DSP0801", "DSP1001", "DSP4015", "DSP5001", "DSP-IS0501"):
         assert cat.dmtf_not_taken_covers(dsp), dsp
-    for dsp in ("DSP0282", "DSP0285", "DSP0288", "DSP0293", "DSP2058", "DSP2090"):
+    for dsp in ("DSP0285", "DSP0294", "DSP2015", "DSP2090"):
         assert cat.dmtf_not_taken_covers(dsp), dsp
+    # taken since (T61): listed, so no longer in the list
+    for dsp in ("DSP0282", "DSP0288", "DSP0293", "DSP2058"):
+        assert dsp in listed and not cat.dmtf_not_taken_covers(dsp), dsp
 
 
 # a document whose page lists a version the catalog lacks, followed by the

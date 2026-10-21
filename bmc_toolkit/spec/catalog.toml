@@ -170,9 +170,10 @@ publisher = "Nuvoton"
 # informational, DSP08xx SM CLP mappings, DSP1xxx CIM profiles, DSP4xxx
 # and DSP5xxx policies. The ids are CIM, WBEM, WS-Management, CMDBf,
 # OVF, CADF and CIMI documents, white papers and XML schemas, and
-# documents near the BMC families not taken yet (DSP0282 MMBI, DSP0285
-# RedPath, DSP0288 CXL to Redfish, DSP0293, DSP0294, the PMCI, SPDM and
-# Redfish white papers): taking one removes it from this list.
+# documents near the BMC families not taken yet (DSP0285 RedPath,
+# DSP0294, the PMCI white papers DSP2015, DSP2016 and DSP2037, the SPDM
+# post-quantum white paper DSP2072, the PLDM modeling white papers and
+# the Redfish white papers): taking one removes it from this list.
 
 [listings.dmtf]
 not_taken = [
@@ -182,20 +183,20 @@ not_taken = [
     "DSP0212", "DSP0214", "DSP0215", "DSP0216", "DSP0217", "DSP0219", "DSP0220",
     "DSP0221", "DSP0223", "DSP0224", "DSP0226", "DSP0227", "DSP0228", "DSP0230",
     "DSP0231", "DSP0232", "DSP0243", "DSP0244", "DSP0252", "DSP0255", "DSP0262",
-    "DSP0263", "DSP0264", "DSP0265", "DSP0280", "DSP0282", "DSP0285", "DSP0288",
-    "DSP0293", "DSP0294", "DSP2000", "DSP2001", "DSP2011", "DSP2013", "DSP2014",
-    "DSP2015", "DSP2016", "DSP2017", "DSP2021", "DSP2022", "DSP2023", "DSP2024",
-    "DSP2025", "DSP2027", "DSP2032", "DSP2033", "DSP2037", "DSP2038", "DSP2042",
-    "DSP2043", "DSP2044", "DSP2045", "DSP2047", "DSP2048", "DSP2050", "DSP2051",
-    "DSP2052", "DSP2054", "DSP2055", "DSP2056", "DSP2058", "DSP2059", "DSP2060",
-    "DSP2061", "DSP2062", "DSP2063", "DSP2064", "DSP2066", "DSP2067", "DSP2068",
-    "DSP2072", "DSP2073", "DSP2090", "DSP8000", "DSP8001", "DSP8004", "DSP8005",
-    "DSP8006", "DSP8007", "DSP8008", "DSP8009", "DSP8012", "DSP8014", "DSP8015",
-    "DSP8016", "DSP8019", "DSP8020", "DSP8022", "DSP8023", "DSP8024", "DSP8025",
-    "DSP8026", "DSP8027", "DSP8028", "DSP8029", "DSP8030", "DSP8031", "DSP8032",
-    "DSP8033", "DSP8034", "DSP8035", "DSP8036", "DSP8037", "DSP8039", "DSP8040",
-    "DSP8041", "DSP8042", "DSP8043", "DSP8044", "DSP8045", "DSP8046", "DSP8047",
-    "DSP8049", "DSP8050", "DSP8051", "DSP8052", "DSP8053", "DSP8054",
+    "DSP0263", "DSP0264", "DSP0265", "DSP0280", "DSP0285", "DSP0294", "DSP2000",
+    "DSP2001", "DSP2011", "DSP2013", "DSP2014", "DSP2015", "DSP2016", "DSP2017",
+    "DSP2021", "DSP2022", "DSP2023", "DSP2024", "DSP2025", "DSP2027", "DSP2032",
+    "DSP2033", "DSP2037", "DSP2038", "DSP2042", "DSP2043", "DSP2044", "DSP2045",
+    "DSP2047", "DSP2048", "DSP2050", "DSP2051", "DSP2052", "DSP2054", "DSP2055",
+    "DSP2056", "DSP2059", "DSP2060", "DSP2061", "DSP2062", "DSP2063", "DSP2064",
+    "DSP2066", "DSP2067", "DSP2068", "DSP2072", "DSP2073", "DSP2090", "DSP8000",
+    "DSP8001", "DSP8004", "DSP8005", "DSP8006", "DSP8007", "DSP8008", "DSP8009",
+    "DSP8012", "DSP8014", "DSP8015", "DSP8016", "DSP8019", "DSP8020", "DSP8022",
+    "DSP8023", "DSP8024", "DSP8025", "DSP8026", "DSP8027", "DSP8028", "DSP8029",
+    "DSP8030", "DSP8031", "DSP8032", "DSP8033", "DSP8034", "DSP8035", "DSP8036",
+    "DSP8037", "DSP8039", "DSP8040", "DSP8041", "DSP8042", "DSP8043", "DSP8044",
+    "DSP8045", "DSP8046", "DSP8047", "DSP8049", "DSP8050", "DSP8051", "DSP8052",
+    "DSP8053", "DSP8054",
 ]
 
 # ---------------------------------------------------------------- Intel
@@ -4553,6 +4554,136 @@ version = "1.0.0"
 url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0251_1.0.0.pdf"
 type = "pdf"
 published = "2026-10-12"
+
+[[documents]]
+id = "DSP0282"
+family = "mctp"
+title = "Memory-Mapped Buffer Interface (MMBI) Specification"
+access = "open"
+fetch = "direct"
+limits = "Table 2's caption prints as `-`: one word of it is set 4 pt lower and reads as its own line above the table. Rows of Table 1 that a page break cuts (bytes 6 and 24) print without their byte number, the PDF drawing no left rule for those parts. Read both with page (pages 15-18)."
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0282_1.0.0.pdf"
+type = "pdf"
+published = "2023-08-28"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0282_1.0.1.pdf"
+type = "pdf"
+published = "2024-10-22"
+
+[[documents.versions]]
+version = "1.0.2"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0282_1.0.2.pdf"
+type = "pdf"
+published = "2025-10-15"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0282_1.1.0.pdf"
+type = "pdf"
+published = "2026-02-05"
+
+[[documents]]
+id = "DSP0293"
+family = "pldm"
+title = "Standards Body and Vendor Header Registry"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0293_1.0.0.pdf"
+type = "pdf"
+published = "2025-10-06"
+
+[[documents]]
+id = "DSP0288"
+family = "redfish"
+title = "CXL to Redfish Mapping Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0288_1.0.0.pdf"
+type = "pdf"
+published = "2023-10-31"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0288_1.1.0.pdf"
+type = "pdf"
+published = "2024-01-17"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0288_1.2.0.pdf"
+type = "pdf"
+published = "2024-05-20"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0288_1.3.0.pdf"
+type = "pdf"
+published = "2025-10-12"
+
+[[documents.versions]]
+version = "1.4.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0288_1.4.0.pdf"
+type = "pdf"
+published = "2026-09-14"
+
+[[documents]]
+id = "DSP2058"
+family = "spdm"
+title = "Security Protocol and Data Model (SPDM) Architecture White Paper"
+access = "open"
+fetch = "direct"
+limits = "Table 1's caption is the last line of page 14 and the table starts on page 15, so table prints the caption as `-`; page 14 shows it."
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2058_1.0.0_1.pdf"
+type = "pdf"
+published = "2020-09-04"
+notes = "DMTF lists this version under a re-upload file name (_1)."
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2058_1.1.0.pdf"
+type = "pdf"
+published = "2022-02-04"
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2058_1.2.0.pdf"
+type = "pdf"
+published = "2022-10-03"
+
+[[documents.versions]]
+version = "1.3.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2058_1.3.0.pdf"
+type = "pdf"
+published = "2024-06-17"
+
+[[documents]]
+id = "NVME-NVM"
+family = "nvme"
+listing = "nvme:nvm-command-set-specification"
+title = "NVM Express NVM Command Set Specification"
+access = "open"
+fetch = "direct"
+limits = "A figure that repeats its caption at the top of each continuation page (Figure 123, Identify Namespace, pages 85-93) prints its caption as `-`, the repeated line being taken for a running header; page shows it."
+
+[[documents.versions]]
+version = "1.3"
+url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-NVM-Command-Set-Specification-Revision-1.3-Ratified-2026.07.31.pdf"
+type = "pdf"
+published = "2026-07-31"
 
 [[repos]]
 id = "openbmc"
