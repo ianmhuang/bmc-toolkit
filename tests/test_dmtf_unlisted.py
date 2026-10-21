@@ -375,22 +375,65 @@ def test_the_issue_text_says_what_to_do_with_an_unlisted_id():
 
 
 def test_the_shipped_catalog_carries_the_reviewed_list():
+    # properties, not a count: taking a candidate or adding a new id
+    # changes the list without changing behaviour
     cat = C.load_catalog()
-    assert len(cat.dmtf_not_taken) == 139
-    assert cat.dmtf_not_taken[:5] == ("DSP-IS", "DSP08", "DSP1", "DSP4", "DSP5")
+    assert cat.dmtf_not_taken
+    assert all(entry.startswith("DSP") for entry in cat.dmtf_not_taken)
     listed = cat.dmtf_listed()
     assert "DSP0251" in listed and "DSP0236" in listed
-    # every entry is either a prefix or an id the catalog does not take
     assert not set(cat.dmtf_not_taken) & set(listed)
-    for dsp in ("DSP0282", "DSP0285", "DSP0288", "DSP2058", "DSP0801", "DSP1001"):
+    # the ranges with nothing BMC-related, and candidates not taken yet
+    for dsp in ("DSP0801", "DSP1001", "DSP4015", "DSP5001", "DSP-IS0501"):
+        assert cat.dmtf_not_taken_covers(dsp), dsp
+    for dsp in ("DSP0282", "DSP0285", "DSP0288", "DSP0293", "DSP2058", "DSP2090"):
         assert cat.dmtf_not_taken_covers(dsp), dsp
 
 
-def test_the_shipped_list_sits_above_the_first_document_block():
-    # refresh --write edits document blocks as text: a table after the last
-    # document would be read as part of that document's span
-    text = (ROOT / "bmc_toolkit" / "spec" / "catalog.toml").read_text("utf-8")
-    assert text.index("[listings.dmtf]") < text.index("[[documents]]")
+# a document whose page lists a version the catalog lacks, followed by the
+# table: the block refresh --write adds must stay above the table
+TABLE_LAST = """schema_version = 1
+
+[families.mctp]
+title = "MCTP"
+publisher = "DMTF"
+
+[[documents]]
+id = "DSP0236"
+family = "mctp"
+title = "MCTP Base Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.3.2"
+url = "https://example.test/DSP0236_1.3.2.pdf"
+type = "pdf"
+published = "2024-01-02"
+
+# reviewed, not taken
+[listings.dmtf]
+not_taken = ["DSP08", "DSP-IS", "DSP0282", "DSP0297"]
+"""
+
+
+def test_write_keeps_a_new_version_above_a_table_after_the_document(
+    tmp_path, client, capsys
+):
+    path = write_catalog(tmp_path, TABLE_LAST)
+    code, out = run(capsys, path, "refresh", "--write")
+    assert code == 0, out
+    assert "wrote 1 version(s) of DSP0236" in out
+    text = path.read_text(encoding="utf-8")
+    added = text.index('version = "1.3.3"')
+    assert added < text.index("# reviewed, not taken")
+    assert text.endswith(
+        '# reviewed, not taken\n[listings.dmtf]\nnot_taken = ["DSP08", "DSP-IS", '
+        '"DSP0282", "DSP0297"]\n'
+    )
+    cat = C.load_catalog(path)
+    assert cat.get("DSP0236").find_version("1.3.3") is not None
+    assert cat.dmtf_not_taken == ("DSP08", "DSP-IS", "DSP0282", "DSP0297")
 
 
 # ----------------------------------------------------------------- AC-12
@@ -402,8 +445,12 @@ def flat(path: Path) -> str:
 
 def test_the_docs_describe_not_taken_and_the_unlisted_line():
     schema = " ".join(C.__doc__.split())
-    assert "[listings.dmtf] optional; above the first [[documents]]" in schema
-    assert 'not_taken = ["DSP08"] DMTF documents reviewed and left out' in schema
+    assert '[listings.dmtf] optional not_taken = ["DSP08"] DMTF documents' in schema
+    # the document key of the same name is another thing (review F2)
+    assert "unrelated to a document's `unlisted = true`" in schema
+    assert "unrelated to a document's `unlisted = true`" in flat(
+        ROOT / "docs" / "CATALOG.md"
+    )
     catalog_md = flat(ROOT / "docs" / "CATALOG.md")
     assert '`unlisted DSP0297 1.0.0 "Title" URL`' in catalog_md
     assert "`[listings.dmtf] not_taken`" in catalog_md

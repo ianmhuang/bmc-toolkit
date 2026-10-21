@@ -68,7 +68,9 @@ documents reviewed and left out, as ids or prefixes (`DSP08` covers the
 SM CLP mappings); an entry that names a listed document is refused. An
 `unlisted` id is never written: the maintainer adds the document to the
 catalog, with its Golden Questions, or its id to `not_taken`. `refresh
-DOC` and `--skip-source dmtf` leave the page out.
+DOC` and `--skip-source dmtf` leave the page out. This `unlisted` line is
+unrelated to a document's `unlisted = true`, which only keeps a listed
+document out of the support table.
 
 Once a month, and on demand from the Actions tab (`catalog`, Run
 workflow), `.github/workflows/catalog.yml` runs `refresh --skip-source

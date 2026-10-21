@@ -51,15 +51,14 @@ Schema (``schema_version = 1``)::
                                from the document's (newer versions gated)
     notes = "..."              optional
 
-    [listings.dmtf]            optional; above the first [[documents]], since
-                               refresh --write reads a document's block as
-                               the lines up to the next block
+    [listings.dmtf]            optional
     not_taken = ["DSP08"]      DMTF documents reviewed and left out of the
                                catalog: DSP ids, or prefixes of them
                                ("DSP08" covers DSP0800 to DSP0899);
                                refresh reports every other id on DMTF's
                                published-documents page that no document
-                               lists (`unlisted`)
+                               lists (`unlisted`, a refresh line unrelated
+                               to a document's `unlisted = true`)
 
     [[repos]]                  one entry per code repository (Code Trees)
     id = "bmcweb"              unique, matched case-insensitively; also the

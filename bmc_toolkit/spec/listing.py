@@ -352,9 +352,10 @@ class Listings:
         """Every DSP id on the published-documents page: its current
         version and its title. ListingError when the page cannot be read
         or has no DSP rows (a changed layout)."""
-        html = self._text(DMTF_PUBLISHED)
-        titles = parse_dmtf_titles(html)
-        rows = {k: (s, titles[k]) for k, s in parse_dmtf_published(html).items()}
+        rows = {
+            dsp: (seen, title)
+            for dsp, seen, title in _dmtf_published_rows(self._text(DMTF_PUBLISHED))
+        }
         if not rows:
             raise ListingError(f"no DSP rows on {DMTF_PUBLISHED}")
         return rows
