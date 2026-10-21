@@ -1359,7 +1359,14 @@ def cmd_find(args: argparse.Namespace) -> int:
         return code
     targets: list[search_mod.Version] = []
     if doc is not None and doc.searched_with and not args.only:
+        companions = doc.companions_for(version.version)
         for other in doc.searched_with:
+            if other not in companions:
+                print(
+                    f"note: {other} not searched: it goes with {doc.id} "
+                    f"from {doc.searched_with_from}"
+                )
+        for other in companions:
             # A companion is brought to Ready like the document itself;
             # whatever that prints (fetched, extracted, why not) is a note,
             # and a companion that cannot be read is left out.

@@ -1492,8 +1492,9 @@ family = "pldm"
 title = "PLDM Platform Monitoring and Control Specification"
 access = "open"
 fetch = "direct"
-notes = "From 1.4.0 the PDR definitions and the sensor conversion formula are in DSP0251; find searches both."
+notes = "From 1.4.0 the PDR definitions and the sensor conversion formula are in DSP0251; find searches both when it reads 1.4.0 or later."
 searched_with = ["DSP0251"]
+searched_with_from = "1.4.0"
 
 [[documents.versions]]
 version = "1.0.0"

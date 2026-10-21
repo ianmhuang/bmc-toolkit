@@ -99,7 +99,10 @@ case-insensitively unless `--case`, as a literal unless `--regex`; `--max`
 `searched_with` (IPMI lists its Specification Update) is searched together
 with those, their hits first; they are brought to Ready the same way, with
 every line about that as a `note:`, and one that cannot be read is left
-out; `--only` skips them. `page` prints at most 10 pages per call
+out; `--only` skips them. When the entry also names `searched_with_from`,
+a version the catalog lists before that one is searched alone, with
+`note: <companion> not searched: it goes with <document> from <version>`
+(DSP0248 1.3.1 and DSP0251). `page` prints at most 10 pages per call
 (`--max-pages`). Each printed page and each rendered page comes with a
 `cite:` line: family, document and version, the sections the page spans
 (the one in force at its top, then every one whose heading is on the
