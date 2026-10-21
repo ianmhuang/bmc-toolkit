@@ -38,7 +38,10 @@ The latest version is the one with the newest publication date; same-day
 versions are told apart by the numbers in their version strings (`2.0.0`
 over `1.3.0`). A document
 may name companions in `searched_with` (errata, specification updates)
-that `find` searches together with it, and a `listing`
+that `find` searches together with it; `searched_with_from` names the first
+of its versions they go with (DSP0248: `1.4.0`, the version that moved the
+PDR definitions to DSP0251), so reading an earlier version searches it
+alone. It also takes a `listing`
 (`dmtf:<DSP>`, implied for DMTF documents; `nvme:<slug>` of the
 nvmexpress.org API; `ocp:<project page>|<description prefix>`) that `check`
 and `refresh` consult. `refresh` prints the versions the publishers list

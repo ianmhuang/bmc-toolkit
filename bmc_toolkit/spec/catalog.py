@@ -24,6 +24,11 @@ Schema (``schema_version = 1``)::
     searched_with = ["ID"]     optional: documents searched together with
                                this one (errata, spec updates); their hits
                                are reported first
+    searched_with_from = "V"   optional: one of this document's versions;
+                               searched_with holds for it and the versions
+                               after it in the list below, not for earlier
+                               ones (a version the list lacks is searched
+                               with them)
     listing = "nvme:<slug>"    optional: where the publisher lists the
                                document's versions, "<source>:<key>" with
                                source dmtf (key: the DSP id; the default for
@@ -141,6 +146,19 @@ class Document:
     listing: str = ""  # "<source>:<key>", "" when no publisher listing exists
     limits: str = ""  # Known Limits of the document itself, "" when none
     unlisted: bool = False  # left out of the per-family Support Level table
+    searched_with_from: str = ""  # first version searched_with holds for
+
+    def companions_for(self, version: str) -> tuple[str, ...]:
+        """The searched_with documents that go with ``version``: all of them
+        unless the catalog lists ``version`` before searched_with_from."""
+        if not self.searched_with_from:
+            return self.searched_with
+        listed = [v.version for v in self.versions]
+        if version in listed and listed.index(version) < listed.index(
+            self.searched_with_from
+        ):
+            return ()
+        return self.searched_with
 
     @property
     def listing_source(self) -> str:
@@ -299,6 +317,15 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
             raise CatalogError(
                 f"{where}.searched_with[{k}]: a document cannot list itself"
             )
+    with_from = _expect(
+        raw, "searched_with_from", str, where, default="", required=False
+    ).strip()
+    if with_from and not raw_with:
+        raise CatalogError(f"{where}.searched_with_from: needs searched_with")
+    if with_from and with_from not in seen:
+        raise CatalogError(
+            f"{where}.searched_with_from: '{with_from}' is not a version of {doc_id}"
+        )
     listing = _expect(raw, "listing", str, where, default="", required=False)
     listing = listing.strip()
     if listing:
@@ -322,6 +349,7 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
         listing,
         limits,
         unlisted,
+        with_from,
     )
 
 
