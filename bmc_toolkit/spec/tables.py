@@ -28,7 +28,9 @@ imported inside the functions that open a PDF. Upright text in a cell
 breaks into words at gaps of ``WORD_GAP_PT``, below pdfplumber's default of
 3 pt: DMTF draws a hyperlink as its own run with no space character on
 either side, about 2.1 pt from its neighbours. A cell holding rotated text
-keeps the default.
+keeps the default. The text lines around a table (its caption, the lines
+a section lookup reads) follow the same rule character by character:
+DSP0274 sets a heading's number about 2 pt from its title.
 
 A box diagram inside a figure (a packet or register layout, a ladder
 diagram, a timing grid) is read as a table too. When no caption lies in
@@ -48,7 +50,7 @@ continuation page repeats, with or without "(continued)", is dropped.
 
 ``tables.json`` in the version directory::
 
-    {"tables_version": 7,
+    {"tables_version": 8,
      "pages_done": [N, ...],          pages whose tables are all stored:
                                       the pages asked for and every page
                                       a table found there runs onto
@@ -71,7 +73,8 @@ another version is read again: version 1 had no ``drawn`` and no cells
 tables, versions up to 4 took the section from the first line holding the
 caption's words, or the page top without a caption, version 5 named no
 table by its figure's caption, version 6 joined words less than 3 pt apart
-with no space character between them.
+with no space character between them, version 7 did so in the lines
+around a table.
 """
 
 import json
@@ -83,7 +86,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
 
-TABLES_VERSION = 7
+TABLES_VERSION = 8
 TABLES_NAME = "tables.json"
 
 RULED = "ruled"
@@ -565,9 +568,21 @@ def _cell_tables(page, number: int, boxes: list[dict]) -> list[PageTable]:
     return _tables_from(page, number, _settings(horizontal, vertical), CELLS)
 
 
+def _words(page) -> list[dict]:
+    """The page's words with the gap rule of ``_extract``: upright
+    characters break at WORD_GAP_PT, the others at pdfplumber's default."""
+    upright = page.filter(
+        lambda o: o.get("object_type") != "char" or o.get("upright", True)
+    )
+    turned = page.filter(
+        lambda o: o.get("object_type") == "char" and not o.get("upright", True)
+    )
+    return upright.extract_words(x_tolerance=WORD_GAP_PT) + turned.extract_words()
+
+
 def page_lines(page) -> list[TextLine]:
     """The page's words grouped into text lines, top to bottom."""
-    words = sorted(page.extract_words(), key=lambda w: (w["top"], w["x0"]))
+    words = sorted(_words(page), key=lambda w: (w["top"], w["x0"]))
     lines: list[TextLine] = []
     group: list[dict] = []
 

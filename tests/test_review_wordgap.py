@@ -164,7 +164,7 @@ def run(capsys, *argv, catalog_file):
 def test_tables_version_is_7_and_a_version_6_store_is_not_served(
     catalog_file, library, scripted, tmp_path, capsys
 ):
-    assert T.TABLES_VERSION == 7
+    assert T.TABLES_VERSION == 8
     page = ruled_table(72, TOP, WIDTHS, HEIGHTS, CELLS)
     page += runs(COL3, ROW1, ["of", "DSP0248", "for"], 2.1)
     page += runs(COL3, ROW2, ["See", "DSP0248", "for"], 2.1, size=7.5)
@@ -181,7 +181,7 @@ def test_tables_version_is_7_and_a_version_6_store_is_not_served(
     )
     assert code == 0, out
     data = json.loads(store.read_text("utf-8"))
-    assert data["tables_version"] == 7
+    assert data["tables_version"] == 8
     data["tables_version"] = 6
     for table in data["tables"]:
         for row in table["rows"]:
@@ -200,7 +200,7 @@ def test_tables_version_is_7_and_a_version_6_store_is_not_served(
     assert "See DSP0248 for" in out
     assert "ofDSP0248for" not in out
     data = json.loads(store.read_text("utf-8"))
-    assert data["tables_version"] == 7
+    assert data["tables_version"] == 8
     assert data["pages_done"] == [1]
     (stored,) = T.stored_for_page(vdir, 1)
     assert stored.rows[1][2] == "of DSP0248 for"

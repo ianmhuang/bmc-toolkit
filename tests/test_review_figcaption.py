@@ -265,7 +265,7 @@ def test_numbering_rows_and_the_table_line_are_as_before(tmp_path):
 
 
 def test_a_version_5_store_is_discarded_and_version_6_written(tmp_path):
-    assert T.TABLES_VERSION == 7
+    assert T.TABLES_VERSION == 8
     page = grid() + [under(30, "Figure 3 - Packet")]
     found = read(tmp_path, [page])
     path = tmp_path / T.TABLES_NAME
@@ -291,7 +291,7 @@ def test_a_version_5_store_is_discarded_and_version_6_written(tmp_path):
     assert T.stored_for_page(tmp_path, 1) is None  # read again, not trusted
     T.store(tmp_path, [1], found)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["tables_version"] == 7
+    assert data["tables_version"] == 8
     assert data["pages_done"] == [1]
     assert [t["caption"] for t in data["tables"]] == ["Figure 3 - Packet"]
     (stored,) = T.stored_for_page(tmp_path, 1)
