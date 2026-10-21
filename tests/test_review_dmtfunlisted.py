@@ -489,8 +489,9 @@ def test_ac11_the_shipped_catalog_carries_a_checked_not_taken_list():
     for entry in cat.dmtf_not_taken:
         assert entry.startswith("DSP"), entry
         assert entry not in listed, entry
-    # the candidates the change names as reviewed and not taken yet
-    for dsp in ("DSP0282", "DSP0285", "DSP0288", "DSP0293", "DSP2058"):
+    # the candidates the change names as reviewed and not taken yet (T61
+    # took DSP0282, DSP0288, DSP0293 and DSP2058 into the catalog)
+    for dsp in ("DSP0285", "DSP0294", "DSP2015", "DSP2090"):
         assert cat.dmtf_not_taken_covers(dsp), dsp
         assert dsp not in listed, dsp
     # what the catalog takes is not covered as a full id

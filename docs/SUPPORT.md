@@ -66,6 +66,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0234` CXL™ Fabric Manager API over MCTP Binding Specification | open | 1.0.0 | PASS | PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page. |
 | `DSP0281` CXL™ Type 3 Device Component Command Interface over MCTP Binding Specification | open | 1.0.0 | PASS | - |
 | `DSP0291` PCIe® Management Interface (PCIe-MI®) over MCTP Binding Specification | open | 1.0.0 | PASS | - |
+| `DSP0282` Memory-Mapped Buffer Interface (MMBI) Specification | open | 1.1.0 | PASS | Table 2's caption prints as `-`: one word of it is set 4 pt lower and reads as its own line above the table. Rows of Table 1 that a page break cuts (bytes 6 and 24) print without their byte number, the PDF drawing no left rule for those parts. Read both with page (pages 15-18). |
 
 ## Platform Level Data Model
 
@@ -83,6 +84,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0267` Platform Level Data Model (PLDM) for Firmware Update Specification | open | 1.3.0 | PASS | - |
 | `DSP0218` Platform Level Data Model (PLDM) for Redfish Device Enablement | open | 1.2.0 | PASS | - |
 | `DSP0251` Platform Level Data Model (PLDM) Platform Descriptor Record (PDR) Specification | open | 1.0.0 | PASS | - |
+| `DSP0293` Standards Body and Vendor Header Registry | open | 1.0.0 | PASS | - |
 
 ## Security Protocol and Data Model
 
@@ -95,6 +97,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0286` Security Protocol and Data Model (SPDM) to Storage Binding Specification | open | 1.0.0 | PASS | - |
 | `DSP0287` SPDM over TCP Binding Specification | open | 1.0.0 | PASS | - |
 | `DSP0289` Security Protocol and Data Model (SPDM) Authorization Specification | open | 1.0.0 | PASS | - |
+| `DSP2058` Security Protocol and Data Model (SPDM) Architecture White Paper | open | 1.3.0 | PASS | Table 1's caption is the last line of page 14 and the table starts on page 15, so table prints the caption as `-`; page 14 shows it. |
 
 ## Network Controller Sideband Interface
 
@@ -124,6 +127,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP2065` Redfish Message Registry Guide | open | 2026.2 | PASS | - |
 | `DSP8011` Redfish Standard Registries Bundle | open | 2026.2 | PASS | ZIP of registries: registry reads the message registries (newest file per registry); the privilege registries, the HTML and the PDF stay in the archive (DSP2065 is the PDF's own catalog entry). |
 | `DSP8013` Redfish Interoperability Profiles Bundle | open | 2026.1 | PASS | ZIP of profiles: schema reads the profile schema (RedfishInteroperabilityProfile); the bundle holds no profile documents, and its PDF stays in the archive (DSP0272 is the PDF's own catalog entry). |
+| `DSP0288` CXL to Redfish Mapping Specification | open | 1.4.0 | PASS | - |
 
 ## NVM Express
 
@@ -132,6 +136,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `NVME-BASE` NVM Express Base Specification | open | 2.4 | PASS | - |
 | `NVME-MI` NVM Express Management Interface Specification | open | 2.2 | PASS | - |
 | `NVME-PCIE` NVM Express over PCIe Transport Specification | open | 1.4 | PASS | - |
+| `NVME-NVM` NVM Express NVM Command Set Specification | open | 1.3 | PASS | A figure that repeats its caption at the top of each continuation page (Figure 123, Identify Namespace, pages 85-93) prints its caption as `-`, the repeated line being taken for a running header; page shows it. |
 
 ## OCP Datacenter-ready Secure Control Module
 
