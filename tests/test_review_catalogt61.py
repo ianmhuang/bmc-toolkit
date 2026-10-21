@@ -151,6 +151,30 @@ def test_ac2_the_dmtf_ids_are_listed_and_left_not_taken(shipped):
         assert dsp not in listed, dsp
 
 
+# the white papers the comment above the list names as still left out
+# (round 2: DSP2058, the SPDM Architecture White Paper, is taken, so the
+# ones not taken are named by id); each is in the list and no document
+# lists it, so the comment and the list agree
+@pytest.mark.parametrize("dsp", ["DSP2015", "DSP2016", "DSP2037", "DSP2072"])
+def test_ac2_the_white_papers_named_as_left_out_are_in_the_list(shipped, dsp):
+    assert dsp in shipped.dmtf_not_taken, dsp
+    assert shipped.dmtf_not_taken_covers(dsp), dsp
+    assert dsp not in shipped.dmtf_listed(), dsp
+    assert shipped.get(dsp) is None, dsp
+
+
+def test_ac2_the_list_is_clean_and_the_taken_versions_parse(shipped):
+    """Every entry still starts with DSP and none names a listed document;
+    the version records of the taken ids parse with their optional notes."""
+    listed = shipped.dmtf_listed()
+    for entry in shipped.dmtf_not_taken:
+        assert entry.startswith("DSP"), entry
+        assert entry not in listed, entry
+    for dsp in DMTF_IDS:
+        for v in shipped.get(dsp).versions:
+            assert isinstance(v.notes, str), (dsp, v.version)
+
+
 def test_ac2_the_catalog_refuses_a_not_taken_entry_that_names_a_taken_one(tmp_path):
     text = CATALOG.read_text(encoding="utf-8")
     assert text.count("not_taken = [\n") == 1
