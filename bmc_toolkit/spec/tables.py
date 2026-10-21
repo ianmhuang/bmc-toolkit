@@ -569,10 +569,11 @@ def _cell_tables(page, number: int, boxes: list[dict]) -> list[PageTable]:
 
 
 def _words(page) -> list[dict]:
-    """The page's words with the gap rule of ``_extract``: upright
-    characters break at WORD_GAP_PT, the others at pdfplumber's default."""
+    """The page's words with the gap rule ``_extract`` applies to a cell,
+    taken here per character: upright characters break at WORD_GAP_PT, the
+    others at pdfplumber's default."""
     upright = page.filter(
-        lambda o: o.get("object_type") != "char" or o.get("upright", True)
+        lambda o: o.get("object_type") == "char" and o.get("upright", True)
     )
     turned = page.filter(
         lambda o: o.get("object_type") == "char" and not o.get("upright", True)
