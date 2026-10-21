@@ -520,6 +520,14 @@ documents out, neither read nor reported; the catalog workflow runs
 `refresh --skip-source ocp` because opencompute.org refuses GitHub's
 runners ([CATALOG.md](CATALOG.md)). Naming a document whose publisher is
 skipped exits 2.
+`refresh` without DOC and without `--skip-source dmtf` also reads the
+DMTF published-documents page once and prints, after the per-document
+lines and in id order, `unlisted DSP0297 1.0.0 "Title" URL` for each DSP
+id there that no catalog document lists and the catalog's `[listings.dmtf]
+not_taken` does not cover; the summary then ends its counts with
+`unlisted N`. A page that cannot be read prints `unreachable unlisted:
+<reason>` and counts as one `unreachable`. `unlisted` ids are never
+written, `--write` or not. `check` does not read the page for this.
 
 ## Sessions sharing a Library
 

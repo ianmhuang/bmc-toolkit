@@ -10,6 +10,9 @@ block whose ``version`` or ``published`` line the text scan cannot read
 (``UnreadableBlock``) makes the document be skipped rather than edited at
 the wrong place.
 OCP versions are only reported: their links are viewers, not files.
+A DSP id on DMTF's published-documents page that the catalog neither
+lists nor names in ``[listings.dmtf] not_taken`` is reported
+(``unlisted``) and never written.
 """
 
 import json
@@ -18,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bmc_toolkit.spec.catalog import (
+    Catalog,
     CatalogError,
     Document,
     load_catalog,
@@ -26,6 +30,9 @@ from bmc_toolkit.spec.catalog import (
 from bmc_toolkit.spec.listing import ListingError, Listings, Seen, version_key
 
 _BLOCK_START = re.compile(r"^\[\[(documents|repos)\]\]\s*$")
+# A plain table such as [listings.dmtf] or [families.x]: never part of a
+# document's block, wherever the file puts it.
+_TABLE_START = re.compile(r"^\[[A-Za-z0-9_.-]+\]\s*(?:#.*)?$")
 _SECTION_COMMENT = re.compile(r"^# -{10,}")
 
 
@@ -111,6 +118,28 @@ def proposals(doc: Document, listings: Listings) -> list[Proposal]:
     return out
 
 
+@dataclass(frozen=True)
+class Unlisted:
+    """A DSP id on DMTF's published-documents page that the catalog
+    neither lists nor names in ``[listings.dmtf] not_taken``."""
+
+    dsp: str
+    seen: Seen
+    title: str
+
+
+def unlisted(catalog: Catalog, listings: Listings) -> list[Unlisted]:
+    """The page's ids the catalog has not decided on, in id order; an id a
+    document lists is never one, whatever ``not_taken`` covers.
+    ListingError when the page cannot be read."""
+    listed = catalog.dmtf_listed()
+    return [
+        Unlisted(dsp, seen, title)
+        for dsp, (seen, title) in sorted(listings.dmtf_published().items())
+        if dsp not in listed and not catalog.dmtf_not_taken_covers(dsp)
+    ]
+
+
 def _toml_string(value: str) -> str:
     """A TOML basic string: JSON's escaping of ``"`` and ``\\`` is TOML's."""
     return json.dumps(value, ensure_ascii=False)
@@ -131,10 +160,11 @@ def version_block(seen: Seen) -> str:
 
 def _document_span(lines: list[str], doc_id: str) -> tuple[int, int]:
     """(start, end) line indexes of the document's block: from its
-    ``[[documents]]`` line to the line before the next block, the next
-    section comment, or the end of the file. Comment lines (blank lines
-    between them included) that run up to the next block or the end of the
-    file introduce what follows, so the span ends above them; a section
+    ``[[documents]]`` line to the line before the next block or plain
+    ``[table]``, the next section comment, or the end of the file. Comment
+    lines (blank lines between them included) that run up to the next block
+    or the end of the file introduce what follows, so the span ends above
+    them; a section
     comment ends the span where it stands."""
     id_re = re.compile(rf'^id\s*=\s*"{re.escape(doc_id)}"\s*$', re.IGNORECASE)
     start = None
@@ -146,7 +176,7 @@ def _document_span(lines: list[str], doc_id: str) -> tuple[int, int]:
             for j in range(i + 1, len(lines)):
                 if _SECTION_COMMENT.match(lines[j]):
                     return start, j
-                if _BLOCK_START.match(lines[j]):
+                if _BLOCK_START.match(lines[j]) or _TABLE_START.match(lines[j]):
                     end = j
                     break
             comments = end

@@ -163,6 +163,41 @@ publisher = "ASPEED"
 title = "Nuvoton BMC SoC datasheets"
 publisher = "Nuvoton"
 
+# ---------------------------------------------------------------- DMTF left out
+# DMTF documents reviewed and not taken (2026-10-21): refresh reports any
+# other DSP id on the published-documents page that no document lists.
+# The prefixes are ranges with nothing BMC-related in them: DSP-IS
+# informational, DSP08xx SM CLP mappings, DSP1xxx CIM profiles, DSP4xxx
+# and DSP5xxx policies. The ids are CIM, WBEM, WS-Management, CMDBf,
+# OVF, CADF and CIMI documents, white papers and XML schemas, and
+# documents near the BMC families not taken yet (DSP0282 MMBI, DSP0285
+# RedPath, DSP0288 CXL to Redfish, DSP0293, DSP0294, the PMCI, SPDM and
+# Redfish white papers): taking one removes it from this list.
+
+[listings.dmtf]
+not_taken = [
+    "DSP-IS", "DSP08", "DSP1", "DSP4", "DSP5", "DSP0004", "DSP0114",
+    "DSP0123", "DSP0136", "DSP0137", "DSP0138", "DSP0198", "DSP0200", "DSP0201",
+    "DSP0202", "DSP0203", "DSP0205", "DSP0206", "DSP0207", "DSP0210", "DSP0211",
+    "DSP0212", "DSP0214", "DSP0215", "DSP0216", "DSP0217", "DSP0219", "DSP0220",
+    "DSP0221", "DSP0223", "DSP0224", "DSP0226", "DSP0227", "DSP0228", "DSP0230",
+    "DSP0231", "DSP0232", "DSP0243", "DSP0244", "DSP0252", "DSP0255", "DSP0262",
+    "DSP0263", "DSP0264", "DSP0265", "DSP0280", "DSP0282", "DSP0285", "DSP0288",
+    "DSP0293", "DSP0294", "DSP2000", "DSP2001", "DSP2011", "DSP2013", "DSP2014",
+    "DSP2015", "DSP2016", "DSP2017", "DSP2021", "DSP2022", "DSP2023", "DSP2024",
+    "DSP2025", "DSP2027", "DSP2032", "DSP2033", "DSP2037", "DSP2038", "DSP2042",
+    "DSP2043", "DSP2044", "DSP2045", "DSP2047", "DSP2048", "DSP2050", "DSP2051",
+    "DSP2052", "DSP2054", "DSP2055", "DSP2056", "DSP2058", "DSP2059", "DSP2060",
+    "DSP2061", "DSP2062", "DSP2063", "DSP2064", "DSP2066", "DSP2067", "DSP2068",
+    "DSP2072", "DSP2073", "DSP2090", "DSP8000", "DSP8001", "DSP8004", "DSP8005",
+    "DSP8006", "DSP8007", "DSP8008", "DSP8009", "DSP8012", "DSP8014", "DSP8015",
+    "DSP8016", "DSP8019", "DSP8020", "DSP8022", "DSP8023", "DSP8024", "DSP8025",
+    "DSP8026", "DSP8027", "DSP8028", "DSP8029", "DSP8030", "DSP8031", "DSP8032",
+    "DSP8033", "DSP8034", "DSP8035", "DSP8036", "DSP8037", "DSP8039", "DSP8040",
+    "DSP8041", "DSP8042", "DSP8043", "DSP8044", "DSP8045", "DSP8046", "DSP8047",
+    "DSP8049", "DSP8050", "DSP8051", "DSP8052", "DSP8053", "DSP8054",
+]
+
 # ---------------------------------------------------------------- Intel
 # Intel has no index page; each PDF is a fixed URL on intel.com, mirrored on
 # intel.la. The CDN rejects non-browser TLS fingerprints (curl_cffi needed).
