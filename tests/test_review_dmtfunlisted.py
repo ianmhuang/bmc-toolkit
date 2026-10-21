@@ -498,10 +498,15 @@ def test_ac11_the_shipped_catalog_carries_a_checked_not_taken_list():
         assert dsp not in cat.dmtf_not_taken, dsp
 
 
-def test_ac11_the_shipped_list_is_above_the_first_document_block():
+def test_ac11_the_shipped_list_sits_in_no_document_block():
+    """Wherever the shipped file puts the table, its entries belong to the
+    table and no document carries a key named not_taken."""
     text = SHIPPED.read_text(encoding="utf-8")
     assert "[listings.dmtf]" in text
-    assert text.index("[listings.dmtf]") < text.index("[[documents]]")
+    data = tomllib.loads(text)
+    assert "not_taken" in data["listings"]["dmtf"]
+    for doc in data["documents"]:
+        assert "not_taken" not in doc, doc["id"]
 
 
 def test_ac11_the_shipped_catalog_reports_nothing_for_its_own_listed_ids(
@@ -525,3 +530,112 @@ def test_ac11_the_shipped_catalog_reports_nothing_for_its_own_listed_ids(
     assert [ln.split()[1] for ln in lines_starting(out, "unlisted ")] == ["DSP9999"]
     assert ", unlisted 1 (dry run" in summary_line(out)
     assert scripted.calls.count(PUBLISHED) == 1
+
+
+# ------------------------------------------- AC-8 with the table after a document
+# (round 1 F1: the text editor of --write must not put a new version block
+# under a [listings.dmtf] header that follows the document)
+
+HEAD = """schema_version = 1
+
+[families.mctp]
+title = "MCTP"
+publisher = "DMTF"
+
+[[documents]]
+id = "DSP0236"
+family = "mctp"
+title = "MCTP Base Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.3.2"
+url = "https://example.test/DSP0236_1.3.2.pdf"
+type = "pdf"
+published = "2024-01-02"
+
+[[documents.versions]]
+version = "1.3.3"
+url = "https://example.test/DSP0236_1.3.3.pdf"
+type = "pdf"
+published = "2024-03-25"
+"""
+
+TABLE = """
+# reviewed and left out
+# (two comment lines introduce the table)
+[listings.dmtf]
+not_taken = [
+    "DSP08", "DSP0237", "DSP0297", "DSP8010",
+]
+"""
+
+SECOND_DOCUMENT = """
+[[documents]]
+id = "OTHER"
+family = "mctp"
+title = "Another document, no listing"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0"
+url = "https://example.test/other.pdf"
+type = "pdf"
+published = "2020-01-01"
+"""
+
+
+def _written_block_index(text: str) -> int:
+    return text.index('version = "1.3.4"')
+
+
+def test_ac8_write_keeps_the_new_version_above_a_table_that_ends_the_file(
+    tmp_path, client, capsys
+):
+    client.responses[DSP0236_PAGE] = ok(DSP0236_NEWER, "text/html")
+    path = write_catalog(tmp_path, HEAD + TABLE)
+    code, out = run(capsys, path, "refresh", "--write")
+    assert code == 0, out
+    assert "wrote 1 version(s) of DSP0236" in out
+    assert summary_line(out).endswith(", unlisted 0, written 1")
+    after = path.read_text(encoding="utf-8")
+    # the new block comes after 1.3.3 and before the comments and the table
+    assert after.index('version = "1.3.3"') < _written_block_index(after)
+    assert _written_block_index(after) < after.index("# reviewed and left out")
+    assert after.endswith(TABLE)
+    cat = catalog_mod.load_catalog(path)
+    versions = [v.version for v in cat.get("DSP0236").versions]
+    assert versions == ["1.3.2", "1.3.3", "1.3.4"]
+    assert cat.dmtf_not_taken_covers("DSP0801")
+    assert not cat.dmtf_not_taken_covers("DSP9999")
+
+
+def test_ac8_write_keeps_the_new_version_above_a_table_between_documents(
+    tmp_path, client, capsys
+):
+    client.responses[DSP0236_PAGE] = ok(DSP0236_NEWER, "text/html")
+    path = write_catalog(tmp_path, HEAD + TABLE + SECOND_DOCUMENT)
+    code, out = run(capsys, path, "refresh", "--write")
+    assert code == 0, out
+    assert "wrote 1 version(s) of DSP0236" in out
+    after = path.read_text(encoding="utf-8")
+    assert after.index('version = "1.3.3"') < _written_block_index(after)
+    assert _written_block_index(after) < after.index("# reviewed and left out")
+    assert after.endswith(TABLE + SECOND_DOCUMENT)
+    cat = catalog_mod.load_catalog(path)
+    assert [d.id for d in cat.documents] == ["DSP0236", "OTHER"]
+    assert cat.get("DSP0236").find_version("1.3.4") is not None
+    assert [v.version for v in cat.get("OTHER").versions] == ["1.0"]
+
+
+def test_ac8_write_with_nothing_to_add_leaves_a_trailing_table_untouched(
+    tmp_path, client, capsys
+):
+    text = HEAD + TABLE
+    path = write_catalog(tmp_path, text)
+    code, out = run(capsys, path, "refresh", "--write")
+    assert code == 0, out
+    assert summary_line(out).endswith(", unlisted 0, written 0")
+    assert path.read_bytes() == text.encode("utf-8")
