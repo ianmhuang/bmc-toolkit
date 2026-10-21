@@ -216,6 +216,12 @@ version is the one on the cover of the archived file.
 | G101 | Severity, text, arguments and resolution of Base.PropertyValueTypeError, as the registry states them | DSP8011 2026.2 | DSP8011 2026.2, Base 1.24.0, `#/Messages/PropertyValueTypeError`: MessageId `Base.1.24.PropertyValueTypeError`, severity Warning, two arguments; the text, verbatim: "The value '%1' for the property '%2' is not a type that the property can accept."; %1 is the value provided, %2 the property name; resolution: correct the value for the property in the request body and resubmit the request if the operation failed | `extract DSP8011`, `registry DSP8011 Base PropertyValueTypeError` |
 | G102 | What a property entry of an interoperability profile may specify | DSP8013 2026.1 | DSP8013 2026.1, RedfishInteroperabilityProfile v1.10.0, `#/definitions/PropertyProfile`: ReadRequirement and WriteRequirement (enums), ReplacedByProperty, ReplacesProperty, Priority, Purpose, MinCount, MinSupportValues, Comparison, Values, ConditionalRequirements and nested PropertyRequirements; ReadRequirement takes Mandatory, Supported, Recommended, IfImplemented, IfPopulated, Conditional, Excluded (Product profiles only) or None, Mandatory being the default when absent (`#/definitions/ReadRequirement`) | `extract DSP8013`, `schema DSP8013 RedfishInteroperabilityProfile --definition PropertyProfile`, `schema DSP8013 RedfishInteroperabilityProfile --definition ReadRequirement` |
 
+## PLDM Platform Descriptor Records
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G103 | Fields of the common PDR header and the PDR type number of the Numeric Sensor PDR | DSP0251 1.0.0 | DSP0251 1.0.0, section 11.1, Table 3, page 28: RecordHandle (uint32), PDRHeaderVersion (uint8, 0x01 for the PDRs this specification defines), PDRType (uint8), RecordChangeNumber (uint16), DataLength (uint16, the PDR data bytes after it); section 11.2, Table 4, pages 29-30: Numeric Sensor PDR is type 2 | `find DSP0251 "Common PDR header"`, `table DSP0251 --page 28`, `table DSP0251 --page 29` (joins pages 29-30) |
+
 ## OpenBMC
 
 | # | Question | Document | Where the answer is | Commands |
@@ -293,3 +299,12 @@ Later that day the listings moved to the project pages that replaced the
 wiki (`/projects/server/data-center-secure-container-module/` and
 `/projects/server/mhs/dc-mhs-specs-and-designs/`, same tables), and
 `check` on the eight printed `current` again.
+
+On 2026-10-21 DSP0251 1.0.0 (2026-10-12) was added as a new document.
+DSP0248 1.4.0 moved the PDR definitions there (clause 31, page 185) and
+points to it for the sensor conversion formula (19.2, page 95); the
+catalog had no entry, and `refresh` and `check` only look for new
+versions of listed documents, so neither could report it. It fetches via
+direct and extracts (94 pages, Outline from bookmarks), `check` prints
+`current`, and G103 verifies it. DSP0248 lists it in `searched_with`, so
+`find DSP0248` also searches DSP0251.

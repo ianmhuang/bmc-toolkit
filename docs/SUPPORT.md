@@ -82,6 +82,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0257` Platform Level Data Model (PLDM) for FRU Data Specification | open | 2.0.0 | PASS | - |
 | `DSP0267` Platform Level Data Model (PLDM) for Firmware Update Specification | open | 1.3.0 | PASS | - |
 | `DSP0218` Platform Level Data Model (PLDM) for Redfish Device Enablement | open | 1.2.0 | PASS | - |
+| `DSP0251` Platform Level Data Model (PLDM) Platform Descriptor Record (PDR) Specification | open | 1.0.0 | PASS | - |
 
 ## Security Protocol and Data Model
 

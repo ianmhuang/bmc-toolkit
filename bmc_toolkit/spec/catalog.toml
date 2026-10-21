@@ -1492,6 +1492,8 @@ family = "pldm"
 title = "PLDM Platform Monitoring and Control Specification"
 access = "open"
 fetch = "direct"
+notes = "From 1.4.0 the PDR definitions and the sensor conversion formula are in DSP0251; find searches both."
+searched_with = ["DSP0251"]
 
 [[documents.versions]]
 version = "1.0.0"
@@ -4502,6 +4504,19 @@ version = "2026.1"
 url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP8013_2026.1.zip"
 type = "zip"
 published = "2026-05-17"
+
+[[documents]]
+id = "DSP0251"
+family = "pldm"
+title = "Platform Level Data Model (PLDM) Platform Descriptor Record (PDR) Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0251_1.0.0.pdf"
+type = "pdf"
+published = "2026-10-12"
 
 [[repos]]
 id = "openbmc"
