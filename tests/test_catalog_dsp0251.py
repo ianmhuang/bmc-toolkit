@@ -9,6 +9,8 @@ from bmc_toolkit.spec.cli import main
 from tests import pdfgen
 from tests.conftest import ok
 
+pytest.importorskip("pypdfium2")
+
 DSP0251_URL = (
     "https://www.dmtf.org/sites/default/files/standards/documents/DSP0251_1.0.0.pdf"
 )

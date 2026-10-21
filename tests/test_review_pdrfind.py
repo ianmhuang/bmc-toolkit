@@ -113,6 +113,10 @@ def test_find_dsp0251_itself_does_not_pull_in_dsp0248(
     shipped, library, scripted, tmp_path, capsys
 ):
     scripted.responses[DSP0251_URL] = ok(pdf_bytes(tmp_path, "pdr.pdf", PDR_LINES))
+    # fetched first, so find prints hits and notes only (an empty Library
+    # would add the Library-created, fetched and extracted lines)
+    code, out = run(capsys, "fetch", "DSP0251")
+    assert code == 0, out
     # DSP0248 is neither held nor served: a one-way link means find DSP0251
     # never asks for it
     code, out = run(capsys, "find", "DSP0251", "conversion formula")
