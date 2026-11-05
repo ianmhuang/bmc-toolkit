@@ -216,6 +216,22 @@ version is the one on the cover of the archived file.
 | G101 | Severity, text, arguments and resolution of Base.PropertyValueTypeError, as the registry states them | DSP8011 2026.2 | DSP8011 2026.2, Base 1.24.0, `#/Messages/PropertyValueTypeError`: MessageId `Base.1.24.PropertyValueTypeError`, severity Warning, two arguments; the text, verbatim: "The value '%1' for the property '%2' is not a type that the property can accept."; %1 is the value provided, %2 the property name; resolution: correct the value for the property in the request body and resubmit the request if the operation failed | `extract DSP8011`, `registry DSP8011 Base PropertyValueTypeError` |
 | G102 | What a property entry of an interoperability profile may specify | DSP8013 2026.1 | DSP8013 2026.1, RedfishInteroperabilityProfile v1.10.0, `#/definitions/PropertyProfile`: ReadRequirement and WriteRequirement (enums), ReplacedByProperty, ReplacesProperty, Priority, Purpose, MinCount, MinSupportValues, Comparison, Values, ConditionalRequirements and nested PropertyRequirements; ReadRequirement takes Mandatory, Supported, Recommended, IfImplemented, IfPopulated, Conditional, Excluded (Product profiles only) or None, Mandatory being the default when absent (`#/definitions/ReadRequirement`) | `extract DSP8013`, `schema DSP8013 RedfishInteroperabilityProfile --definition PropertyProfile`, `schema DSP8013 RedfishInteroperabilityProfile --definition ReadRequirement` |
 
+## PLDM Platform Descriptor Records
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G103 | Fields of the common PDR header and the PDR type number of the Numeric Sensor PDR | DSP0251 1.0.0 | DSP0251 1.0.0, section 11.1, Table 3, page 28: RecordHandle (uint32), PDRHeaderVersion (uint8, 0x01 for the PDRs this specification defines), PDRType (uint8), RecordChangeNumber (uint16), DataLength (uint16, the PDR data bytes after it); section 11.2, Table 4, pages 29-30: Numeric Sensor PDR is type 2 | `find DSP0251 "Common PDR header"`, `table DSP0251 --page 28`, `table DSP0251 --page 29` (joins pages 29-30) |
+
+## Catalog additions of 2026-10-21
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G104 | MMBI Capability Descriptor: signature, version, channel count, buffer pointers and the buffer type of the VPSCB buffers | DSP0282 1.1.0 | DSP0282 1.1.0, section 7.1, Table 1, pages 15-17: bytes 0:5 the ASCII signature "#MMBI$" (absent means no MMBI); byte 6 bits [3:0] the MMBI version (0001b 1.0, legacy; 0010b 1.1); byte 7 bits [6:4] NOI, the number of channels (000b channel 0 only, 64-byte header; up to 110b, seven channels); bytes 8:11 B2H_BA and 12:15 H2B_BA, buffer base addresses in 8-byte units from the start of the descriptor; byte 24 bits [3:0] BUFT, 0001b = Variable Packet Size Circular Buffers v1 (section 7.2) | `find DSP0282 "MMBI Signature"`, `table DSP0282 --page 15` (joins pages 15-17; rows 6 and 24 print without their byte number, see the limit), `page DSP0282 15 --to 17` |
+| G105 | Registry or standards body IDs and the layout of the standards body or vendor-defined header (SVH) | DSP0293 1.0.0 | DSP0293 1.0.0, section 7.1, Table 1, pages 12-14: 0x0 DMTF (vendor ID length 0), 0x1 TCG (2), 0x2 USB (2), 0x3 PCI-SIG (2), 0x4 IANA (4, the Private Enterprise Number), 0x5 HDBaseT (4), 0x6 MIPI (2), 0x7 CXL (2), 0x8 JEDEC (2), 0x9 VESA (0), 0xA IANA CBOR (variable), 0xB DMTF-DSP (2); section 8.1, Table 2, page 15: byte 0 ID (1 byte, a Table 1 value), byte 1 VendorIDLen (1 byte, 0 when the registry itself defines the payload), byte 2 VendorID (VendorIDLen bytes, absent when 0) | `find DSP0293 "Registry or standards body ID"`, `table DSP0293 --page 12` (joins pages 12-14), `table DSP0293 --page 15` |
+| G106 | Where the CXL Get Health Info fields appear in Redfish | DSP0288 1.4.0 | DSP0288 1.4.0, section 3, Table 1, pages 8-10 (rows on page 9): Health Status to `Status` on many resources (Comment 3); Life Used to MemoryMetrics `CapacityUtilizationPercent`; Corrected Volatile and Corrected Persistent Error Count to MemoryMetrics `CorrectedVolatileErrorCount` and `CorrectedPersistentErrorCount`; Additional Status [4] and [5] to Memory `Status/Conditions` (Comment 4); Dirty Shutdown Count to MemoryMetrics `DirtyShutdownCount` | `find DSP0288 "Life Used"`, `table DSP0288 --page 8` (joins pages 8-10) |
+| G107 | The SPDM certificate chain models and where each may be used | DSP2058 1.3.0 | DSP2058 1.3.0, section 8.2.1 page 25 and section 8.2.1.1, Table 3, pages 25-26: DeviceCert (SPDM 1.0, one device certificate for hardware identity), AliasCert (SPDM 1.2, a device certificate that signs alias certificates for firmware identity, made for TCG DICE chains; the Responder sets ALIAS_CERT_CAP=1 in CAPABILITIES, the Requester has no such flag), GenericCert (SPDM 1.3, chains that fit neither); slot 0 must hold DeviceCert or AliasCert, GenericCert only slots 1-7; models mix only with MULTI_KEY_CAP=1 | `find DSP2058 "Certificate chain models"`, `page DSP2058 25`, `table DSP2058 --page 25` (joins pages 25-26) |
+| G108 | Identify Namespace (CNS 00h): where NSZE, NCAP, NUSE, NLBAF, FLBAS and the first LBA Format sit, and the fields of an LBA Format entry | NVME-NVM 1.3 | NVME-NVM 1.3, section 4.1.5.1, Figure 123, pages 85-93: NSZE bytes 07:00, NCAP 15:08, NUSE 23:16, NLBAF byte 25 (0's based), FLBAS byte 26, LBAF0 bytes 131:128 (LBAF1 135:132); Figure 125, page 94: RP bits 25:24 (00b best to 11b degraded), LBADS bits 23:16 (a power of two; non-zero values below 9 are not supported, 0h means not available), MS bits 15:00 (metadata bytes per LBA) | `find NVME-NVM NSZE`, `table NVME-NVM --page 85` (Figure 123 prints `table: -`, see the limit), `page NVME-NVM 93`, `table NVME-NVM --page 94` |
+
 ## OpenBMC
 
 | # | Question | Document | Where the answer is | Commands |
@@ -293,3 +309,23 @@ Later that day the listings moved to the project pages that replaced the
 wiki (`/projects/server/data-center-secure-container-module/` and
 `/projects/server/mhs/dc-mhs-specs-and-designs/`, same tables), and
 `check` on the eight printed `current` again.
+
+On 2026-10-21 DSP0251 1.0.0 (2026-10-12) was added as a new document.
+DSP0248 1.4.0 moved the PDR definitions there (clause 31, page 185) and
+points to it for the sensor conversion formula (19.2, page 95); the
+catalog had no entry, and `refresh` and `check` only look for new
+versions of listed documents, so neither could report it. It fetches via
+direct and extracts (94 pages, Outline from bookmarks), `check` prints
+`current`, and G103 verifies it. DSP0248 lists it in `searched_with`, so
+`find DSP0248` also searches DSP0251.
+
+On 2026-10-21 five more documents were added: DSP0282 1.1.0 (MMBI),
+DSP0293 1.0.0 (Standards Body and Vendor Header Registry), DSP0288
+1.4.0 (CXL to Redfish Mapping), DSP2058 1.3.0 (SPDM Architecture White
+Paper) and NVME-NVM 1.3 (NVM Command Set). The four DMTF ones were among
+the BMC-related ids that the `unlisted` report of `refresh` named; the
+NVM Command Set came up beside the three NVMe specifications the catalog
+held. Each newest version fetches via direct and extracts with an
+Outline from its bookmarks, `check` prints `current` for all five, and
+G104 to G108 verify them. Their limits record three cases where `table`
+prints a caption as `-`.

@@ -110,7 +110,8 @@ def test_a_long_protocol_is_cut_with_quotes():
     text = refusal(protocol, "X:1=0")
     assert text == (
         f"unknown protocol {cut(protocol, True)}; "
-        "it is one of ipmi, mctp-control, pldm, spdm"
+        # nc-si since T52, nvme-mi since T53
+        "it is one of ipmi, mctp-control, nc-si, nvme-mi, pldm, spdm"
     )
 
 
@@ -194,7 +195,9 @@ DEVELOP_TEXT = [
     (
         "nvme",
         ["X:1=0"],
-        "unknown protocol 'nvme'; it is one of ipmi, mctp-control, pldm, spdm",
+        # T52 added nc-si to the protocols this line names, T53 nvme-mi
+        "unknown protocol 'nvme'; it is one of ipmi, mctp-control, nc-si, "
+        "nvme-mi, pldm, spdm",
     ),
     (
         "ipmi",

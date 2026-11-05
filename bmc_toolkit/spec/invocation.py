@@ -12,6 +12,15 @@ Document. The one Library read is ``--subcommand NAME`` for ``pldm``: the
 held openbmc/pldm Code Tree is opened for the spelling of pldmtool's
 subcommand and its options (:mod:`pldmtool`); the values in the line it
 prints are placeholders, as every value here is the Session's.
+
+``nc-si`` and ``nvme-mi`` are the protocols whose header is built here:
+for ``nc-si`` the Session gives the Control Packet Type, package, channel
+and IID as options and the payload as fields, and the DSP0222 header,
+Payload Length, padding and checksum are fixed-format arithmetic over
+those bytes (ADR 0008 of the design workspace); for ``nvme-mi`` it gives
+the message type (NMIMT) and Command Slot as options and the request from
+the opcode on as fields, and the four header bytes and the CRC-32C MIC are
+built here (ADR 0009).
 """
 
 from __future__ import annotations
@@ -23,7 +32,7 @@ from dataclasses import dataclass
 EXIT_OK = 0
 EXIT_ACTION = 2
 
-PROTOCOLS = ("ipmi", "mctp-control", "pldm", "spdm")
+PROTOCOLS = ("ipmi", "mctp-control", "nc-si", "nvme-mi", "pldm", "spdm")
 FORM = "NAME:SIZE=VALUE"
 MAX_SIZE = 0xFFFF  # the most a 16-bit length field can state
 FIELD_RE = re.compile(
@@ -186,22 +195,40 @@ def tool_lines(protocol: str, fields: list[Field]) -> list[str]:
     return lines
 
 
-def render(protocol: str, texts: list[str]) -> list[str]:
-    """What the command prints for the fields ``texts``; raises
-    :class:`FieldError` naming the first one that cannot be laid out."""
-    if protocol not in PROTOCOLS:
-        raise FieldError(
-            f"unknown protocol {_shown(protocol, True)}; "
-            f"it is one of {', '.join(PROTOCOLS)}"
-        )
-    if not texts:
-        raise FieldError(f"no field given; a field is {FORM}")
+def _parse_all(texts: list[str]) -> list[Field]:
     fields = []
     for text in texts:
         try:
             fields.append(parse_field(text))
         except FieldError as exc:
             raise FieldError(f"field {_shown(text, True)}: {exc}") from None
+    return fields
+
+
+def render(
+    protocol: str,
+    texts: list[str],
+    header: NcsiHeader | NvmeMiHeader | None = None,
+) -> list[str]:
+    """What the command prints for the fields ``texts``; raises
+    :class:`FieldError` naming the first one that cannot be laid out.
+    ``header`` is the header's options, for ``nc-si`` and ``nvme-mi`` only."""
+    if protocol not in PROTOCOLS:
+        raise FieldError(
+            f"unknown protocol {_shown(protocol, True)}; "
+            f"it is one of {', '.join(PROTOCOLS)}"
+        )
+    if protocol == "nc-si":
+        if not isinstance(header, NcsiHeader):
+            raise FieldError("nc-si takes --type, --package and --channel")
+        return render_ncsi(header, texts)
+    if protocol == "nvme-mi":
+        if not isinstance(header, NvmeMiHeader):
+            raise FieldError(f"nvme-mi takes --nmimt mi or admin; {NO_BYTES}")
+        return render_nvme_mi(header, texts)
+    if not texts:
+        raise FieldError(f"no field given; a field is {FORM}")
+    fields = _parse_all(texts)
     if protocol == "ipmi":
         if len(fields) < 2:
             raise FieldError("ipmi: the first two fields are NetFn and Cmd")
@@ -222,6 +249,377 @@ def render(protocol: str, texts: list[str]) -> list[str]:
     return out
 
 
+# ---------------------------------------------------------------- nc-si
+# DSP0222 1.2.1 Table 10 (header), 8.2.2.2 (padding), 8.2.2.3 (checksum);
+# the ncsi-cmd syntax is phosphor-networkd 1c55a45 src/ncsi_cmd.cpp
+
+NCSI_OPTIONS = ("type", "package", "channel", "iid")
+NCSI_MAX_PAYLOAD = 0xFFF  # Payload Length is 12 bits
+NETLINK = "ncsi-cmd -i <ifindex in hex>"
+OVER_MCTP = "ncsi-cmd -m <eid in decimal>"
+NOTE_NUMBERS = (
+    "note: ncsi-cmd reads -i, -p, -c, TYPE and every payload byte as hex "
+    "without 0x, so an ifindex written in decimal (10 for 0x0a) reaches "
+    "another interface; -m takes [NET,]EID in decimal"
+)
+NOTE_IID = (
+    "note: the IID (packet byte 3) is 0x01..0xff and differs from the "
+    "previous command's, or the controller takes the packet as a retry "
+    "(DSP0222 6.2.2.2); ncsi-cmd picks its own"
+)
+NOTE_CHANNEL = (
+    "note: Channel ID is the package in bits 7..5 and the channel in bits "
+    "4..0 (channel 0x1f: the whole package)"
+)
+NOTE_CHECKSUM = (
+    "note: checksum 00 00 00 00: the packet holds placeholders, and zero "
+    "means no checksum (DSP0222 8.2.2.3); give every value to have it computed"
+)
+
+
+@dataclass
+class NcsiHeader:
+    type: int
+    package: int | str
+    channel: int | str
+    iid: int | str
+
+
+def _ncsi_option(flag: str, text: str, low: int, high: int, what: str) -> int | str:
+    """One header option: a number in low..high, or a ``<placeholder>``."""
+    if text.startswith("<") or text.endswith(">"):
+        inner = text[1:-1].strip()
+        if not (text.startswith("<") and text.endswith(">") and inner):
+            raise FieldError(f"{flag}: a placeholder is written <text>")
+        if "<" in inner or ">" in inner:
+            raise FieldError(f"{flag}: a placeholder holds no < or >")
+        return f"<{inner}>"
+    try:
+        number = _number(text)
+    except FieldError as exc:
+        raise FieldError(f"{flag}: {exc}") from None
+    if not low <= number <= high:
+        raise FieldError(f"{flag} {_shown(text)}: {what}")
+    return number
+
+
+def ncsi_header(args) -> NcsiHeader | None:
+    """The NC-SI header options of ``args``: None for another protocol,
+    which must not carry them."""
+    given = [name for name in NCSI_OPTIONS if getattr(args, name, None) is not None]
+    if args.protocol != "nc-si":
+        if given and args.protocol in PROTOCOLS:
+            raise FieldError(f"--{given[0]} is for nc-si, not {args.protocol}")
+        return None
+    for name, what in (
+        ("type", "the Control Packet Type"),
+        ("package", "the package"),
+        ("channel", "the channel, or package"),
+    ):
+        if name not in given:
+            raise FieldError(f"nc-si: --{name}, {what}, is missing")
+    kind = _ncsi_option(
+        "--type",
+        args.type,
+        0,
+        0x7F,
+        "the Control Packet Type is 0x00..0x7f (bit 7 marks a response)",
+    )
+    if isinstance(kind, str):
+        raise FieldError(
+            "--type: the Control Packet Type is a number, not a placeholder"
+        )
+    package = _ncsi_option(
+        "--package", args.package, 0, 7, "a package is 0..7 (Channel ID bits 7..5)"
+    )
+    channel = (
+        0x1F
+        if args.channel == "package"
+        else _ncsi_option(
+            "--channel",
+            args.channel,
+            0,
+            0x1F,
+            "a channel is 0x00..0x1f, or package (0x1f) for the whole package",
+        )
+    )
+    iid = (
+        "<iid>"
+        if args.iid is None
+        else _ncsi_option("--iid", args.iid, 1, 0xFF, "the IID is 0x01..0xff")
+    )
+    return NcsiHeader(kind, package, channel, iid)
+
+
+def _hex_option(value: int | str) -> str:
+    # a package or channel is said in decimal ("channel 10"), and ncsi-cmd
+    # reads -p and -c as hex: the placeholder says so, as <ifindex in hex>
+    if not isinstance(value, str):
+        return f"{value:02x}"
+    return value if value[:-1].endswith(" in hex") else f"{value[:-1]} in hex>"
+
+
+def ncsi_checksum(data: bytes) -> int:
+    """DSP0222 8.2.2.3: the two's complement of the 32-bit sum of the
+    header and payload read as 16-bit big-endian words; an odd last byte
+    pairs with the zero padding byte after it."""
+    data += bytes(len(data) % 2)
+    total = sum(int.from_bytes(data[i : i + 2], "big") for i in range(0, len(data), 2))
+    return -total & 0xFFFFFFFF
+
+
+def render_ncsi(header: NcsiHeader, texts: list[str]) -> list[str]:
+    """What ``invocation nc-si`` prints: the ncsi-cmd lines, which carry
+    the payload alone, and the whole packet from MC ID for mctp-client."""
+    fields = _parse_all(texts)
+    size = sum(field.size for field in fields)
+    if size > NCSI_MAX_PAYLOAD:
+        raise FieldError(
+            f"the payload is {size} bytes; Payload Length holds at most "
+            f"{NCSI_MAX_PAYLOAD} (0xfff)"
+        )
+    known = isinstance(header.package, int) and isinstance(header.channel, int)
+    channel_id = header.package << 5 | header.channel if known else "<channel id>"
+    parts: list[tuple[str, list[int | str]]] = [
+        ("MC ID", [0x00]),
+        ("Header Revision", [0x01]),
+        ("Reserved", [0x00]),
+        ("IID", [header.iid]),
+        ("Control Packet Type", [header.type]),
+        ("Channel ID", [channel_id]),
+        ("Flags and Payload Length", list(size.to_bytes(2, "big"))),
+        ("Reserved", [0x00] * 8),
+    ]
+    parts.extend((field.name, field.tokens) for field in fields)
+    summed = [token for _, tokens in parts for token in tokens]
+    placeholders = any(isinstance(token, str) for token in summed)
+    if size % 4:
+        parts.append(("Padding", [0x00] * (4 - size % 4)))
+    checksum = 0 if placeholders else ncsi_checksum(bytes(summed))
+    parts.append(("Checksum", list(checksum.to_bytes(4, "big"))))
+    payload = [token for field in fields for token in field.tokens]
+    options = " ".join(
+        ["-p", _hex_option(header.package), "-c", _hex_option(header.channel), "raw"]
+        + [_plain(token) for token in (header.type, *payload)]
+    )
+    packet = [token for _, tokens in parts for token in tokens]
+    out = [
+        f"payload bytes: {size}",
+        f"packet bytes: {len(packet)}",
+        f"{NETLINK} {options}",
+        f"{OVER_MCTP} {options}",
+        f"mctp-client eid <eid> type nc-si data {' '.join(map(_plain, packet))}",
+        NOTE_NUMBERS,
+        NOTE_IID,
+    ]
+    if not known:
+        out.append(NOTE_CHANNEL)
+    if placeholders:
+        out.append(NOTE_CHECKSUM)
+    out.append("offset | size | field | bytes")
+    offset = 0
+    for name, tokens in parts:
+        out.append(
+            f"{offset} | {len(tokens)} | {name} | {' '.join(map(_plain, tokens))}"
+        )
+        offset += len(tokens)
+    return out
+
+
+# ---------------------------------------------------------------- nvme-mi
+# NVMe-MI 2.2 Figure 20 (message header), Figure 21 (MIC), Figure 67 (NVMe-MI
+# Command request), Figure 139 (NVMe Admin Command request); the nvme-cli
+# syntax is nvme-cli 2.16 faf7326 and libnvme 1.16.2 07d6c32
+
+NVME_MI_OPTIONS = ("nmimt", "csi")
+NMIMT = {"mi": 1, "admin": 2}
+NVME_MI_TYPE = 0x84  # IC 1, MCTP message type 4
+NVME_MI_MAX_MESSAGE = 4224  # 4 KiB of data plus header and MIC
+NVME_MI_MAX_DLEN = 4096
+MCTP_BASELINE = 64  # bytes of message an MCTP baseline packet carries
+NO_BYTES = "PCIe Commands and Control Primitives get no bytes"
+MI_REQUEST = 12  # opcode, 3 reserved, NMD0, NMD1
+ADMIN_REQUEST = 64  # opcode to SQE Dword 15
+# (option, offset in the request from the opcode, placeholder): the
+# dwords nvme admin-passthru carries, in the order it is printed with
+PASSTHRU_DWORDS = (
+    ("namespace-id", 4, "<nsid>"),
+    ("cdw2", 8, "<cdw2>"),
+    ("cdw3", 12, "<cdw3>"),
+    *((f"cdw{n}", 40 + 4 * (n - 10), f"<cdw{n}>") for n in range(10, 16)),
+    ("data-len", 28, "<dlen>"),
+)
+NOT_SENT = (16, 20, 24)  # SQE Dwords 4 and 5, DOFST: nvme-cli sends 0
+PASSTHRU = "nvme admin-passthru mctp:<net>,<eid>:"
+NOTE_NO_TOOL = (
+    "note: no command on an OpenBMC BMC sends an NVMe-MI command-set message: "
+    "mctp-client cannot set the IC bit and adds no MIC, and nvme-cli sends "
+    "Admin Commands only; the message is for a capture or a libnvme program"
+)
+NOTE_NVME_CLI = (
+    "note: nvme-cli 2.16 (libnvme 1.16.2), which probes the endpoint before "
+    "the first command; mctp: takes NET, EID and the controller id in decimal"
+)
+NOTE_DIRECTION = (
+    "note: nvme-cli takes the data direction from the opcode's bits 1..0 "
+    "(no -r or -w); request data goes on stdin or -i <file>"
+)
+NOTE_DIFFERS = (
+    "note: nvme-cli sends DOFST 0 and SQE Dwords 4-5 as 0, so the message it "
+    "sends differs from the one above there"
+)
+NOTE_MIC = (
+    "note: MIC <mic>: the message holds placeholders; give every value to "
+    "have it computed"
+)
+NOTE_PACKETS = (
+    f"note: the message is above {MCTP_BASELINE} bytes, so MCTP carries it in "
+    f"several packets ({MCTP_BASELINE}-byte baseline transmission unit)"
+)
+
+
+@dataclass
+class NvmeMiHeader:
+    nmimt: str
+    csi: int
+
+
+def nvme_mi_header(args) -> NvmeMiHeader | None:
+    """The NVMe-MI header options of ``args``: None for another protocol,
+    which must not carry them."""
+    given = [name for name in NVME_MI_OPTIONS if getattr(args, name, None) is not None]
+    if args.protocol != "nvme-mi":
+        if given and args.protocol in PROTOCOLS:
+            raise FieldError(f"--{given[0]} is for nvme-mi, not {args.protocol}")
+        return None
+    if "nmimt" not in given:
+        raise FieldError(f"nvme-mi: --nmimt, mi or admin, is missing; {NO_BYTES}")
+    if args.nmimt not in NMIMT:
+        raise FieldError(
+            f"--nmimt {_shown(args.nmimt, True)}: mi (an NVMe-MI command) or "
+            f"admin (an NVMe Admin Command); {NO_BYTES}"
+        )
+    csi = 0
+    if args.csi is not None:
+        try:
+            csi = _number(args.csi)
+        except FieldError as exc:
+            raise FieldError(f"--csi: {exc}") from None
+        if csi > 1:
+            raise FieldError(f"--csi {_shown(args.csi)}: the Command Slot is 0 or 1")
+    return NvmeMiHeader(args.nmimt, csi)
+
+
+def nvme_mi_crc(data: bytes) -> int:
+    """NVMe-MI 2.2 Figure 21: CRC-32C (Castagnoli), reflected polynomial
+    0x82F63B78, initial value and final XOR 0xFFFFFFFF."""
+    crc = 0xFFFFFFFF
+    for byte in data:
+        crc ^= byte
+        for _ in range(8):
+            crc = (crc >> 1) ^ 0x82F63B78 if crc & 1 else crc >> 1
+    return crc ^ 0xFFFFFFFF
+
+
+def _dword(request: list[int | str], at: int) -> int | None:
+    """The little-endian dword at ``at``; None when a byte is a placeholder."""
+    found = request[at : at + 4]
+    if any(isinstance(token, str) for token in found):
+        return None
+    return int.from_bytes(bytes(found), "little")
+
+
+def passthru_line(request: list[int | str]) -> str:
+    """``nvme admin-passthru`` for an Admin request laid out from its opcode:
+    the dwords libnvme carries, each one that is not zero."""
+    known = all(isinstance(token, int) for token in request[2:4])
+    ctrl = int.from_bytes(bytes(request[2:4]), "little") if known else "<ctrl id>"
+    opcode = request[0]
+    options = [f"--opcode={_prefixed(opcode) if isinstance(opcode, int) else opcode}"]
+    for name, at, placeholder in PASSTHRU_DWORDS:
+        value = _dword(request, at)
+        if value is None:
+            options.append(f"--{name}={placeholder}")
+        elif value:
+            options.append(f"--{name}={value:#x}")
+    return f"{PASSTHRU}{ctrl} {' '.join(options)}"
+
+
+def render_nvme_mi(header: NvmeMiHeader, texts: list[str]) -> list[str]:
+    """What ``invocation nvme-mi`` prints: the whole message with its MIC,
+    and for an Admin Command the nvme-cli line that sends it."""
+    fields = _parse_all(texts)
+    request = [token for field in fields for token in field.tokens]
+    admin = header.nmimt == "admin"
+    if admin and len(request) < ADMIN_REQUEST:
+        raise FieldError(
+            f"nvme-mi --nmimt admin: an NVMe Admin Command request is at least "
+            f"{ADMIN_REQUEST} bytes from the opcode (to SQE Dword 15); the "
+            f"fields hold {len(request)}"
+        )
+    if not admin and len(request) < MI_REQUEST:
+        raise FieldError(
+            f"nvme-mi --nmimt mi: an NVMe-MI command request is at least "
+            f"{MI_REQUEST} bytes from the opcode (opcode, 3 reserved, NMD0, "
+            f"NMD1); the fields hold {len(request)}"
+        )
+    size = 4 + len(request) + 4
+    if size > NVME_MI_MAX_MESSAGE:
+        raise FieldError(
+            f"the message is {size} bytes; an NVMe-MI message is at most "
+            f"{NVME_MI_MAX_MESSAGE}"
+        )
+    if admin:
+        opcode, dlen = request[0], _dword(request, 28)
+        if isinstance(opcode, int) and opcode & 3 == 3:
+            raise FieldError(
+                f"opcode {_prefixed(opcode)}: bits 1..0 are 11 (bidirectional), "
+                "which nvme-cli over MCTP refuses"
+            )
+        if dlen is not None and dlen > NVME_MI_MAX_DLEN:
+            raise FieldError(
+                f"DLEN is {dlen}; an Admin Command over NVMe-MI moves at most "
+                f"{NVME_MI_MAX_DLEN} bytes"
+            )
+    parts: list[tuple[str, list[int | str]]] = [
+        ("IC and Message Type", [NVME_MI_TYPE]),
+        ("NMP (ROR, NMIMT, CSI)", [NMIMT[header.nmimt] << 3 | header.csi]),
+        ("CIAP and MEB", [0x00]),
+        ("Reserved", [0x00]),
+    ]
+    parts.extend((field.name, field.tokens) for field in fields)
+    body = [token for _, tokens in parts for token in tokens]
+    placeholders = any(isinstance(token, str) for token in body)
+    mic: list[int | str] = (
+        ["<mic>"] * 4
+        if placeholders
+        else list(nvme_mi_crc(bytes(body)).to_bytes(4, "little"))
+    )
+    parts.append(("MIC", mic))
+    out = [f"request bytes: {len(request)}", f"message bytes: {size}"]
+    if admin:
+        out.append(passthru_line(request))
+    out.append(f"message: {' '.join(map(_plain, body + mic))}")
+    if admin:
+        out += [NOTE_NVME_CLI, NOTE_DIRECTION]
+        if any(_dword(request, at) != 0 for at in NOT_SENT):
+            out.append(NOTE_DIFFERS)
+    else:
+        out.append(NOTE_NO_TOOL)
+    if placeholders:
+        out.append(NOTE_MIC)
+    if size > MCTP_BASELINE:
+        out.append(NOTE_PACKETS)
+    out.append("offset | size | field | bytes")
+    offset = 0
+    for name, tokens in parts:
+        out.append(
+            f"{offset} | {len(tokens)} | {name} | {' '.join(map(_plain, tokens))}"
+        )
+        offset += len(tokens)
+    return out
+
+
 NOT_HELD = "subcommand: pldm Code Tree not held; clone pldm"
 
 
@@ -230,7 +628,9 @@ def cmd_invocation(args, tree_for: Callable[..., tuple] | None = None) -> int:
     Code Tree for ``--subcommand``, or raises ``code.CodeError``; the CLI
     supplies it, a bare call has none and prints the not-held line."""
     try:
-        lines = render(args.protocol, args.fields)
+        # both run: each refuses its options given with another protocol
+        ncsi, nvme_mi = ncsi_header(args), nvme_mi_header(args)
+        lines = render(args.protocol, args.fields, ncsi or nvme_mi)
     except FieldError as exc:
         print(f"invocation: {exc}")
         return EXIT_ACTION
@@ -273,30 +673,36 @@ def not_held_line(message: str) -> str:
     return NOT_HELD
 
 
+MOVED_OPTIONS = (
+    "--subcommand",
+    *(f"--{name}" for name in (*NCSI_OPTIONS, *NVME_MI_OPTIONS)),
+)
+
+
 def reorder_argv(argv: list[str]) -> list[str]:
-    """``--subcommand NAME`` moved to just after ``invocation``. argparse
-    before CPython 3.12.7 / 3.13 (3.11 never got the fix, gh-59317) reads
-    ``invocation pldm --subcommand NAME FIELD...`` with an empty FIELD list
-    and refuses the fields as unrecognized; the option before the
-    positionals parses the same everywhere."""
+    """``--subcommand NAME`` and the nc-si and nvme-mi options moved to just after
+    ``invocation``. argparse before CPython 3.12.7 / 3.13 (3.11 never got
+    the fix, gh-59317) reads ``invocation pldm --subcommand NAME FIELD...``
+    with an empty FIELD list and refuses the fields as unrecognized; the
+    options before the positionals parse the same everywhere."""
     if "invocation" not in argv:
         return argv
     at = argv.index("invocation")
     head, rest = argv[: at + 1], argv[at + 1 :]
-    option, tail, i = [], [], 0
+    options, tail, i = [], [], 0
     while i < len(rest):
         tok = rest[i]
-        if tok == "--subcommand" and i + 1 < len(rest):
-            option = [tok, rest[i + 1]]
+        if tok in MOVED_OPTIONS and i + 1 < len(rest):
+            options += [tok, rest[i + 1]]
             i += 2
             continue
-        if tok.startswith("--subcommand="):
-            option = [tok]
+        if tok.startswith(tuple(f"{name}=" for name in MOVED_OPTIONS)):
+            options.append(tok)
             i += 1
             continue
         tail.append(tok)
         i += 1
-    return head + option + tail
+    return head + options + tail
 
 
 COMMANDS: dict[str, Callable[..., int]] = {"invocation": cmd_invocation}
@@ -313,6 +719,33 @@ def add_parsers(sub) -> None:
         help="pldm only: pldmtool's subcommand for the Command, read from the "
         "held openbmc/pldm Code Tree (its source lines, a code cite and a "
         "template with placeholders)",
+    )
+    p.add_argument(
+        "--type",
+        metavar="T",
+        help="nc-si only: the Control Packet Type (0x00..0x7f)",
+    )
+    p.add_argument("--package", metavar="P", help="nc-si only: the package (0..7)")
+    p.add_argument(
+        "--channel",
+        metavar="C",
+        help="nc-si only: the channel (0x00..0x1f), or package for the whole package",
+    )
+    p.add_argument(
+        "--iid",
+        metavar="I",
+        help="nc-si only: the Instance ID (0x01..0xff); <iid> when not given",
+    )
+    p.add_argument(
+        "--nmimt",
+        metavar="M",
+        help="nvme-mi only: mi (an NVMe-MI command) or admin (an NVMe Admin "
+        "Command), the message type of byte 1",
+    )
+    p.add_argument(
+        "--csi",
+        metavar="S",
+        help="nvme-mi only: the Command Slot (0 or 1); 0 when not given",
     )
     p.add_argument(
         "fields",

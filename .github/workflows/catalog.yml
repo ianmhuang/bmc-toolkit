@@ -2,8 +2,9 @@ name: catalog
 
 # Once a month, ask the publishers' listings what the Source Catalog lacks.
 # The catalog is never written here: when refresh reports something to add,
-# confirm or change, an issue assigned to the maintainer carries the output;
-# the maintainer runs refresh --write, verifies the new versions and opens a
+# confirm or change, or a DMTF document the catalog has not decided on
+# (unlisted), an issue assigned to the maintainer carries the output; the
+# maintainer runs refresh --write, verifies the new versions and opens a
 # pull request into develop.
 
 on:
@@ -45,7 +46,7 @@ jobs:
             cat refresh.txt
             echo '````'
           } >> "$GITHUB_STEP_SUMMARY"
-          proposals=$({ grep '^summary:' refresh.txt | grep -oE '(add|confirm|changed) [0-9]+' || true; } | awk '{ s += $2 } END { print s + 0 }')
+          proposals=$({ grep '^summary:' refresh.txt | grep -oE '(add|confirm|changed) [0-9]+|unlisted [0-9]+' || true; } | awk '{ s += $2 } END { print s + 0 }')
           echo "proposals=$proposals" >> "$GITHUB_OUTPUT"
           exit "$status"
       - name: open or comment on the catalog issue
@@ -61,7 +62,8 @@ jobs:
               "`refresh` found what the Source Catalog lacks. Run `refresh --write`",
               "locally, confirm any OCP URL by hand, verify each new version against",
               "`docs/golden-questions.md`, and open a pull request into `develop`",
-              "(docs/CATALOG.md).",
+              "(docs/CATALOG.md). An `unlisted` DMTF document goes into the catalog,",
+              "or its id into `[listings.dmtf] not_taken` when it is left out.",
               "",
               "````",
               fs.readFileSync("refresh.txt", "utf8").trimEnd(),

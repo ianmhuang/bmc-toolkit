@@ -104,8 +104,9 @@ def test_without_the_flag_every_listed_document_is_asked_about(
 ):
     code, out = run(capsys, "refresh", catalog_file=catalog_file)
     assert code == 0, out
-    assert _unreachable(out) == {"DSP0236", "NVME-MI", "M-CRPS"}
-    assert "unreachable 3" in _summary(out)
+    # "unlisted": DMTF's published-documents page, read for the whole catalog
+    assert _unreachable(out) == {"DSP0236", "NVME-MI", "M-CRPS", "unlisted"}
+    assert "unreachable 4" in _summary(out)
     assert OCP_WIKI in client.calls
 
 
@@ -116,10 +117,10 @@ def test_skip_source_ocp_leaves_ocp_unasked_and_unreported(
         capsys, "refresh", "--skip-source", "ocp", catalog_file=catalog_file
     )
     assert code == 0, out
-    assert _unreachable(out) == {"DSP0236", "NVME-MI"}
+    assert _unreachable(out) == {"DSP0236", "NVME-MI", "unlisted"}
     assert "M-CRPS" not in out
     assert _summary(out).startswith(
-        "summary: add 0, confirm 0, changed 0, unreachable 2"
+        "summary: add 0, confirm 0, changed 0, unreachable 3"
     )
     assert OCP_WIKI not in client.calls
     assert DMTF_DSP0236 in client.calls or any("dmtf.org" in c for c in client.calls)

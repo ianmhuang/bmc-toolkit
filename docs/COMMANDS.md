@@ -99,7 +99,10 @@ case-insensitively unless `--case`, as a literal unless `--regex`; `--max`
 `searched_with` (IPMI lists its Specification Update) is searched together
 with those, their hits first; they are brought to Ready the same way, with
 every line about that as a `note:`, and one that cannot be read is left
-out; `--only` skips them. `page` prints at most 10 pages per call
+out; `--only` skips them. When the entry also names `searched_with_from`,
+a version the catalog lists before that one is searched alone, with
+`note: <companion> not searched: it goes with <document> from <version>`
+(DSP0248 1.3.1 and DSP0251). `page` prints at most 10 pages per call
 (`--max-pages`). Each printed page and each rendered page comes with a
 `cite:` line: family, document and version, the sections the page spans
 (the one in force at its top, then every one whose heading is on the
@@ -117,7 +120,8 @@ writes nothing; its one Library read is `--subcommand` (below). PROTOCOL
 is `ipmi` (prints `ipmitool raw 0x.. ...`; the first two fields are NetFn
 and Cmd, one byte each), `mctp-control` or `spdm` (`mctp-client eid <eid>
 type control data .. ..`, `type spdm`), or `pldm` (the `mctp-client` line
-with `type pldm` and `pldmtool raw -m <eid> -d 0x.. ...`). A field is
+with `type pldm` and `pldmtool raw -m <eid> -d 0x.. ...`), or `nc-si`
+(below). A field is
 `NAME:SIZE=VALUE`, SIZE in bytes. SIZE and every number take ASCII digits
 only (`0`-`9`, and `a`-`f` or `A`-`F` after `0x`); digits of another
 script are refused. In a VALUE, `0X` is read as `0x` wherever this page
@@ -147,6 +151,80 @@ a field of its own); a field without NAME or without VALUE; no field; an
 unknown PROTOCOL; `ipmi` with fewer than two fields or a NetFn or Cmd of
 more than one byte. The command knows no Document: the fields are the
 caller's, and a wrong field gives a wrong line.
+
+`invocation nc-si --type T --package P --channel C [--iid I] 'FIELD' ...`
+builds the NC-SI header around the fields given. The fields are the
+NC-SI payload alone (none for a Command without one), NAME:SIZE:be for
+NC-SI's big-endian numbers. T is the Control Packet Type, P the package
+(0..7), C the channel (`0x00`..`0x1f`, or `package` for `0x1f`, the whole
+package), I the Instance ID (`0x01`..`0xff`); each is a number as a VALUE
+is, P, C and I may be a `<placeholder>`, and without `--iid` the IID is
+`<iid>`. A P or C placeholder is printed in the `ncsi-cmd` lines with ` in
+hex` added (`<chan>` as `<chan in hex>`): a channel said as 10 is `0a` there. The output is `payload bytes: N`, `packet bytes: M` (16 + N +
+padding + 4), then `ncsi-cmd -i <ifindex in hex> -p PP -c CC raw TT B...`
+(netlink: the kernel adds header and checksum) and `ncsi-cmd -m <eid in
+decimal> -p PP -c CC raw TT B...` (MCTP), both in the syntax of
+phosphor-networkd 1c55a45, every number two hex digits without `0x`. Then
+`mctp-client eid <eid> type nc-si data ..`, the whole packet from MC ID as
+DSP0222 Table 10 lays it out: MC ID `00`, Header Revision `01`, Reserved,
+IID, Control Packet Type, Channel ID (package in bits 7..5, channel in
+4..0), Flags and the 12-bit Payload Length big-endian, 8 reserved bytes,
+the payload, `00` padding to four bytes and the checksum (the two's
+complement of the 32-bit sum of 16-bit big-endian words, DSP0222 8.2.2.3).
+When the IID, package, channel or a payload byte is a placeholder the
+Channel ID is `<channel id>` where unknown and the checksum is printed
+`00 00 00 00`, which DSP0222 reads as no checksum. `note:` lines say that
+ncsi-cmd reads `-i`, `-p`, `-c`, TYPE and the payload as hex (an ifindex
+written in decimal reaches another interface) and `-m` in decimal, that
+the IID must change between sends or the controller takes a retry
+(DSP0222 6.2.2.2), and why the checksum is zero when it is. The table has
+one row per header field, payload field, padding and checksum, offsets
+from MC ID. Refused with exit 2 and one line, besides the field refusals
+above: `--type` missing, not a number or above `0x7f` (bit 7 marks a
+response); `--package` missing or above 7; `--channel` missing or above
+`0x1f`; `--iid` 0 or above `0xff`; a payload above `0xfff` (4095) bytes;
+`--type`, `--package`, `--channel` or `--iid` with another protocol
+(`--type is for nc-si, not ipmi`).
+
+`invocation nvme-mi --nmimt mi|admin [--csi S] 'FIELD' ...` builds an
+NVMe-MI message over MCTP. The fields are the request from the opcode on,
+little-endian as NVMe-MI writes its numbers: for `mi` (an NVMe-MI
+command) the opcode, three reserved bytes, NMD0, NMD1 and any request
+data, at least 12 bytes; for `admin` (an NVMe Admin Command) the opcode,
+CFLGS, CTLID, SQE Dwords 1 to 5, DOFST, DLEN, 8 reserved bytes, SQE
+Dwords 10 to 15 and any request data, at least 64 bytes. S is the Command
+Slot, 0 or 1 (0 when not given). The output is `request bytes: N`,
+`message bytes: M` (4 + N + 4); for `admin`, `nvme admin-passthru
+mctp:<net>,<eid>:C --opcode=0xOO ...` in the syntax of nvme-cli 2.16, C
+the CTLID in decimal and then `--namespace-id`, `--cdw2`, `--cdw3`,
+`--cdw10` to `--cdw15` and `--data-len` for each of those dwords that is
+not zero, read from their offsets in the fields, in hex with `0x` (a dword
+holding a placeholder is `--cdw10=<cdw10>`, `--namespace-id=<nsid>`,
+`--data-len=<dlen>`; a placeholder CTLID is `<ctrl id>`). Then
+`message:`, the whole message as NVMe-MI 2.2 Figure 20 lays it out: `84`
+(IC 1, message type 4), ROR 0 with NMIMT (1 or 2) and CSI, `00 00`, the
+fields, and the MIC: CRC-32C (Castagnoli, reflected, initial value and
+final XOR `0xffffffff`) over every byte from the first, least
+significant byte first. When a byte is a placeholder the MIC is four
+`<mic>` bytes. No `mctp-client` line: it sends the message type with the
+IC bit clear and no MIC, which an endpoint discards. `note:` lines say,
+for `mi`, that no command on an OpenBMC BMC sends an NVMe-MI command-set
+message, so the message is for a capture or a libnvme program; for
+`admin`, the nvme-cli and libnvme versions and libnvme's probe before the
+first command, that `mctp:` takes NET, EID and the controller in decimal,
+that the opcode's bits 1..0 give the data direction and request data goes
+on stdin or `-i <file>`, and, when the fields hold a DOFST or SQE Dword 4
+or 5 that is not zero, that nvme-cli sends them as 0; why the MIC is
+`<mic>` when it is; and that MCTP carries a message above 64 bytes in
+several packets. The table has one row per header byte, field and the
+MIC, offsets from byte 0. Refused with exit 2 and one line, besides the
+field refusals above: `--nmimt` missing or not `mi` or `admin` (PCIe
+Commands and Control Primitives get no bytes); `--csi` not 0 or 1; fewer
+request bytes than 12 (`mi`) or 64 (`admin`); a message above 4224 bytes;
+for `admin`, a DLEN above 4096 or an opcode whose bits 1..0 are 11
+(bidirectional, which nvme-cli over MCTP refuses); `--nmimt` or `--csi`
+with another protocol (`--nmimt is for nvme-mi, not ipmi`), and the nc-si
+options with `nvme-mi`.
 
 `invocation pldm --subcommand NAME 'FIELD' ...` prints all of the above,
 then what pldmtool's own subcommand for the Command looks like, read from
@@ -442,6 +520,14 @@ documents out, neither read nor reported; the catalog workflow runs
 `refresh --skip-source ocp` because opencompute.org refuses GitHub's
 runners ([CATALOG.md](CATALOG.md)). Naming a document whose publisher is
 skipped exits 2.
+`refresh` without DOC and without `--skip-source dmtf` also reads the
+DMTF published-documents page once and prints, after the per-document
+lines and in id order, `unlisted DSP0297 1.0.0 "Title" URL` for each DSP
+id there that no catalog document lists and the catalog's `[listings.dmtf]
+not_taken` does not cover; the summary then ends its counts with
+`unlisted N`. A page that cannot be read prints `unreachable unlisted:
+<reason>` and counts as one `unreachable`. `unlisted` ids are never
+written, `--write` or not. `check` does not read the page for this.
 
 ## Sessions sharing a Library
 

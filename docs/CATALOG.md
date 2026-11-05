@@ -38,7 +38,10 @@ The latest version is the one with the newest publication date; same-day
 versions are told apart by the numbers in their version strings (`2.0.0`
 over `1.3.0`). A document
 may name companions in `searched_with` (errata, specification updates)
-that `find` searches together with it, and a `listing`
+that `find` searches together with it; `searched_with_from` names the first
+of its versions they go with (DSP0248: `1.4.0`, the version that moved the
+PDR definitions to DSP0251), so reading an earlier version searches it
+alone. It also takes a `listing`
 (`dmtf:<DSP>`, implied for DMTF documents; `nvme:<slug>` of the
 nvmexpress.org API; `ocp:<project page>|<description prefix>`) that `check`
 and `refresh` consult. `refresh` prints the versions the publishers list
@@ -56,11 +59,25 @@ place in the document's block (publication order, same-day versions by
 their numbers), leaving every other line and comment as it was, and
 refuses an edit the parser would not accept.
 
+`refresh` reads versions of the documents the catalog lists, which tells
+nothing of a DMTF document it lacks. So a run over the whole catalog also
+reads DMTF's published-documents page and prints `unlisted DSP0297 1.0.0
+"Title" URL` for each DSP id there that no document's listing names and
+`[listings.dmtf] not_taken` does not cover. That list holds the DMTF
+documents reviewed and left out, as ids or prefixes (`DSP08` covers the
+SM CLP mappings); an entry that names a listed document is refused. An
+`unlisted` id is never written: the maintainer adds the document to the
+catalog, with its Golden Questions, or its id to `not_taken`. `refresh
+DOC` and `--skip-source dmtf` leave the page out. This `unlisted` line is
+unrelated to a document's `unlisted = true`, which only keeps a listed
+document out of the support table.
+
 Once a month, and on demand from the Actions tab (`catalog`, Run
 workflow), `.github/workflows/catalog.yml` runs `refresh --skip-source
 ocp` without `--write` on a GitHub runner and puts the output in the
 run's summary, whether or not `refresh` succeeded. When it reports
-anything to add, confirm or change, it opens an issue labelled `catalog`
+anything to add, confirm or change, or an `unlisted` DMTF document, it
+opens an issue labelled `catalog`
 and assigned to the repository owner with that output, or comments on the
 open one; a run that finds nothing,
 or only unreachable listings, opens nothing. OCP is left out because

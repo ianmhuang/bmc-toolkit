@@ -56,6 +56,23 @@ def _catalog(tmp_path, url, source="dmtf:DSP0266"):
     return path
 
 
+PUBLISHED = (
+    "<html><body><table><thead><tr><th>DSP </th><th>Version </th><th>Title </th>"
+    "<th>Comments </th><th>DSP </th></tr></thead><tbody><tr><td> DSP0266 </td>"
+    f'<td> 1.20.2 </td><td><a href="{FIRST}">Redfish</a></td><td> Standard </td>'
+    '<td><a href="/dsp/DSP0266">View</a></td></tr></tbody></table></body></html>'
+)
+
+
+@pytest.fixture(autouse=True)
+def _published_page(request):
+    """A whole-catalog refresh also reads DMTF's published-documents page;
+    it lists DSP0266 only, so nothing is unlisted."""
+    if "scripted" in request.fixturenames:
+        scripted = request.getfixturevalue("scripted")
+        scripted.responses[L.DMTF_PUBLISHED] = _html(PUBLISHED)
+
+
 def _refresh(capsys, catalog_path, *argv):
     code = main(["--catalog", str(catalog_path), "refresh", *argv])
     return code, capsys.readouterr().out
@@ -118,7 +135,7 @@ def test_a_listing_http_link_matches_the_catalog_https_url(
     code, out = _refresh(capsys, _catalog(tmp_path, FIRST))
     assert code == 0, out
     assert out.splitlines() == [
-        "summary: add 0, confirm 0, changed 0, unreachable 0 (dry run; --write adds them)"
+        "summary: add 0, confirm 0, changed 0, unreachable 0, unlisted 0 (dry run; --write adds them)"
     ]
 
 

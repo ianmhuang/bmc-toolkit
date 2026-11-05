@@ -24,7 +24,13 @@ cut only when its first cell and at least one other cell are empty (the
 cells whose text ended before the break); a ruled table joins it when the
 part before it is open-bottomed.
 pdfplumber does the cell geometry and the text inside each cell; it is
-imported inside the functions that open a PDF.
+imported inside the functions that open a PDF. Upright text in a cell
+breaks into words at gaps of ``WORD_GAP_PT``, below pdfplumber's default of
+3 pt: DMTF draws a hyperlink as its own run with no space character on
+either side, about 2.1 pt from its neighbours. A cell holding rotated text
+keeps the default. The text lines around a table (its caption, the lines
+a section lookup reads) follow the same rule character by character:
+DSP0274 sets a heading's number about 2 pt from its title.
 
 A box diagram inside a figure (a packet or register layout, a ladder
 diagram, a timing grid) is read as a table too. When no caption lies in
@@ -44,7 +50,7 @@ continuation page repeats, with or without "(continued)", is dropped.
 
 ``tables.json`` in the version directory::
 
-    {"tables_version": 6,
+    {"tables_version": 8,
      "pages_done": [N, ...],          pages whose tables are all stored:
                                       the pages asked for and every page
                                       a table found there runs onto
@@ -66,7 +72,9 @@ above the table first (``TableStart``), and names the entry. A store of
 another version is read again: version 1 had no ``drawn`` and no cells
 tables, versions up to 4 took the section from the first line holding the
 caption's words, or the page top without a caption, version 5 named no
-table by its figure's caption.
+table by its figure's caption, version 6 joined words less than 3 pt apart
+with no space character between them, version 7 did so in the lines
+around a table.
 """
 
 import json
@@ -78,7 +86,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
 
-TABLES_VERSION = 6
+TABLES_VERSION = 8
 TABLES_NAME = "tables.json"
 
 RULED = "ruled"
@@ -95,6 +103,7 @@ LINE_TOL_PT = 2.0  # words this close vertically form one text line
 FURNITURE_TOL_PT = 3.0  # a running header or footer repeats at this height
 BODY_GAP_PT = 1.0  # text this close to a rule is inside the table, not around it
 CELL_WIDTH = 60  # grid columns wrap beyond this many characters
+WORD_GAP_PT = 1.75  # upright characters this far apart are separate words
 
 _CAPTION = re.compile(r"^(?:\d{1,5}\s+)?(?P<text>(?:Table|Figure)\b.*)$", re.IGNORECASE)
 # "Figure", an id (B-1, 6-2, 3.4), an optional separator, then a title: not
@@ -264,6 +273,39 @@ def _cell_text(text) -> str:
     return "\n".join(ln.strip() for ln in (text or "").split("\n")).strip()
 
 
+def _in_box(char: dict, box) -> bool:
+    """pdfplumber's own test: the character's centre is inside the box."""
+    x0, top, x1, bottom = box
+    h_mid = (char["x0"] + char["x1"]) / 2
+    v_mid = (char["top"] + char["bottom"]) / 2
+    return x0 <= h_mid < x1 and top <= v_mid < bottom
+
+
+def _extract(table) -> list[list[str | None]]:
+    """``table.extract()`` with the word gap set per cell: WORD_GAP_PT when
+    every character in the cell is upright, pdfplumber's default otherwise
+    (in a box diagram's rotated labels a narrow gap is not a word break)."""
+    from pdfplumber import utils
+
+    rows = []
+    for row in table.rows:
+        row_chars = [c for c in table.page.chars if _in_box(c, row.bbox)]
+        cells = []
+        for cell in row.cells:
+            if cell is None:
+                cells.append(None)
+                continue
+            chars = [c for c in row_chars if _in_box(c, cell)]
+            if not chars:
+                cells.append("")
+            elif all(c["upright"] for c in chars):
+                cells.append(utils.extract_text(chars, x_tolerance=WORD_GAP_PT))
+            else:
+                cells.append(utils.extract_text(chars))
+        rows.append(cells)
+    return rows
+
+
 def _closing_rules(horizontal: list, vertical: list) -> list[dict]:
     """Horizontal rules that close the top and the bottom of every run of
     vertical rules that lacks one: a table cut by the page break has no
@@ -333,7 +375,7 @@ def _tables_from(page, number: int, settings: dict, drawn_as: str) -> list[PageT
     """PageTables for every table pdfplumber finds with ``settings``."""
     found = []
     for table in page.find_tables(settings):
-        rows = [[_cell_text(c) for c in row] for row in table.extract()]
+        rows = [[_cell_text(c) for c in row] for row in _extract(table)]
         if not rows:
             continue
         columns = sorted({round(c[0], 1) for row in table.rows for c in row.cells if c})
@@ -526,9 +568,22 @@ def _cell_tables(page, number: int, boxes: list[dict]) -> list[PageTable]:
     return _tables_from(page, number, _settings(horizontal, vertical), CELLS)
 
 
+def _words(page) -> list[dict]:
+    """The page's words with the gap rule ``_extract`` applies to a cell,
+    taken here per character: upright characters break at WORD_GAP_PT, the
+    others at pdfplumber's default."""
+    upright = page.filter(
+        lambda o: o.get("object_type") == "char" and o.get("upright", True)
+    )
+    turned = page.filter(
+        lambda o: o.get("object_type") == "char" and not o.get("upright", True)
+    )
+    return upright.extract_words(x_tolerance=WORD_GAP_PT) + turned.extract_words()
+
+
 def page_lines(page) -> list[TextLine]:
     """The page's words grouped into text lines, top to bottom."""
-    words = sorted(page.extract_words(), key=lambda w: (w["top"], w["x0"]))
+    words = sorted(_words(page), key=lambda w: (w["top"], w["x0"]))
     lines: list[TextLine] = []
     group: list[dict] = []
 

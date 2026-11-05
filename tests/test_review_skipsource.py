@@ -410,7 +410,8 @@ def test_skipped_publisher_is_not_counted_as_unreachable_when_the_network_is_dow
     ``unreachable``; with it the count covers only the publishers asked."""
     code, out = run(capsys, "refresh", catalog_file=catalog_file)
     assert code == 0, out
-    assert counts_of(out)["unreachable"] == 3
+    # three documents and DMTF's published-documents page (unlisted)
+    assert counts_of(out)["unreachable"] == 4
     assert OCP_WIKI in dead_client.calls
 
     dead_client.calls.clear()
@@ -421,8 +422,9 @@ def test_skipped_publisher_is_not_counted_as_unreachable_when_the_network_is_dow
     assert kinds_by_document(out) == {
         "DSP0236": {"unreachable"},
         "NVME-MI": {"unreachable"},
+        "unlisted": {"unreachable"},
     }, out
-    assert counts_of(out) == {"add": 0, "confirm": 0, "changed": 0, "unreachable": 2}
+    assert counts_of(out) == {"add": 0, "confirm": 0, "changed": 0, "unreachable": 3}
     assert OCP_WIKI not in dead_client.calls
     assert "M-CRPS" not in out
 
@@ -539,7 +541,7 @@ def test_unknown_document_still_wins_over_the_skip(catalog_file, client, capsys)
 
 # ----------------------------------------------------------------- AC-8
 
-RELEASE = "1.5.2"
+RELEASE = "1.6.0"
 
 
 def test_version_1_1_0_in_the_four_records():
