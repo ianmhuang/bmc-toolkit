@@ -198,6 +198,60 @@ def test_ac4_prose_only_in_the_window_leaves_the_figure_rule_to_decide(tmp_path)
     ]
 
 
+# ------------------------------------------------- round 1 F1 (AC-2, AC-4)
+# Past the nearest line, a `Figure` line is a caption only when the figure
+# rule's own filter accepts it: "Figure 3 shows ..." is prose, not a caption.
+# On develop that line never reached the caption rule (it was not the
+# nearest) and the figure rule's filter rejected it, so the table printed
+# `-`; the walk must not take it either.
+
+
+def test_f1_figure_prose_past_the_nearest_line_gives_no_caption(tmp_path):
+    pages = [
+        table()
+        + [over(26, "Figure 3 shows the fields below."), over(12, "byte data field")],
+        table()
+        + [
+            over(36, "Figure 101."),
+            over(24, "Note: bits not listed are reserved and"),
+            over(12, "shall be written as zero."),
+        ],
+        table() + [over(26, "Figure 7 lists the bytes:"), over(12, "Values")],
+    ]
+    assert captions(tmp_path, pages) == [[None], [None], [None]]
+
+
+def test_f1_the_walk_skips_figure_prose_and_takes_a_caption_further_up(tmp_path):
+    page = table() + [
+        over(38, "Figure 4 - Packet format"),
+        over(25, "Figure 4 shows the fields below."),
+        over(12, "byte data field"),
+    ]
+    assert captions(tmp_path, [page]) == [["Figure 4 - Packet format"]]
+
+
+def test_f1_figure_prose_past_the_nearest_line_leaves_the_figure_rule_to_decide(
+    tmp_path,
+):
+    # the prose line is skipped, the figure rule then finds the caption below
+    bottom = TOP - 16 * len(ROWS)
+    page = table() + [
+        over(26, "Figure 3 shows the fields below."),
+        over(12, "byte data field"),
+        under(30, "Figure 3 - Packet format", bottom),
+    ]
+    assert captions(tmp_path, [page]) == [["Figure 3 - Packet format"]]
+
+
+def test_f1_a_figure_caption_with_a_margin_line_number_past_the_nearest_line(
+    tmp_path,
+):
+    # the filter sees the whole line, margin number included, and still
+    # accepts a real caption; the margin number is dropped as for `Table`
+    page = table() + [over(26, "512 Figure 9 - Request Format"), over(12, "Values")]
+    assert captions(tmp_path, [page]) == [["Figure 9 - Request Format"]]
+
+
 # ------------------------------------------------------------------ AC-5
 
 
