@@ -195,9 +195,10 @@ def test_ac2_the_catalog_refuses_a_not_taken_entry_that_names_a_taken_one(tmp_pa
 @pytest.mark.parametrize(
     "doc_id, words",
     [
-        # T65 reads Table 2's caption, so DSP0282 keeps only the cut rows
+        # T65 reads Table 2's caption, so DSP0282 keeps only the cut rows;
+        # T67 reads DSP2058's Table 1 caption from page 14, so DSP2058 has
+        # no limit left (test_catalog_t61.py checks that)
         ("DSP0282", ("Table 1", "byte number", "page")),
-        ("DSP2058", ("Table 1", "caption", "page 14", "page 15")),
         ("NVME-NVM", ("Figure 123", "caption", "page")),
     ],
 )

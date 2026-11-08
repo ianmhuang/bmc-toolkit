@@ -4644,7 +4644,6 @@ family = "spdm"
 title = "Security Protocol and Data Model (SPDM) Architecture White Paper"
 access = "open"
 fetch = "direct"
-limits = "Table 1's caption is the last line of page 14 and the table starts on page 15, so table prints the caption as `-`; page 14 shows it."
 
 [[documents.versions]]
 version = "1.0.0"

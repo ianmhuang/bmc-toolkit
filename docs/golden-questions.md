@@ -335,9 +335,8 @@ NVM Command Set came up beside the three NVMe specifications the catalog
 held. Each newest version fetches via direct and extracts with an
 Outline from its bookmarks, `check` prints `current` for all five, and
 G104 to G108 verify them. Their limits record what `table` does not
-read: rows of DSP0282's Table 1 that a page break cuts, DSP2058's
-Table 1 caption on the page before its table, and NVME-NVM's Figure 123
-in five parts.
+read: rows of DSP0282's Table 1 that a page break cuts and NVME-NVM's
+Figure 123 in five parts.
 
 On 2026-11-08 two more were added: DSP0285 1.1.0 (RedPath) and DSP0294
 1.0.0 (DMTF Authorization Policy, the policy structures that SPDM

@@ -86,7 +86,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
 
-TABLES_VERSION = 10
+TABLES_VERSION = 11
 TABLES_NAME = "tables.json"
 
 RULED = "ruled"
@@ -685,7 +685,8 @@ class Reader:
         """The nearest body line within CAPTION_GAP_PT above the table that
         reads like a caption, past lines that do not (IPMI draws its column
         names between caption and rules, PMBus a note) but not past another
-        table; else the caption of the figure the table is drawn in."""
+        table; else the caption of the figure the table is drawn in; else a
+        `Table` caption ending the page before (_caption_on_page_before)."""
         above = sorted(
             (
                 ln
@@ -705,7 +706,33 @@ class Reader:
             if i and text[:6].lower() == "figure" and figure_caption(line.text) is None:
                 continue
             return text
-        return self._figure_caption(table)
+        return self._figure_caption(table) or self._caption_on_page_before(table)
+
+    def _caption_on_page_before(self, table: PageTable) -> str | None:
+        """A table that starts its page with no body line above it takes the
+        last body line of the page before when that line is a `Table`
+        caption below every table there (IPMI and DSP2058 leave a caption
+        at the foot of a page when the table does not fit). A `Figure`
+        line is not taken: SMBus puts a figure's caption under its
+        drawing."""
+        if table.index != 0 or table.page == 1:
+            return None
+        if any(
+            ln.bottom < table.top + BODY_GAP_PT for ln in self.body_lines(table.page)
+        ):
+            return None
+        body = self.body_lines(table.page - 1)
+        if not body:
+            return None
+        last = max(body, key=lambda ln: ln.top)
+        if any(
+            last.top <= t.bottom - BODY_GAP_PT for t in self.page(table.page - 1).tables
+        ):
+            return None
+        m = _CAPTION.match(last.text.strip())
+        if not m or not m.group("text").startswith("Table"):
+            return None
+        return m.group("text").strip()
 
     def _figure_caption(self, table: PageTable) -> str | None:
         """A Figure caption within FIGURE_GAP_PT of the table: the first one
@@ -772,12 +799,13 @@ class Reader:
         # a caption repeated from the page before, or one of the two before
         # that (a page the table fills from its top has no room for the
         # caption: NVMe Figure 338), does not stop the join; any other
-        # line, a new caption among them, does
+        # line, a new caption among them, does. Only a line that captions a
+        # table there counts as a caption to repeat.
         repeats = {
             _caption_key(ln.text)
             for n in range(max(1, a.page - 2), a.page + 1)
             for ln in self.page(n).lines
-            if _CAPTION.match(ln.text.strip())
+            if _captions_a_table(self.page(n), ln)
         }
         return all(
             _CAPTION.match(ln.text.strip()) and _caption_key(ln.text) in repeats
@@ -916,7 +944,9 @@ def _furniture_key(text: str) -> str:
 
 
 def _caption_key(text: str) -> str:
-    return " ".join(text.split())
+    """A caption line without its margin line number, spacing aside."""
+    m = _CAPTION.match(text.strip())
+    return " ".join((m.group("text") if m else text).split())
 
 
 def _captions_a_table(info: PageInfo, line: TextLine) -> bool:
