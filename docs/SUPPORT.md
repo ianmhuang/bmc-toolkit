@@ -98,6 +98,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0287` SPDM over TCP Binding Specification | open | 1.0.0 | PASS | - |
 | `DSP0289` Security Protocol and Data Model (SPDM) Authorization Specification | open | 1.0.0 | PASS | - |
 | `DSP2058` Security Protocol and Data Model (SPDM) Architecture White Paper | open | 1.3.0 | PASS | Table 1's caption is the last line of page 14 and the table starts on page 15, so table prints the caption as `-`; page 14 shows it. |
+| `DSP0294` DMTF Authorization Policy Specification | open | 1.0.0 | PASS | - |
 
 ## Network Controller Sideband Interface
 
@@ -128,6 +129,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP8011` Redfish Standard Registries Bundle | open | 2026.2 | PASS | ZIP of registries: registry reads the message registries (newest file per registry); the privilege registries, the HTML and the PDF stay in the archive (DSP2065 is the PDF's own catalog entry). |
 | `DSP8013` Redfish Interoperability Profiles Bundle | open | 2026.1 | PASS | ZIP of profiles: schema reads the profile schema (RedfishInteroperabilityProfile); the bundle holds no profile documents, and its PDF stays in the archive (DSP0272 is the PDF's own catalog entry). |
 | `DSP0288` CXL to Redfish Mapping Specification | open | 1.4.0 | PASS | - |
+| `DSP0285` RedPath Specification | open | 1.1.0 | PASS | - |
 
 ## NVM Express
 

@@ -31,7 +31,8 @@ def test_the_five_follow_dsp0251_with_every_listed_version():
     cat = load_catalog()
     ids = [d.id for d in cat.documents]
     at = ids.index("DSP0251")
-    assert ids[at + 1 :] == list(NEW)
+    # T63 (2026-11-08) added two more after the five
+    assert ids[at + 1 : at + 6] == list(NEW)
     for doc_id, (family, versions) in NEW.items():
         doc = cat.get(doc_id)
         assert doc.family == family, doc_id
@@ -96,6 +97,7 @@ def test_readme_counts_the_catalog():
     total = len(docs)
     open_docs = sum(d.access == "open" for d in docs)
     families = len({d.family for d in docs})
-    assert (total, open_docs, families) == (119, 99, 35)
+    # T63 (2026-11-08) added two open documents
+    assert (total, open_docs, families) == (121, 101, 35)
     assert f"lists {total} documents in {families} families" in readme
     assert f"The {open_docs} open ones" in readme
