@@ -256,7 +256,7 @@ def test_f1_a_figure_caption_with_a_margin_line_number_past_the_nearest_line(
 
 
 def test_ac5_tables_version_is_9_and_a_version_8_store_is_not_served(tmp_path):
-    assert T.TABLES_VERSION == 10
+    assert T.TABLES_VERSION == 11
     page = table() + [
         over(26, "Table 22-, Get Self Test Results Command"),
         over(12, "byte data field"),
@@ -267,7 +267,7 @@ def test_ac5_tables_version_is_9_and_a_version_8_store_is_not_served(tmp_path):
     T.store(vdir, [1], found)
     path = vdir / T.TABLES_NAME
     data = json.loads(path.read_text("utf-8"))
-    assert data["tables_version"] == 10
+    assert data["tables_version"] == 11
     assert [t["caption"] for t in data["tables"]] == [
         "Table 22-, Get Self Test Results Command"
     ]
@@ -282,7 +282,7 @@ def test_ac5_tables_version_is_9_and_a_version_8_store_is_not_served(tmp_path):
 
     T.store(vdir, [1], found)
     data = json.loads(path.read_text("utf-8"))
-    assert data["tables_version"] == 10
+    assert data["tables_version"] == 11
     assert data["pages_done"] == [1]
     (stored,) = T.stored_for_page(vdir, 1)
     assert stored.caption == "Table 22-, Get Self Test Results Command"
@@ -322,7 +322,7 @@ def test_ac1_the_table_command_prints_the_caption_taken_past_the_line(
     # the store carries the caption too, under the new version
     store = library.specs / "mctp" / "DSP0236" / "1.3.3" / T.TABLES_NAME
     data = json.loads(store.read_text("utf-8"))
-    assert data["tables_version"] == 10
+    assert data["tables_version"] == 11
     assert [t["caption"] for t in data["tables"]] == [
         "Table 22-, Get Self Test Results Command"
     ]

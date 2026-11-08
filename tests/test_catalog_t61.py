@@ -70,13 +70,14 @@ def test_limits_name_the_caption_cases_and_where_to_read_them():
     # rows of Table 1 are left
     assert "Table 2's caption" not in cat.get("DSP0282").limits
     assert "byte number" in cat.get("DSP0282").limits
-    assert "page 14" in cat.get("DSP2058").limits
+    # T67 reads DSP2058's Table 1 caption from the foot of page 14
+    assert cat.get("DSP2058").limits == ""
     # T66 reads Figure 123's caption; its parts are what is left, and
     # Figures 157 and 159 whose caption lies past the 40 pt window
     assert "Figure 123" in cat.get("NVME-NVM").limits
     assert "Figure 123's caption" not in cat.get("NVME-NVM").limits
     assert "Figures 157 and 159" in cat.get("NVME-NVM").limits
-    for doc_id in ("DSP0282", "DSP2058", "NVME-NVM"):
+    for doc_id in ("DSP0282", "NVME-NVM"):
         assert re.search(r"\bpage\b", cat.get(doc_id).limits), doc_id
     assert cat.get("DSP0293").limits == "" and cat.get("DSP0288").limits == ""
 

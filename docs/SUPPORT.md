@@ -97,7 +97,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0286` Security Protocol and Data Model (SPDM) to Storage Binding Specification | open | 1.0.0 | PASS | - |
 | `DSP0287` SPDM over TCP Binding Specification | open | 1.0.0 | PASS | - |
 | `DSP0289` Security Protocol and Data Model (SPDM) Authorization Specification | open | 1.0.0 | PASS | - |
-| `DSP2058` Security Protocol and Data Model (SPDM) Architecture White Paper | open | 1.3.0 | PASS | Table 1's caption is the last line of page 14 and the table starts on page 15, so table prints the caption as `-`; page 14 shows it. |
+| `DSP2058` Security Protocol and Data Model (SPDM) Architecture White Paper | open | 1.3.0 | PASS | - |
 | `DSP0294` DMTF Authorization Policy Specification | open | 1.0.0 | PASS | - |
 
 ## Network Controller Sideband Interface
