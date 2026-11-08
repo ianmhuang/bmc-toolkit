@@ -328,14 +328,14 @@ a repeated header row is dropped), and the result is a `cite:` line with
 the section in force where the table starts (the last heading above it on
 its first page, else the section at the top of that page; a table without
 a caption is placed the same way), `PDF pages A-B` and `lines table K`, a
-`table:` line with the caption and how
-the table is drawn, and the rows as a text grid. The caption is the
-nearest line within 40 points above the table that reads like one
-(`Table ...` or `Figure ...`), past lines that do not (IPMI draws its
-column names between caption and table) but not past another table. Two drawings are read:
-`ruled` tables, whose cells are bounded by ruling lines (thin filled
-rectangles or stroked lines), and `cells` tables, which have no rules and
-paint every cell as a filled box tiled edge to edge, the way DMTF's
+`table:` line with the caption and how the table is drawn, and the rows
+as a text grid. The caption is the nearest line within 40 points above
+the table that reads like one (`Table ...` or `Figure ...`), past lines
+that do not (IPMI draws its column names between caption and table) but
+not past another table. Two drawings are read: `ruled` tables, whose
+cells are bounded by ruling lines (thin filled rectangles or stroked
+lines), and `cells` tables, which have no rules and paint every cell as
+a filled box tiled edge to edge, the way DMTF's
 current PDFs are made; a box's edges are its cell's edges, so a merged
 cell stays one cell, and boxes inside a ruled table (a shaded header) are
 not a second table. Rules stroked as path curves (DMTF's Redfish guides
@@ -347,10 +347,9 @@ detected. A box diagram inside a figure (a packet or register layout, a
 ladder diagram, a timing grid) is read as a table too; when no caption
 lies within 40 points above it, the `table:` line names the figure's
 caption, the first `Figure N ...` line within 200 points below it, else
-the nearest
-within 200 points above it (stopping at a line that mentions `Table N`,
-and leaving a caption that has another table between or right under
-it). Check a value read from such a grid with `render`.
+the nearest within 200 points above it (stopping at a line that
+mentions `Table N`, and leaving a caption that has another table between
+or right under it). Check a value read from such a grid with `render`.
 A table longer than 300 rows (DSP2053's property guide is one table over
 the whole document) prints a `note:` line and only the rows that start
 on the page asked for; `--all-rows` prints every row. Tables are read on
