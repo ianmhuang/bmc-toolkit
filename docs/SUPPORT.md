@@ -66,7 +66,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0234` CXL™ Fabric Manager API over MCTP Binding Specification | open | 1.0.0 | PASS | PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page. |
 | `DSP0281` CXL™ Type 3 Device Component Command Interface over MCTP Binding Specification | open | 1.0.0 | PASS | - |
 | `DSP0291` PCIe® Management Interface (PCIe-MI®) over MCTP Binding Specification | open | 1.0.0 | PASS | - |
-| `DSP0282` Memory-Mapped Buffer Interface (MMBI) Specification | open | 1.1.0 | PASS | Table 2's caption prints as `-`: one word of it is set 4 pt lower and reads as its own line above the table. Rows of Table 1 that a page break cuts (bytes 6 and 24) print without their byte number, the PDF drawing no left rule for those parts. Read both with page (pages 15-18). |
+| `DSP0282` Memory-Mapped Buffer Interface (MMBI) Specification | open | 1.1.0 | PASS | Rows of Table 1 that a page break cuts (bytes 6 and 24) print without their byte number, the PDF drawing no left rule for those parts. Read them with page (pages 15-17). |
 
 ## Platform Level Data Model
 
@@ -203,7 +203,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | Document | Access | Latest | Verified | Known limit |
 |---|---|---|---|---|
 | `PMBUS-I` PMBus Power System Management Protocol Specification Part I: General Requirements, Transport and Electrical Interface | open (latest gated) | 1.5 | PASS | - |
-| `PMBUS-II` PMBus Power System Management Protocol Specification Part II: Command Language | open (latest gated) | 1.5 | PASS | - |
+| `PMBUS-II` PMBus Power System Management Protocol Specification Part II: Command Language | open (latest gated) | 1.5 | PASS | In 1.3.1 Table 31's caption (Command Summary) lies 47 pt above the table, past two lines of notes, so table prints it as `-`; page 112 shows it. |
 
 ## OCP Security (root of trust, attestation)
 

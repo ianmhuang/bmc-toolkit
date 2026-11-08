@@ -331,7 +331,9 @@ def test_caption_is_the_nearest_line_within_40_points_starting_with_table_or_fig
         assert r.logical_tables(1)[0].caption == "Table 7 - Near"
         assert r.logical_tables(2)[0].caption == "Figure 3 - Also a caption"
         assert r.logical_tables(3)[0].caption is None
-        assert r.logical_tables(4)[0].caption is None
+        # T65: the nearest caption-like line within 40 pt is taken past a
+        # line that is not one (IPMI's column names stand there)
+        assert r.logical_tables(4)[0].caption == "Table 9 - Hidden"
 
 
 def test_caption_comes_from_the_first_part_only(tmp_path):
