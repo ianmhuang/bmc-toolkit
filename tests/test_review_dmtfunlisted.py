@@ -225,7 +225,9 @@ def test_ac3_whole_catalog_refresh_prints_the_undecided_ids_in_id_order(
     )
 
 
-def test_ac3_unlisted_lines_come_after_the_per_document_lines(tmp_path, client, capsys):
+def test_ac3_unlisted_lines_come_after_the_per_document_lines(
+    tmp_path, client, capsys
+):
     client.responses[DSP0236_PAGE] = ok(DSP0236_NEWER, "text/html")
     path = write_catalog(tmp_path, MINI_CATALOG)
     code, out = run(capsys, path, "refresh")
