@@ -195,7 +195,8 @@ def test_ac2_the_catalog_refuses_a_not_taken_entry_that_names_a_taken_one(tmp_pa
 @pytest.mark.parametrize(
     "doc_id, words",
     [
-        ("DSP0282", ("Table 2", "caption", "Table 1", "byte number", "page")),
+        # T65 reads Table 2's caption, so DSP0282 keeps only the cut rows
+        ("DSP0282", ("Table 1", "byte number", "page")),
         ("DSP2058", ("Table 1", "caption", "page 14", "page 15")),
         ("NVME-NVM", ("Figure 123", "caption", "page")),
     ],
@@ -207,7 +208,8 @@ def test_ac3_limits_record_the_caption_cases_with_the_command_to_use(
     assert limits, doc_id
     for word in words:
         assert word in limits, (doc_id, word)
-    assert "`-`" in limits, doc_id
+    if doc_id != "DSP0282":
+        assert "`-`" in limits, doc_id
 
 
 def test_ac3_the_other_two_have_no_limit(shipped):

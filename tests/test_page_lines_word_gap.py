@@ -139,17 +139,17 @@ def test_rotated_characters_keep_the_default_reading(tmp_path):
 # ------------------------------------------------------------------ AC-5
 
 
-def test_tables_version_is_8_and_a_version_7_store_is_read_again(
+def test_tables_version_is_9_and_a_version_7_store_is_read_again(
     held, catalog_file, capsys
 ):
-    assert T.TABLES_VERSION == 8
+    assert T.TABLES_VERSION == 9
     code, first = run(
         capsys, "table", "DSP0236", "--page", "1", catalog_file=catalog_file
     )
     assert code == 0, first
     store = held / T.TABLES_NAME
     data = json.loads(store.read_text("utf-8"))
-    assert data["tables_version"] == 8
+    assert data["tables_version"] == 9
     # what version 7 stored for this page: the section above the heading
     data["tables_version"] = 7
     for table in data["tables"]:
@@ -161,5 +161,5 @@ def test_tables_version_is_8_and_a_version_7_store_is_read_again(
     )
     assert code == 0 and again == first
     data = json.loads(store.read_text("utf-8"))
-    assert data["tables_version"] == 8
+    assert data["tables_version"] == 9
     assert [t["section"] for t in data["tables"]] == ["5.1 Set"]

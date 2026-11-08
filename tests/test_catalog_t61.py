@@ -66,7 +66,9 @@ def test_the_dmtf_ones_left_not_taken():
 
 def test_limits_name_the_caption_cases_and_where_to_read_them():
     cat = load_catalog()
-    assert "Table 2's caption" in cat.get("DSP0282").limits
+    # T65 reads Table 2's caption past the line between, so only the cut
+    # rows of Table 1 are left
+    assert "Table 2's caption" not in cat.get("DSP0282").limits
     assert "byte number" in cat.get("DSP0282").limits
     assert "page 14" in cat.get("DSP2058").limits
     assert "Figure 123" in cat.get("NVME-NVM").limits

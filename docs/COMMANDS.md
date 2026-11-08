@@ -329,7 +329,10 @@ the section in force where the table starts (the last heading above it on
 its first page, else the section at the top of that page; a table without
 a caption is placed the same way), `PDF pages A-B` and `lines table K`, a
 `table:` line with the caption and how
-the table is drawn, and the rows as a text grid. Two drawings are read:
+the table is drawn, and the rows as a text grid. The caption is the
+nearest line within 40 points above the table that reads like one
+(`Table ...` or `Figure ...`), past lines that do not (IPMI draws its
+column names between caption and table) but not past another table. Two drawings are read:
 `ruled` tables, whose cells are bounded by ruling lines (thin filled
 rectangles or stroked lines), and `cells` tables, which have no rules and
 paint every cell as a filled box tiled edge to edge, the way DMTF's
@@ -342,7 +345,7 @@ them that overlaps one found already is dropped, so they never change
 the tables found without them. A table laid out with spaces alone is not
 detected. A box diagram inside a figure (a packet or register layout, a
 ladder diagram, a timing grid) is read as a table too; when no caption
-lies just above it, the `table:` line names the figure's caption, the
+lies within 40 points above it, the `table:` line names the figure's caption, the
 first `Figure N ...` line within 200 points below it, else the nearest
 within 200 points above it (stopping at a line that mentions `Table N`,
 and leaving a caption that has another table between or right under

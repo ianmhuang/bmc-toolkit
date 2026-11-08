@@ -86,7 +86,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
 
-TABLES_VERSION = 8
+TABLES_VERSION = 9
 TABLES_NAME = "tables.json"
 
 RULED = "ruled"
@@ -683,18 +683,22 @@ class Reader:
         )
 
     def caption(self, table: PageTable) -> str | None:
-        """The nearest body line above the table when it reads like a
-        caption, else the caption of the figure the table is drawn in."""
-        above = [
-            ln
-            for ln in self.body_lines(table.page)
-            if ln.bottom < table.top + BODY_GAP_PT
-            and ln.top >= table.top - CAPTION_GAP_PT
-        ]
-        if above:
-            nearest = max(above, key=lambda ln: ln.top)
-            m = _CAPTION.match(nearest.text.strip())
-            if m:
+        """The nearest body line within CAPTION_GAP_PT above the table that
+        reads like a caption, past lines that do not (IPMI draws its column
+        names between caption and rules, PMBus a note) but not past another
+        table; else the caption of the figure the table is drawn in."""
+        above = sorted(
+            (
+                ln
+                for ln in self.body_lines(table.page)
+                if ln.bottom < table.top + BODY_GAP_PT
+                and ln.top >= table.top - CAPTION_GAP_PT
+            ),
+            key=lambda ln: -ln.top,
+        )
+        for line in above:
+            m = _CAPTION.match(line.text.strip())
+            if m and not self._table_between(table, line.bottom, table.top):
                 return m.group("text").strip()
         return self._figure_caption(table)
 
