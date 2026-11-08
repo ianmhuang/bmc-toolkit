@@ -66,7 +66,16 @@ def test_ac1_entry_is_the_last_document_after_dsp8013(shipped):
     # T61 appended five documents after it; it still follows DSP8013
     at = ids.index("DSP0251")
     assert ids[at - 1] == "DSP8013", ids[at - 2 : at + 2]
-    assert ids[at + 1 :] == ["DSP0282", "DSP0293", "DSP0288", "DSP2058", "NVME-NVM"]
+    # and T63 (2026-11-08) two more after those
+    assert ids[at + 1 :] == [
+        "DSP0282",
+        "DSP0293",
+        "DSP0288",
+        "DSP2058",
+        "NVME-NVM",
+        "DSP0285",
+        "DSP0294",
+    ]
     assert ids.count("DSP0251") == 1
 
 
@@ -209,9 +218,18 @@ def test_ac5_g103_sits_under_its_own_group_after_the_redfish_bundles():
     # ids stay gap-free and file order is kept; T61's G104-G108 follow G103
     numbers = sorted(int(qid[1:]) for qid, _, _ in rows)
     assert numbers == list(range(1, len(numbers) + 1))
-    assert numbers[-1] == 108
+    # and T63's G109-G110 follow those
+    assert numbers[-1] == 110
     later = [qid for qid, _, _ in rows if int(qid[1:]) > 24]
-    assert later[later.index("G103") + 1 :] == ["G104", "G105", "G106", "G107", "G108"]
+    assert later[later.index("G103") + 1 :] == [
+        "G104",
+        "G105",
+        "G106",
+        "G107",
+        "G108",
+        "G109",
+        "G110",
+    ]
     # the answer names a page and a section or table, and every command on
     # the document names DSP0251 (the AC-4 rules of M8)
     where = cells[3]
@@ -294,9 +312,9 @@ def test_ac7_counts_grew_by_exactly_the_new_entry(shipped):
     with the gated count (20) and the 35 families unchanged."""
     docs = shipped.documents
     open_docs = [d for d in docs if d.access == "open"]
-    # T61 added five open documents: 119 and 99
-    assert len(docs) == 119
-    assert len(open_docs) == 99
+    # T61 added five open documents (119 and 99), T63 two more: 121 and 101
+    assert len(docs) == 121
+    assert len(open_docs) == 101
     assert len(docs) - len(open_docs) == 20
     assert len({d.family for d in docs}) == 35
     assert len({d.id.lower() for d in docs}) == len(docs)

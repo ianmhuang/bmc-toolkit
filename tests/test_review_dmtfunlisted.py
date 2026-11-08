@@ -225,9 +225,7 @@ def test_ac3_whole_catalog_refresh_prints_the_undecided_ids_in_id_order(
     )
 
 
-def test_ac3_unlisted_lines_come_after_the_per_document_lines(
-    tmp_path, client, capsys
-):
+def test_ac3_unlisted_lines_come_after_the_per_document_lines(tmp_path, client, capsys):
     client.responses[DSP0236_PAGE] = ok(DSP0236_NEWER, "text/html")
     path = write_catalog(tmp_path, MINI_CATALOG)
     code, out = run(capsys, path, "refresh")
@@ -490,8 +488,9 @@ def test_ac11_the_shipped_catalog_carries_a_checked_not_taken_list():
         assert entry.startswith("DSP"), entry
         assert entry not in listed, entry
     # the candidates the change names as reviewed and not taken yet (T61
-    # took DSP0282, DSP0288, DSP0293 and DSP2058 into the catalog)
-    for dsp in ("DSP0285", "DSP0294", "DSP2015", "DSP2090"):
+    # took DSP0282, DSP0288, DSP0293 and DSP2058 into the catalog, T63
+    # DSP0285 and DSP0294)
+    for dsp in ("DSP0220", "DSP0280", "DSP2015", "DSP2090"):
         assert cat.dmtf_not_taken_covers(dsp), dsp
         assert dsp not in listed, dsp
     # what the catalog takes is not covered as a full id

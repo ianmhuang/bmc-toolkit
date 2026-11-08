@@ -232,6 +232,13 @@ version is the one on the cover of the archived file.
 | G107 | The SPDM certificate chain models and where each may be used | DSP2058 1.3.0 | DSP2058 1.3.0, section 8.2.1 page 25 and section 8.2.1.1, Table 3, pages 25-26: DeviceCert (SPDM 1.0, one device certificate for hardware identity), AliasCert (SPDM 1.2, a device certificate that signs alias certificates for firmware identity, made for TCG DICE chains; the Responder sets ALIAS_CERT_CAP=1 in CAPABILITIES, the Requester has no such flag), GenericCert (SPDM 1.3, chains that fit neither); slot 0 must hold DeviceCert or AliasCert, GenericCert only slots 1-7; models mix only with MULTI_KEY_CAP=1 | `find DSP2058 "Certificate chain models"`, `page DSP2058 25`, `table DSP2058 --page 25` (joins pages 25-26) |
 | G108 | Identify Namespace (CNS 00h): where NSZE, NCAP, NUSE, NLBAF, FLBAS and the first LBA Format sit, and the fields of an LBA Format entry | NVME-NVM 1.3 | NVME-NVM 1.3, section 4.1.5.1, Figure 123, pages 85-93: NSZE bytes 07:00, NCAP 15:08, NUSE 23:16, NLBAF byte 25 (0's based), FLBAS byte 26, LBAF0 bytes 131:128 (LBAF1 135:132); Figure 125, page 94: RP bits 25:24 (00b best to 11b degraded), LBADS bits 23:16 (a power of two; non-zero values below 9 are not supported, 0h means not available), MS bits 15:00 (metadata bytes per LBA) | `find NVME-NVM NSZE`, `table NVME-NVM --page 85` (Figure 123 prints `table: -`, see the limit), `page NVME-NVM 93`, `table NVME-NVM --page 94` |
 
+## Catalog additions of 2026-11-08
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G109 | RedPath: what a step predicate can be, the relational and logical operators with their precedence, and how a `.` in a property name is written | DSP0285 1.1.0 | DSP0285 1.1.0, section 3.1, pages 10-11: a RedPath is an absolute path from `/redfish/v1`, a sequence of steps `NodeName` or `NodeName[Predicate]`; Predicate is an Index, `*`, `last()`, a BooleanExpr or `NodeName.NodeName`; RelationalOp `=`, `<`, `<=`, `>`, `>=`, `!=`; LogicalOp `and`, `or`; precedence from highest `()`, then `<=` `<` `>=` `>`, then `=` `!=`, then `and`, then `or`, all left associative; a `.` in a property name is escaped with `\` (`[@odata\.id]`); section 3, Table 1, pages 8-9: array indexes are 0-based | `find DSP0285 "RelationalOp"`, `page DSP0285 10 --to 11`, `table DSP0285 --page 8` (joins pages 8-9) |
+| G110 | DMTF device policy: how SPDM Authorization identifies it, its layout, and the privilege bits of the SPDM and PLDM policy bytes | DSP0294 1.0.0 | DSP0294 1.0.0, section 10.1, page 15: SVH ID 0xB (DMTF-DSP), VendorID 294; section 10.2, Table 2, pages 15-16: byte 0 DSP274Len (0 or 1), byte 1 DSP274Policy (Len0 bytes), byte 1 + Len0 PLDMlen (0 or 1), byte 2 + Len0 PLDMpolicy (Len1 bytes), a length of 0 on modify keeps the current setting; Table 3, page 16: bit 0 GetKeyPairInfoPrivilege, bit 1 SetKeyPairInfoPrivilege, bit 2 CertificateAndSlotPrivilege (SLOT_MANAGEMENT, GET_CSR, SET_CERTIFICATE), bits [7:3] reserved; Table 4, page 17: bit 0 FirmwareUpdatePrivilege (RequestUpdate, ActivateFirmware, RequestDownstreamDeviceUpdate from a UA), bit 1 UpdateSecurityRevisionPrivilege, bits [7:2] reserved | `find DSP0294 "DSP274Policy"`, `page DSP0294 15`, `table DSP0294 --page 15` (joins pages 15-16), `table DSP0294 --page 16 --index 2`, `table DSP0294 --page 17` |
+
 ## OpenBMC
 
 | # | Question | Document | Where the answer is | Commands |
@@ -329,3 +336,12 @@ held. Each newest version fetches via direct and extracts with an
 Outline from its bookmarks, `check` prints `current` for all five, and
 G104 to G108 verify them. Their limits record three cases where `table`
 prints a caption as `-`.
+
+On 2026-11-08 two more were added: DSP0285 1.1.0 (RedPath) and DSP0294
+1.0.0 (DMTF Authorization Policy, the policy structures that SPDM
+Authorization, DSP0289, carries). Both were among the not-taken ids the
+2026-10-21 review left for a next batch. Each newest version fetches via
+direct and extracts with an Outline from its bookmarks (13 pages and 10
+entries; 20 pages and 26 entries), `check` prints `current` for both,
+and G109 and G110 verify them. Every captioned table prints its own
+caption, so neither has limits.
