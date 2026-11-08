@@ -36,7 +36,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | Document | Access | Latest | Verified | Known limit |
 |---|---|---|---|---|
 | `IPMI` Intelligent Platform Management Interface Specification, Second Generation, v2.0 | open | 2.0 rev 1.1 | PASS | Table numbers are missing from the PDF's text layer; tables are cited by title. |
-| `IPMI-UPDATE` IPMI Specification, Second Generation, v2.0 Specification Update (Errata/Addenda/Clarifications) | open | 2.0 rev 1.1 Errata 7 | PASS | - |
+| `IPMI-UPDATE` IPMI Specification, Second Generation, v2.0 Specification Update (Errata/Addenda/Clarifications) | open | 2.0 rev 1.1 Errata 7 | PASS | Page 436 holds a stray fragment of Table 30-2 (Get PEF Capabilities, byte 3 only) and page 437 prints its caption and the whole table again, so table joins the two and byte 3 shows twice; read page 437. |
 | `IPMB` Intelligent Platform Management Bus Communications Protocol Specification | open | 1.0 | PASS | PDF bookmarks carry titles without section numbers: section by title, not by number. |
 | `IPMI-FRU` Platform Management FRU Information Storage Definition | open | 1.0 rev 1.3 | PASS | - |
 | `DCMI` Data Center Manageability Interface Specification | open | 1.5 | PASS | - |
@@ -138,7 +138,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `NVME-BASE` NVM Express Base Specification | open | 2.4 | PASS | - |
 | `NVME-MI` NVM Express Management Interface Specification | open | 2.2 | PASS | - |
 | `NVME-PCIE` NVM Express over PCIe Transport Specification | open | 1.4 | PASS | - |
-| `NVME-NVM` NVM Express NVM Command Set Specification | open | 1.3 | PASS | A figure that repeats its caption at the top of each continuation page (Figure 123, Identify Namespace, pages 85-93) prints its caption as `-`, the repeated line being taken for a running header; page shows it. |
+| `NVME-NVM` NVM Express NVM Command Set Specification | open | 1.3 | PASS | Figure 123 (Identify Namespace, pages 85-93) reads as five Logical Tables (pages 85-87, 88, 89-90, 91 and 92-93), the tables nested in its cells giving some pages other column edges; table prints each part with the caption, so read every page of the range. Figures 157 and 159 (pages 133 and 134, bit layouts drawn as boxes) print their caption as `-`, since it lies 42 pt above the boxes; page shows it. |
 
 ## OCP Datacenter-ready Secure Control Module
 

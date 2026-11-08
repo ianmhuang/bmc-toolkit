@@ -225,6 +225,7 @@ family = "ipmi"
 title = "IPMI Specification, Second Generation, v2.0 Specification Update (Errata/Addenda/Clarifications)"
 access = "open"
 fetch = "direct"
+limits = "Page 436 holds a stray fragment of Table 30-2 (Get PEF Capabilities, byte 3 only) and page 437 prints its caption and the whole table again, so table joins the two and byte 3 shows twice; read page 437."
 
 [[documents.versions]]
 version = "2.0 rev 1.1 Errata 7"
@@ -4677,7 +4678,7 @@ listing = "nvme:nvm-command-set-specification"
 title = "NVM Express NVM Command Set Specification"
 access = "open"
 fetch = "direct"
-limits = "A figure that repeats its caption at the top of each continuation page (Figure 123, Identify Namespace, pages 85-93) prints its caption as `-`, the repeated line being taken for a running header; page shows it."
+limits = "Figure 123 (Identify Namespace, pages 85-93) reads as five Logical Tables (pages 85-87, 88, 89-90, 91 and 92-93), the tables nested in its cells giving some pages other column edges; table prints each part with the caption, so read every page of the range. Figures 157 and 159 (pages 133 and 134, bit layouts drawn as boxes) print their caption as `-`, since it lies 42 pt above the boxes; page shows it."
 
 [[documents.versions]]
 version = "1.3"

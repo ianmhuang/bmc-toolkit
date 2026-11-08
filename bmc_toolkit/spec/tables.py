@@ -86,7 +86,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
 
-TABLES_VERSION = 9
+TABLES_VERSION = 10
 TABLES_NAME = "tables.json"
 
 RULED = "ruled"
@@ -652,7 +652,9 @@ class Reader:
         """Indices of the page's lines that are running headers, footers or
         page numbers: the same words (digits aside, order aside, since facing
         pages mirror their layout) at the same height on one of the two
-        pages before or after."""
+        pages before or after. A caption-like line with a table right
+        under it is not: NVMe repeats a figure's caption at the top of
+        each page the figure runs over."""
         info = self.page(number)
         tops: dict[str, list[float]] = {}
         for n in (number - 2, number - 1, number + 1, number + 2):
@@ -661,6 +663,8 @@ class Reader:
                     tops.setdefault(_furniture_key(other.text), []).append(other.top)
         out = set()
         for i, line in enumerate(info.lines):
+            if _captions_a_table(info, line):
+                continue
             for top in tops.get(_furniture_key(line.text), ()):
                 if abs(top - line.top) <= FURNITURE_TOL_PT:
                     out.add(i)
@@ -675,11 +679,6 @@ class Reader:
     def body_below(self, table: PageTable) -> bool:
         return any(
             ln.top > table.bottom - BODY_GAP_PT for ln in self.body_lines(table.page)
-        )
-
-    def body_above(self, table: PageTable) -> bool:
-        return any(
-            ln.bottom < table.top + BODY_GAP_PT for ln in self.body_lines(table.page)
         )
 
     def caption(self, table: PageTable) -> str | None:
@@ -768,7 +767,23 @@ class Reader:
             return False
         if not columns_match(a.columns, b.columns):
             return False
-        return not self.body_below(a) and not self.body_above(b)
+        if self.body_below(a):
+            return False
+        # a caption repeated from the page before, or one of the two before
+        # that (a page the table fills from its top has no room for the
+        # caption: NVMe Figure 338), does not stop the join; any other
+        # line, a new caption among them, does
+        repeats = {
+            _caption_key(ln.text)
+            for n in range(max(1, a.page - 2), a.page + 1)
+            for ln in self.page(n).lines
+            if _CAPTION.match(ln.text.strip())
+        }
+        return all(
+            _CAPTION.match(ln.text.strip()) and _caption_key(ln.text) in repeats
+            for ln in self.body_lines(b.page)
+            if ln.bottom < b.top + BODY_GAP_PT
+        )
 
     def logical_tables(
         self,
@@ -898,6 +913,21 @@ def _holds(table: LogicalTable, part: PageTable) -> bool:
 
 def _furniture_key(text: str) -> str:
     return " ".join(sorted(_DIGITS.sub("", text).lower().split()))
+
+
+def _caption_key(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _captions_a_table(info: PageInfo, line: TextLine) -> bool:
+    """True when ``line`` reads like a caption and a table on its page
+    starts within CAPTION_GAP_PT under it (the caption rule's window)."""
+    if not _CAPTION.match(line.text.strip()):
+        return False
+    return any(
+        line.bottom < t.top + BODY_GAP_PT and line.top >= t.top - CAPTION_GAP_PT
+        for t in info.tables
+    )
 
 
 def columns_match(a: list[float], b: list[float]) -> bool:
