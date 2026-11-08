@@ -345,8 +345,9 @@ them that overlaps one found already is dropped, so they never change
 the tables found without them. A table laid out with spaces alone is not
 detected. A box diagram inside a figure (a packet or register layout, a
 ladder diagram, a timing grid) is read as a table too; when no caption
-lies within 40 points above it, the `table:` line names the figure's caption, the
-first `Figure N ...` line within 200 points below it, else the nearest
+lies within 40 points above it, the `table:` line names the figure's
+caption, the first `Figure N ...` line within 200 points below it, else
+the nearest
 within 200 points above it (stopping at a line that mentions `Table N`,
 and leaving a caption that has another table between or right under
 it). Check a value read from such a grid with `render`.

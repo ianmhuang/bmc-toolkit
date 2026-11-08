@@ -169,12 +169,14 @@ def test_ac3_a_caption_line_whose_top_lies_beyond_40_points_is_not_taken(tmp_pat
 def test_ac4_the_nearest_caption_line_is_still_the_one_taken(tmp_path):
     pages = [
         table() + [over(12, "Table 7 - Near")],
-        table() + [over(26, "Table 6 - Earlier"), over(12, "Table 7 - Near")],
+        # round 1 validation: distinct words per page, or the same line at
+        # the same height on the next page reads as a running header
+        table() + [over(26, "Table 6 - Earlier"), over(12, "Table 8 - Second one")],
         table() + [over(12, "Figure 3 - Also a caption")],
     ]
     assert captions(tmp_path, pages) == [
         ["Table 7 - Near"],
-        ["Table 7 - Near"],
+        ["Table 8 - Second one"],
         ["Figure 3 - Also a caption"],
     ]
 

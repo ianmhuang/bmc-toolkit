@@ -69,6 +69,15 @@ def test_a_caption_with_another_table_between_is_not_taken(tmp_path):
     assert captions(tmp_path, [page]) == [["Table 1 - First", None]]
 
 
+def test_prose_starting_with_figure_past_the_nearest_line_is_not_taken(tmp_path):
+    # round 1 F1: the figure rule's prose filter applies inside the walk
+    page = table() + [
+        above(26, "Figure 3 shows the fields below."),
+        above(12, "byte data field"),
+    ]
+    assert captions(tmp_path, [page]) == [[None]]
+
+
 # ---------------------------------------------------------------- AC-3
 
 

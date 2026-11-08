@@ -696,10 +696,16 @@ class Reader:
             ),
             key=lambda ln: -ln.top,
         )
-        for line in above:
+        for i, line in enumerate(above):
             m = _CAPTION.match(line.text.strip())
-            if m and not self._table_between(table, line.bottom, table.top):
-                return m.group("text").strip()
+            if not m or self._table_between(table, line.bottom, table.top):
+                continue
+            text = m.group("text").strip()
+            # past the nearest line, a Figure line must pass the figure
+            # rule's prose filter ("Figure 3 shows ..." is not a caption)
+            if i and text[:6].lower() == "figure" and figure_caption(line.text) is None:
+                continue
+            return text
         return self._figure_caption(table)
 
     def _figure_caption(self, table: PageTable) -> str | None:
