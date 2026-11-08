@@ -244,14 +244,14 @@ def test_rotated_glyphs_a_word_gap_apart_read_as_at_the_default(tmp_path):
 def test_tables_version_is_8_and_a_version_7_store_is_read_again(
     held, catalog_file, capsys
 ):
-    assert T.TABLES_VERSION == 9
+    assert T.TABLES_VERSION == 10
     code, first = run(
         capsys, "table", "DSP0236", "--page", "1", catalog_file=catalog_file
     )
     assert code == 0, first
     store = held / T.TABLES_NAME
     data = json.loads(store.read_text("utf-8"))
-    assert data["tables_version"] == 9
+    assert data["tables_version"] == 10
     assert T.stored_for_page(held, 1) is not None  # the current version is served
 
     # what version 7 stored for this page: the section above the heading
@@ -268,6 +268,6 @@ def test_tables_version_is_8_and_a_version_7_store_is_read_again(
     assert again == first
     assert cites(again) == [("7.2.1 GetCSR structure", "PDF page 1", "lines table 1")]
     data = json.loads(store.read_text("utf-8"))
-    assert data["tables_version"] == 9
+    assert data["tables_version"] == 10
     assert data["pages_done"] == [1]
     assert [t["section"] for t in data["tables"]] == ["7.2.1 GetCSR structure"]

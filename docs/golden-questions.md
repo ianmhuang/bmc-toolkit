@@ -230,7 +230,7 @@ version is the one on the cover of the archived file.
 | G105 | Registry or standards body IDs and the layout of the standards body or vendor-defined header (SVH) | DSP0293 1.0.0 | DSP0293 1.0.0, section 7.1, Table 1, pages 12-14: 0x0 DMTF (vendor ID length 0), 0x1 TCG (2), 0x2 USB (2), 0x3 PCI-SIG (2), 0x4 IANA (4, the Private Enterprise Number), 0x5 HDBaseT (4), 0x6 MIPI (2), 0x7 CXL (2), 0x8 JEDEC (2), 0x9 VESA (0), 0xA IANA CBOR (variable), 0xB DMTF-DSP (2); section 8.1, Table 2, page 15: byte 0 ID (1 byte, a Table 1 value), byte 1 VendorIDLen (1 byte, 0 when the registry itself defines the payload), byte 2 VendorID (VendorIDLen bytes, absent when 0) | `find DSP0293 "Registry or standards body ID"`, `table DSP0293 --page 12` (joins pages 12-14), `table DSP0293 --page 15` |
 | G106 | Where the CXL Get Health Info fields appear in Redfish | DSP0288 1.4.0 | DSP0288 1.4.0, section 3, Table 1, pages 8-10 (rows on page 9): Health Status to `Status` on many resources (Comment 3); Life Used to MemoryMetrics `CapacityUtilizationPercent`; Corrected Volatile and Corrected Persistent Error Count to MemoryMetrics `CorrectedVolatileErrorCount` and `CorrectedPersistentErrorCount`; Additional Status [4] and [5] to Memory `Status/Conditions` (Comment 4); Dirty Shutdown Count to MemoryMetrics `DirtyShutdownCount` | `find DSP0288 "Life Used"`, `table DSP0288 --page 8` (joins pages 8-10) |
 | G107 | The SPDM certificate chain models and where each may be used | DSP2058 1.3.0 | DSP2058 1.3.0, section 8.2.1 page 25 and section 8.2.1.1, Table 3, pages 25-26: DeviceCert (SPDM 1.0, one device certificate for hardware identity), AliasCert (SPDM 1.2, a device certificate that signs alias certificates for firmware identity, made for TCG DICE chains; the Responder sets ALIAS_CERT_CAP=1 in CAPABILITIES, the Requester has no such flag), GenericCert (SPDM 1.3, chains that fit neither); slot 0 must hold DeviceCert or AliasCert, GenericCert only slots 1-7; models mix only with MULTI_KEY_CAP=1 | `find DSP2058 "Certificate chain models"`, `page DSP2058 25`, `table DSP2058 --page 25` (joins pages 25-26) |
-| G108 | Identify Namespace (CNS 00h): where NSZE, NCAP, NUSE, NLBAF, FLBAS and the first LBA Format sit, and the fields of an LBA Format entry | NVME-NVM 1.3 | NVME-NVM 1.3, section 4.1.5.1, Figure 123, pages 85-93: NSZE bytes 07:00, NCAP 15:08, NUSE 23:16, NLBAF byte 25 (0's based), FLBAS byte 26, LBAF0 bytes 131:128 (LBAF1 135:132); Figure 125, page 94: RP bits 25:24 (00b best to 11b degraded), LBADS bits 23:16 (a power of two; non-zero values below 9 are not supported, 0h means not available), MS bits 15:00 (metadata bytes per LBA) | `find NVME-NVM NSZE`, `table NVME-NVM --page 85` (Figure 123 prints `table: -`, see the limit), `page NVME-NVM 93`, `table NVME-NVM --page 94` |
+| G108 | Identify Namespace (CNS 00h): where NSZE, NCAP, NUSE, NLBAF, FLBAS and the first LBA Format sit, and the fields of an LBA Format entry | NVME-NVM 1.3 | NVME-NVM 1.3, section 4.1.5.1, Figure 123, pages 85-93: NSZE bytes 07:00, NCAP 15:08, NUSE 23:16, NLBAF byte 25 (0's based), FLBAS byte 26, LBAF0 bytes 131:128 (LBAF1 135:132); Figure 125, page 94: RP bits 25:24 (00b best to 11b degraded), LBADS bits 23:16 (a power of two; non-zero values below 9 are not supported, 0h means not available), MS bits 15:00 (metadata bytes per LBA) | `find NVME-NVM NSZE`, `table NVME-NVM --page 85`, `page NVME-NVM 93`, `table NVME-NVM --page 94` |
 
 ## Catalog additions of 2026-11-08
 
@@ -334,8 +334,10 @@ the BMC-related ids that the `unlisted` report of `refresh` named; the
 NVM Command Set came up beside the three NVMe specifications the catalog
 held. Each newest version fetches via direct and extracts with an
 Outline from its bookmarks, `check` prints `current` for all five, and
-G104 to G108 verify them. Their limits record three cases where `table`
-prints a caption as `-`.
+G104 to G108 verify them. Their limits record what `table` does not
+read: rows of DSP0282's Table 1 that a page break cuts, DSP2058's
+Table 1 caption on the page before its table, and NVME-NVM's Figure 123
+in five parts.
 
 On 2026-11-08 two more were added: DSP0285 1.1.0 (RedPath) and DSP0294
 1.0.0 (DMTF Authorization Policy, the policy structures that SPDM
