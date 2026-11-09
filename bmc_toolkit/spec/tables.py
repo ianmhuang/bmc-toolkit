@@ -86,7 +86,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
 
-TABLES_VERSION = 12
+TABLES_VERSION = 13
 TABLES_NAME = "tables.json"
 
 RULED = "ruled"
@@ -112,16 +112,22 @@ _FIGURE_CAPTION = re.compile(
     r"^(?:\d{1,5}\s+)?(?P<text>Figure\s+[A-Z]?-?\d+(?:[-.]\d+)*(?!\d)\s*"
     r"[:,.–—-]?\s*(?P<title>\S.*))$"
 )
-# the same shape for "Table": not "Table 3 lists ..." or "Table 31 and ...";
-# the id as wide as extract.py's (A.1, G-1, AA-1, 6-2)
+# a table's id: a number as wide as extract.py's (6-2, A.1, G-1, AA-1), or
+# an upper-case Roman numeral or single letter before whitespace, a
+# separator or the end ("Table II - ...", "Table A: ..."; not "Table I/O",
+# "table a, b")
+_ID = (
+    r"(?:(?:[A-Z]{1,2}[.-]?)?\d+(?:[-.]\d+)*(?!\d)"
+    r"|(?-i:[IVXL]+|[A-Z])(?=\s|[:,.–—-]|$))"
+)
+# the same shape for "Table": not "Table 3 lists ..." or "Table 31 and ..."
 _TABLE_CAPTION = re.compile(
-    r"^(?:\d{1,5}\s+)?(?P<text>Table\s+(?:[A-Z]{1,2}[.-]?)?\d+(?:[-.]\d+)*(?!\d)\s*"
+    r"^(?:\d{1,5}\s+)?(?P<text>Table\s+" + _ID + r"\s*"
     r"[:,.–—-]?\s*(?P<title>\S.*))$",
     re.IGNORECASE,
 )
-# "Table" and an id, in any case: a numbered id as above or a Roman numeral
-# ("Table II"); not "table." or "Table of contents"
-_TABLE_ID = re.compile(r"Table\s+(?:(?:[A-Z]{1,2}[.-]?)?\d|[IVXL]+\b)", re.IGNORECASE)
+# "Table" in any case and an id; not "table." or "Table of contents"
+_TABLE_ID = re.compile(r"Table\s+" + _ID, re.IGNORECASE)
 _TABLE_MENTION = re.compile(r"\bTable\s+[A-Z]?-?\d", re.IGNORECASE)
 _CONTINUED = re.compile(r"\s*\((?:continued|cont\.?)\)\s*", re.IGNORECASE)
 _DIGITS = re.compile(r"\d+")
@@ -824,16 +830,33 @@ class Reader:
 
     # ------------------------------------------------- continuation
 
+    def outer_tables(self, number: int) -> list[PageTable]:
+        """The page's tables less those nested in another table's cells
+        (NVMe draws a Value/Definition table inside a field's cell)."""
+        tables = self.page(number).tables
+        return [t for t in tables if not any(_nested_in(t, o) for o in tables)]
+
     def continues(self, a: PageTable, b: PageTable) -> bool:
         """True when table ``b`` (first on its page) carries on table ``a``
-        (last on the page before)."""
+        (last on the page before), nested tables aside. The column edges
+        match, or one part's are a subset of the other's; under a repeated
+        caption only the outer frame must match (an NVMe figure's inner
+        columns change with what its cells hold)."""
         if b.page != a.page + 1:
             return False
-        if a.index != len(self.page(a.page).tables) - 1 or b.index != 0:
-            return False
-        if not columns_match(a.columns, b.columns):
+        before, after = self.outer_tables(a.page), self.outer_tables(b.page)
+        if not before or before[-1] is not a or not after or after[0] is not b:
             return False
         if self.body_below(a):
+            return False
+        above = [
+            ln for ln in self.body_lines(b.page) if ln.bottom < b.top + BODY_GAP_PT
+        ]
+        if not (
+            columns_match(a.columns, b.columns)
+            or _columns_subset(a.columns, b.columns)
+            or (above and _frame_match(a.columns, b.columns))
+        ):
             return False
         # a caption repeated from the page before, or one of the two before
         # that (a page the table fills from its top has no room for the
@@ -848,8 +871,7 @@ class Reader:
         }
         return all(
             _CAPTION.match(ln.text.strip()) and _caption_key(ln.text) in repeats
-            for ln in self.body_lines(b.page)
-            if ln.bottom < b.top + BODY_GAP_PT
+            for ln in above
         )
 
     def logical_tables(
@@ -895,14 +917,14 @@ class Reader:
         parts = [table]
         cur = table
         while cur.page > 1:
-            prev = self.page(cur.page - 1).tables
+            prev = self.outer_tables(cur.page - 1)
             if not prev or not self.continues(prev[-1], cur):
                 break
             cur = prev[-1]
             parts.insert(0, cur)
         cur = table
         while cur.page < self.page_count:
-            nxt = self.page(cur.page + 1).tables
+            nxt = self.outer_tables(cur.page + 1)
             if not nxt or not self.continues(cur, nxt[0]):
                 break
             cur = nxt[0]
@@ -911,11 +933,16 @@ class Reader:
 
     def _assemble(self, parts: list[PageTable], section_of) -> LogicalTable:
         first = parts[0]
-        rows: list[list[str]] = [list(r) for r in first.rows]
+        # the parts' rows on one column set: the union of their edges
+        columns = union_columns([p.columns for p in parts])
+        rows: list[list[str]] = [
+            spread_row(r, first.columns, columns) for r in first.rows
+        ]
         row_pages = [first.page] * len(rows)
         previous = first
         for part in parts[1:]:
-            more = drop_repeated_header(rows, part.rows)
+            spread = [spread_row(r, part.columns, columns) for r in part.rows]
+            more = drop_repeated_header(rows, spread)
             more = drop_repeated_header(rows, more)  # a "(continued)" sub-header too
             if previous.drawn == CELLS:
                 cut = bool(more) and _is_partial_row(more[0])
@@ -941,7 +968,7 @@ class Reader:
             index=first.index + 1,
             caption=caption,
             section=section,
-            columns=first.columns,
+            columns=columns,
             parts=[[p.page, p.index, *[round(v, 1) for v in p.bbox]] for p in parts],
             rows=rows,
             drawn=first.drawn,
@@ -1020,6 +1047,62 @@ def columns_match(a: list[float], b: list[float]) -> bool:
     if len(a) != len(b):
         return False
     return all(abs(x - y) <= COLUMN_TOL_PT for x, y in zip(a, b, strict=True))
+
+
+def _frame_match(a: list[float], b: list[float]) -> bool:
+    """The two parts' left and right edges match."""
+    return abs(a[0] - b[0]) <= COLUMN_TOL_PT and abs(a[-1] - b[-1]) <= COLUMN_TOL_PT
+
+
+def _columns_subset(a: list[float], b: list[float]) -> bool:
+    """The frames match and every edge of the part with fewer lies on an
+    edge of the other (a column split on some pages only)."""
+    if not _frame_match(a, b):
+        return False
+    fewer, more = (a, b) if len(a) <= len(b) else (b, a)
+    return all(any(abs(x - y) <= COLUMN_TOL_PT for y in more) for x in fewer)
+
+
+def _nested_in(table: PageTable, other: PageTable) -> bool:
+    """True when ``table`` lies inside ``other``'s box, in one of its cells."""
+    if table is other:
+        return False
+    (x0, top, x1, bottom), (ox0, otop, ox1, obottom) = table.bbox, other.bbox
+    inside = (
+        ox0 - BODY_GAP_PT <= x0
+        and otop - BODY_GAP_PT <= top
+        and x1 <= ox1 + BODY_GAP_PT
+        and bottom <= obottom + BODY_GAP_PT
+    )
+    return inside and (x1 - x0) * (bottom - top) < (ox1 - ox0) * (obottom - otop)
+
+
+def union_columns(parts: list[list[float]]) -> list[float]:
+    """The column edges of all parts, the first part's first; an edge
+    within COLUMN_TOL_PT of one already taken is that edge."""
+    edges = list(parts[0])
+    for columns in parts[1:]:
+        for x in columns:
+            if all(abs(x - e) > COLUMN_TOL_PT for e in edges):
+                edges.append(x)
+    return sorted(edges)
+
+
+def spread_row(row: list[str], edges: list[float], union: list[float]) -> list[str]:
+    """A part's row on the union of the column edges: each cell under the
+    union edge nearest its left edge, empty cells over the edges it spans."""
+    width = len(union) - 1
+    if edges == union or len(row) != len(edges) - 1:
+        return row + [""] * (width - len(row))
+
+    def at(x: float) -> int:
+        return min(range(len(union)), key=lambda i: abs(union[i] - x))
+
+    out = [""] * width
+    for i, cell in enumerate(row):
+        j = min(at(edges[i]), width - 1)
+        out[j] = f"{out[j]} {cell}".strip() if out[j] else cell
+    return out
 
 
 def _row_key(row: list[str]) -> tuple[str, ...]:

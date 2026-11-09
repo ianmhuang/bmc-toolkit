@@ -138,7 +138,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `NVME-BASE` NVM Express Base Specification | open | 2.4 | PASS | - |
 | `NVME-MI` NVM Express Management Interface Specification | open | 2.2 | PASS | - |
 | `NVME-PCIE` NVM Express over PCIe Transport Specification | open | 1.4 | PASS | - |
-| `NVME-NVM` NVM Express NVM Command Set Specification | open | 1.3 | PASS | Figure 123 (Identify Namespace, pages 85-93) reads as five Logical Tables (pages 85-87, 88, 89-90, 91 and 92-93), the tables nested in its cells giving some pages other column edges; table prints each part with the caption, so read every page of the range. Figures 157 and 159 (pages 133 and 134, bit layouts drawn as boxes) print their caption as `-`, since it lies 42 pt above the boxes; page shows it. |
+| `NVME-NVM` NVM Express NVM Command Set Specification | open | 1.3 | PASS | Figures 157 and 159 (pages 133 and 134, bit layouts drawn as boxes) print their caption as `-`, since it lies 42 pt above the boxes; page shows it. |
 
 ## OCP Datacenter-ready Secure Control Module
 

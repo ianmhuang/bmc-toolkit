@@ -194,3 +194,30 @@ def test_the_fallback_takes_titles_that_only_look_like_prose(tmp_path, text):
     # PR #118 round 2 F2: only a title starting with a Table id is prose
     page = table() + [above(47, text)] + notes()
     assert read(tmp_path, [page]) == [[text]]
+
+
+# --------------------------------------------- PR #118 round 3 (T69.2)
+
+
+@pytest.mark.parametrize("text", ["Table A - Annex codes", "Table B: Codes"])
+def test_the_page_before_rule_takes_a_single_letter_id(tmp_path, text):
+    # T69.2 AC-6
+    assert starts_page_2(tmp_path, ending(text)) == [(2, 2, text)]
+
+
+@pytest.mark.parametrize(
+    "text", ["Table: Supported commands", "Table a, b and c list them."]
+)
+def test_the_page_before_rule_wants_some_id(tmp_path, text):
+    # T69.2 AC-6: no id, or a lower-case letter in a sentence
+    assert starts_page_2(tmp_path, ending(text)) == [(2, 2, None)]
+
+
+@pytest.mark.parametrize(
+    "text", ["Table II - Limits", "Table 9 - Table I/O map", "Table IV: Codes"]
+)
+def test_the_fallback_reads_the_id_as_the_page_before_rule_does(tmp_path, text):
+    # T69.2 AC-7: one id pattern; a Roman numeral is an id only before
+    # whitespace, a separator or the end
+    page = table() + [above(47, text)] + notes()
+    assert read(tmp_path, [page]) == [[text]]

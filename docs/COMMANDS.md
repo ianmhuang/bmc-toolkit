@@ -326,7 +326,14 @@ thing on its page, the next page starts with a table with the same column
 edges, and only running headers, footers and page numbers lie between,
 or a caption that repeats one on the page before or the two before that
 (NVMe repeats a figure's caption at the top of each page; a different
-caption starts a new table); a repeated header row is dropped), and the
+caption starts a new table); a table drawn inside another table's cell
+does not count as the last or first table on a page; the column edges
+may also be a subset one of the other with the same left and right
+edges, and under a repeated caption only the left and right edges must
+match, since an NVMe figure's inner columns change with what its cells
+hold; the joined rows sit on all the parts' column edges together, a
+cell under the edge it starts at and empty cells where it spans more
+than one; a repeated header row is dropped), and the
 result is a `cite:` line with the section in force where the table starts
 (the last heading above it on its first page, else the section at the top
 of that page; a table without a caption is placed the same way), `PDF
@@ -361,7 +368,8 @@ lists ...` or `Table 12, Table 13 and ...` is prose and is not taken, nor
 is a `Figure ...` line. A table that starts its page with no body text
 above it and has no caption by these rules takes the last body line of
 the page before when that line is `Table` (in any letter case) followed
-by an id (`Table 21-4`, `Table A.1`, `Table II`) below every table there
+by an id (`Table 21-4`, `Table A.1`, `Table II`, `Table A -`; not
+`Table: ...`, which has none) below every table there
 (IPMI and DSP2058 leave the caption at the foot of a page); running
 headers and page numbers are not body text on either page, so a header
 above the table does not stop this, and a page number under the caption

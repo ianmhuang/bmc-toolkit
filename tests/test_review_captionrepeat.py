@@ -27,7 +27,7 @@ pytest.importorskip("pdfplumber")
 TABLE_TOP = 680  # PDF points from the page's foot
 ROW_H = 16
 COLS = [100, 80, 200]
-OTHER_COLS = [150, 80, 150]
+OTHER_COLS = [150, 80, 170]  # T69.2: another frame, not only other columns
 # 38 rows of 16 pt run from 680 down to 72: nothing lies under the table
 FULL = 38
 HEADER = "Example Specification, Revision 2.4"
@@ -283,7 +283,7 @@ def test_ac4_a_body_line_above_the_next_pages_table_still_stops_the_join(tmp_pat
 
 
 def test_ac5_tables_version_is_10_and_a_version_9_store_is_read_again(tmp_path):
-    assert T.TABLES_VERSION == 12
+    assert T.TABLES_VERSION == 13
     text = "Table 3: Codes"
     page = header_and_number(1) + [over(text)] + grid(0, 3) + [tail(1)]
     pdf = pdfgen.write_pdf(tmp_path / "doc.pdf", [page])
@@ -293,7 +293,7 @@ def test_ac5_tables_version_is_10_and_a_version_9_store_is_read_again(tmp_path):
     vdir.mkdir()
     path = T.store(vdir, [1], found)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["tables_version"] == 12
+    assert data["tables_version"] == 13
     assert T.stored_for_page(vdir, 1) is not None
     data["tables_version"] = 9
     path.write_text(json.dumps(data), encoding="utf-8")
@@ -306,9 +306,8 @@ def test_ac5_tables_version_is_10_and_a_version_9_store_is_read_again(tmp_path):
 def test_ac7_the_catalog_limits_record_what_is_left():
     cat = load_catalog()
     nvm = cat.get("NVME-NVM").limits
-    about_123 = [s for s in nvm.split(". ") if "Figure 123" in s]
-    assert about_123, nvm
-    assert all("`-`" not in s for s in about_123), nvm
+    # T69.2 joins Figure 123's parts, so the limits no longer name it
+    assert "Figure 123" not in nvm, nvm
     ipmi = cat.get("IPMI-UPDATE").limits
     for words in ("Table 30-2", "436", "437"):
         assert words in ipmi, words

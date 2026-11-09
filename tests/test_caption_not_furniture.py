@@ -76,14 +76,15 @@ def test_captions_differing_only_in_numbers_are_each_tables_own(tmp_path):
 
 
 def test_a_repeated_caption_over_tables_that_do_not_join_names_both(tmp_path):
-    # the parts have other column edges (NVMe nests tables in cells)
+    # the parts have another outer frame (the right edge 20 pt out), so
+    # they do not join even under the repeated caption (T69.2 AC-3)
     pages = [
         furniture(1)
         + [caption("Figure 41: Offset 14h: Controller Configuration")]
         + table(rows(0, FULL)),
         furniture(2)
         + [caption("Figure 41: Offset 14h: Controller Configuration")]
-        + table(rows(FULL, 4), widths=[150, 80, 150])
+        + table(rows(FULL, 4), widths=[150, 80, 170])
         + [prose(2)],
     ]
     assert read(tmp_path, pages) == {
@@ -112,7 +113,8 @@ def test_a_repeat_of_a_caption_two_pages_back_still_joins(tmp_path):
     text = "Figure 338: Identify Controller Data Structure"
     wide = [100, 80, 120, 80]
     pages = [
-        furniture(1) + [caption(text)] + table(rows(0, FULL)),
+        # page 1's frame is 30 pt wider: it does not join page 2 (T69.2)
+        furniture(1) + [caption(text)] + table(rows(0, FULL), widths=[100, 80, 230]),
         furniture(2)
         + table([r + ["x"] for r in rows(FULL, FULL)], top=TOP + 24, widths=wide),
         furniture(3)
