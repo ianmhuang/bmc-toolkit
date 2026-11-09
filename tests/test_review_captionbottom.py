@@ -10,7 +10,8 @@ between are not taken (AC-2); a caption the window or the Figure rule
 finds is kept (AC-3); the page-before rule takes `Table` in any letter
 case (AC-4); TABLES_VERSION is 12 and a version 11 store is read again
 (AC-6); PMBUS-II records no limit for Table 31 (AC-8). Round 2 adds the
-prose forms and the wrapped `table.` line of the round 1 findings.
+prose forms and the wrapped `table.` line of the round 1 findings; round
+3 the id forms and the titles of the round 2 findings.
 
 Geometry: pdfgen places text by its baseline in PDF points, origin
 bottom-left; pdfplumber puts a 10 pt Helvetica line's top about 8 pt
@@ -142,6 +143,24 @@ def test_ac1_letter_case_and_a_margin_number_do_not_matter(tmp_path, line, capti
     assert captions(tmp_path, [page]) == [[caption]]
 
 
+@pytest.mark.parametrize(
+    "line",
+    [
+        # round 2 F2: a title that starts with the word "Table", or is
+        # only "(continued)", is still a title
+        "Table 7 - Table Descriptor Format",
+        "Table 4: Tablet mode pins",
+        "Table 31 (continued)",
+        # round 2 F1: an annex id
+        "Table A.1 - Annex codes",
+        "Table G-1, Command Number Assignments",
+    ],
+)
+def test_ac1_a_title_starting_with_table_and_an_annex_id_are_taken(tmp_path, line):
+    page = table() + [over(47, line)] + notes()
+    assert captions(tmp_path, [page]) == [[line]]
+
+
 @pytest.mark.parametrize("gap", [42, 49])
 def test_ac1_any_line_ending_inside_40_points_is_reached(tmp_path, gap):
     # tops 42 and 49 pt up are both past the window; the bottoms lie 32
@@ -207,6 +226,8 @@ def test_ac2_a_figure_keeps_its_caption_under_prose_starting_with_figure(tmp_pat
         "Table 12, Table 13 and Table 14 list the commands.",
         "Table 3 (above) lists the fields.",
         "45 Table 12, Table 13 and Table 14 list the commands.",
+        # round 3: the same prose with annex ids
+        "Table A.1, Table A.2 and Table A.3 list the codes.",
     ],
 )
 def test_ac2_prose_starting_with_table_is_not_taken(tmp_path, text):
@@ -288,6 +309,7 @@ def test_ac3_the_fallback_comes_before_the_page_before(tmp_path):
         ("table 5 - register map", "table 5 - register map"),
         ("61 TABLE 1 - THREAT MODEL", "TABLE 1 - THREAT MODEL"),
         ("Table 5 - Register map", "Table 5 - Register map"),
+        ("TABLE IV - ROMAN NUMBERED", "TABLE IV - ROMAN NUMBERED"),
     ],
 )
 def test_ac4_the_page_before_rule_takes_table_in_any_letter_case(
@@ -318,11 +340,16 @@ def test_ac4_a_wrapped_sentence_ending_in_table_is_not_a_caption(tmp_path, line)
         "Table G-1, Command Number Assignments",
         "Table B-2 - Register map",
         "Table 20-, Get Device ID Command",
+        # round 2 F1: a dotted annex id, two annex letters, a Roman numeral
+        "Table A.1 - Annex codes",
+        "Table AA-1 - Annex codes",
+        "Table II - Roman numbered",
     ],
 )
 def test_ac4_the_id_forms_develop_took_are_still_taken(tmp_path, line):
     # the id the page-before rule wants after `Table` covers a section
-    # number, an appendix letter and IPMI's cut-off `20-,`
+    # number, an appendix letter, IPMI's cut-off `20-,`, the annex ids
+    # extract.py reads as captions and a Roman numeral
     assert on_page_2(tmp_path, line) == [line]
 
 
