@@ -1187,9 +1187,10 @@ def spread_row(row: list[str], edges: list[float], union: list[float]) -> list[s
     edges a cell spans. The cells are placed in order, one to a union edge,
     as many as can within COLUMN_TOL_PT of their left edge and then the
     nearest (_pair_in_order). A part whose edges match the union within
-    COLUMN_TOL_PT keeps its row as it is. The union must have at least as
-    many columns as the row has cells (union_columns gives that);
-    ValueError otherwise."""
+    COLUMN_TOL_PT, or a row whose cell count differs from its own edges,
+    is returned as it is, padded to the union's width. A row placed on the
+    union with more cells than the union has columns is a ValueError
+    (union_columns never gives fewer edges than a part)."""
     width = len(union) - 1
     if len(row) != len(edges) - 1 or columns_match(edges, union):
         return row + [""] * (width - len(row))
