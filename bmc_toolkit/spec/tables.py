@@ -763,7 +763,9 @@ class Reader:
         ):
             return None
         m = _CAPTION.match(last.text.strip())
-        if not m or m.group("text")[:5].lower() != "table":
+        # "Table" in any case, then an id: not a wrapped "table." or
+        # "table below:" ending a sentence (PR #118 F2)
+        if not m or not _TABLE_MENTION.match(m.group("text")):
             return None
         return m.group("text").strip()
 
@@ -959,12 +961,15 @@ def figure_caption(text: str) -> str | None:
 
 def _table_caption(text: str) -> str | None:
     """The caption in a line that reads like a Table caption, without a
-    margin line number; None for prose that starts with "Table"."""
+    margin line number; None for prose that starts with "Table": "Table 3
+    lists ...", "Table 12, Table 13 and ...", "Table 3 (above) ..."."""
     m = _TABLE_CAPTION.match(text.strip())
     if not m:
         return None
     title = m.group("title")
-    if title[0].islower() or not any(c.isalpha() for c in title):
+    if title[0].islower() or title[:5].lower() == "table" or title[0] in "()":
+        return None
+    if not any(c.isalpha() for c in title):
         return None
     return m.group("text").strip()
 

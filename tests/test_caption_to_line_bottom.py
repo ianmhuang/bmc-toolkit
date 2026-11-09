@@ -94,7 +94,15 @@ def test_a_figure_line_is_not_taken(tmp_path):
 
 @pytest.mark.parametrize(
     "text",
-    ["Table 3 lists the fields below.", "Table 31 and Table 32 list them.", "Tables"],
+    [
+        "Table 3 lists the fields below.",
+        "Table 31 and Table 32 list them.",
+        "Tables",
+        # PR #118 F1
+        "Table 12, Table 13 and Table 14 list the commands.",
+        "Table 3 (above) lists the fields.",
+    ],
+    ids=["lists", "and", "tables", "mentions", "paren"],
 )
 def test_prose_starting_with_table_is_not_taken(tmp_path, text):
     page = table() + [above(47, text)] + notes()
@@ -148,3 +156,9 @@ def test_a_figure_caption_wins(tmp_path):
 @pytest.mark.parametrize("text", ["TABLE 5 - Register map", "table 5 - register map"])
 def test_the_page_before_rule_takes_table_in_any_case(tmp_path, text):
     assert starts_page_2(tmp_path, ending(text)) == [(2, 2, text)]
+
+
+@pytest.mark.parametrize("text", ["table.", "table below:", "Table of contents"])
+def test_the_page_before_rule_wants_an_id_after_table(tmp_path, text):
+    # PR #118 F2: a sentence wrapped so its last line starts with "table"
+    assert starts_page_2(tmp_path, ending(text)) == [(2, 2, None)]

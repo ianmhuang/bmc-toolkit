@@ -1,7 +1,9 @@
 """Review tests for the catalog limits that fix/caption-past-header-line
 rewrites (AC-7): DSP0282 no longer says Table 2's caption prints as `-`
-and keeps the cut rows of Table 1; PMBUS-II says Table 31's caption does
-in 1.3.1; docs/SUPPORT.md carries the same two rows. Shipped files only."""
+and keeps the cut rows of Table 1; docs/SUPPORT.md carries the same two
+rows. PMBUS-II's limit on Table 31 was dropped by
+fix/caption-to-line-bottom (AC-8), which takes that caption. Shipped files
+only."""
 
 from pathlib import Path
 
@@ -31,7 +33,7 @@ def test_ac7_dsp0282_keeps_only_the_cut_rows_of_table_1():
     assert "page" in limits
 
 
-def test_ac7_pmbus_ii_names_table_31_in_1_3_1():
+def test_pmbus_ii_no_longer_names_table_31():
     # fix/caption-to-line-bottom (AC-8) takes Table 31's caption, so the
     # limit this test pinned is gone
     limits = load_catalog().get("PMBUS-II").limits
