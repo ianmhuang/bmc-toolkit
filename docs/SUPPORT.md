@@ -40,6 +40,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `IPMB` Intelligent Platform Management Bus Communications Protocol Specification | open | 1.0 | PASS | PDF bookmarks carry titles without section numbers: section by title, not by number. |
 | `IPMI-FRU` Platform Management FRU Information Storage Definition | open | 1.0 rev 1.3 | PASS | - |
 | `DCMI` Data Center Manageability Interface Specification | open | 1.5 | PASS | - |
+| `DSP0244` IPMI PET to Platform Message Registry Mapping | open | 1.2.0 | PASS | - |
 
 ## Enhanced Serial Peripheral Interface
 
@@ -67,6 +68,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0281` CXL™ Type 3 Device Component Command Interface over MCTP Binding Specification | open | 1.0.0 | PASS | - |
 | `DSP0291` PCIe® Management Interface (PCIe-MI®) over MCTP Binding Specification | open | 1.0.0 | PASS | - |
 | `DSP0282` Memory-Mapped Buffer Interface (MMBI) Specification | open | 1.1.0 | PASS | Rows of Table 1 that a page break cuts (bytes 6 and 24) print without their byte number, the PDF drawing no left rule for those parts. Read them with page (pages 15-17). |
+| `DSP0280` PMCI Test Tools Interface and Design Specification | open | 1.1.0 | PASS | - |
 
 ## Platform Level Data Model
 
@@ -85,6 +87,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0218` Platform Level Data Model (PLDM) for Redfish Device Enablement | open | 1.2.0 | PASS | - |
 | `DSP0251` Platform Level Data Model (PLDM) Platform Descriptor Record (PDR) Specification | open | 1.0.0 | PASS | - |
 | `DSP0293` Standards Body and Vendor Header Registry | open | 1.0.0 | PASS | - |
+| `DSP0220` Field Replaceable Unit (FRU) Data Specification | open | 1.0.1 | PASS | Table 1 (page 13): the first column, Component, is a cell spanning several rows and is not read; table prints the other three columns without the header row and the FRU File(s) row. |
 
 ## Security Protocol and Data Model
 

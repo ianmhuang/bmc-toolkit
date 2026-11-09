@@ -38,7 +38,8 @@ def test_the_two_follow_nvme_nvm_as_the_last_documents():
     cat = load_catalog()
     ids = [d.id for d in cat.documents]
     at = ids.index("NVME-NVM")
-    assert ids[at + 1 :] == list(NEW)
+    # T72 (2026-11-09) added DSP0220, DSP0244 and DSP0280 after the two
+    assert ids[at + 1 :][:2] == list(NEW)
     for doc_id, (family, title, versions) in NEW.items():
         doc = cat.get(doc_id)
         assert (doc.family, doc.title) == (family, title), doc_id
@@ -56,7 +57,8 @@ def test_they_left_not_taken():
     for dsp in NEW:
         assert dsp in cat.dmtf_listed()
         assert not cat.dmtf_not_taken_covers(dsp), dsp
-    assert len(cat.dmtf_not_taken) == 133
+    # T72 (2026-11-09) took three more
+    assert len(cat.dmtf_not_taken) == 130
     text = CATALOG.read_text("utf-8")
     comment = text[text.index("DMTF left out") : text.index("[listings.dmtf]")]
     for dsp in NEW:
@@ -119,6 +121,7 @@ def test_readme_counts_the_catalog():
     total = len(docs)
     open_docs = sum(d.access == "open" for d in docs)
     families = len({d.family for d in docs})
-    assert (total, open_docs, families) == (121, 101, 35)
+    # T72 (2026-11-09) added three open documents
+    assert (total, open_docs, families) == (124, 104, 35)
     assert f"lists {total} documents in {families} families" in readme
     assert f"The {open_docs} open ones" in readme

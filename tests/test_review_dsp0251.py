@@ -75,6 +75,10 @@ def test_ac1_entry_is_the_last_document_after_dsp8013(shipped):
         "NVME-NVM",
         "DSP0285",
         "DSP0294",
+        # T72 (2026-11-09)
+        "DSP0220",
+        "DSP0244",
+        "DSP0280",
     ]
     assert ids.count("DSP0251") == 1
 
@@ -218,8 +222,8 @@ def test_ac5_g103_sits_under_its_own_group_after_the_redfish_bundles():
     # ids stay gap-free and file order is kept; T61's G104-G108 follow G103
     numbers = sorted(int(qid[1:]) for qid, _, _ in rows)
     assert numbers == list(range(1, len(numbers) + 1))
-    # and T63's G109-G110 follow those
-    assert numbers[-1] == 110
+    # and T63's G109-G110 follow those, then T72's G111-G113
+    assert numbers[-1] == 113
     later = [qid for qid, _, _ in rows if int(qid[1:]) > 24]
     assert later[later.index("G103") + 1 :] == [
         "G104",
@@ -229,6 +233,9 @@ def test_ac5_g103_sits_under_its_own_group_after_the_redfish_bundles():
         "G108",
         "G109",
         "G110",
+        "G111",
+        "G112",
+        "G113",
     ]
     # the answer names a page and a section or table, and every command on
     # the document names DSP0251 (the AC-4 rules of M8)
@@ -312,9 +319,10 @@ def test_ac7_counts_grew_by_exactly_the_new_entry(shipped):
     with the gated count (20) and the 35 families unchanged."""
     docs = shipped.documents
     open_docs = [d for d in docs if d.access == "open"]
-    # T61 added five open documents (119 and 99), T63 two more: 121 and 101
-    assert len(docs) == 121
-    assert len(open_docs) == 101
+    # T61 added five open documents (119 and 99), T63 two more (121 and
+    # 101), T72 three more: 124 and 104
+    assert len(docs) == 124
+    assert len(open_docs) == 104
     assert len(docs) - len(open_docs) == 20
     assert len({d.family for d in docs}) == 35
     assert len({d.id.lower() for d in docs}) == len(docs)
