@@ -39,8 +39,9 @@ it: the first ``Figure N ...`` line within 200 pt below it (DMTF, SMBus),
 else the nearest within 200 pt above it (IPMI). The search stops at a line
 mentioning ``Table N``, and a caption with another table between it and
 this one, or (below) a table starting right under it, belongs to that
-other table. Values read from such a grid are checked against the page
-with ``render``.
+other table, unless that table takes a numbered caption of its own lying
+between them (PMBus puts Figure 8's caption over Table 3's). Values read
+from such a grid are checked against the page with ``render``.
 
 A table that is the last body content of its page continues on the next
 page when that page's first body content is a table with the same column
@@ -67,8 +68,10 @@ continuation page repeats, with or without "(continued)", is dropped.
 
 ``index`` is the table's 1-based position on its first page, ``columns``
 the x positions of the column edges of all its parts (the first part's
-edges; a later part's edges pair with them in order, one to one, within
-6 pt, and an edge left over is added; each row is put on them), ``rows[0]`` the header,
+edges; a later part's edges pair with them in order, one to one, as many
+as can within 6 pt and then the nearest, and an edge left over is added;
+each row is put on them, a cell under the nearest free edge in order),
+``rows[0]`` the header,
 ``row_pages[i]`` the page ``rows[i]`` starts on (so a very long table can
 be printed one page at a time).
 Coordinates are PDF points with the origin top-left, as pdfplumber reports
@@ -93,7 +96,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
 
-TABLES_VERSION = 14
+TABLES_VERSION = 15
 TABLES_NAME = "tables.json"
 
 RULED = "ruled"
@@ -712,6 +715,19 @@ class Reader:
         `Table` caption ending within CAPTION_GAP_PT above
         (_caption_to_line_bottom); else a `Table` caption ending the page
         before (_caption_on_page_before)."""
+        line = self._caption_line_above(table)
+        if line is not None:
+            return _CAPTION.match(line.text.strip()).group("text").strip()
+        return (
+            self._figure_caption(table)
+            or self._caption_to_line_bottom(table)
+            or self._caption_on_page_before(table)
+        )
+
+    def _caption_line_above(self, table: PageTable) -> TextLine | None:
+        """The line caption() takes first: the nearest body line within
+        CAPTION_GAP_PT above the table that reads like a caption, with no
+        other table between."""
         above = sorted(
             (
                 ln
@@ -730,12 +746,8 @@ class Reader:
             # rule's prose filter ("Figure 3 shows ..." is not a caption)
             if i and text[:6].lower() == "figure" and figure_caption(line.text) is None:
                 continue
-            return text
-        return (
-            self._figure_caption(table)
-            or self._caption_to_line_bottom(table)
-            or self._caption_on_page_before(table)
-        )
+            return line
+        return None
 
     def _caption_to_line_bottom(self, table: PageTable) -> str | None:
         """The nearest `Table` caption whose bottom, not top, lies within
@@ -791,7 +803,8 @@ class Reader:
         below it, else the nearest above it. Box diagrams read as tables
         have their caption under the figure (DMTF, SMBus) or over it
         (IPMI). A caption with a table right under it names that table
-        (NVMe captions its tables "Figure N" above them), and one with
+        (NVMe captions its tables "Figure N" above them) unless that table
+        takes a numbered caption of its own (_table_under), and one with
         another table between is not this table's."""
         lines = self.body_lines(table.page)
         below = sorted(
@@ -830,10 +843,21 @@ class Reader:
         )
 
     def _table_under(self, table: PageTable, line: TextLine) -> bool:
-        return any(
-            t is not table and line.bottom < t.top <= line.bottom + CAPTION_GAP_PT
-            for t in self.page(table.page).tables
-        )
+        """True when another table starts within CAPTION_GAP_PT under
+        ``line`` and the line may be its caption: it takes this line, or
+        no line, or one that is not a numbered caption (NVME-MI p69 takes
+        "Table", the last word of a wrapped Figure caption). A table that
+        takes a numbered caption of its own between them leaves the line
+        to ``table`` (PMBus Figure 8 over Table 3, PR #72 F2)."""
+        for t in self.page(table.page).tables:
+            if t is table or not line.bottom < t.top <= line.bottom + CAPTION_GAP_PT:
+                continue
+            own = self._caption_line_above(t)
+            if own is None or own == line:
+                return True
+            if _table_caption(own.text) is None and figure_caption(own.text) is None:
+                return True
+        return False
 
     # ------------------------------------------------- continuation
 
@@ -1092,51 +1116,89 @@ def _nested_in(table: PageTable, other: PageTable) -> bool:
     return inside and (x1 - x0) * (bottom - top) < (ox1 - ox0) * (obottom - otop)
 
 
+def _pair_in_order(
+    xs: list[float], us: list[float], every: bool
+) -> list[tuple[int, int]]:
+    """Pairs (i, j) of ``xs[i]`` with ``us[j]``, both increasing (in
+    order, one to one), with the most pairs within COLUMN_TOL_PT and then
+    the least total distance; on a tie the earlier x pairs with the
+    earlier u. Without ``every`` only pairs within COLUMN_TOL_PT are made
+    and the rest of ``xs`` stays unpaired; with it every x pairs (callers
+    pass at least as many us as xs) and every pair's distance counts.
+    Taking the first edge within COLUMN_TOL_PT instead put an NVMe nested
+    row's cell under the wrong column (T71); taking the nearest one alone
+    left a shifted narrow column's second edge without a partner."""
+    n, m = len(xs), len(us)
+    # best[i][j]: (pairs within tolerance, -distance) for xs[i:] on us[j:],
+    # None where ``every`` cannot place the rest
+    best: list[list[tuple[int, float] | None]]
+    best = [[None] * (m + 1) for _ in range(n + 1)]
+    step = [[""] * (m + 1) for _ in range(n + 1)]
+    best[n] = [(0, 0.0)] * (m + 1)
+    for i in range(n - 1, -1, -1):
+        for j in range(m, -1, -1):
+            options: list[tuple[tuple[int, float], str]] = []
+            if j < m:
+                d = abs(xs[i] - us[j])
+                near = d <= COLUMN_TOL_PT
+                rest = best[i + 1][j + 1]
+                if rest is not None and (near or every):
+                    options.append(((rest[0] + near, rest[1] - d), "pair"))
+                rest = best[i][j + 1]
+                if rest is not None:
+                    options.append((rest, "skip u"))
+            if not every:
+                options.append((best[i + 1][j], "skip x"))
+            if options:
+                # max keeps the first of equal scores: pair before skipping
+                best[i][j], step[i][j] = max(options, key=lambda o: o[0])
+    pairs = []
+    i = j = 0
+    while i < n and step[i][j]:
+        if step[i][j] == "pair":
+            pairs.append((i, j))
+            i, j = i + 1, j + 1
+        elif step[i][j] == "skip u":
+            j += 1
+        else:
+            i += 1
+    return pairs
+
+
 def union_columns(parts: list[list[float]]) -> list[float]:
     """The column edges of all parts, the first part's first. A later
-    part's edges pair with the union's in order, one to one: each takes
-    the first union edge after the previous one's that lies within
-    COLUMN_TOL_PT, else it is added. Two edges of one part are never one
+    part's edges pair with the union's in order, one to one, as many as
+    can within COLUMN_TOL_PT and then the nearest (_pair_in_order); an
+    edge left unpaired is added. Two edges of one part are never one
     union edge, so the union has at least as many edges as any part, even
     when a part's own edges lie closer than COLUMN_TOL_PT."""
     edges = sorted(parts[0])
     for columns in parts[1:]:
-        last = -1
-        for x in sorted(columns):
-            k = next(
-                (
-                    i
-                    for i in range(last + 1, len(edges))
-                    if abs(edges[i] - x) <= COLUMN_TOL_PT
-                ),
-                None,
-            )
-            if k is None:
-                k = bisect.bisect_left(edges, x)
-                edges.insert(k, x)
-                # inserted before the edge the previous one took: that edge
-                # moved up one and stays taken
-                k = max(k, last + 1)
-            last = k
+        xs = sorted(columns)
+        paired = {i for i, _ in _pair_in_order(xs, edges, every=False)}
+        for i, x in enumerate(xs):
+            if i not in paired:
+                bisect.insort(edges, x)
     return edges
 
 
 def spread_row(row: list[str], edges: list[float], union: list[float]) -> list[str]:
     """A part's row on the union of the column edges, empty cells over the
-    edges a cell spans. The cells are placed in order, one to a union edge:
-    each under the first free edge within COLUMN_TOL_PT of its left edge,
-    else the nearest free one. A part whose edges match the union within
-    COLUMN_TOL_PT keeps its row as it is."""
+    edges a cell spans. The cells are placed in order, one to a union edge,
+    as many as can within COLUMN_TOL_PT of their left edge and then the
+    nearest (_pair_in_order). A part whose edges match the union within
+    COLUMN_TOL_PT, or a row whose cell count differs from its own edges,
+    is returned as it is, padded to the union's width. A row placed on the
+    union with more cells than the union has columns is a ValueError
+    (union_columns never gives fewer edges than a part)."""
     width = len(union) - 1
     if len(row) != len(edges) - 1 or columns_match(edges, union):
         return row + [""] * (width - len(row))
+    if len(row) > width:
+        raise ValueError(f"{len(row)} cells on {width} columns")
     out = [""] * width
-    j = -1
-    for i, cell in enumerate(row):
-        free = range(j + 1, width - (len(row) - i) + 1)  # room for the rest
-        near = [k for k in free if abs(union[k] - edges[i]) <= COLUMN_TOL_PT]
-        j = near[0] if near else min(free, key=lambda k: abs(union[k] - edges[i]))
-        out[j] = cell
+    for i, k in _pair_in_order(edges[:-1], union[:-1], every=True):
+        out[k] = row[i]
     return out
 
 

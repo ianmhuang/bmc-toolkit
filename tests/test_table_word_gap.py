@@ -99,8 +99,8 @@ def test_curve_drawn_rules_split_the_same_way(tmp_path):
 # ------------------------------------------------------------------ AC-3
 
 
-def test_tables_version_is_14_and_a_version_6_store_is_read_again(tmp_path):
-    assert T.TABLES_VERSION == 14
+def test_tables_version_is_15_and_a_version_6_store_is_read_again(tmp_path):
+    assert T.TABLES_VERSION == 15
     page = ruled_table(72, TOP, WIDTHS, [16] * 2, [HEADER, ROW]) + link_runs()
     path = pdfgen.write_pdf(tmp_path / "t.pdf", [page])
     vdir = tmp_path / "v"
@@ -132,4 +132,4 @@ def test_tables_version_is_14_and_a_version_6_store_is_read_again(tmp_path):
     (stored,) = T.stored_for_page(vdir, 1)
     assert stored.rows[1] == ["Name", "Code", "of DSP0248 for"]
     data = json.loads((vdir / T.TABLES_NAME).read_text("utf-8"))
-    assert data["tables_version"] == 14
+    assert data["tables_version"] == 15

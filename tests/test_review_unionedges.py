@@ -66,12 +66,14 @@ def test_ac2_the_union_pairs_edges_in_order_one_to_one():
 
 def test_ac2_every_split_around_an_inner_edge_adds_the_second_edge():
     # the later part draws 172 - below and 172 + above, each within 6 pt of
-    # 172 and more than 6 pt from each other
+    # 172 and more than 6 pt from each other; since T73 (T71) the nearer
+    # one pairs with 172 (on a tie the earlier) and the other is added
     for below in range(1, 6):
         for above in range(7 - below, 6):
             part = [72, 172 - below, 172 + above, 512]
             union = T.union_columns([[72, 172, 512], part])
-            assert union == [72, 172, 172 + above, 512], part
+            added = 172 - below if above < below else 172 + above
+            assert union == sorted([72, 172, added, 512]), part
 
 
 # ---------------------------------------------------------------- AC-3
@@ -95,11 +97,11 @@ def test_ac3_no_row_is_wider_than_the_union():
 
 
 def test_ac3_a_part_whose_own_edges_lie_within_6_pt_keeps_them_all():
-    # round 1 F1: 70 takes 75, 74 is added before it, and 80 must not take
-    # 75 a second time; it finds no free edge and is added too
+    # round 1 F1: one of 70, 74, 80 takes 75 and the other two are added;
+    # since T73 (T71) the nearest, 74, takes it (develop: the first, 70)
     parts = [[75.0, 200.0], [70.0, 74.0, 80.0, 200.0]]
     union = T.union_columns(parts)
-    assert union == [74.0, 75.0, 80.0, 200.0]
+    assert union == [70.0, 75.0, 80.0, 200.0]
     assert T.spread_row(["b", "c", "d"], parts[1], union) == ["b", "c", "d"]
     assert filled(T.spread_row(["a"], parts[0], union)) == ["a"]
 

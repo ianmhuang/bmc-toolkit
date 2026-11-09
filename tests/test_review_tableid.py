@@ -126,7 +126,7 @@ def test_ac7_a_roman_letter_before_a_slash_is_not_an_id(tmp_path):
 
 
 def test_ac8_tables_version_is_13_and_a_version_12_store_is_not_served(tmp_path):
-    assert T.TABLES_VERSION == 14
+    assert T.TABLES_VERSION == 15
     pdf = pdfgen.write_pdf(tmp_path / "doc.pdf", [grid(600)])
     with T.Reader(pdf) as r:
         found = r.logical_tables(1)
@@ -134,7 +134,7 @@ def test_ac8_tables_version_is_13_and_a_version_12_store_is_not_served(tmp_path)
     vdir.mkdir()
     path = T.store(vdir, [1], found)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["tables_version"] == 14
+    assert data["tables_version"] == 15
     assert T.stored_for_page(vdir, 1) is not None
     data["tables_version"] = 12
     path.write_text(json.dumps(data), encoding="utf-8")

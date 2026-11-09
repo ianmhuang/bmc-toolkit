@@ -142,14 +142,14 @@ def test_ac3_the_split_part_first_gives_rows_of_one_width_too(tmp_path):
     assert [filled(row) for row in table.rows[4:]] == body(40, 3)
     # develop joins these two parts the same way (their edges pair one to
     # one); the version pin is what ties this check to the change
-    assert T.TABLES_VERSION == 14
+    assert T.TABLES_VERSION == 15
 
 
 # ---------------------------------------------------------------- AC-4
 
 
 def test_ac4_tables_version_is_14_and_a_version_13_store_is_not_served(tmp_path):
-    assert T.TABLES_VERSION == 14
+    assert T.TABLES_VERSION == 15
     pages = [
         first_page(),
         furniture(2) + [over(CAPTION)] + grid(AT_252, at_252(40, 3)) + [tail(2)],
@@ -159,7 +159,7 @@ def test_ac4_tables_version_is_14_and_a_version_13_store_is_not_served(tmp_path)
     vdir.mkdir()
     path = T.store(vdir, [1, 2], found)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["tables_version"] == 14
+    assert data["tables_version"] == 15
     (stored,) = T.stored_for_page(vdir, 2)
     assert len(stored.columns) == 5
     assert {len(row) for row in stored.rows} == {4}
