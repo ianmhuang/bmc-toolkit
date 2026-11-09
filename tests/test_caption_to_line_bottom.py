@@ -199,9 +199,11 @@ def test_the_fallback_takes_titles_that_only_look_like_prose(tmp_path, text):
 # --------------------------------------------- PR #118 round 3 (T69.2)
 
 
-@pytest.mark.parametrize("text", ["Table A - Annex codes", "Table B: Codes"])
+@pytest.mark.parametrize(
+    "text", ["Table A - Annex codes", "Table B: Codes", "table ii - Limits"]
+)
 def test_the_page_before_rule_takes_a_single_letter_id(tmp_path, text):
-    # T69.2 AC-6
+    # T69.2 AC-6; a lower-case Roman numeral as develop took it (PR #119 F4)
     assert starts_page_2(tmp_path, ending(text)) == [(2, 2, text)]
 
 

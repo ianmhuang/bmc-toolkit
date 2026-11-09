@@ -368,7 +368,8 @@ lists ...` or `Table 12, Table 13 and ...` is prose and is not taken, nor
 is a `Figure ...` line. A table that starts its page with no body text
 above it and has no caption by these rules takes the last body line of
 the page before when that line is `Table` (in any letter case) followed
-by an id (`Table 21-4`, `Table A.1`, `Table II`, `Table A -`; not
+by an id (`Table 21-4`, `Table A.1`, `Table II` or `table ii`,
+`Table A -`; not
 `Table: ...`, which has none) below every table there
 (IPMI and DSP2058 leave the caption at the foot of a page); running
 headers and page numbers are not body text on either page, so a header

@@ -44,7 +44,11 @@ with ``render``.
 
 A table that is the last body content of its page continues on the next
 page when that page's first body content is a table with the same column
-edges. Running headers, footers and page numbers (lines repeated at the same
+edges, or with the same left and right edges and inner edges that are a
+subset of the other's; under a caption repeated from the page before (or
+the two before) only the left and right edges must match. A table drawn
+inside another's box (nested in a cell) does not count as body content
+here. Running headers, footers and page numbers (lines repeated at the same
 height on a neighbouring page) are not body content. A header row that a
 continuation page repeats, with or without "(continued)", is dropped.
 
@@ -62,7 +66,9 @@ continuation page repeats, with or without "(continued)", is dropped.
                  "row_pages": [page, ...]}, ...]}
 
 ``index`` is the table's 1-based position on its first page, ``columns``
-the x positions of the column edges on that page, ``rows[0]`` the header,
+the x positions of the column edges of all its parts (the first part's
+edges, then those of later parts more than 6 pt from any taken; each row
+is put on them), ``rows[0]`` the header,
 ``row_pages[i]`` the page ``rows[i]`` starts on (so a very long table can
 be printed one page at a time).
 Coordinates are PDF points with the origin top-left, as pdfplumber reports
@@ -113,12 +119,12 @@ _FIGURE_CAPTION = re.compile(
     r"[:,.–—-]?\s*(?P<title>\S.*))$"
 )
 # a table's id: a number as wide as extract.py's (6-2, A.1, G-1, AA-1), or
-# an upper-case Roman numeral or single letter before whitespace, a
-# separator or the end ("Table II - ...", "Table A: ..."; not "Table I/O",
-# "table a, b")
+# a Roman numeral (any case) or an upper-case single letter before
+# whitespace, a separator or the end ("Table II - ...", "table ii - ...",
+# "Table A: ..."; not "Table I/O", "table a, b")
 _ID = (
     r"(?:(?:[A-Z]{1,2}[.-]?)?\d+(?:[-.]\d+)*(?!\d)"
-    r"|(?-i:[IVXL]+|[A-Z])(?=\s|[:,.–—-]|$))"
+    r"|(?:[IVXL]+|(?-i:[A-Z]))(?=\s|[:,.–—-]|$))"
 )
 # the same shape for "Table": not "Table 3 lists ..." or "Table 31 and ..."
 _TABLE_CAPTION = re.compile(
@@ -944,11 +950,19 @@ class Reader:
             spread = [spread_row(r, part.columns, columns) for r in part.rows]
             more = drop_repeated_header(rows, spread)
             more = drop_repeated_header(rows, more)  # a "(continued)" sub-header too
+            if len(more) == len(spread) and len(part.columns) == len(first.columns):
+                # inner edges moved (a frame join): the header as drawn
+                own = drop_repeated_header(first.rows, part.rows)
+                own = drop_repeated_header(first.rows, own)
+                more = spread[len(part.rows) - len(own) :]
+            # the cut-row checks read the row as drawn, not the empty cells
+            # spread_row adds for the edges a cell spans
+            drawn = part.rows[len(part.rows) - len(more)] if more else []
             if previous.drawn == CELLS:
-                cut = bool(more) and _is_partial_row(more[0])
+                cut = bool(more) and _is_partial_row(drawn)
             else:
                 cut = previous.open_bottom
-            if more and rows and cut and _is_cut_row(more[0]):
+            if more and rows and cut and _is_cut_row(drawn):
                 rows[-1] = join_cells(rows[-1], more[0])
                 more = more[1:]
             rows.extend(more)
@@ -1089,19 +1103,23 @@ def union_columns(parts: list[list[float]]) -> list[float]:
 
 
 def spread_row(row: list[str], edges: list[float], union: list[float]) -> list[str]:
-    """A part's row on the union of the column edges: each cell under the
-    union edge nearest its left edge, empty cells over the edges it spans."""
+    """A part's row on the union of the column edges, empty cells over the
+    edges a cell spans. The cells are placed in order, one to a union edge:
+    each under the first free edge within COLUMN_TOL_PT of its left edge,
+    else the nearest free one. A part whose edges match the union within
+    COLUMN_TOL_PT keeps its row as it is."""
     width = len(union) - 1
-    if edges == union or len(row) != len(edges) - 1:
+    if len(row) != len(edges) - 1 or columns_match(edges, union):
         return row + [""] * (width - len(row))
-
-    def at(x: float) -> int:
-        return min(range(len(union)), key=lambda i: abs(union[i] - x))
-
+    if len(row) > width:  # edges closer than COLUMN_TOL_PT are one in the union
+        return row
     out = [""] * width
+    j = -1
     for i, cell in enumerate(row):
-        j = min(at(edges[i]), width - 1)
-        out[j] = f"{out[j]} {cell}".strip() if out[j] else cell
+        free = range(j + 1, width - (len(row) - i) + 1)  # room for the rest
+        near = [k for k in free if abs(union[k] - edges[i]) <= COLUMN_TOL_PT]
+        j = near[0] if near else min(free, key=lambda k: abs(union[k] - edges[i]))
+        out[j] = cell
     return out
 
 

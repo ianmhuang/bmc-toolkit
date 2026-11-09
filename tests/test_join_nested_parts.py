@@ -9,7 +9,7 @@ import pytest
 from bmc_toolkit.spec import tables as T
 from tests import pdfgen
 from tests.test_caption_not_furniture import FULL, furniture, prose
-from tests.test_tables import ruled_table
+from tests.test_tables import ROWS_2, WIDTHS, cell_table, ruled_table
 
 pytest.importorskip("pdfplumber")
 
@@ -196,3 +196,70 @@ def test_parts_with_the_same_edges_read_as_before(tmp_path):
     (lt,) = logical(tmp_path, pages)
     assert [round(c) for c in lt.columns] == [72, 172, 252, 512]
     assert lt.rows == [HEADER] + body(0, FULL, 3) + body(40, 4, 3)
+
+
+FIVE = [100, 80, 60, 60, 140]  # edges 72, 172, 252, 312, 372, 512
+
+
+def test_a_five_column_and_a_four_column_part_give_rows_of_five(tmp_path):
+    # AC-5 as written: one inner edge missing on the second part
+    pages = two_pages(
+        part(FIVE, [HEADER + ["", ""]] + body(0, FULL, 5)),
+        part(FOUR, [HEADER + [""]] + body(40, 4, 4)),
+    )
+    (lt,) = logical(tmp_path, pages)
+    assert [round(c) for c in lt.columns] == [72, 172, 252, 312, 372, 512]
+    assert {len(r) for r in lt.rows} == {5}
+    assert lt.rows.count(HEADER + ["", ""]) == 1
+    assert lt.rows[-1] == ["43", "M", "Field 43", "", ""]
+
+
+# ------------------------------------------- PR #119 round 1 F1 to F3
+
+
+def test_edges_within_the_tolerance_keep_the_row_even_on_a_narrow_column():
+    # F1: an 8 pt column shifted 5 pt; nearest-edge placement put both
+    # cells under 80
+    assert T.spread_row(["a", "b"], [77.0, 85.0, 200.0], [72.0, 80.0, 200.0]) == [
+        "a",
+        "b",
+    ]
+
+
+def test_cells_go_to_union_edges_in_order_one_to_an_edge():
+    # F1: another part added an edge at 150; 77 and 85 still go under 72 and 80
+    union = [72.0, 80.0, 150.0, 200.0]
+    assert T.spread_row(["a", "b"], [77.0, 85.0, 200.0], union) == ["a", "b", ""]
+    # an edge more than the tolerance off goes to the nearest free edge
+    assert T.spread_row(["a", "b"], [72.0, 160.0, 200.0], union) == ["a", "", "b"]
+
+
+def test_a_complete_cells_row_on_a_part_with_fewer_columns_stays_a_row(tmp_path):
+    # F2: the empty cell spread_row adds for the spanned edge is not a
+    # cut cell; the row's own cells are all filled after the first
+    header = ["Name", "Code", "Meaning", "Unit"]
+    rows1 = [["Temperature", "01h", "degrees", "C"], ["", "05h", "watts", "W"]]
+    page1 = furniture(1) + [(72, 214, "Table 1 - Codes")]
+    page1 += cell_table(72, 200, [100, 80, 100, 100], [16] * 3, [header, *rows1])
+    page2 = furniture(2) + cell_table(
+        72, 740, WIDTHS, [16] * 2, [["", "06h", "joules"], ROWS_2[0]]
+    )
+    pdf = pdfgen.write_pdf(tmp_path / "c.pdf", [page1, page2])
+    with T.Reader(pdf) as r:
+        (lt,) = r.logical_tables(1)
+    assert lt.drawn == T.CELLS
+    assert (lt.first, lt.last) == (1, 2)
+    assert lt.rows == [header, *rows1, ["", "06h", "joules", ""], ROWS_2[0] + [""]]
+
+
+def test_a_header_repeated_on_a_frame_rule_part_is_dropped(tmp_path):
+    # F3: inner edge 10 pt off under the repeated caption; the header as
+    # drawn repeats the first part's
+    pages = two_pages(
+        part(THREE, [HEADER] + body(0, FULL, 3)),
+        part(SHIFTED, [HEADER] + body(40, 4, 3)),
+    )
+    (lt,) = logical(tmp_path, pages)
+    assert (lt.first, lt.last) == (1, 2)
+    assert [r[0] for r in lt.rows].count("Bytes") == 1
+    assert len(lt.rows) == 1 + FULL + 4
