@@ -162,3 +162,35 @@ def test_the_page_before_rule_takes_table_in_any_case(tmp_path, text):
 def test_the_page_before_rule_wants_an_id_after_table(tmp_path, text):
     # PR #118 F2: a sentence wrapped so its last line starts with "table"
     assert starts_page_2(tmp_path, ending(text)) == [(2, 2, None)]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Table A.1 - Annex codes",
+        "Table AA-1 - Annex codes",
+        "Table G-1, Command Number Assignments",
+        "Table II - Roman numbered",
+        "TABLE IV - ROMAN NUMBERED",
+    ],
+)
+def test_the_page_before_rule_takes_the_ids_develop_took(tmp_path, text):
+    # PR #118 round 2 F1: the id is as wide as extract.py's caption id;
+    # develop took any line starting "Table" (the upper-case Roman one
+    # comes with F1 of PR #117)
+    assert starts_page_2(tmp_path, ending(text)) == [(2, 2, text)]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Table 7 - Table Descriptor Format",
+        "Table 4: Tablet mode pins",
+        "Table 31 (continued)",
+        "Table A.1 - Annex codes",
+    ],
+)
+def test_the_fallback_takes_titles_that_only_look_like_prose(tmp_path, text):
+    # PR #118 round 2 F2: only a title starting with a Table id is prose
+    page = table() + [above(47, text)] + notes()
+    assert read(tmp_path, [page]) == [[text]]

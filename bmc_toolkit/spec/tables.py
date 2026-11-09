@@ -112,12 +112,16 @@ _FIGURE_CAPTION = re.compile(
     r"^(?:\d{1,5}\s+)?(?P<text>Figure\s+[A-Z]?-?\d+(?:[-.]\d+)*(?!\d)\s*"
     r"[:,.–—-]?\s*(?P<title>\S.*))$"
 )
-# the same shape for "Table": not "Table 3 lists ..." or "Table 31 and ..."
+# the same shape for "Table": not "Table 3 lists ..." or "Table 31 and ...";
+# the id as wide as extract.py's (A.1, G-1, AA-1, 6-2)
 _TABLE_CAPTION = re.compile(
-    r"^(?:\d{1,5}\s+)?(?P<text>Table\s+[A-Z]?-?\d+(?:[-.]\d+)*(?!\d)\s*"
+    r"^(?:\d{1,5}\s+)?(?P<text>Table\s+(?:[A-Z]{1,2}[.-]?)?\d+(?:[-.]\d+)*(?!\d)\s*"
     r"[:,.–—-]?\s*(?P<title>\S.*))$",
     re.IGNORECASE,
 )
+# "Table" and an id, in any case: a numbered id as above or a Roman numeral
+# ("Table II"); not "table." or "Table of contents"
+_TABLE_ID = re.compile(r"Table\s+(?:(?:[A-Z]{1,2}[.-]?)?\d|[IVXL]+\b)", re.IGNORECASE)
 _TABLE_MENTION = re.compile(r"\bTable\s+[A-Z]?-?\d", re.IGNORECASE)
 _CONTINUED = re.compile(r"\s*\((?:continued|cont\.?)\)\s*", re.IGNORECASE)
 _DIGITS = re.compile(r"\d+")
@@ -765,7 +769,7 @@ class Reader:
         m = _CAPTION.match(last.text.strip())
         # "Table" in any case, then an id: not a wrapped "table." or
         # "table below:" ending a sentence (PR #118 F2)
-        if not m or not _TABLE_MENTION.match(m.group("text")):
+        if not m or not _TABLE_ID.match(m.group("text")):
             return None
         return m.group("text").strip()
 
@@ -967,7 +971,9 @@ def _table_caption(text: str) -> str | None:
     if not m:
         return None
     title = m.group("title")
-    if title[0].islower() or title[:5].lower() == "table" or title[0] in "()":
+    if title[0].islower() or _TABLE_ID.match(title):
+        return None
+    if title[0] in "()" and not _CONTINUED.fullmatch(title):
         return None
     if not any(c.isalpha() for c in title):
         return None

@@ -357,10 +357,11 @@ between or right under it). A table still without a caption takes the
 nearest `Table N ...` line that ends within 40 points above it, though it
 starts further up (PMBus puts two lines of notes under Table 31's
 caption), when no other table stands between; a line such as `Table 3
-lists ...` is prose and is not taken, nor is a `Figure ...` line. A table
-that starts its page with no body text above it and has no caption by
-these rules takes the last body line of the page before when that line
-is a `Table ...` caption (in any letter case) below every table there
+lists ...` or `Table 12, Table 13 and ...` is prose and is not taken, nor
+is a `Figure ...` line. A table that starts its page with no body text
+above it and has no caption by these rules takes the last body line of
+the page before when that line is `Table` (in any letter case) followed
+by an id (`Table 21-4`, `Table A.1`, `Table II`) below every table there
 (IPMI and DSP2058 leave the caption at the foot of a page); running
 headers and page numbers are not body text on either page, so a header
 above the table does not stop this, and a page number under the caption
