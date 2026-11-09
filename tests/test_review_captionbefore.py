@@ -165,7 +165,7 @@ def test_ac1_the_table_command_prints_the_caption_and_stores_it(
     ]
     store = library.specs / "mctp" / "DSP0236" / "1.3.3" / T.TABLES_NAME
     data = json.loads(store.read_text("utf-8"))
-    assert data["tables_version"] == 11
+    assert data["tables_version"] == 12
     assert [t["caption"] for t in data["tables"]] == [IPMI]
 
 
@@ -360,7 +360,7 @@ def test_ac5_a_caption_with_its_table_under_it_is_still_a_repeat(tmp_path):
 
 
 def test_ac6_tables_version_is_11_and_a_version_10_store_is_read_again(tmp_path):
-    assert T.TABLES_VERSION == 11
+    assert T.TABLES_VERSION == 12
     pages = [
         header_and_number(1) + foot(IPMI),
         header_and_number(2) + grid(0, 4) + [tail(2)],
@@ -372,7 +372,7 @@ def test_ac6_tables_version_is_11_and_a_version_10_store_is_read_again(tmp_path)
     vdir.mkdir()
     path = T.store(vdir, [2], found)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["tables_version"] == 11
+    assert data["tables_version"] == 12
     assert [t["caption"] for t in data["tables"]] == [IPMI]
     assert T.stored_for_page(vdir, 2) is not None
     # what version 10 stored for this page: no caption

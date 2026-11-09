@@ -883,7 +883,6 @@ family = "pmbus"
 title = "PMBus Power System Management Protocol Specification Part II: Command Language"
 access = "open"
 fetch = "direct"
-limits = "In 1.3.1 Table 31's caption (Command Summary) lies 47 pt above the table, past two lines of notes, so table prints it as `-`; page 112 shows it."
 notes = "The command definitions (READ_VOUT, STATUS_WORD, PMBus command codes). Revisions 1.4 and 1.5 are obtained from SMIF on request; place the file with add. URLs confirmed 2026-09-04."
 
 [[documents.versions]]

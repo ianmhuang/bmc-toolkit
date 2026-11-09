@@ -86,7 +86,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
 
-TABLES_VERSION = 11
+TABLES_VERSION = 12
 TABLES_NAME = "tables.json"
 
 RULED = "ruled"
@@ -112,6 +112,16 @@ _FIGURE_CAPTION = re.compile(
     r"^(?:\d{1,5}\s+)?(?P<text>Figure\s+[A-Z]?-?\d+(?:[-.]\d+)*(?!\d)\s*"
     r"[:,.–—-]?\s*(?P<title>\S.*))$"
 )
+# the same shape for "Table": not "Table 3 lists ..." or "Table 31 and ...";
+# the id as wide as extract.py's (A.1, G-1, AA-1, 6-2)
+_TABLE_CAPTION = re.compile(
+    r"^(?:\d{1,5}\s+)?(?P<text>Table\s+(?:[A-Z]{1,2}[.-]?)?\d+(?:[-.]\d+)*(?!\d)\s*"
+    r"[:,.–—-]?\s*(?P<title>\S.*))$",
+    re.IGNORECASE,
+)
+# "Table" and an id, in any case: a numbered id as above or a Roman numeral
+# ("Table II"); not "table." or "Table of contents"
+_TABLE_ID = re.compile(r"Table\s+(?:(?:[A-Z]{1,2}[.-]?)?\d|[IVXL]+\b)", re.IGNORECASE)
 _TABLE_MENTION = re.compile(r"\bTable\s+[A-Z]?-?\d", re.IGNORECASE)
 _CONTINUED = re.compile(r"\s*\((?:continued|cont\.?)\)\s*", re.IGNORECASE)
 _DIGITS = re.compile(r"\d+")
@@ -686,7 +696,9 @@ class Reader:
         reads like a caption, past lines that do not (IPMI draws its column
         names between caption and rules, PMBus a note) but not past another
         table; else the caption of the figure the table is drawn in; else a
-        `Table` caption ending the page before (_caption_on_page_before)."""
+        `Table` caption ending within CAPTION_GAP_PT above
+        (_caption_to_line_bottom); else a `Table` caption ending the page
+        before (_caption_on_page_before)."""
         above = sorted(
             (
                 ln
@@ -706,7 +718,32 @@ class Reader:
             if i and text[:6].lower() == "figure" and figure_caption(line.text) is None:
                 continue
             return text
-        return self._figure_caption(table) or self._caption_on_page_before(table)
+        return (
+            self._figure_caption(table)
+            or self._caption_to_line_bottom(table)
+            or self._caption_on_page_before(table)
+        )
+
+    def _caption_to_line_bottom(self, table: PageTable) -> str | None:
+        """The nearest `Table` caption whose bottom, not top, lies within
+        CAPTION_GAP_PT above the table, with no other table between (PMBus
+        Table 31: its top lies 47 pt up, past two note lines). Only a
+        `Table` line: measuring to the bottom for every caption took a
+        prose line starting "Figure 24 —" over DSP0274's own caption."""
+        above = sorted(
+            (
+                ln
+                for ln in self.body_lines(table.page)
+                if ln.bottom < table.top + BODY_GAP_PT
+                and ln.bottom >= table.top - CAPTION_GAP_PT
+            ),
+            key=lambda ln: -ln.top,
+        )
+        for line in above:
+            text = _table_caption(line.text)
+            if text and not self._table_between(table, line.bottom, table.top):
+                return text
+        return None
 
     def _caption_on_page_before(self, table: PageTable) -> str | None:
         """A table that starts its page with no body line above it takes the
@@ -730,7 +767,9 @@ class Reader:
         ):
             return None
         m = _CAPTION.match(last.text.strip())
-        if not m or not m.group("text").startswith("Table"):
+        # "Table" in any case, then an id: not a wrapped "table." or
+        # "table below:" ending a sentence (PR #118 F2)
+        if not m or not _TABLE_ID.match(m.group("text")):
             return None
         return m.group("text").strip()
 
@@ -918,6 +957,23 @@ def figure_caption(text: str) -> str | None:
         return None
     title = m.group("title")
     if title[0].islower() or title.startswith(("Figure", ")")):
+        return None
+    if not any(c.isalpha() for c in title):
+        return None
+    return m.group("text").strip()
+
+
+def _table_caption(text: str) -> str | None:
+    """The caption in a line that reads like a Table caption, without a
+    margin line number; None for prose that starts with "Table": "Table 3
+    lists ...", "Table 12, Table 13 and ...", "Table 3 (above) ..."."""
+    m = _TABLE_CAPTION.match(text.strip())
+    if not m:
+        return None
+    title = m.group("title")
+    if title[0].islower() or _TABLE_ID.match(title):
+        return None
+    if title[0] in "()" and not _CONTINUED.fullmatch(title):
         return None
     if not any(c.isalpha() for c in title):
         return None
