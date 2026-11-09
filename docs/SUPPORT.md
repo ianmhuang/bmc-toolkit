@@ -203,7 +203,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | Document | Access | Latest | Verified | Known limit |
 |---|---|---|---|---|
 | `PMBUS-I` PMBus Power System Management Protocol Specification Part I: General Requirements, Transport and Electrical Interface | open (latest gated) | 1.5 | PASS | - |
-| `PMBUS-II` PMBus Power System Management Protocol Specification Part II: Command Language | open (latest gated) | 1.5 | PASS | In 1.3.1 Table 31's caption (Command Summary) lies 47 pt above the table, past two lines of notes, so table prints it as `-`; page 112 shows it. |
+| `PMBUS-II` PMBus Power System Management Protocol Specification Part II: Command Language | open (latest gated) | 1.5 | PASS | - |
 
 ## OCP Security (root of trust, attestation)
 

@@ -353,12 +353,19 @@ when no caption lies within 40 points above it, the `table:` line names
 the figure's caption, the first `Figure N ...` line within 200 points
 below it, else the nearest within 200 points above it (stopping at a line
 that mentions `Table N`, and leaving a caption that has another table
-between or right under it). A table that starts its page with no text
-above it and has no caption by these rules takes the last line of the
-page before when that line is a `Table ...` caption below every table
-there (IPMI and DSP2058 leave the caption at the foot of a page); a
-`Figure ...` line there is not taken, since SMBus puts a figure's
-caption under its drawing. Check a value read from such a grid with
+between or right under it). A table still without a caption takes the
+nearest `Table N ...` line that ends within 40 points above it, though it
+starts further up (PMBus puts two lines of notes under Table 31's
+caption), when no other table stands between; a line such as `Table 3
+lists ...` is prose and is not taken, nor is a `Figure ...` line. A table
+that starts its page with no body text above it and has no caption by
+these rules takes the last body line of the page before when that line
+is a `Table ...` caption (in any letter case) below every table there
+(IPMI and DSP2058 leave the caption at the foot of a page); running
+headers and page numbers are not body text on either page, so a header
+above the table does not stop this, and a page number under the caption
+is not the line taken. A `Figure ...` line there is not taken, since
+SMBus puts a figure's caption under its drawing. Check a value read from such a grid with
 `render`. A table longer than 300 rows (DSP2053's property guide is one
 table over the whole document) prints a `note:` line and only the rows
 that start on the page asked for; `--all-rows` prints every row. Tables
