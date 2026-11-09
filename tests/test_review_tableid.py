@@ -1,7 +1,8 @@
 """Reviewer acceptance tests for T69.2 (AC-6, AC-7, AC-8, AC-10): the
 page-before rule and the line-bottom fallback read a table id from one
-pattern (a number, an upper-case Roman numeral or a single letter), the
-store version is 13, and NVME-NVM's limits no longer name Figure 123."""
+pattern (a number, a Roman numeral in either case or an upper-case single
+letter), the store version is 13, and NVME-NVM's limits no longer name
+Figure 123."""
 
 import json
 
@@ -108,8 +109,11 @@ def test_ac7_the_fallback_still_leaves_prose_with_a_roman_id(tmp_path, text):
     assert fallback(tmp_path, text) == [None]
 
 
-@pytest.mark.parametrize("text", ["Table II - Limits", "Table III"])
+@pytest.mark.parametrize(
+    "text", ["Table II - Limits", "Table III", "table ii - Limits"]
+)
 def test_ac7_the_page_before_rule_takes_a_roman_numeral(tmp_path, text):
+    # in either letter case, as before the two rules shared a pattern
     assert page_before(tmp_path, text) == [text]
 
 

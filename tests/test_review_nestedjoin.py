@@ -7,7 +7,7 @@ import pytest
 
 from bmc_toolkit.spec import tables as T
 from tests import pdfgen
-from tests.test_tables import ruled_table
+from tests.test_tables import cell_table, ruled_table
 
 pytest.importorskip("pdfplumber")
 
@@ -360,3 +360,99 @@ def test_ac5_parts_with_the_same_edges_read_as_before(tmp_path):
     assert (table.first, table.last) == (1, 3)
     assert [round(c) for c in table.columns] == [72, 172, 252, 512]
     assert table.rows == [HEADER, *body(0, 3), *body(40, 3), *body(80, 3)]
+
+
+# ------------------------------------------------ AC-5 (round 1 fixes)
+
+NARROW = [100, 10, 80, 260]  # edges 72, 172, 182, 262, 522: a 10 pt column
+NARROW_HEAD = ["Bytes", "t", "O/M", "Description"]
+CELL4 = [100, 80, 100, 100]  # edges 72, 172, 252, 352, 452
+CELL3 = [100, 80, 200]  # CELL4's edges without 352
+NAMES = ["Name", "Code", "Meaning", "Unit"]
+
+
+def narrow(first, count):
+    return [[f"{n:02d}", "x", "M", f"Field {n}"] for n in range(first, first + count)]
+
+
+def boxes(widths, cells):
+    """A table drawn as tiled cell boxes, no rules."""
+    return cell_table(LEFT, TOP, widths, [ROW_H] * len(cells), cells)
+
+
+@pytest.mark.parametrize("captioned", [True, False], ids=["caption", "no-caption"])
+def test_ac5_a_narrow_column_shifted_past_half_its_width_reads_as_before(
+    tmp_path, captioned
+):
+    # the second part lies 5.5 pt to the right: every edge is inside the
+    # 6 pt tolerance, and the 10 pt column's left edge is nearer the first
+    # part's next edge (4.5 pt) than its own (5.5 pt)
+    above = [over(CAPTION)] if captioned else []
+    pages = [
+        first_page(NARROW, [NARROW_HEAD, *narrow(0, 3)]),
+        furniture(2) + above + grid(NARROW, narrow(40, 3), x=LEFT + 5.5) + [tail(2)],
+    ]
+    (table,) = read(tmp_path, pages)[2]
+    assert (table.first, table.last) == (1, 2)
+    assert [round(c) for c in table.columns] == [72, 172, 182, 262, 522]
+    assert table.rows == [NARROW_HEAD, *narrow(0, 3), *narrow(40, 3)]
+
+
+def test_ac5_a_header_repeated_under_the_frame_rule_is_dropped(tmp_path):
+    # the second part's inner edges moved; its first row repeats the header
+    pages = [
+        first_page(),
+        furniture(2)
+        + [over(CAPTION)]
+        + grid(MOVED, [HEADER, *body(40, 3)])
+        + [tail(2)],
+    ]
+    (table,) = read(tmp_path, pages)[2]
+    assert (table.first, table.last) == (1, 2)
+    firsts = ["Bytes", "00", "01", "02", "40", "41", "42"]
+    assert [row[0] for row in table.rows] == firsts
+    assert sum("Description" in row for row in table.rows) == 1
+    assert table.row_pages == [1, 1, 1, 1, 2, 2, 2]
+
+
+def test_ac5_a_complete_cells_row_on_a_part_with_fewer_columns_stays_a_row(tmp_path):
+    # a cells table groups rows under an empty name cell: the second part's
+    # first row has all its own cells filled, so no page break cut it, and
+    # the empty cell it gets for the edge it spans does not make it a rest
+    first = [NAMES, ["Temperature", "01h", "degrees", "C"], ["", "05h", "watts", "W"]]
+    pages = [
+        furniture(1) + [over(CAPTION)] + boxes(CELL4, first),
+        furniture(2)
+        + boxes(CELL3, [["", "06h", "joules"], ["Fan", "04h", "rpm"]])
+        + [tail(2)],
+    ]
+    (table,) = read(tmp_path, pages)[1]
+    assert table.drawn == T.CELLS
+    assert (table.first, table.last) == (1, 2)
+    assert table.rows == [*first, ["", "06h", "joules", ""], ["Fan", "04h", "rpm", ""]]
+    assert table.row_pages == [1, 1, 1, 2, 2]
+
+
+def test_ac5_a_cut_cells_row_on_a_part_with_fewer_columns_is_still_joined(tmp_path):
+    # the second part's first row holds only the rest of the Meaning cell
+    first = [
+        NAMES,
+        ["Fan", "04h", "rpm", "r"],
+        ["Temperature", "01h", "degrees and", "C"],
+    ]
+    pages = [
+        furniture(1) + [over(CAPTION)] + boxes(CELL4, first),
+        furniture(2)
+        + boxes(CELL3, [["", "", "kelvin"], ["Voltage", "02h", "volts"]])
+        + [tail(2)],
+    ]
+    (table,) = read(tmp_path, pages)[1]
+    assert table.drawn == T.CELLS
+    assert (table.first, table.last) == (1, 2)
+    assert table.rows == [
+        NAMES,
+        ["Fan", "04h", "rpm", "r"],
+        ["Temperature", "01h", "degrees and\nkelvin", "C"],
+        ["Voltage", "02h", "volts", ""],
+    ]
+    assert table.row_pages == [1, 1, 1, 2]
