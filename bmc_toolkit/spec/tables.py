@@ -1097,7 +1097,8 @@ def union_columns(parts: list[list[float]]) -> list[float]:
     part's edges pair with the union's in order, one to one: each takes
     the first union edge after the previous one's that lies within
     COLUMN_TOL_PT, else it is added. Two edges of one part are never one
-    union edge, so the union has as many edges as any part."""
+    union edge, so the union has at least as many edges as any part, even
+    when a part's own edges lie closer than COLUMN_TOL_PT."""
     edges = sorted(parts[0])
     for columns in parts[1:]:
         last = -1
@@ -1113,6 +1114,9 @@ def union_columns(parts: list[list[float]]) -> list[float]:
             if k is None:
                 k = bisect.bisect_left(edges, x)
                 edges.insert(k, x)
+                # inserted before the edge the previous one took: that edge
+                # moved up one and stays taken
+                k = max(k, last + 1)
             last = k
     return edges
 

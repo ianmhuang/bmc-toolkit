@@ -62,9 +62,25 @@ def test_union_pairs_edges_in_order_one_to_one(parts, union):
     assert T.union_columns(parts) == union
 
 
-def test_the_union_has_as_many_edges_as_any_part():
-    parts = [[72, 200], [68, 74, 80, 200], [70, 200]]
-    assert len(T.union_columns(parts)) >= max(len(p) for p in parts)
+@pytest.mark.parametrize(
+    "parts",
+    [
+        [[72, 200], [68, 74, 80, 200], [70, 200]],
+        # PR #120 F1: a part's own edges closer than COLUMN_TOL_PT
+        [[75, 200], [70, 74, 80, 200]],
+        [[80, 200], [72, 76, 79, 200]],
+    ],
+    ids=["six-apart", "four-apart", "three-apart"],
+)
+def test_the_union_has_as_many_edges_as_any_part(parts):
+    union = T.union_columns(parts)
+    assert union == sorted(set(union))
+    assert len(union) >= max(len(p) for p in parts)
+    for edges in parts:
+        row = [str(i) for i in range(len(edges) - 1)]
+        spread = T.spread_row(row, edges, union)
+        assert len(spread) == len(union) - 1
+        assert [c for c in spread if c] == row
 
 
 # ---------------------------------------------------------------- AC-3
