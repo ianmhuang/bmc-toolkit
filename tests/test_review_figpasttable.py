@@ -139,6 +139,19 @@ def test_ac1_the_table_line_reads_as_on_the_page_without_the_figure_line(tmp_pat
     assert captions(tmp_path, without, "without.pdf") == [None, TABLE]
 
 
+def test_ac1_a_numbered_figure_caption_over_the_table_under_is_its_own(tmp_path):
+    # round 1 F1: table B's own caption is a numbered `Figure` line (NVMe
+    # captions its tables that way); it is B's own as a `Table` line is,
+    # so the Figure line under the drawing names the drawing
+    figure, own = "Figure 7: Packet layout", "Figure 8: Field codes"
+    for start in (16, 26, 38):
+        page = page_with(figure, own, start)
+        assert 0 < start_under(tmp_path, page, figure) <= T.CAPTION_GAP_PT
+        first, second = read(tmp_path, page, f"own{start}.pdf")
+        assert (first.caption, second.caption) == (figure, own), start
+        assert (first.rows, second.rows) == (PACKET, CODES), start
+
+
 # ------------------------------------------------------------------ AC-2
 
 
@@ -164,6 +177,22 @@ def test_ac2_a_line_that_is_not_a_numbered_caption_still_blocks(tmp_path):
     assert captions(tmp_path, numbered, "numbered.pdf") == [
         figure,
         "Table 9: Request fields",
+    ]
+
+
+def test_ac2_a_prose_line_that_starts_with_figure_still_blocks(tmp_path):
+    # the line over table B starts with "Figure" and a number but is a
+    # sentence, not a numbered caption: B takes it as on develop and the
+    # Figure line stays off the drawing
+    figure = "Figure 3 - Codes"
+    prose = "Figure 9 shows the codes"
+    page = page_with(figure, prose, 26)
+    assert captions(tmp_path, page, "prose.pdf") == [None, prose]
+    # the same page with a numbered Figure caption in that place (AC-1)
+    numbered = page_with(figure, "Figure 9: Field codes", 26)
+    assert captions(tmp_path, numbered, "numbered.pdf") == [
+        figure,
+        "Figure 9: Field codes",
     ]
 
 

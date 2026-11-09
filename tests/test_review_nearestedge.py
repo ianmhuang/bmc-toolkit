@@ -157,6 +157,18 @@ def test_ac4_a_part_of_a_union_built_from_it_keeps_its_cells_under_its_own_edges
     assert T.spread_row(["c", "d", "e"], second, union) == ["c", "d", "e"]
 
 
+def test_ac4_a_row_with_more_cells_than_the_union_has_columns_is_refused():
+    # round 1 F2: three cells cannot sit one to a column on two columns;
+    # an all-empty row would drop them without a sign (develop raised
+    # ValueError here too)
+    with pytest.raises(ValueError):
+        T.spread_row(["a", "b", "c"], [72, 100, 150, 512], [72, 300, 512])
+    # as many cells as columns is placed, none lost
+    union = [72, 300, 400, 512]
+    got = T.spread_row(["a", "b", "c"], [72, 100, 150, 512], union)
+    assert got == ["a", "b", "c"]
+
+
 # ------------------------------------------------------------------ AC-5
 
 
