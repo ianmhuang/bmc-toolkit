@@ -9,7 +9,8 @@ line, a line ending more than 40 pt up and a line with another table
 between are not taken (AC-2); a caption the window or the Figure rule
 finds is kept (AC-3); the page-before rule takes `Table` in any letter
 case (AC-4); TABLES_VERSION is 12 and a version 11 store is read again
-(AC-6); PMBUS-II records no limit for Table 31 (AC-8).
+(AC-6); PMBUS-II records no limit for Table 31 (AC-8). Round 2 adds the
+prose forms and the wrapped `table.` line of the round 1 findings.
 
 Geometry: pdfgen places text by its baseline in PDF points, origin
 bottom-left; pdfplumber puts a 10 pt Helvetica line's top about 8 pt
@@ -202,6 +203,10 @@ def test_ac2_a_figure_keeps_its_caption_under_prose_starting_with_figure(tmp_pat
         "Table 31 and Table 32 list the commands.",
         "45 Table 3 lists the fields below.",
         "Tables in this clause use hexadecimal codes.",
+        # round 1 F1: prose whose text after the id does not start lowercase
+        "Table 12, Table 13 and Table 14 list the commands.",
+        "Table 3 (above) lists the fields.",
+        "45 Table 12, Table 13 and Table 14 list the commands.",
     ],
 )
 def test_ac2_prose_starting_with_table_is_not_taken(tmp_path, text):
@@ -296,6 +301,29 @@ def test_ac4_the_page_before_rule_takes_table_in_any_letter_case(
 )
 def test_ac4_a_figure_line_in_any_letter_case_is_still_not_taken(tmp_path, line):
     assert on_page_2(tmp_path, line) == [None]
+
+
+@pytest.mark.parametrize("line", ["table.", "table below:", "tables below."])
+def test_ac4_a_wrapped_sentence_ending_in_table_is_not_a_caption(tmp_path, line):
+    # round 1 F2: reading `Table` in any letter case must not take the
+    # last line of a sentence wrapped before the word "table"; develop
+    # did not take these lines either
+    assert on_page_2(tmp_path, line) == [None]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Table 21-4, Get Sub-function Data",
+        "Table G-1, Command Number Assignments",
+        "Table B-2 - Register map",
+        "Table 20-, Get Device ID Command",
+    ],
+)
+def test_ac4_the_id_forms_develop_took_are_still_taken(tmp_path, line):
+    # the id the page-before rule wants after `Table` covers a section
+    # number, an appendix letter and IPMI's cut-off `20-,`
+    assert on_page_2(tmp_path, line) == [line]
 
 
 # ------------------------------------------------------------------ AC-6
