@@ -72,10 +72,9 @@ def test_limits_name_the_caption_cases_and_where_to_read_them():
     assert "byte number" in cat.get("DSP0282").limits
     # T67 reads DSP2058's Table 1 caption from the foot of page 14
     assert cat.get("DSP2058").limits == ""
-    # T66 reads Figure 123's caption; its parts are what is left, and
-    # Figures 157 and 159 whose caption lies past the 40 pt window
-    assert "Figure 123" in cat.get("NVME-NVM").limits
-    assert "Figure 123's caption" not in cat.get("NVME-NVM").limits
+    # T66 reads Figure 123's caption and T69.2 joins its parts, so only
+    # Figures 157 and 159 whose caption lies past the 40 pt window are left
+    assert "Figure 123" not in cat.get("NVME-NVM").limits
     assert "Figures 157 and 159" in cat.get("NVME-NVM").limits
     for doc_id in ("DSP0282", "NVME-NVM"):
         assert re.search(r"\bpage\b", cat.get(doc_id).limits), doc_id

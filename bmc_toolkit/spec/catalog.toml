@@ -4676,7 +4676,7 @@ listing = "nvme:nvm-command-set-specification"
 title = "NVM Express NVM Command Set Specification"
 access = "open"
 fetch = "direct"
-limits = "Figure 123 (Identify Namespace, pages 85-93) reads as five Logical Tables (pages 85-87, 88, 89-90, 91 and 92-93), the tables nested in its cells giving some pages other column edges; table prints each part with the caption, so read every page of the range. Figures 157 and 159 (pages 133 and 134, bit layouts drawn as boxes) print their caption as `-`, since it lies 42 pt above the boxes; page shows it."
+limits = "Figures 157 and 159 (pages 133 and 134, bit layouts drawn as boxes) print their caption as `-`, since it lies 42 pt above the boxes; page shows it."
 
 [[documents.versions]]
 version = "1.3"

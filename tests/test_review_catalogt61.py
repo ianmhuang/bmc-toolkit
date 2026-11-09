@@ -199,7 +199,8 @@ def test_ac2_the_catalog_refuses_a_not_taken_entry_that_names_a_taken_one(tmp_pa
         # T67 reads DSP2058's Table 1 caption from page 14, so DSP2058 has
         # no limit left (test_catalog_t61.py checks that)
         ("DSP0282", ("Table 1", "byte number", "page")),
-        ("NVME-NVM", ("Figure 123", "caption", "page")),
+        # T69.2 joins Figure 123, so only Figures 157 and 159 are left
+        ("NVME-NVM", ("Figures 157 and 159", "caption", "page")),
     ],
 )
 def test_ac3_limits_record_the_caption_cases_with_the_command_to_use(
