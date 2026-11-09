@@ -103,7 +103,7 @@ def test_readme_counts_the_catalog():
     total = len(docs)
     open_docs = sum(d.access == "open" for d in docs)
     families = len({d.family for d in docs})
-    # T63 (2026-11-08) added two open documents
-    assert (total, open_docs, families) == (121, 101, 35)
+    # T63 (2026-11-08) added two open documents, T72 (2026-11-09) three
+    assert (total, open_docs, families) == (124, 104, 35)
     assert f"lists {total} documents in {families} families" in readme
     assert f"The {open_docs} open ones" in readme

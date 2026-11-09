@@ -45,7 +45,8 @@ QUESTIONS = {"DSP0285": "G109", "DSP0294": "G110"}
 HEADING = "## Catalog additions of 2026-11-08"
 PREVIOUS_HEADING = "## Catalog additions of 2026-10-21"
 # the candidates the request left for later: still not taken
-LEFT = ("DSP0220", "DSP0244", "DSP0280")
+# T72 (2026-11-09) took DSP0220, DSP0244 and DSP0280; white papers are left
+LEFT = ("DSP2015", "DSP2054", "DSP2072")
 VERBS = ("find", "page", "table", "section", "extract", "fetch", "registry")
 
 
@@ -73,9 +74,16 @@ def _rows(text: str) -> list[list[str]]:
 # ------------------------------------------------------------------ AC-1
 
 
-def test_ac1_the_two_follow_nvme_nvm_and_close_the_documents(shipped):
+def test_ac1_the_two_follow_nvme_nvm(shipped):
     ids = [d.id for d in shipped.documents]
-    assert ids[ids.index("NVME-NVM") + 1 :] == ["DSP0285", "DSP0294"]
+    # T72 (2026-11-09) added DSP0220, DSP0244 and DSP0280 after the two
+    assert ids[ids.index("NVME-NVM") + 1 :] == [
+        "DSP0285",
+        "DSP0294",
+        "DSP0220",
+        "DSP0244",
+        "DSP0280",
+    ]
     assert len(ids) == len({i.lower() for i in ids})
 
 
@@ -143,7 +151,7 @@ def test_ac2_the_two_are_listed_and_left_not_taken(shipped):
         assert listed.get(dsp) == dsp, dsp
         assert dsp not in shipped.dmtf_not_taken, dsp
         assert not shipped.dmtf_not_taken_covers(dsp), dsp
-    assert len(shipped.dmtf_not_taken) == 133
+    assert len(shipped.dmtf_not_taken) == 130
     for dsp in LEFT:
         assert shipped.dmtf_not_taken_covers(dsp), dsp
         assert dsp not in listed, dsp
@@ -195,7 +203,8 @@ def test_ac5_the_group_follows_the_previous_batch_and_ids_stay_gap_free():
     section = text.split(HEADING, 1)[1].split("\n## ", 1)[0]
     assert [cells[0] for cells in _rows(section)] == list(QUESTIONS.values())
     numbers = [int(cells[0][1:]) for cells in _rows(text)]
-    assert sorted(numbers) == list(range(1, 111))
+    # T72 (2026-11-09) added G111-G113
+    assert sorted(numbers) == list(range(1, 114))
     assert numbers[numbers.index(108) + 1 :][:2] == [109, 110]
 
 
@@ -276,8 +285,9 @@ def test_ac6_each_row_sits_under_its_family_heading(shipped, generated):
 def test_ac7_counts_grew_by_exactly_the_two_open_entries(shipped):
     docs = shipped.documents
     open_docs = [d for d in docs if d.access == "open"]
-    assert len(docs) == 121
-    assert len(open_docs) == 101
+    # T72 (2026-11-09) added three open documents
+    assert len(docs) == 124
+    assert len(open_docs) == 104
     assert len(docs) - len(open_docs) == 20
     families = len({d.family for d in docs})
     assert families == 35

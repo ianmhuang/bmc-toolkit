@@ -70,12 +70,13 @@ def _rows(text: str) -> list[list[str]]:
 # ------------------------------------------------------------------ AC-1
 
 
-def test_ac1_the_five_are_the_last_documents_in_order(shipped):
+def test_ac1_the_five_follow_dsp0251_in_order(shipped):
     ids = [d.id for d in shipped.documents]
     # T63 (2026-11-08) added DSP0285 and DSP0294 after the five
     assert ids[ids.index("DSP0251") + 1 :][:5] == list(BATCH)
-    assert ids[-7:-2] == list(BATCH)
-    assert ids[-2:] == ["DSP0285", "DSP0294"]
+    # and T72 (2026-11-09) DSP0220, DSP0244 and DSP0280 after those
+    assert ids[-10:-5] == list(BATCH)
+    assert ids[-5:] == ["DSP0285", "DSP0294", "DSP0220", "DSP0244", "DSP0280"]
     assert len(ids) == len({i.lower() for i in ids})
 
 
@@ -147,9 +148,10 @@ def test_ac2_the_dmtf_ids_are_listed_and_left_not_taken(shipped):
         assert dsp not in shipped.dmtf_not_taken, dsp
         assert not shipped.dmtf_not_taken_covers(dsp), dsp
     # four entries left here, two more when T63 (2026-11-08) took DSP0285
-    # and DSP0294; the other candidates the review named are still there
-    assert len(shipped.dmtf_not_taken) == 133
-    for dsp in ("DSP0220", "DSP0244", "DSP0280"):
+    # and DSP0294, three when T72 (2026-11-09) took DSP0220, DSP0244 and
+    # DSP0280; the white papers the review named are still there
+    assert len(shipped.dmtf_not_taken) == 130
+    for dsp in ("DSP2015", "DSP2054", "DSP2072"):
         assert shipped.dmtf_not_taken_covers(dsp), dsp
         assert dsp not in listed, dsp
 
@@ -239,8 +241,8 @@ def test_ac5_the_group_follows_the_pdr_group_and_ids_stay_gap_free():
     ids = [cells[0] for cells in _rows(section)]
     assert ids == list(QUESTIONS.values())
     numbers = [int(cells[0][1:]) for cells in _rows(text)]
-    # T63 (2026-11-08) added G109 and G110
-    assert sorted(numbers) == list(range(1, 111))
+    # T63 (2026-11-08) added G109 and G110, T72 (2026-11-09) G111-G113
+    assert sorted(numbers) == list(range(1, 114))
     assert numbers[numbers.index(103) + 1 :][:5] == [104, 105, 106, 107, 108]
 
 
@@ -315,12 +317,13 @@ def test_ac6_each_row_sits_under_its_family_heading(shipped, generated):
 def test_ac7_counts_grew_by_exactly_the_five_open_entries(shipped):
     docs = shipped.documents
     open_docs = [d for d in docs if d.access == "open"]
-    # T63 (2026-11-08) added two open documents: 121 and 101
-    assert len(docs) == 121
-    assert len(open_docs) == 101
+    # T63 (2026-11-08) added two open documents, T72 (2026-11-09) three:
+    # 124 and 104
+    assert len(docs) == 124
+    assert len(open_docs) == 104
     assert len(docs) - len(open_docs) == 20
     assert len({d.family for d in docs}) == 35
     # the README status line states the same numbers
     readme = " ".join(README.read_text(encoding="utf-8").split())
-    assert "lists 121 documents in 35 families" in readme
-    assert "The 101 open ones" in readme
+    assert "lists 124 documents in 35 families" in readme
+    assert "The 104 open ones" in readme
