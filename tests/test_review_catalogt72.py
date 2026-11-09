@@ -84,9 +84,14 @@ def _rows(text: str) -> list[list[str]]:
 # ------------------------------------------------------------------ AC-1
 
 
-def test_ac1_the_three_follow_dsp0294_and_close_the_documents(shipped):
+def test_ac1_the_three_follow_dsp0294_in_order(shipped):
     ids = [d.id for d in shipped.documents]
-    assert ids[ids.index("DSP0294") + 1 :] == ["DSP0220", "DSP0244", "DSP0280"]
+    # the three directly after DSP0294; not pinned as the last documents,
+    # so a later batch that appends its own leaves this test alone
+    after = ids[ids.index("DSP0294") + 1 :]
+    assert after[:3] == ["DSP0220", "DSP0244", "DSP0280"]
+    # everything before them is what the catalog held already
+    assert not set(BATCH) & set(ids[: ids.index("DSP0294")])
     assert len(ids) == len({i.lower() for i in ids})
 
 
