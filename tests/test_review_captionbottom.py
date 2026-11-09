@@ -357,7 +357,7 @@ def test_ac4_the_id_forms_develop_took_are_still_taken(tmp_path, line):
 
 
 def test_ac6_tables_version_is_12_and_a_version_11_store_is_not_served(tmp_path):
-    assert T.TABLES_VERSION == 13
+    assert T.TABLES_VERSION == 14
     pdf = pdfgen.write_pdf(
         tmp_path / "doc.pdf", [table() + [over(47, PMBUS)] + notes()]
     )
@@ -367,7 +367,7 @@ def test_ac6_tables_version_is_12_and_a_version_11_store_is_not_served(tmp_path)
     vdir.mkdir()
     path = T.store(vdir, [1], found)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["tables_version"] == 13
+    assert data["tables_version"] == 14
     assert [t["caption"] for t in data["tables"]] == [PMBUS]
     assert T.stored_for_page(vdir, 1) is not None
 
@@ -380,7 +380,7 @@ def test_ac6_tables_version_is_12_and_a_version_11_store_is_not_served(tmp_path)
 
     T.store(vdir, [1], found)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["tables_version"] == 13
+    assert data["tables_version"] == 14
     (stored,) = T.stored_for_page(vdir, 1)
     assert stored.caption == PMBUS
 
@@ -411,7 +411,7 @@ def test_ac6_the_table_command_reads_a_version_11_store_again(
     assert lines == [f"table: {PMBUS} | ruled | page 1 | 3 columns | 3 rows"]
     assert lines[0] in first
     data = json.loads(store.read_text(encoding="utf-8"))
-    assert data["tables_version"] == 13
+    assert data["tables_version"] == 14
     assert [t["caption"] for t in data["tables"]] == [PMBUS]
 
 

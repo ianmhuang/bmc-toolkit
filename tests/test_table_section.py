@@ -183,7 +183,7 @@ def test_a_store_of_the_previous_version_is_read_again(held, catalog_file, capsy
     # apart, 7 did so in the lines around a table, 8 took only the nearest
     # line above a table for its caption, 9 took a caption repeated on each
     # page for a running header, 10 read no caption from the page before
-    assert tables_mod.TABLES_VERSION == 13
+    assert tables_mod.TABLES_VERSION == 14
     assert data["tables_version"] == tables_mod.TABLES_VERSION
     assert [t["section"] for t in data["tables"]] == [
         "5.1 Set",
