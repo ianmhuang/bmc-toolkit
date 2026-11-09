@@ -3770,6 +3770,7 @@ title = "SFF-8636 Specification for Management Interface for 4-lane Modules and 
 access = "open"
 fetch = "direct"
 searched_with = ["SFF-8024"]
+limits = "Figures 5-5 and 5-6 (page 26, two bit sequences drawn as boxes, each captioned under it) read with the lower one captioned `Figure 5-5 ...` and the upper `-`; page shows which caption goes with which."
 notes = "QSFP and 4-lane cable memory map; CMIS supersedes it for newer form factors. members.snia.org/document/dl/<n> always serves the current revision, so a fetch may return a newer revision than this entry names; refresh cannot see it."
 
 [[documents.versions]]

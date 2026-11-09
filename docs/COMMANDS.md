@@ -332,8 +332,9 @@ may also be a subset one of the other with the same left and right
 edges, and under a repeated caption only the left and right edges must
 match, since an NVMe figure's inner columns change with what its cells
 hold; the joined rows sit on all the parts' column edges together, a
-cell under the edge it starts at and empty cells where it spans more
-than one; a repeated header row is dropped), and the
+cell under the edge nearest where it starts (in order, one cell to an
+edge) and empty cells where it spans more than one; a repeated header
+row is dropped), and the
 result is a `cite:` line with the section in force where the table starts
 (the last heading above it on its first page, else the section at the top
 of that page; a table without a caption is placed the same way), `PDF
@@ -360,7 +361,9 @@ when no caption lies within 40 points above it, the `table:` line names
 the figure's caption, the first `Figure N ...` line within 200 points
 below it, else the nearest within 200 points above it (stopping at a line
 that mentions `Table N`, and leaving a caption that has another table
-between or right under it). A table still without a caption takes the
+between or right under it, unless that table takes a numbered caption of
+its own lying between them: PMBus prints Figure 8's caption, then Table
+3's, then Table 3). A table still without a caption takes the
 nearest `Table N ...` line that ends within 40 points above it, though it
 starts further up (PMBus puts two lines of notes under Table 31's
 caption), when no other table stands between; a line such as `Table 3

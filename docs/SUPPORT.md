@@ -198,7 +198,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 |---|---|---|---|---|
 | `SFF-8485` SFF-8485 Specification for Serial GPIO (SGPIO) Bus | open | Rev 0.7 | PASS | - |
 | `SFF-8472` SFF-8472 Specification for Management Interface for SFP+ | open | Rev 12.5a | PASS | - |
-| `SFF-8636` SFF-8636 Specification for Management Interface for 4-lane Modules and Cables | open | Rev 2.12 | PASS | - |
+| `SFF-8636` SFF-8636 Specification for Management Interface for 4-lane Modules and Cables | open | Rev 2.12 | PASS | Figures 5-5 and 5-6 (page 26, two bit sequences drawn as boxes, each captioned under it) read with the lower one captioned `Figure 5-5 ...` and the upper `-`; page shows which caption goes with which. |
 | `SFF-8024` SFF-8024 Specification for SFF Module Management Reference Code Tables | open | Rev 4.14 | PASS | - |
 
 ## Power Management Bus
