@@ -283,7 +283,7 @@ def test_ac4_a_body_line_above_the_next_pages_table_still_stops_the_join(tmp_pat
 
 
 def test_ac5_tables_version_is_10_and_a_version_9_store_is_read_again(tmp_path):
-    assert T.TABLES_VERSION == 13
+    assert T.TABLES_VERSION == 14
     text = "Table 3: Codes"
     page = header_and_number(1) + [over(text)] + grid(0, 3) + [tail(1)]
     pdf = pdfgen.write_pdf(tmp_path / "doc.pdf", [page])
@@ -293,7 +293,7 @@ def test_ac5_tables_version_is_10_and_a_version_9_store_is_read_again(tmp_path):
     vdir.mkdir()
     path = T.store(vdir, [1], found)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["tables_version"] == 13
+    assert data["tables_version"] == 14
     assert T.stored_for_page(vdir, 1) is not None
     data["tables_version"] = 9
     path.write_text(json.dumps(data), encoding="utf-8")

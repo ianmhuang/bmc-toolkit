@@ -67,8 +67,8 @@ continuation page repeats, with or without "(continued)", is dropped.
 
 ``index`` is the table's 1-based position on its first page, ``columns``
 the x positions of the column edges of all its parts (the first part's
-edges, then those of later parts more than 6 pt from any taken; each row
-is put on them), ``rows[0]`` the header,
+edges; a later part's edges pair with them in order, one to one, within
+6 pt, and an edge left over is added; each row is put on them), ``rows[0]`` the header,
 ``row_pages[i]`` the page ``rows[i]`` starts on (so a very long table can
 be printed one page at a time).
 Coordinates are PDF points with the origin top-left, as pdfplumber reports
@@ -83,6 +83,7 @@ with no space character between them, version 7 did so in the lines
 around a table.
 """
 
+import bisect
 import json
 import re
 import textwrap
@@ -92,7 +93,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
 
-TABLES_VERSION = 13
+TABLES_VERSION = 14
 TABLES_NAME = "tables.json"
 
 RULED = "ruled"
@@ -1092,14 +1093,32 @@ def _nested_in(table: PageTable, other: PageTable) -> bool:
 
 
 def union_columns(parts: list[list[float]]) -> list[float]:
-    """The column edges of all parts, the first part's first; an edge
-    within COLUMN_TOL_PT of one already taken is that edge."""
-    edges = list(parts[0])
+    """The column edges of all parts, the first part's first. A later
+    part's edges pair with the union's in order, one to one: each takes
+    the first union edge after the previous one's that lies within
+    COLUMN_TOL_PT, else it is added. Two edges of one part are never one
+    union edge, so the union has at least as many edges as any part, even
+    when a part's own edges lie closer than COLUMN_TOL_PT."""
+    edges = sorted(parts[0])
     for columns in parts[1:]:
-        for x in columns:
-            if all(abs(x - e) > COLUMN_TOL_PT for e in edges):
-                edges.append(x)
-    return sorted(edges)
+        last = -1
+        for x in sorted(columns):
+            k = next(
+                (
+                    i
+                    for i in range(last + 1, len(edges))
+                    if abs(edges[i] - x) <= COLUMN_TOL_PT
+                ),
+                None,
+            )
+            if k is None:
+                k = bisect.bisect_left(edges, x)
+                edges.insert(k, x)
+                # inserted before the edge the previous one took: that edge
+                # moved up one and stays taken
+                k = max(k, last + 1)
+            last = k
+    return edges
 
 
 def spread_row(row: list[str], edges: list[float], union: list[float]) -> list[str]:
@@ -1111,8 +1130,6 @@ def spread_row(row: list[str], edges: list[float], union: list[float]) -> list[s
     width = len(union) - 1
     if len(row) != len(edges) - 1 or columns_match(edges, union):
         return row + [""] * (width - len(row))
-    if len(row) > width:  # edges closer than COLUMN_TOL_PT are one in the union
-        return row
     out = [""] * width
     j = -1
     for i, cell in enumerate(row):
