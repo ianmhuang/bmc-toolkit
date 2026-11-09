@@ -803,7 +803,8 @@ class Reader:
         below it, else the nearest above it. Box diagrams read as tables
         have their caption under the figure (DMTF, SMBus) or over it
         (IPMI). A caption with a table right under it names that table
-        (NVMe captions its tables "Figure N" above them), and one with
+        (NVMe captions its tables "Figure N" above them) unless that table
+        takes a numbered caption of its own (_table_under), and one with
         another table between is not this table's."""
         lines = self.body_lines(table.page)
         below = sorted(
@@ -1186,10 +1187,14 @@ def spread_row(row: list[str], edges: list[float], union: list[float]) -> list[s
     edges a cell spans. The cells are placed in order, one to a union edge,
     as many as can within COLUMN_TOL_PT of their left edge and then the
     nearest (_pair_in_order). A part whose edges match the union within
-    COLUMN_TOL_PT keeps its row as it is."""
+    COLUMN_TOL_PT keeps its row as it is. The union must have at least as
+    many columns as the row has cells (union_columns gives that);
+    ValueError otherwise."""
     width = len(union) - 1
     if len(row) != len(edges) - 1 or columns_match(edges, union):
         return row + [""] * (width - len(row))
+    if len(row) > width:
+        raise ValueError(f"{len(row)} cells on {width} columns")
     out = [""] * width
     for i, k in _pair_in_order(edges[:-1], union[:-1], every=True):
         out[k] = row[i]

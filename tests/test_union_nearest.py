@@ -73,3 +73,10 @@ def test_a_row_whose_edges_match_the_union_is_kept():
     union = [72, 172, 252, 512]
     row = ["a", "b", "c"]
     assert T.spread_row(row, [73, 171, 253, 512], union) == row
+
+
+def test_more_cells_than_union_columns_is_an_error():
+    # PR #122 F2: develop raised here too; an empty row would
+    # hide the cells
+    with pytest.raises(ValueError, match="3 cells on 2 columns"):
+        T.spread_row(["a", "b", "c"], [72, 100, 150, 512], [72, 300, 512])

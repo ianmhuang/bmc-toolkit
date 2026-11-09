@@ -67,6 +67,20 @@ def test_a_colon_caption_form_as_in_smbus(tmp_path):
     ]
 
 
+def test_a_table_with_its_own_figure_caption_leaves_the_figure_line(tmp_path):
+    # PR #122 F1: a numbered Figure caption taken by the table under counts
+    # as its own, as a Table one does (both lines read as captions)
+    second_top = baseline(24) - 14
+    page = page_with(
+        [below(10, "Figure 7: Packet layout"), below(24, "Figure 8: Field codes")],
+        second_top,
+    )
+    assert captions(tmp_path, page) == [
+        "Figure 7: Packet layout",
+        "Figure 8: Field codes",
+    ]
+
+
 # ---------------------------------------------------------------- AC-2
 
 
