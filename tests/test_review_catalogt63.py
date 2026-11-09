@@ -74,7 +74,7 @@ def _rows(text: str) -> list[list[str]]:
 # ------------------------------------------------------------------ AC-1
 
 
-def test_ac1_the_two_follow_nvme_nvm_and_close_the_documents(shipped):
+def test_ac1_the_two_follow_nvme_nvm(shipped):
     ids = [d.id for d in shipped.documents]
     # T72 (2026-11-09) added DSP0220, DSP0244 and DSP0280 after the two
     assert ids[ids.index("NVME-NVM") + 1 :] == [

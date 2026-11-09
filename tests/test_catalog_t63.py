@@ -34,7 +34,7 @@ QUESTIONS = {"G109": "DSP0285 1.1.0", "G110": "DSP0294 1.0.0"}
 DMTF_FILES = "https://www.dmtf.org/sites/default/files/standards/documents/"
 
 
-def test_the_two_follow_nvme_nvm_as_the_last_documents():
+def test_the_two_follow_nvme_nvm():
     cat = load_catalog()
     ids = [d.id for d in cat.documents]
     at = ids.index("NVME-NVM")

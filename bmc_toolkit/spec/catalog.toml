@@ -173,8 +173,10 @@ publisher = "Nuvoton"
 # documents near the BMC families not taken yet (the PMCI white papers
 # DSP2015, DSP2016 and DSP2037, the SPDM post-quantum white paper
 # DSP2072, the PLDM modeling white papers DSP2054, DSP2061 and DSP2067,
-# and the Redfish white papers, guides and mockup bundle, DSP2043 to
-# DSP2068): taking one removes it from this list.
+# and the Redfish white papers, guides and mockup bundle DSP2043,
+# DSP2044, DSP2045, DSP2047, DSP2048, DSP2050, DSP2051, DSP2052, DSP2055,
+# DSP2056, DSP2059, DSP2060, DSP2062, DSP2063, DSP2064, DSP2066, DSP2068,
+# DSP2073 and DSP2090): taking one removes it from this list.
 
 [listings.dmtf]
 not_taken = [

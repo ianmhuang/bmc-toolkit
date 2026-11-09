@@ -3,6 +3,7 @@ Platform Message Registry Mapping and DSP0280 PMCI Test Tools, with their
 versions, Golden Questions and the DMTF ids leaving not_taken. Shipped
 files only, no network."""
 
+import re
 import shutil
 from pathlib import Path
 
@@ -39,11 +40,12 @@ DMTF_FILES = "https://www.dmtf.org/sites/default/files/standards/documents/"
 # ---------------------------------------------------------------- AC-1
 
 
-def test_the_three_follow_dsp0294_as_the_last_documents():
+def test_the_three_follow_dsp0294():
     cat = load_catalog()
     ids = [d.id for d in cat.documents]
     at = ids.index("DSP0294")
-    assert ids[at + 1 :] == list(NEW)
+    # PR #121 F3: not pinned as the last, so a later batch leaves it alone
+    assert ids[at + 1 :][:3] == list(NEW)
     for doc_id, (family, title, versions) in NEW.items():
         doc = cat.get(doc_id)
         assert (doc.family, doc.title) == (family, title), doc_id
@@ -98,11 +100,32 @@ def test_the_comment_names_only_ids_still_not_taken():
     cat = load_catalog()
     text = CATALOG.read_text("utf-8")
     comment = text[text.index("DMTF left out") : text.index("[listings.dmtf]")]
-    named = {w.strip(",.():") for w in comment.split() if w.startswith("DSP")}
-    named = {w for w in named if w[3:].isdigit() and len(w) == 7}
+    flat = " ".join(comment.replace("#", " ").split())
+    # PR #121 F1: ids are named one by one; a range would also cover ids the
+    # catalog holds (DSP2046, DSP2053, DSP2058, DSP2065)
+    assert not re.search(r"DSP\d{4} (to|-|–) DSP\d{4}", flat)
+    named = set(re.findall(r"\bDSP\d{4}\b", flat))
     assert named
     for dsp in named:
         assert cat.dmtf_not_taken_covers(dsp), dsp
+        assert dsp not in cat.dmtf_listed(), dsp
+
+
+def test_the_comment_names_every_redfish_paper_still_not_taken():
+    cat = load_catalog()
+    text = CATALOG.read_text("utf-8")
+    comment = text[text.index("DMTF left out") : text.index("[listings.dmtf]")]
+    named = set(re.findall(r"\bDSP\d{4}\b", comment))
+    redfish = {
+        "DSP2043", "DSP2044", "DSP2045", "DSP2047", "DSP2048", "DSP2050",
+        "DSP2051", "DSP2052", "DSP2055", "DSP2056", "DSP2059", "DSP2060",
+        "DSP2062", "DSP2063", "DSP2064", "DSP2066", "DSP2068", "DSP2073",
+        "DSP2090",
+    }  # fmt: skip
+    assert redfish <= named
+    for dsp in ("DSP2046", "DSP2053", "DSP2065", "DSP2058"):
+        assert dsp in cat.dmtf_listed(), dsp
+        assert dsp not in named, dsp
 
 
 @pytest.mark.parametrize("dsp", list(NEW))

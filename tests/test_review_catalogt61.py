@@ -70,7 +70,7 @@ def _rows(text: str) -> list[list[str]]:
 # ------------------------------------------------------------------ AC-1
 
 
-def test_ac1_the_five_are_the_last_documents_in_order(shipped):
+def test_ac1_the_five_follow_dsp0251_in_order(shipped):
     ids = [d.id for d in shipped.documents]
     # T63 (2026-11-08) added DSP0285 and DSP0294 after the five
     assert ids[ids.index("DSP0251") + 1 :][:5] == list(BATCH)

@@ -357,8 +357,8 @@ caption, so neither has limits.
 
 On 2026-11-09 three more were added: DSP0220 1.0.1 (FRU Data), DSP0244
 1.2.0 (IPMI PET to Platform Message Registry Mapping) and DSP0280 1.1.0
-(PMCI Test Tools Interface), the remaining BMC-related ids of the
-2026-10-21 review. Each newest version fetches via direct and extracts
+(PMCI Test Tools Interface), the three specifications that review left
+not taken; its white papers stay in `not_taken`. Each newest version fetches via direct and extracts
 with an Outline from its bookmarks (23 pages and 36 entries; 53 and 53;
 71 and 77), `check` prints `current` for all three, and G111 to G113
 verify them. DMTF's page dates DSP0244 1.1.0 2010-11-02, after 1.2.0;
