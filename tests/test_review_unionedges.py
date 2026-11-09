@@ -4,6 +4,8 @@ a later part's edges with the union's in order, one to one, within 6 pt,
 and adds an edge left over; ``spread_row`` then gives every part's row one
 cell per union column. No PDF is read here."""
 
+import itertools
+
 from bmc_toolkit.spec import tables as T
 
 # AC-1 as written: 68 and 76 both lie within 6 pt of the first part's 72
@@ -90,6 +92,34 @@ def test_ac3_no_row_is_wider_than_the_union():
             assert (len(wide), len(split)) == (width, width), second
             assert filled(wide) == ["a", "b"]
             assert split == ["c", "d", "e"]
+
+
+def test_ac3_a_part_whose_own_edges_lie_within_6_pt_keeps_them_all():
+    # round 1 F1: 70 takes 75, 74 is added before it, and 80 must not take
+    # 75 a second time; it finds no free edge and is added too
+    parts = [[75.0, 200.0], [70.0, 74.0, 80.0, 200.0]]
+    union = T.union_columns(parts)
+    assert union == [74.0, 75.0, 80.0, 200.0]
+    assert T.spread_row(["b", "c", "d"], parts[1], union) == ["b", "c", "d"]
+    assert filled(T.spread_row(["a"], parts[0], union)) == ["a"]
+
+
+def test_ac3_no_spacing_of_a_parts_edges_makes_the_union_shorter():
+    # every later part with three edges on a 1 pt grid around the first
+    # part's left edge, most of them closer together than 6 pt
+    for left in (72.0, 75.0, 80.0):
+        first = [left, 200.0]
+        for inner in itertools.combinations(range(66, 88), 3):
+            second = [float(x) for x in inner] + [200.0]
+            union = T.union_columns([first, second])
+            assert union == sorted(union), second
+            assert len(union) >= len(second), second
+            width = len(union) - 1
+            one = T.spread_row(["a"], first, union)
+            three = T.spread_row(["b", "c", "d"], second, union)
+            assert (len(one), len(three)) == (width, width), second
+            assert filled(one) == ["a"]
+            assert filled(three) == ["b", "c", "d"]
 
 
 def test_ac3_three_parts_all_sit_on_the_union():
