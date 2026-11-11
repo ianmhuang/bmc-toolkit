@@ -39,12 +39,17 @@ it: the first ``Figure N ...`` line within 200 pt below it (DMTF, SMBus),
 else the nearest within 200 pt above it (IPMI). The search stops at a line
 mentioning ``Table N``, and a caption with another table between it and
 this one, or (below) a table starting right under it, belongs to that
-other table. Values read from such a grid are checked against the page
-with ``render``.
+other table, unless that table takes a numbered caption of its own lying
+between them (PMBus puts Figure 8's caption over Table 3's). Values read
+from such a grid are checked against the page with ``render``.
 
 A table that is the last body content of its page continues on the next
 page when that page's first body content is a table with the same column
-edges. Running headers, footers and page numbers (lines repeated at the same
+edges, or with the same left and right edges and inner edges that are a
+subset of the other's; under a caption repeated from the page before (or
+the two before) only the left and right edges must match. A table drawn
+inside another's box (nested in a cell) does not count as body content
+here. Running headers, footers and page numbers (lines repeated at the same
 height on a neighbouring page) are not body content. A header row that a
 continuation page repeats, with or without "(continued)", is dropped.
 
@@ -62,7 +67,11 @@ continuation page repeats, with or without "(continued)", is dropped.
                  "row_pages": [page, ...]}, ...]}
 
 ``index`` is the table's 1-based position on its first page, ``columns``
-the x positions of the column edges on that page, ``rows[0]`` the header,
+the x positions of the column edges of all its parts (the first part's
+edges; a later part's edges pair with them in order, one to one, as many
+as can within 6 pt and then the nearest, and an edge left over is added;
+each row is put on them, a cell under the nearest free edge in order),
+``rows[0]`` the header,
 ``row_pages[i]`` the page ``rows[i]`` starts on (so a very long table can
 be printed one page at a time).
 Coordinates are PDF points with the origin top-left, as pdfplumber reports
@@ -77,6 +86,7 @@ with no space character between them, version 7 did so in the lines
 around a table.
 """
 
+import bisect
 import json
 import re
 import textwrap
@@ -86,7 +96,7 @@ from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
 
-TABLES_VERSION = 8
+TABLES_VERSION = 15
 TABLES_NAME = "tables.json"
 
 RULED = "ruled"
@@ -112,6 +122,22 @@ _FIGURE_CAPTION = re.compile(
     r"^(?:\d{1,5}\s+)?(?P<text>Figure\s+[A-Z]?-?\d+(?:[-.]\d+)*(?!\d)\s*"
     r"[:,.–—-]?\s*(?P<title>\S.*))$"
 )
+# a table's id: a number as wide as extract.py's (6-2, A.1, G-1, AA-1), or
+# a Roman numeral (any case) or an upper-case single letter before
+# whitespace, a separator or the end ("Table II - ...", "table ii - ...",
+# "Table A: ..."; not "Table I/O", "table a, b")
+_ID = (
+    r"(?:(?:[A-Z]{1,2}[.-]?)?\d+(?:[-.]\d+)*(?!\d)"
+    r"|(?:[IVXL]+|(?-i:[A-Z]))(?=\s|[:,.–—-]|$))"
+)
+# the same shape for "Table": not "Table 3 lists ..." or "Table 31 and ..."
+_TABLE_CAPTION = re.compile(
+    r"^(?:\d{1,5}\s+)?(?P<text>Table\s+" + _ID + r"\s*"
+    r"[:,.–—-]?\s*(?P<title>\S.*))$",
+    re.IGNORECASE,
+)
+# "Table" in any case and an id; not "table." or "Table of contents"
+_TABLE_ID = re.compile(r"Table\s+" + _ID, re.IGNORECASE)
 _TABLE_MENTION = re.compile(r"\bTable\s+[A-Z]?-?\d", re.IGNORECASE)
 _CONTINUED = re.compile(r"\s*\((?:continued|cont\.?)\)\s*", re.IGNORECASE)
 _DIGITS = re.compile(r"\d+")
@@ -652,7 +678,9 @@ class Reader:
         """Indices of the page's lines that are running headers, footers or
         page numbers: the same words (digits aside, order aside, since facing
         pages mirror their layout) at the same height on one of the two
-        pages before or after."""
+        pages before or after. A caption-like line with a table right
+        under it is not: NVMe repeats a figure's caption at the top of
+        each page the figure runs over."""
         info = self.page(number)
         tops: dict[str, list[float]] = {}
         for n in (number - 2, number - 1, number + 1, number + 2):
@@ -661,6 +689,8 @@ class Reader:
                     tops.setdefault(_furniture_key(other.text), []).append(other.top)
         out = set()
         for i, line in enumerate(info.lines):
+            if _captions_a_table(info, line):
+                continue
             for top in tops.get(_furniture_key(line.text), ()):
                 if abs(top - line.top) <= FURNITURE_TOL_PT:
                     out.add(i)
@@ -677,33 +707,104 @@ class Reader:
             ln.top > table.bottom - BODY_GAP_PT for ln in self.body_lines(table.page)
         )
 
-    def body_above(self, table: PageTable) -> bool:
-        return any(
-            ln.bottom < table.top + BODY_GAP_PT for ln in self.body_lines(table.page)
+    def caption(self, table: PageTable) -> str | None:
+        """The nearest body line within CAPTION_GAP_PT above the table that
+        reads like a caption, past lines that do not (IPMI draws its column
+        names between caption and rules, PMBus a note) but not past another
+        table; else the caption of the figure the table is drawn in; else a
+        `Table` caption ending within CAPTION_GAP_PT above
+        (_caption_to_line_bottom); else a `Table` caption ending the page
+        before (_caption_on_page_before)."""
+        line = self._caption_line_above(table)
+        if line is not None:
+            return _CAPTION.match(line.text.strip()).group("text").strip()
+        return (
+            self._figure_caption(table)
+            or self._caption_to_line_bottom(table)
+            or self._caption_on_page_before(table)
         )
 
-    def caption(self, table: PageTable) -> str | None:
-        """The nearest body line above the table when it reads like a
-        caption, else the caption of the figure the table is drawn in."""
-        above = [
-            ln
-            for ln in self.body_lines(table.page)
-            if ln.bottom < table.top + BODY_GAP_PT
-            and ln.top >= table.top - CAPTION_GAP_PT
-        ]
-        if above:
-            nearest = max(above, key=lambda ln: ln.top)
-            m = _CAPTION.match(nearest.text.strip())
-            if m:
-                return m.group("text").strip()
-        return self._figure_caption(table)
+    def _caption_line_above(self, table: PageTable) -> TextLine | None:
+        """The line caption() takes first: the nearest body line within
+        CAPTION_GAP_PT above the table that reads like a caption, with no
+        other table between."""
+        above = sorted(
+            (
+                ln
+                for ln in self.body_lines(table.page)
+                if ln.bottom < table.top + BODY_GAP_PT
+                and ln.top >= table.top - CAPTION_GAP_PT
+            ),
+            key=lambda ln: -ln.top,
+        )
+        for i, line in enumerate(above):
+            m = _CAPTION.match(line.text.strip())
+            if not m or self._table_between(table, line.bottom, table.top):
+                continue
+            text = m.group("text").strip()
+            # past the nearest line, a Figure line must pass the figure
+            # rule's prose filter ("Figure 3 shows ..." is not a caption)
+            if i and text[:6].lower() == "figure" and figure_caption(line.text) is None:
+                continue
+            return line
+        return None
+
+    def _caption_to_line_bottom(self, table: PageTable) -> str | None:
+        """The nearest `Table` caption whose bottom, not top, lies within
+        CAPTION_GAP_PT above the table, with no other table between (PMBus
+        Table 31: its top lies 47 pt up, past two note lines). Only a
+        `Table` line: measuring to the bottom for every caption took a
+        prose line starting "Figure 24 —" over DSP0274's own caption."""
+        above = sorted(
+            (
+                ln
+                for ln in self.body_lines(table.page)
+                if ln.bottom < table.top + BODY_GAP_PT
+                and ln.bottom >= table.top - CAPTION_GAP_PT
+            ),
+            key=lambda ln: -ln.top,
+        )
+        for line in above:
+            text = _table_caption(line.text)
+            if text and not self._table_between(table, line.bottom, table.top):
+                return text
+        return None
+
+    def _caption_on_page_before(self, table: PageTable) -> str | None:
+        """A table that starts its page with no body line above it takes the
+        last body line of the page before when that line is a `Table`
+        caption below every table there (IPMI and DSP2058 leave a caption
+        at the foot of a page when the table does not fit). A `Figure`
+        line is not taken: SMBus puts a figure's caption under its
+        drawing."""
+        if table.index != 0 or table.page == 1:
+            return None
+        if any(
+            ln.bottom < table.top + BODY_GAP_PT for ln in self.body_lines(table.page)
+        ):
+            return None
+        body = self.body_lines(table.page - 1)
+        if not body:
+            return None
+        last = max(body, key=lambda ln: ln.top)
+        if any(
+            last.top <= t.bottom - BODY_GAP_PT for t in self.page(table.page - 1).tables
+        ):
+            return None
+        m = _CAPTION.match(last.text.strip())
+        # "Table" in any case, then an id: not a wrapped "table." or
+        # "table below:" ending a sentence (PR #118 F2)
+        if not m or not _TABLE_ID.match(m.group("text")):
+            return None
+        return m.group("text").strip()
 
     def _figure_caption(self, table: PageTable) -> str | None:
         """A Figure caption within FIGURE_GAP_PT of the table: the first one
         below it, else the nearest above it. Box diagrams read as tables
         have their caption under the figure (DMTF, SMBus) or over it
         (IPMI). A caption with a table right under it names that table
-        (NVMe captions its tables "Figure N" above them), and one with
+        (NVMe captions its tables "Figure N" above them) unless that table
+        takes a numbered caption of its own (_table_under), and one with
         another table between is not this table's."""
         lines = self.body_lines(table.page)
         below = sorted(
@@ -742,23 +843,67 @@ class Reader:
         )
 
     def _table_under(self, table: PageTable, line: TextLine) -> bool:
-        return any(
-            t is not table and line.bottom < t.top <= line.bottom + CAPTION_GAP_PT
-            for t in self.page(table.page).tables
-        )
+        """True when another table starts within CAPTION_GAP_PT under
+        ``line`` and the line may be its caption: it takes this line, or
+        no line, or one that is not a numbered caption (NVME-MI p69 takes
+        "Table", the last word of a wrapped Figure caption). A table that
+        takes a numbered caption of its own between them leaves the line
+        to ``table`` (PMBus Figure 8 over Table 3, PR #72 F2)."""
+        for t in self.page(table.page).tables:
+            if t is table or not line.bottom < t.top <= line.bottom + CAPTION_GAP_PT:
+                continue
+            own = self._caption_line_above(t)
+            if own is None or own == line:
+                return True
+            if _table_caption(own.text) is None and figure_caption(own.text) is None:
+                return True
+        return False
 
     # ------------------------------------------------- continuation
 
+    def outer_tables(self, number: int) -> list[PageTable]:
+        """The page's tables less those nested in another table's cells
+        (NVMe draws a Value/Definition table inside a field's cell)."""
+        tables = self.page(number).tables
+        return [t for t in tables if not any(_nested_in(t, o) for o in tables)]
+
     def continues(self, a: PageTable, b: PageTable) -> bool:
         """True when table ``b`` (first on its page) carries on table ``a``
-        (last on the page before)."""
+        (last on the page before), nested tables aside. The column edges
+        match, or one part's are a subset of the other's; under a repeated
+        caption only the outer frame must match (an NVMe figure's inner
+        columns change with what its cells hold)."""
         if b.page != a.page + 1:
             return False
-        if a.index != len(self.page(a.page).tables) - 1 or b.index != 0:
+        before, after = self.outer_tables(a.page), self.outer_tables(b.page)
+        if not before or before[-1] is not a or not after or after[0] is not b:
             return False
-        if not columns_match(a.columns, b.columns):
+        if self.body_below(a):
             return False
-        return not self.body_below(a) and not self.body_above(b)
+        above = [
+            ln for ln in self.body_lines(b.page) if ln.bottom < b.top + BODY_GAP_PT
+        ]
+        if not (
+            columns_match(a.columns, b.columns)
+            or _columns_subset(a.columns, b.columns)
+            or (above and _frame_match(a.columns, b.columns))
+        ):
+            return False
+        # a caption repeated from the page before, or one of the two before
+        # that (a page the table fills from its top has no room for the
+        # caption: NVMe Figure 338), does not stop the join; any other
+        # line, a new caption among them, does. Only a line that captions a
+        # table there counts as a caption to repeat.
+        repeats = {
+            _caption_key(ln.text)
+            for n in range(max(1, a.page - 2), a.page + 1)
+            for ln in self.page(n).lines
+            if _captions_a_table(self.page(n), ln)
+        }
+        return all(
+            _CAPTION.match(ln.text.strip()) and _caption_key(ln.text) in repeats
+            for ln in above
+        )
 
     def logical_tables(
         self,
@@ -803,14 +948,14 @@ class Reader:
         parts = [table]
         cur = table
         while cur.page > 1:
-            prev = self.page(cur.page - 1).tables
+            prev = self.outer_tables(cur.page - 1)
             if not prev or not self.continues(prev[-1], cur):
                 break
             cur = prev[-1]
             parts.insert(0, cur)
         cur = table
         while cur.page < self.page_count:
-            nxt = self.page(cur.page + 1).tables
+            nxt = self.outer_tables(cur.page + 1)
             if not nxt or not self.continues(cur, nxt[0]):
                 break
             cur = nxt[0]
@@ -819,17 +964,30 @@ class Reader:
 
     def _assemble(self, parts: list[PageTable], section_of) -> LogicalTable:
         first = parts[0]
-        rows: list[list[str]] = [list(r) for r in first.rows]
+        # the parts' rows on one column set: the union of their edges
+        columns = union_columns([p.columns for p in parts])
+        rows: list[list[str]] = [
+            spread_row(r, first.columns, columns) for r in first.rows
+        ]
         row_pages = [first.page] * len(rows)
         previous = first
         for part in parts[1:]:
-            more = drop_repeated_header(rows, part.rows)
+            spread = [spread_row(r, part.columns, columns) for r in part.rows]
+            more = drop_repeated_header(rows, spread)
             more = drop_repeated_header(rows, more)  # a "(continued)" sub-header too
+            if len(more) == len(spread) and len(part.columns) == len(first.columns):
+                # inner edges moved (a frame join): the header as drawn
+                own = drop_repeated_header(first.rows, part.rows)
+                own = drop_repeated_header(first.rows, own)
+                more = spread[len(part.rows) - len(own) :]
+            # the cut-row checks read the row as drawn, not the empty cells
+            # spread_row adds for the edges a cell spans
+            drawn = part.rows[len(part.rows) - len(more)] if more else []
             if previous.drawn == CELLS:
-                cut = bool(more) and _is_partial_row(more[0])
+                cut = bool(more) and _is_partial_row(drawn)
             else:
                 cut = previous.open_bottom
-            if more and rows and cut and _is_cut_row(more[0]):
+            if more and rows and cut and _is_cut_row(drawn):
                 rows[-1] = join_cells(rows[-1], more[0])
                 more = more[1:]
             rows.extend(more)
@@ -849,7 +1007,7 @@ class Reader:
             index=first.index + 1,
             caption=caption,
             section=section,
-            columns=first.columns,
+            columns=columns,
             parts=[[p.page, p.index, *[round(v, 1) for v in p.bbox]] for p in parts],
             rows=rows,
             drawn=first.drawn,
@@ -865,6 +1023,23 @@ def figure_caption(text: str) -> str | None:
         return None
     title = m.group("title")
     if title[0].islower() or title.startswith(("Figure", ")")):
+        return None
+    if not any(c.isalpha() for c in title):
+        return None
+    return m.group("text").strip()
+
+
+def _table_caption(text: str) -> str | None:
+    """The caption in a line that reads like a Table caption, without a
+    margin line number; None for prose that starts with "Table": "Table 3
+    lists ...", "Table 12, Table 13 and ...", "Table 3 (above) ..."."""
+    m = _TABLE_CAPTION.match(text.strip())
+    if not m:
+        return None
+    title = m.group("title")
+    if title[0].islower() or _TABLE_ID.match(title):
+        return None
+    if title[0] in "()" and not _CONTINUED.fullmatch(title):
         return None
     if not any(c.isalpha() for c in title):
         return None
@@ -890,10 +1065,141 @@ def _furniture_key(text: str) -> str:
     return " ".join(sorted(_DIGITS.sub("", text).lower().split()))
 
 
+def _caption_key(text: str) -> str:
+    """A caption line without its margin line number, spacing aside."""
+    m = _CAPTION.match(text.strip())
+    return " ".join((m.group("text") if m else text).split())
+
+
+def _captions_a_table(info: PageInfo, line: TextLine) -> bool:
+    """True when ``line`` reads like a caption and a table on its page
+    starts within CAPTION_GAP_PT under it (the caption rule's window)."""
+    if not _CAPTION.match(line.text.strip()):
+        return False
+    return any(
+        line.bottom < t.top + BODY_GAP_PT and line.top >= t.top - CAPTION_GAP_PT
+        for t in info.tables
+    )
+
+
 def columns_match(a: list[float], b: list[float]) -> bool:
     if len(a) != len(b):
         return False
     return all(abs(x - y) <= COLUMN_TOL_PT for x, y in zip(a, b, strict=True))
+
+
+def _frame_match(a: list[float], b: list[float]) -> bool:
+    """The two parts' left and right edges match."""
+    return abs(a[0] - b[0]) <= COLUMN_TOL_PT and abs(a[-1] - b[-1]) <= COLUMN_TOL_PT
+
+
+def _columns_subset(a: list[float], b: list[float]) -> bool:
+    """The frames match and every edge of the part with fewer lies on an
+    edge of the other (a column split on some pages only)."""
+    if not _frame_match(a, b):
+        return False
+    fewer, more = (a, b) if len(a) <= len(b) else (b, a)
+    return all(any(abs(x - y) <= COLUMN_TOL_PT for y in more) for x in fewer)
+
+
+def _nested_in(table: PageTable, other: PageTable) -> bool:
+    """True when ``table`` lies inside ``other``'s box, in one of its cells."""
+    if table is other:
+        return False
+    (x0, top, x1, bottom), (ox0, otop, ox1, obottom) = table.bbox, other.bbox
+    inside = (
+        ox0 - BODY_GAP_PT <= x0
+        and otop - BODY_GAP_PT <= top
+        and x1 <= ox1 + BODY_GAP_PT
+        and bottom <= obottom + BODY_GAP_PT
+    )
+    return inside and (x1 - x0) * (bottom - top) < (ox1 - ox0) * (obottom - otop)
+
+
+def _pair_in_order(
+    xs: list[float], us: list[float], every: bool
+) -> list[tuple[int, int]]:
+    """Pairs (i, j) of ``xs[i]`` with ``us[j]``, both increasing (in
+    order, one to one), with the most pairs within COLUMN_TOL_PT and then
+    the least total distance; on a tie the earlier x pairs with the
+    earlier u. Without ``every`` only pairs within COLUMN_TOL_PT are made
+    and the rest of ``xs`` stays unpaired; with it every x pairs (callers
+    pass at least as many us as xs) and every pair's distance counts.
+    Taking the first edge within COLUMN_TOL_PT instead put an NVMe nested
+    row's cell under the wrong column (T71); taking the nearest one alone
+    left a shifted narrow column's second edge without a partner."""
+    n, m = len(xs), len(us)
+    # best[i][j]: (pairs within tolerance, -distance) for xs[i:] on us[j:],
+    # None where ``every`` cannot place the rest
+    best: list[list[tuple[int, float] | None]]
+    best = [[None] * (m + 1) for _ in range(n + 1)]
+    step = [[""] * (m + 1) for _ in range(n + 1)]
+    best[n] = [(0, 0.0)] * (m + 1)
+    for i in range(n - 1, -1, -1):
+        for j in range(m, -1, -1):
+            options: list[tuple[tuple[int, float], str]] = []
+            if j < m:
+                d = abs(xs[i] - us[j])
+                near = d <= COLUMN_TOL_PT
+                rest = best[i + 1][j + 1]
+                if rest is not None and (near or every):
+                    options.append(((rest[0] + near, rest[1] - d), "pair"))
+                rest = best[i][j + 1]
+                if rest is not None:
+                    options.append((rest, "skip u"))
+            if not every:
+                options.append((best[i + 1][j], "skip x"))
+            if options:
+                # max keeps the first of equal scores: pair before skipping
+                best[i][j], step[i][j] = max(options, key=lambda o: o[0])
+    pairs = []
+    i = j = 0
+    while i < n and step[i][j]:
+        if step[i][j] == "pair":
+            pairs.append((i, j))
+            i, j = i + 1, j + 1
+        elif step[i][j] == "skip u":
+            j += 1
+        else:
+            i += 1
+    return pairs
+
+
+def union_columns(parts: list[list[float]]) -> list[float]:
+    """The column edges of all parts, the first part's first. A later
+    part's edges pair with the union's in order, one to one, as many as
+    can within COLUMN_TOL_PT and then the nearest (_pair_in_order); an
+    edge left unpaired is added. Two edges of one part are never one
+    union edge, so the union has at least as many edges as any part, even
+    when a part's own edges lie closer than COLUMN_TOL_PT."""
+    edges = sorted(parts[0])
+    for columns in parts[1:]:
+        xs = sorted(columns)
+        paired = {i for i, _ in _pair_in_order(xs, edges, every=False)}
+        for i, x in enumerate(xs):
+            if i not in paired:
+                bisect.insort(edges, x)
+    return edges
+
+
+def spread_row(row: list[str], edges: list[float], union: list[float]) -> list[str]:
+    """A part's row on the union of the column edges, empty cells over the
+    edges a cell spans. The cells are placed in order, one to a union edge,
+    as many as can within COLUMN_TOL_PT of their left edge and then the
+    nearest (_pair_in_order). A part whose edges match the union within
+    COLUMN_TOL_PT, or a row whose cell count differs from its own edges,
+    is returned as it is, padded to the union's width. A row placed on the
+    union with more cells than the union has columns is a ValueError
+    (union_columns never gives fewer edges than a part)."""
+    width = len(union) - 1
+    if len(row) != len(edges) - 1 or columns_match(edges, union):
+        return row + [""] * (width - len(row))
+    if len(row) > width:
+        raise ValueError(f"{len(row)} cells on {width} columns")
+    out = [""] * width
+    for i, k in _pair_in_order(edges[:-1], union[:-1], every=True):
+        out[k] = row[i]
+    return out
 
 
 def _row_key(row: list[str]) -> tuple[str, ...]:

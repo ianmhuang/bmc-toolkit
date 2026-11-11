@@ -70,10 +70,13 @@ def _rows(text: str) -> list[list[str]]:
 # ------------------------------------------------------------------ AC-1
 
 
-def test_ac1_the_five_are_the_last_documents_in_order(shipped):
+def test_ac1_the_five_follow_dsp0251_in_order(shipped):
     ids = [d.id for d in shipped.documents]
-    assert ids[ids.index("DSP0251") + 1 :] == list(BATCH)
-    assert ids[-5:] == list(BATCH)
+    # T63 (2026-11-08) added DSP0285 and DSP0294 after the five
+    assert ids[ids.index("DSP0251") + 1 :][:5] == list(BATCH)
+    # and T72 (2026-11-09) DSP0220, DSP0244 and DSP0280 after those
+    assert ids[-10:-5] == list(BATCH)
+    assert ids[-5:] == ["DSP0285", "DSP0294", "DSP0220", "DSP0244", "DSP0280"]
     assert len(ids) == len({i.lower() for i in ids})
 
 
@@ -144,9 +147,11 @@ def test_ac2_the_dmtf_ids_are_listed_and_left_not_taken(shipped):
         assert listed.get(dsp) == dsp, dsp
         assert dsp not in shipped.dmtf_not_taken, dsp
         assert not shipped.dmtf_not_taken_covers(dsp), dsp
-    # four entries left; what the review named next is still there
-    assert len(shipped.dmtf_not_taken) == 135
-    for dsp in ("DSP0285", "DSP0294"):
+    # four entries left here, two more when T63 (2026-11-08) took DSP0285
+    # and DSP0294, three when T72 (2026-11-09) took DSP0220, DSP0244 and
+    # DSP0280; the white papers the review named are still there
+    assert len(shipped.dmtf_not_taken) == 130
+    for dsp in ("DSP2015", "DSP2054", "DSP2072"):
         assert shipped.dmtf_not_taken_covers(dsp), dsp
         assert dsp not in listed, dsp
 
@@ -192,9 +197,12 @@ def test_ac2_the_catalog_refuses_a_not_taken_entry_that_names_a_taken_one(tmp_pa
 @pytest.mark.parametrize(
     "doc_id, words",
     [
-        ("DSP0282", ("Table 2", "caption", "Table 1", "byte number", "page")),
-        ("DSP2058", ("Table 1", "caption", "page 14", "page 15")),
-        ("NVME-NVM", ("Figure 123", "caption", "page")),
+        # T65 reads Table 2's caption, so DSP0282 keeps only the cut rows;
+        # T67 reads DSP2058's Table 1 caption from page 14, so DSP2058 has
+        # no limit left (test_catalog_t61.py checks that)
+        ("DSP0282", ("Table 1", "byte number", "page")),
+        # T69.2 joins Figure 123, so only Figures 157 and 159 are left
+        ("NVME-NVM", ("Figures 157 and 159", "caption", "page")),
     ],
 )
 def test_ac3_limits_record_the_caption_cases_with_the_command_to_use(
@@ -204,7 +212,8 @@ def test_ac3_limits_record_the_caption_cases_with_the_command_to_use(
     assert limits, doc_id
     for word in words:
         assert word in limits, (doc_id, word)
-    assert "`-`" in limits, doc_id
+    if doc_id != "DSP0282":
+        assert "`-`" in limits, doc_id
 
 
 def test_ac3_the_other_two_have_no_limit(shipped):
@@ -232,7 +241,8 @@ def test_ac5_the_group_follows_the_pdr_group_and_ids_stay_gap_free():
     ids = [cells[0] for cells in _rows(section)]
     assert ids == list(QUESTIONS.values())
     numbers = [int(cells[0][1:]) for cells in _rows(text)]
-    assert sorted(numbers) == list(range(1, 109))
+    # T63 (2026-11-08) added G109 and G110, T72 (2026-11-09) G111-G113
+    assert sorted(numbers) == list(range(1, 114))
     assert numbers[numbers.index(103) + 1 :][:5] == [104, 105, 106, 107, 108]
 
 
@@ -307,11 +317,13 @@ def test_ac6_each_row_sits_under_its_family_heading(shipped, generated):
 def test_ac7_counts_grew_by_exactly_the_five_open_entries(shipped):
     docs = shipped.documents
     open_docs = [d for d in docs if d.access == "open"]
-    assert len(docs) == 119
-    assert len(open_docs) == 99
+    # T63 (2026-11-08) added two open documents, T72 (2026-11-09) three:
+    # 124 and 104
+    assert len(docs) == 124
+    assert len(open_docs) == 104
     assert len(docs) - len(open_docs) == 20
     assert len({d.family for d in docs}) == 35
     # the README status line states the same numbers
     readme = " ".join(README.read_text(encoding="utf-8").split())
-    assert "lists 119 documents in 35 families" in readme
-    assert "The 99 open ones" in readme
+    assert "lists 124 documents in 35 families" in readme
+    assert "The 104 open ones" in readme

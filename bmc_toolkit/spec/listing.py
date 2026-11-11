@@ -201,11 +201,6 @@ def parse_dmtf_published(html: str) -> dict[str, Seen]:
     return {dsp: seen for dsp, seen, _ in _dmtf_published_rows(html)}
 
 
-def parse_dmtf_titles(html: str) -> dict[str, str]:
-    """DSP id -> its title, from the published-documents page."""
-    return {dsp: title for dsp, _, title in _dmtf_published_rows(html)}
-
-
 def parse_dmtf_versions(html: str) -> list[Seen]:
     """Every version of one DSP with its date, from the per-DSP page."""
     out = []
@@ -388,7 +383,6 @@ __all__ = [
     "nvme_version_of_url",
     "ocp_date",
     "parse_dmtf_published",
-    "parse_dmtf_titles",
     "parse_dmtf_versions",
     "parse_listing",
     "parse_nvme",

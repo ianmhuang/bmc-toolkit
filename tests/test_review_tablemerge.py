@@ -303,7 +303,8 @@ def test_different_column_edges_stop_the_merge(tmp_path):
 def test_different_column_count_stops_the_merge(tmp_path):
     page1 = furniture(1) + grid(72, 200, WIDTHS, [16] * 2, [HEADER, ROWS_A[0]])
     page2 = furniture(2) + grid(
-        72, 740, [100, 80, 100, 100], [16] * 2, [["A", "B", "C", "D"], ["1", "2", "3", "4"]]
+        # T69.2: edges that are not a subset of page 1's (232 vs 252)
+        72, 740, [100, 60, 120, 100], [16] * 2, [["A", "B", "C", "D"], ["1", "2", "3", "4"]]
     )
     with reader(tmp_path, [page1, page2]) as r:
         assert spans(r.logical_tables(1)) == [(1, 1)]
@@ -331,7 +332,9 @@ def test_caption_is_the_nearest_line_within_40_points_starting_with_table_or_fig
         assert r.logical_tables(1)[0].caption == "Table 7 - Near"
         assert r.logical_tables(2)[0].caption == "Figure 3 - Also a caption"
         assert r.logical_tables(3)[0].caption is None
-        assert r.logical_tables(4)[0].caption is None
+        # T65: the nearest caption-like line within 40 pt is taken past a
+        # line that is not one (IPMI's column names stand there)
+        assert r.logical_tables(4)[0].caption == "Table 9 - Hidden"
 
 
 def test_caption_comes_from_the_first_part_only(tmp_path):

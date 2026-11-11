@@ -170,33 +170,35 @@ publisher = "Nuvoton"
 # informational, DSP08xx SM CLP mappings, DSP1xxx CIM profiles, DSP4xxx
 # and DSP5xxx policies. The ids are CIM, WBEM, WS-Management, CMDBf,
 # OVF, CADF and CIMI documents, white papers and XML schemas, and
-# documents near the BMC families not taken yet (DSP0285 RedPath,
-# DSP0294, the PMCI white papers DSP2015, DSP2016 and DSP2037, the SPDM
-# post-quantum white paper DSP2072, the PLDM modeling white papers and
-# the Redfish white papers): taking one removes it from this list.
+# documents near the BMC families not taken yet (the PMCI white papers
+# DSP2015, DSP2016 and DSP2037, the SPDM post-quantum white paper
+# DSP2072, the PLDM modeling white papers DSP2054, DSP2061 and DSP2067,
+# and the Redfish white papers, guides and mockup bundle DSP2043,
+# DSP2044, DSP2045, DSP2047, DSP2048, DSP2050, DSP2051, DSP2052, DSP2055,
+# DSP2056, DSP2059, DSP2060, DSP2062, DSP2063, DSP2064, DSP2066, DSP2068,
+# DSP2073 and DSP2090): taking one removes it from this list.
 
 [listings.dmtf]
 not_taken = [
     "DSP-IS", "DSP08", "DSP1", "DSP4", "DSP5", "DSP0004", "DSP0114",
     "DSP0123", "DSP0136", "DSP0137", "DSP0138", "DSP0198", "DSP0200", "DSP0201",
     "DSP0202", "DSP0203", "DSP0205", "DSP0206", "DSP0207", "DSP0210", "DSP0211",
-    "DSP0212", "DSP0214", "DSP0215", "DSP0216", "DSP0217", "DSP0219", "DSP0220",
-    "DSP0221", "DSP0223", "DSP0224", "DSP0226", "DSP0227", "DSP0228", "DSP0230",
-    "DSP0231", "DSP0232", "DSP0243", "DSP0244", "DSP0252", "DSP0255", "DSP0262",
-    "DSP0263", "DSP0264", "DSP0265", "DSP0280", "DSP0285", "DSP0294", "DSP2000",
-    "DSP2001", "DSP2011", "DSP2013", "DSP2014", "DSP2015", "DSP2016", "DSP2017",
-    "DSP2021", "DSP2022", "DSP2023", "DSP2024", "DSP2025", "DSP2027", "DSP2032",
-    "DSP2033", "DSP2037", "DSP2038", "DSP2042", "DSP2043", "DSP2044", "DSP2045",
-    "DSP2047", "DSP2048", "DSP2050", "DSP2051", "DSP2052", "DSP2054", "DSP2055",
-    "DSP2056", "DSP2059", "DSP2060", "DSP2061", "DSP2062", "DSP2063", "DSP2064",
-    "DSP2066", "DSP2067", "DSP2068", "DSP2072", "DSP2073", "DSP2090", "DSP8000",
-    "DSP8001", "DSP8004", "DSP8005", "DSP8006", "DSP8007", "DSP8008", "DSP8009",
-    "DSP8012", "DSP8014", "DSP8015", "DSP8016", "DSP8019", "DSP8020", "DSP8022",
-    "DSP8023", "DSP8024", "DSP8025", "DSP8026", "DSP8027", "DSP8028", "DSP8029",
-    "DSP8030", "DSP8031", "DSP8032", "DSP8033", "DSP8034", "DSP8035", "DSP8036",
-    "DSP8037", "DSP8039", "DSP8040", "DSP8041", "DSP8042", "DSP8043", "DSP8044",
-    "DSP8045", "DSP8046", "DSP8047", "DSP8049", "DSP8050", "DSP8051", "DSP8052",
-    "DSP8053", "DSP8054",
+    "DSP0212", "DSP0214", "DSP0215", "DSP0216", "DSP0217", "DSP0219", "DSP0221",
+    "DSP0223", "DSP0224", "DSP0226", "DSP0227", "DSP0228", "DSP0230", "DSP0231",
+    "DSP0232", "DSP0243", "DSP0252", "DSP0255", "DSP0262", "DSP0263", "DSP0264",
+    "DSP0265", "DSP2000", "DSP2001", "DSP2011", "DSP2013", "DSP2014", "DSP2015",
+    "DSP2016", "DSP2017", "DSP2021", "DSP2022", "DSP2023", "DSP2024", "DSP2025",
+    "DSP2027", "DSP2032", "DSP2033", "DSP2037", "DSP2038", "DSP2042", "DSP2043",
+    "DSP2044", "DSP2045", "DSP2047", "DSP2048", "DSP2050", "DSP2051", "DSP2052",
+    "DSP2054", "DSP2055", "DSP2056", "DSP2059", "DSP2060", "DSP2061", "DSP2062",
+    "DSP2063", "DSP2064", "DSP2066", "DSP2067", "DSP2068", "DSP2072", "DSP2073",
+    "DSP2090", "DSP8000", "DSP8001", "DSP8004", "DSP8005", "DSP8006", "DSP8007",
+    "DSP8008", "DSP8009", "DSP8012", "DSP8014", "DSP8015", "DSP8016", "DSP8019",
+    "DSP8020", "DSP8022", "DSP8023", "DSP8024", "DSP8025", "DSP8026", "DSP8027",
+    "DSP8028", "DSP8029", "DSP8030", "DSP8031", "DSP8032", "DSP8033", "DSP8034",
+    "DSP8035", "DSP8036", "DSP8037", "DSP8039", "DSP8040", "DSP8041", "DSP8042",
+    "DSP8043", "DSP8044", "DSP8045", "DSP8046", "DSP8047", "DSP8049", "DSP8050",
+    "DSP8051", "DSP8052", "DSP8053", "DSP8054",
 ]
 
 # ---------------------------------------------------------------- Intel
@@ -226,6 +228,7 @@ family = "ipmi"
 title = "IPMI Specification, Second Generation, v2.0 Specification Update (Errata/Addenda/Clarifications)"
 access = "open"
 fetch = "direct"
+limits = "Page 436 holds a stray fragment of Table 30-2 (Get PEF Capabilities, byte 3 only) and page 437 prints its caption and the whole table again, so table joins the two and byte 3 shows twice; read page 437."
 
 [[documents.versions]]
 version = "2.0 rev 1.1 Errata 7"
@@ -3767,6 +3770,7 @@ title = "SFF-8636 Specification for Management Interface for 4-lane Modules and 
 access = "open"
 fetch = "direct"
 searched_with = ["SFF-8024"]
+limits = "Figures 5-5 and 5-6 (page 26, two bit sequences drawn as boxes, each captioned under it) read with the lower one captioned `Figure 5-5 ...` and the upper `-`; page shows which caption goes with which."
 notes = "QSFP and 4-lane cable memory map; CMIS supersedes it for newer form factors. members.snia.org/document/dl/<n> always serves the current revision, so a fetch may return a newer revision than this entry names; refresh cannot see it."
 
 [[documents.versions]]
@@ -4561,7 +4565,7 @@ family = "mctp"
 title = "Memory-Mapped Buffer Interface (MMBI) Specification"
 access = "open"
 fetch = "direct"
-limits = "Table 2's caption prints as `-`: one word of it is set 4 pt lower and reads as its own line above the table. Rows of Table 1 that a page break cuts (bytes 6 and 24) print without their byte number, the PDF drawing no left rule for those parts. Read both with page (pages 15-18)."
+limits = "Rows of Table 1 that a page break cuts (bytes 6 and 24) print without their byte number, the PDF drawing no left rule for those parts. Read them with page (pages 15-17)."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -4643,7 +4647,6 @@ family = "spdm"
 title = "Security Protocol and Data Model (SPDM) Architecture White Paper"
 access = "open"
 fetch = "direct"
-limits = "Table 1's caption is the last line of page 14 and the table starts on page 15, so table prints the caption as `-`; page 14 shows it."
 
 [[documents.versions]]
 version = "1.0.0"
@@ -4677,13 +4680,117 @@ listing = "nvme:nvm-command-set-specification"
 title = "NVM Express NVM Command Set Specification"
 access = "open"
 fetch = "direct"
-limits = "A figure that repeats its caption at the top of each continuation page (Figure 123, Identify Namespace, pages 85-93) prints its caption as `-`, the repeated line being taken for a running header; page shows it."
+limits = "Figures 157 and 159 (pages 133 and 134, bit layouts drawn as boxes) print their caption as `-`, since it lies 42 pt above the boxes; page shows it."
 
 [[documents.versions]]
 version = "1.3"
 url = "https://nvmexpress.org/wp-content/uploads/NVM-Express-NVM-Command-Set-Specification-Revision-1.3-Ratified-2026.07.31.pdf"
 type = "pdf"
 published = "2026-07-31"
+
+[[documents]]
+id = "DSP0285"
+family = "redfish"
+title = "RedPath Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0285_1.0.0.pdf"
+type = "pdf"
+published = "2022-11-30"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0285_1.0.1.pdf"
+type = "pdf"
+published = "2023-01-23"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0285_1.1.0.pdf"
+type = "pdf"
+published = "2023-05-22"
+
+[[documents]]
+id = "DSP0294"
+family = "spdm"
+title = "DMTF Authorization Policy Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0294_1.0.0.pdf"
+type = "pdf"
+published = "2026-08-31"
+
+[[documents]]
+id = "DSP0220"
+family = "pldm"
+title = "Field Replaceable Unit (FRU) Data Specification"
+access = "open"
+fetch = "direct"
+limits = "Table 1 (page 13): the first column, Component, is a cell spanning several rows and is not read; table prints the other three columns without the header row and the FRU File(s) row."
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0220_1.0.0.pdf"
+type = "pdf"
+published = "2025-05-19"
+
+[[documents.versions]]
+version = "1.0.1"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0220_1.0.1.pdf"
+type = "pdf"
+published = "2025-09-22"
+
+[[documents]]
+id = "DSP0244"
+family = "ipmi"
+title = "IPMI PET to Platform Message Registry Mapping"
+access = "open"
+fetch = "direct"
+listing = "dmtf:DSP0244"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0244_1.0.0.pdf"
+type = "pdf"
+published = "2009-05-13"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0244_1.1.0.pdf"
+type = "pdf"
+published = "2009-11-02"
+notes = "Date from the cover; DMTF's page lists 2010-11-02, after 1.2.0."
+
+[[documents.versions]]
+version = "1.2.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0244_1.2.0.pdf"
+type = "pdf"
+published = "2010-10-27"
+
+[[documents]]
+id = "DSP0280"
+family = "mctp"
+title = "PMCI Test Tools Interface and Design Specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1.0.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0280_1.0.0.pdf"
+type = "pdf"
+published = "2022-10-10"
+
+[[documents.versions]]
+version = "1.1.0"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0280_1.1.0.pdf"
+type = "pdf"
+published = "2026-07-02"
 
 [[repos]]
 id = "openbmc"

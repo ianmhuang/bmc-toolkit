@@ -31,7 +31,8 @@ def test_the_five_follow_dsp0251_with_every_listed_version():
     cat = load_catalog()
     ids = [d.id for d in cat.documents]
     at = ids.index("DSP0251")
-    assert ids[at + 1 :] == list(NEW)
+    # T63 (2026-11-08) added two more after the five
+    assert ids[at + 1 : at + 6] == list(NEW)
     for doc_id, (family, versions) in NEW.items():
         doc = cat.get(doc_id)
         assert doc.family == family, doc_id
@@ -65,11 +66,17 @@ def test_the_dmtf_ones_left_not_taken():
 
 def test_limits_name_the_caption_cases_and_where_to_read_them():
     cat = load_catalog()
-    assert "Table 2's caption" in cat.get("DSP0282").limits
+    # T65 reads Table 2's caption past the line between, so only the cut
+    # rows of Table 1 are left
+    assert "Table 2's caption" not in cat.get("DSP0282").limits
     assert "byte number" in cat.get("DSP0282").limits
-    assert "page 14" in cat.get("DSP2058").limits
-    assert "Figure 123" in cat.get("NVME-NVM").limits
-    for doc_id in ("DSP0282", "DSP2058", "NVME-NVM"):
+    # T67 reads DSP2058's Table 1 caption from the foot of page 14
+    assert cat.get("DSP2058").limits == ""
+    # T66 reads Figure 123's caption and T69.2 joins its parts, so only
+    # Figures 157 and 159 whose caption lies past the 40 pt window are left
+    assert "Figure 123" not in cat.get("NVME-NVM").limits
+    assert "Figures 157 and 159" in cat.get("NVME-NVM").limits
+    for doc_id in ("DSP0282", "NVME-NVM"):
         assert re.search(r"\bpage\b", cat.get(doc_id).limits), doc_id
     assert cat.get("DSP0293").limits == "" and cat.get("DSP0288").limits == ""
 
@@ -96,6 +103,7 @@ def test_readme_counts_the_catalog():
     total = len(docs)
     open_docs = sum(d.access == "open" for d in docs)
     families = len({d.family for d in docs})
-    assert (total, open_docs, families) == (119, 99, 35)
+    # T63 (2026-11-08) added two open documents, T72 (2026-11-09) three
+    assert (total, open_docs, families) == (124, 104, 35)
     assert f"lists {total} documents in {families} families" in readme
     assert f"The {open_docs} open ones" in readme

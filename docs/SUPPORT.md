@@ -36,10 +36,11 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | Document | Access | Latest | Verified | Known limit |
 |---|---|---|---|---|
 | `IPMI` Intelligent Platform Management Interface Specification, Second Generation, v2.0 | open | 2.0 rev 1.1 | PASS | Table numbers are missing from the PDF's text layer; tables are cited by title. |
-| `IPMI-UPDATE` IPMI Specification, Second Generation, v2.0 Specification Update (Errata/Addenda/Clarifications) | open | 2.0 rev 1.1 Errata 7 | PASS | - |
+| `IPMI-UPDATE` IPMI Specification, Second Generation, v2.0 Specification Update (Errata/Addenda/Clarifications) | open | 2.0 rev 1.1 Errata 7 | PASS | Page 436 holds a stray fragment of Table 30-2 (Get PEF Capabilities, byte 3 only) and page 437 prints its caption and the whole table again, so table joins the two and byte 3 shows twice; read page 437. |
 | `IPMB` Intelligent Platform Management Bus Communications Protocol Specification | open | 1.0 | PASS | PDF bookmarks carry titles without section numbers: section by title, not by number. |
 | `IPMI-FRU` Platform Management FRU Information Storage Definition | open | 1.0 rev 1.3 | PASS | - |
 | `DCMI` Data Center Manageability Interface Specification | open | 1.5 | PASS | - |
+| `DSP0244` IPMI PET to Platform Message Registry Mapping | open | 1.2.0 | PASS | - |
 
 ## Enhanced Serial Peripheral Interface
 
@@ -66,7 +67,8 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0234` CXL™ Fabric Manager API over MCTP Binding Specification | open | 1.0.0 | PASS | PDF bookmarks are cross-reference anchors, not headings: section finds nothing and cites name an anchor; use find and page. |
 | `DSP0281` CXL™ Type 3 Device Component Command Interface over MCTP Binding Specification | open | 1.0.0 | PASS | - |
 | `DSP0291` PCIe® Management Interface (PCIe-MI®) over MCTP Binding Specification | open | 1.0.0 | PASS | - |
-| `DSP0282` Memory-Mapped Buffer Interface (MMBI) Specification | open | 1.1.0 | PASS | Table 2's caption prints as `-`: one word of it is set 4 pt lower and reads as its own line above the table. Rows of Table 1 that a page break cuts (bytes 6 and 24) print without their byte number, the PDF drawing no left rule for those parts. Read both with page (pages 15-18). |
+| `DSP0282` Memory-Mapped Buffer Interface (MMBI) Specification | open | 1.1.0 | PASS | Rows of Table 1 that a page break cuts (bytes 6 and 24) print without their byte number, the PDF drawing no left rule for those parts. Read them with page (pages 15-17). |
+| `DSP0280` PMCI Test Tools Interface and Design Specification | open | 1.1.0 | PASS | - |
 
 ## Platform Level Data Model
 
@@ -85,6 +87,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0218` Platform Level Data Model (PLDM) for Redfish Device Enablement | open | 1.2.0 | PASS | - |
 | `DSP0251` Platform Level Data Model (PLDM) Platform Descriptor Record (PDR) Specification | open | 1.0.0 | PASS | - |
 | `DSP0293` Standards Body and Vendor Header Registry | open | 1.0.0 | PASS | - |
+| `DSP0220` Field Replaceable Unit (FRU) Data Specification | open | 1.0.1 | PASS | Table 1 (page 13): the first column, Component, is a cell spanning several rows and is not read; table prints the other three columns without the header row and the FRU File(s) row. |
 
 ## Security Protocol and Data Model
 
@@ -97,7 +100,8 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0286` Security Protocol and Data Model (SPDM) to Storage Binding Specification | open | 1.0.0 | PASS | - |
 | `DSP0287` SPDM over TCP Binding Specification | open | 1.0.0 | PASS | - |
 | `DSP0289` Security Protocol and Data Model (SPDM) Authorization Specification | open | 1.0.0 | PASS | - |
-| `DSP2058` Security Protocol and Data Model (SPDM) Architecture White Paper | open | 1.3.0 | PASS | Table 1's caption is the last line of page 14 and the table starts on page 15, so table prints the caption as `-`; page 14 shows it. |
+| `DSP2058` Security Protocol and Data Model (SPDM) Architecture White Paper | open | 1.3.0 | PASS | - |
+| `DSP0294` DMTF Authorization Policy Specification | open | 1.0.0 | PASS | - |
 
 ## Network Controller Sideband Interface
 
@@ -128,6 +132,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP8011` Redfish Standard Registries Bundle | open | 2026.2 | PASS | ZIP of registries: registry reads the message registries (newest file per registry); the privilege registries, the HTML and the PDF stay in the archive (DSP2065 is the PDF's own catalog entry). |
 | `DSP8013` Redfish Interoperability Profiles Bundle | open | 2026.1 | PASS | ZIP of profiles: schema reads the profile schema (RedfishInteroperabilityProfile); the bundle holds no profile documents, and its PDF stays in the archive (DSP0272 is the PDF's own catalog entry). |
 | `DSP0288` CXL to Redfish Mapping Specification | open | 1.4.0 | PASS | - |
+| `DSP0285` RedPath Specification | open | 1.1.0 | PASS | - |
 
 ## NVM Express
 
@@ -136,7 +141,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `NVME-BASE` NVM Express Base Specification | open | 2.4 | PASS | - |
 | `NVME-MI` NVM Express Management Interface Specification | open | 2.2 | PASS | - |
 | `NVME-PCIE` NVM Express over PCIe Transport Specification | open | 1.4 | PASS | - |
-| `NVME-NVM` NVM Express NVM Command Set Specification | open | 1.3 | PASS | A figure that repeats its caption at the top of each continuation page (Figure 123, Identify Namespace, pages 85-93) prints its caption as `-`, the repeated line being taken for a running header; page shows it. |
+| `NVME-NVM` NVM Express NVM Command Set Specification | open | 1.3 | PASS | Figures 157 and 159 (pages 133 and 134, bit layouts drawn as boxes) print their caption as `-`, since it lies 42 pt above the boxes; page shows it. |
 
 ## OCP Datacenter-ready Secure Control Module
 
@@ -193,7 +198,7 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 |---|---|---|---|---|
 | `SFF-8485` SFF-8485 Specification for Serial GPIO (SGPIO) Bus | open | Rev 0.7 | PASS | - |
 | `SFF-8472` SFF-8472 Specification for Management Interface for SFP+ | open | Rev 12.5a | PASS | - |
-| `SFF-8636` SFF-8636 Specification for Management Interface for 4-lane Modules and Cables | open | Rev 2.12 | PASS | - |
+| `SFF-8636` SFF-8636 Specification for Management Interface for 4-lane Modules and Cables | open | Rev 2.12 | PASS | Figures 5-5 and 5-6 (page 26, two bit sequences drawn as boxes, each captioned under it) read with the lower one captioned `Figure 5-5 ...` and the upper `-`; page shows which caption goes with which. |
 | `SFF-8024` SFF-8024 Specification for SFF Module Management Reference Code Tables | open | Rev 4.14 | PASS | - |
 
 ## Power Management Bus

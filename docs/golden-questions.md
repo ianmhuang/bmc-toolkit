@@ -13,8 +13,10 @@ Page numbers are physical PDF pages as `page` prints them. Where a
 document's text layer is defective the row says so; that is a property of
 the document, not of the tool.
 
-Rows G25 onwards were added in M8, one per document that had none. Their
-ids follow file order, which is catalog order by family. The answer
+Rows G25 to G80 were added in M8 and G81 to G100 in M10, one per
+document that had none, in catalog order. Rows G101 onwards were appended
+as they were written: the two Redfish bundles in M9, then one per later
+catalog addition. Ids follow file order. The answer
 column records the identifying values (codes, offsets, names) from these
 open documents on purpose, so that a re-run can be checked without the
 PDF at hand; prose is paraphrased, not copied, while registry message
@@ -230,7 +232,22 @@ version is the one on the cover of the archived file.
 | G105 | Registry or standards body IDs and the layout of the standards body or vendor-defined header (SVH) | DSP0293 1.0.0 | DSP0293 1.0.0, section 7.1, Table 1, pages 12-14: 0x0 DMTF (vendor ID length 0), 0x1 TCG (2), 0x2 USB (2), 0x3 PCI-SIG (2), 0x4 IANA (4, the Private Enterprise Number), 0x5 HDBaseT (4), 0x6 MIPI (2), 0x7 CXL (2), 0x8 JEDEC (2), 0x9 VESA (0), 0xA IANA CBOR (variable), 0xB DMTF-DSP (2); section 8.1, Table 2, page 15: byte 0 ID (1 byte, a Table 1 value), byte 1 VendorIDLen (1 byte, 0 when the registry itself defines the payload), byte 2 VendorID (VendorIDLen bytes, absent when 0) | `find DSP0293 "Registry or standards body ID"`, `table DSP0293 --page 12` (joins pages 12-14), `table DSP0293 --page 15` |
 | G106 | Where the CXL Get Health Info fields appear in Redfish | DSP0288 1.4.0 | DSP0288 1.4.0, section 3, Table 1, pages 8-10 (rows on page 9): Health Status to `Status` on many resources (Comment 3); Life Used to MemoryMetrics `CapacityUtilizationPercent`; Corrected Volatile and Corrected Persistent Error Count to MemoryMetrics `CorrectedVolatileErrorCount` and `CorrectedPersistentErrorCount`; Additional Status [4] and [5] to Memory `Status/Conditions` (Comment 4); Dirty Shutdown Count to MemoryMetrics `DirtyShutdownCount` | `find DSP0288 "Life Used"`, `table DSP0288 --page 8` (joins pages 8-10) |
 | G107 | The SPDM certificate chain models and where each may be used | DSP2058 1.3.0 | DSP2058 1.3.0, section 8.2.1 page 25 and section 8.2.1.1, Table 3, pages 25-26: DeviceCert (SPDM 1.0, one device certificate for hardware identity), AliasCert (SPDM 1.2, a device certificate that signs alias certificates for firmware identity, made for TCG DICE chains; the Responder sets ALIAS_CERT_CAP=1 in CAPABILITIES, the Requester has no such flag), GenericCert (SPDM 1.3, chains that fit neither); slot 0 must hold DeviceCert or AliasCert, GenericCert only slots 1-7; models mix only with MULTI_KEY_CAP=1 | `find DSP2058 "Certificate chain models"`, `page DSP2058 25`, `table DSP2058 --page 25` (joins pages 25-26) |
-| G108 | Identify Namespace (CNS 00h): where NSZE, NCAP, NUSE, NLBAF, FLBAS and the first LBA Format sit, and the fields of an LBA Format entry | NVME-NVM 1.3 | NVME-NVM 1.3, section 4.1.5.1, Figure 123, pages 85-93: NSZE bytes 07:00, NCAP 15:08, NUSE 23:16, NLBAF byte 25 (0's based), FLBAS byte 26, LBAF0 bytes 131:128 (LBAF1 135:132); Figure 125, page 94: RP bits 25:24 (00b best to 11b degraded), LBADS bits 23:16 (a power of two; non-zero values below 9 are not supported, 0h means not available), MS bits 15:00 (metadata bytes per LBA) | `find NVME-NVM NSZE`, `table NVME-NVM --page 85` (Figure 123 prints `table: -`, see the limit), `page NVME-NVM 93`, `table NVME-NVM --page 94` |
+| G108 | Identify Namespace (CNS 00h): where NSZE, NCAP, NUSE, NLBAF, FLBAS and the first LBA Format sit, and the fields of an LBA Format entry | NVME-NVM 1.3 | NVME-NVM 1.3, section 4.1.5.1, Figure 123, pages 85-93: NSZE bytes 07:00, NCAP 15:08, NUSE 23:16, NLBAF byte 25 (0's based), FLBAS byte 26, LBAF0 bytes 131:128 (LBAF1 135:132); Figure 125, page 94: RP bits 25:24 (00b best to 11b degraded), LBADS bits 23:16 (a power of two; non-zero values below 9 are not supported, 0h means not available), MS bits 15:00 (metadata bytes per LBA) | `find NVME-NVM NSZE`, `table NVME-NVM --page 85`, `page NVME-NVM 93`, `table NVME-NVM --page 94` |
+
+## Catalog additions of 2026-11-08
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G109 | RedPath: what a step predicate can be, the relational and logical operators with their precedence, and how a `.` in a property name is written | DSP0285 1.1.0 | DSP0285 1.1.0, section 3.1, pages 10-11: a RedPath is an absolute path from `/redfish/v1`, a sequence of steps `NodeName` or `NodeName[Predicate]`; Predicate is an Index, `*`, `last()`, a BooleanExpr or `NodeName.NodeName`; RelationalOp `=`, `<`, `<=`, `>`, `>=`, `!=`; LogicalOp `and`, `or`; precedence from highest `()`, then `<=` `<` `>=` `>`, then `=` `!=`, then `and`, then `or`, all left associative; a `.` in a property name is escaped with `\` (`[@odata\.id]`); section 3, Table 1, pages 8-9: array indexes are 0-based | `find DSP0285 "RelationalOp"`, `page DSP0285 10 --to 11`, `table DSP0285 --page 8` (joins pages 8-9) |
+| G110 | DMTF device policy: how SPDM Authorization identifies it, its layout, and the privilege bits of the SPDM and PLDM policy bytes | DSP0294 1.0.0 | DSP0294 1.0.0, section 10.1, page 15: SVH ID 0xB (DMTF-DSP), VendorID 294; section 10.2, Table 2, pages 15-16: byte 0 DSP274Len (0 or 1), byte 1 DSP274Policy (Len0 bytes), byte 1 + Len0 PLDMlen (0 or 1), byte 2 + Len0 PLDMpolicy (Len1 bytes), a length of 0 on modify keeps the current setting; Table 3, page 16: bit 0 GetKeyPairInfoPrivilege, bit 1 SetKeyPairInfoPrivilege, bit 2 CertificateAndSlotPrivilege (SLOT_MANAGEMENT, GET_CSR, SET_CERTIFICATE), bits [7:3] reserved; Table 4, page 17: bit 0 FirmwareUpdatePrivilege (RequestUpdate, ActivateFirmware, RequestDownstreamDeviceUpdate from a UA), bit 1 UpdateSecurityRevisionPrivilege, bits [7:2] reserved | `find DSP0294 "DSP274Policy"`, `page DSP0294 15`, `table DSP0294 --page 15` (joins pages 15-16), `table DSP0294 --page 16 --index 2`, `table DSP0294 --page 17` |
+
+## Catalog additions of 2026-11-09
+
+| # | Question | Document | Where the answer is | Commands |
+|---|---|---|---|---|
+| G111 | The DMTF OEM record inside IPMI FRU data: record type, the format byte, the manufacturer ID and where the DMTF FRU data starts | DSP0220 1.0.1 | DSP0220 1.0.1, section 8.3.2, Table 5, page 19: Record Type ID 1 byte 0xC0 (the IPMI FRU specification reserves 0xC0-0xFF for OEM records); the next byte 0x82 ([7] End of Field set, the DMTF record is the last record; [6:4] reserved; [3:0] Record Format Version 0x02); Record Length, Record Checksum and Header Checksum 1 byte each; Manufacturer ID 3 bytes 0xB41A00 (DMTF identifier 0x1AB4, the DMTF Vendor ID registered in PCI-SIG, least significant byte first); DMTF FRU Header Offset 4 bytes, the offset to the start of the DMTF FRU Files Record Header; section 8.3.1, pages 17-18: the record bridges legacy IPMI FRU data to the DMTF FRU Record | `find DSP0220 "DMTF OEM IPMI Record"`, `table DSP0220 --page 19` |
+| G112 | Which Platform Message Registry MessageIDs an IPMI intrusion sensor PET maps to | DSP0244 1.2.0 | DSP0244 1.2.0, section 5.1, Table 1, pages 9-10: sensor type 05h, reading type 6Fh; offset 00h Chassis Intrusion assert PLAT0004 (Chassis Open), deassert PLAT0005 (Chassis Closed); 01h Drive Bay PLAT0006/PLAT0007; 02h I/O Card Area PLAT0008/PLAT0009; 03h Processor Area PLAT0010/PLAT0011; 04h LAN Disconnect PLAT0012 (Disconnected)/PLAT0013 (Connected); 05h Unauthorized Dock assert PLAT0017, deassert PLAT0016; 06h FAN Area PLAT0018/PLAT0019; section 5, page 9: the MessageIDs are DSP8007's, N/A where it defines none | `find DSP0244 "Intrusion Sensor"`, `page DSP0244 9`, `table DSP0244 --page 9` (joins pages 9-10) |
+| G113 | PMCI Test Tools Interface: the Protocol Type values and the first message response codes | DSP0280 1.1.0 | DSP0280 1.1.0, section 10.1.1.1, Table 2, page 29: PTTI Admin 0xFF, PTTI Vendor Defined Admin 0xF1, Test Messages 0x00-0x7F (the MCTP message types of DSP0239); section 10.1.2, Table 3, pages 29-31: 0x00 SUCCESS, 0x01 TIMEOUT, 0x02 INVALID_PROTOCOL (an unsupported Protocol Type such as MCTP Control (0) or NC-SI pass-through (3)), 0x03 TRANSPORT_ERROR, 0x04 PHYSICAL_ERROR, 0x05 AUTHENTICATION_ERROR, 0x06 PRIVILEGE_ERROR; codes 0x80 and higher are reserved for command-specific responses (page 29) | `find DSP0280 "Protocol Types"`, `table DSP0280 --page 29` (Table 3 joins pages 29-31) |
 
 ## OpenBMC
 
@@ -327,5 +344,25 @@ the BMC-related ids that the `unlisted` report of `refresh` named; the
 NVM Command Set came up beside the three NVMe specifications the catalog
 held. Each newest version fetches via direct and extracts with an
 Outline from its bookmarks, `check` prints `current` for all five, and
-G104 to G108 verify them. Their limits record three cases where `table`
-prints a caption as `-`.
+G104 to G108 verify them. Their limits record what `table` does not
+read: rows of DSP0282's Table 1 that a page break cuts and NVME-NVM's
+Figure 123 in five parts (one table since 2026-11-09, T69).
+
+On 2026-11-08 two more were added: DSP0285 1.1.0 (RedPath) and DSP0294
+1.0.0 (DMTF Authorization Policy, the policy structures that SPDM
+Authorization, DSP0289, carries). Both were among the not-taken ids the
+2026-10-21 review left for a next batch. Each newest version fetches via
+direct and extracts with an Outline from its bookmarks (13 pages and 10
+entries; 20 pages and 26 entries), `check` prints `current` for both,
+and G109 and G110 verify them. Every captioned table prints its own
+caption, so neither has limits.
+
+On 2026-11-09 three more were added: DSP0220 1.0.1 (FRU Data), DSP0244
+1.2.0 (IPMI PET to Platform Message Registry Mapping) and DSP0280 1.1.0
+(PMCI Test Tools Interface), the three specifications that review left
+not taken; its white papers stay in `not_taken`. Each newest version fetches via direct and extracts
+with an Outline from its bookmarks (23 pages and 36 entries; 53 and 53;
+71 and 77), `check` prints `current` for all three, and G111 to G113
+verify them. DMTF's page dates DSP0244 1.1.0 2010-11-02, after 1.2.0;
+its cover reads 2009-11-02, which the catalog records. DSP0220's limit
+records Table 1, whose spanning first column `table` does not read.
