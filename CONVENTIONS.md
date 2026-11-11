@@ -47,7 +47,10 @@ Things a linter cannot check; formatting is not listed.
   is a fix for something that breaks users on install or gives wrong
   bytes: it ships at once, as a patch release. Only what an installed user
   gets counts: code under `bmc_toolkit/`, the Source Catalog, SKILL.md,
-  hooks. The bump is the highest label since the last tag. `develop` is
+  hooks. The bump is the highest label since the last tag. Before the bump
+  the maintainer reads the README and `docs/` against
+  `git log v<last>..develop`: drift found there is fixed first, in a `docs`
+  pull request into `develop`. `develop` is
   protected, so the bump reaches it through its own pull request: from a
   `release/v<version>` branch into `develop`, labelled `skip-changelog`,
   changing only the version records (`plugin.json`, `pyproject.toml`,
