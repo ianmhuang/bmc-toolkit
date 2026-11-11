@@ -13,8 +13,10 @@ Page numbers are physical PDF pages as `page` prints them. Where a
 document's text layer is defective the row says so; that is a property of
 the document, not of the tool.
 
-Rows G25 onwards were added in M8, one per document that had none. Their
-ids follow file order, which is catalog order by family. The answer
+Rows G25 to G80 were added in M8 and G81 to G100 in M10, one per
+document that had none, in catalog order. Rows G101 onwards were appended
+as they were written: the two Redfish bundles in M9, then one per later
+catalog addition. Ids follow file order. The answer
 column records the identifying values (codes, offsets, names) from these
 open documents on purpose, so that a re-run can be checked without the
 PDF at hand; prose is paraphrased, not copied, while registry message

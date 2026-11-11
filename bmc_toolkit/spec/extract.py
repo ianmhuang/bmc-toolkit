@@ -6,12 +6,12 @@ unit is the page's median glyph width, so table columns keep their positions
 across rows. Printed line numbers (DMTF documents) are recognised purely by
 geometry and moved from the text into the Line Map: page by page first, then
 the pages turned down are read again against the number column the numbered
-pages show. The Outline comes from
-PDF bookmarks, or from the contents pages when a document has none, or when
-its bookmarks are only Word anchors (``Ref_DSP0236``, ``OLE_LINK1``) or two
-or more of them all point at one page of a longer document. Bookmarks that
-are table or figure captions are not taken, nor are top-level bookmarks
-without a clause number between two numbered top-level ones.
+pages show. The Outline comes from PDF bookmarks, or from the contents pages
+when a document has none, or when its bookmarks are only Word anchors
+(``Ref_DSP0236``, ``OLE_LINK1``) or two or more of them all point at one
+page of a longer document. Bookmarks that are table or figure captions are
+not taken, nor are top-level bookmarks without a clause number between two
+numbered top-level ones.
 
 Files written next to the original::
 
