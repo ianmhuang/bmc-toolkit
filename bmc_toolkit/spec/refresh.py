@@ -164,8 +164,7 @@ def _document_span(lines: list[str], doc_id: str) -> tuple[int, int]:
     ``[table]``, the next section comment, or the end of the file. Comment
     lines (blank lines between them included) that run up to the next block
     or the end of the file introduce what follows, so the span ends above
-    them; a section
-    comment ends the span where it stands."""
+    them; a section comment ends the span where it stands."""
     id_re = re.compile(rf'^id\s*=\s*"{re.escape(doc_id)}"\s*$', re.IGNORECASE)
     start = None
     for i, line in enumerate(lines):
