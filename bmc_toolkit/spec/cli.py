@@ -1714,20 +1714,27 @@ def cmd_clone(args: argparse.Namespace) -> int:
     try:
         if release:
             source = _openbmc_tree(args, catalog, library, release, args.force)
-            pin, recipe = code_mod.find_pin_recipe(source.path, repo.id, repo.url)
+            pin, recipe, tag = _release_pin(source, repo)
             prov = code_mod.Provenance("release", release, source.commit)
             with _clone_lock(args, library, repo.id, f"release {release}"):
                 current = _current_commits(library, repo.id)
-                tree, fetched, note = _clone_tree(
+                if tag is not None:
+                    # a tarball recipe: the tag its version names, held as a
+                    # --ref tree of that tag and named after the release
+                    tree, fetched, note = _clone_tag(library, repo, tag, args, known)
+                    pin = tree.commit
+                tree, landed, named = _clone_tree(
                     library,
                     repo.id,
                     repo.url,
                     prov,
                     commit=pin,
                     sparse=repo.sparse,
-                    force=args.force,
+                    force=args.force and tag is None,
                     catalog_known=known,
                 )
+                if tag is None:
+                    fetched, note = landed, named
         elif args.ref:
             prov = code_mod.Provenance("ref", args.ref)
             with _clone_lock(args, library, repo.id, args.ref):
@@ -1777,9 +1784,58 @@ def cmd_clone(args: argparse.Namespace) -> int:
     for old in library.trees(repo.id):
         if old.commit in current and old.superseded:
             print(f"superseded {old.label} ({old.provenance.label(old.fetched_at)})")
-    if release:
+    if release and tag is not None:
+        tag_name, version = tag
+        print(
+            f"pin: {tree.short} tag {tag_name} (version {version}) from {recipe} "
+            f"of openbmc {source.short}"
+        )
+    elif release:
         print(f"pin: {tree.short} from {recipe} of openbmc {source.short}")
     return EXIT_OK
+
+
+def _release_pin(source: code_mod.Tree, repo):
+    """(SRCREV, recipe, None) from the recipe that pins the repository, or,
+    for an entry with ``release_tag`` that no recipe pins, (None, recipe,
+    (tag, version)) from the version of the recipe named like it."""
+    try:
+        pin, recipe = code_mod.find_pin_recipe(
+            source.path, repo.id, repo.url, repo.moved_from
+        )
+        return pin, recipe, None
+    except code_mod.NoRecipe:
+        if not repo.release_tag:
+            raise
+    version, recipe = code_mod.find_recipe_version(source.path, repo.id)
+    return None, recipe, (code_mod.release_tag(repo.release_tag, version), version)
+
+
+def _clone_tag(library, repo, tag, args, known):
+    """The Code Tree at the tag a release's recipe version names, as
+    ``clone --ref TAG`` holds it: (tree, fetched, note)."""
+    tag_name, version = tag
+    try:
+        return _clone_tree(
+            library,
+            repo.id,
+            repo.url,
+            code_mod.Provenance("ref", tag_name),
+            ref=tag_name,
+            tag=True,  # refs/tags/<tag>: not a branch of that name, not a commit id
+            sparse=repo.sparse,
+            force=args.force,
+            catalog_known=known,
+        )
+    except code_mod.SparseError:
+        raise
+    except code_mod.CodeError as exc:
+        if code_mod.remote_has_tag(repo.url, tag_name):
+            raise
+        raise code_mod.CodeError(
+            f"the release builds {repo.id} {version}, but {repo.url} has no tag "
+            f"{tag_name}"
+        ) from exc
 
 
 def _current_commits(library: code_mod.CodeLibrary, repo: str) -> set[str]:

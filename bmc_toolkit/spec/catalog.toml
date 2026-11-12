@@ -4219,10 +4219,11 @@ unlisted = true
 # Code repositories the Skill can bring into the Library as Code Trees:
 # upstream OpenBMC here, the libraries OpenBMC recipes fetch from other
 # projects under "external libraries", the SoC vendors' forks under "vendor
-# repos" at the end (they carry an owner). "topics" are keywords for `repos --topic`;
-# "sparse" limits the checkout to the listed directories, or, with glob
-# patterns, to the matching files (openbmc/openbmc is held only for the
-# recipe files of every layer, which pin every component in a release).
+# repos" at the end (they carry an owner). "topics" are keywords for
+# `repos --topic`; "sparse" limits the checkout to the listed directories,
+# or, with glob patterns, to the matching files (openbmc/openbmc is held
+# only for the recipe files of every layer, which pin every component in a
+# release); "release_tag" and "moved_from" are described in catalog.py.
 
 # ---------------------------------------------------------------- Redfish bundles
 # DSP8011 (message registries) and DSP8013 (profile schema) belong to the
@@ -5389,7 +5390,41 @@ topics = ["nvme", "nvme-mi"]
 id = "ipmitool"
 url = "https://codeberg.org/IPMITool/ipmitool.git"
 topics = ["ipmi", "cli"]
+moved_from = ["https://github.com/ipmitool/ipmitool.git"]
 # The ipmitool command line utility
+# Fetched from GitHub (archived) up to openbmc 2.14.0; Codeberg serves those commits
+
+# Built from a release tarball (no SRCREV): the recipe's version names the
+# tag that is checked out ("release_tag"). The tree is the tag's source, not
+# the tarball (which may carry generated files).
+
+[[repos]]
+id = "i2c-tools"
+url = "https://git.kernel.org/pub/scm/utils/i2c-tools/i2c-tools.git"
+topics = ["i2c", "smbus", "cli"]
+release_tag = "v{version}"
+# i2cdetect, i2cget, i2cset, i2ctransfer and the i2c-dev helper library
+
+[[repos]]
+id = "ethtool"
+url = "https://git.kernel.org/pub/scm/network/ethtool/ethtool.git"
+topics = ["ethtool", "network", "cli"]
+release_tag = "v{version}"
+# The ethtool command line utility (netlink and ioctl interfaces)
+
+[[repos]]
+id = "tpm2-tss"
+url = "https://github.com/tpm2-software/tpm2-tss.git"
+topics = ["tpm", "tpm2", "tcg", "attestation"]
+release_tag = "{version}"
+# The TCG TPM2 Software Stack (ESAPI, FAPI, TCTI)
+
+[[repos]]
+id = "tpm2-tools"
+url = "https://github.com/tpm2-software/tpm2-tools.git"
+topics = ["tpm", "tpm2", "cli"]
+release_tag = "{version}"
+# The tpm2_* command line tools on tpm2-tss
 
 # ------------------------------------------------------------ vendor repos
 #

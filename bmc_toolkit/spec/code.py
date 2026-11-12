@@ -81,6 +81,10 @@ class SparseError(CodeError):
     user has nothing to change; the next command tries again)."""
 
 
+class NoRecipe(CodeError):
+    """No recipe of the Release names the repository."""
+
+
 class GitMissing(CodeError):
     """git is not on PATH."""
 
@@ -411,12 +415,16 @@ class CodeLibrary:
         sparse: tuple[str, ...] = (),
         force: bool = False,
         catalog_known: bool = True,
+        tag: bool = False,
     ) -> tuple[Tree, bool]:
         """Bring the repository in at ``ref`` (branch or tag), at ``commit``,
-        or at the default branch; returns (tree, fetched). A tree already
+        or at the default branch; returns (tree, fetched). With ``tag``,
+        ``ref`` is only a tag name (``refs/tags/<ref>``): never a branch of
+        that name, never a commit id however it reads. A tree already
         held at the resolved commit is returned with fetched False. A
         default-branch clone leaves its tree the one current default tree."""
-        held = self._already_held(repo, provenance, ref, commit)
+        # a tag is found by its name only: never as a commit prefix
+        held = self._already_held(repo, provenance, None if tag else ref, commit)
         if held is not None and not force:
             name = held.name_for(provenance)
             if name is None and provenance.kind != "default":
@@ -433,7 +441,7 @@ class CodeLibrary:
                 if held.is_default:  # a --ref tree retires no default tree
                     self._retire_defaults(held, provenance)
             return held, False
-        if ref and _SHA.match(ref) and len(ref) < 40:
+        if ref and not tag and _SHA.match(ref) and len(ref) < 40:
             raise CodeError(
                 f"{ref} looks like a commit; fetching one needs its full "
                 f"40-character id (a branch or tag name is fine as it is)"
@@ -444,6 +452,8 @@ class CodeLibrary:
         try:
             if commit:
                 _fetch_commit(url, commit, tmp, sparse)
+            elif tag and ref:
+                _fetch_commit(url, f"refs/tags/{ref}", tmp, sparse)
             else:
                 _clone_ref(url, ref, tmp, sparse)
             sha = head_commit(tmp)
@@ -746,7 +756,9 @@ def _clone_ref(url: str, ref: str | None, tmp: Path, sparse: tuple[str, ...]) ->
 
 
 def _fetch_commit(url: str, commit: str, tmp: Path, sparse: tuple[str, ...]) -> None:
-    """A shallow fetch of one commit (GitHub allows fetching any sha)."""
+    """A shallow fetch of one commit by its id, or of a full ref name
+    (``refs/tags/v4.4``). For an id the remote must serve a commit that no
+    ref names; GitHub and Codeberg do."""
     tmp.mkdir(parents=True, exist_ok=True)
     run_git(["init", "--quiet", str(tmp)])
     run_git(["remote", "add", "origin", url], cwd=tmp)
@@ -756,8 +768,9 @@ def _fetch_commit(url: str, commit: str, tmp: Path, sparse: tuple[str, ...]) -> 
         _apply_sparse(tmp, sparse)
     proc = run_git([*fetch, "origin", commit], cwd=tmp, check=False)
     if proc.returncode != 0:
+        what = commit if commit.startswith("refs/") else commit[:12]
         raise CodeError(
-            f"git fetch of {commit[:12]} failed: {_last_line(proc.stderr, proc.stdout)}"
+            f"git fetch of {what} failed: {_last_line(proc.stderr, proc.stdout)}"
         )
     run_git(["checkout", "--quiet", "FETCH_HEAD"], cwd=tmp)
 
@@ -765,13 +778,18 @@ def _fetch_commit(url: str, commit: str, tmp: Path, sparse: tuple[str, ...]) -> 
 # ------------------------------------------------------------ releases
 
 
-def find_pin(openbmc_tree: Path, repo: str, url: str | None = None) -> str:
+def find_pin(
+    openbmc_tree: Path, repo: str, url: str | None = None, moved_from=()
+) -> str:
     """The SRCREV a Release's recipes give for the repository."""
-    return find_pin_recipe(openbmc_tree, repo, url)[0]
+    return find_pin_recipe(openbmc_tree, repo, url, moved_from)[0]
 
 
 def find_pin_recipe(
-    openbmc_tree: Path, repo: str, url: str | None = None
+    openbmc_tree: Path,
+    repo: str,
+    url: str | None = None,
+    moved_from: tuple[str, ...] = (),
 ) -> tuple[str, str]:
     """(SRCREV, recipe path relative to the tree) for the repository.
 
@@ -782,7 +800,9 @@ def find_pin_recipe(
     hosted repository (``https://github.com/openbmc/bmcweb.git``) an entry
     names it when its host and path are the same
     (``git://github.com/openbmc/bmcweb;...``); without one, or for a
-    ``file://`` URL, when its last path segment is ``repo``. An entry's
+    ``file://`` URL, when its last path segment is ``repo``; an entry
+    fetching one of ``moved_from`` (the repository's earlier URLs) names it
+    too. An entry's
     commit is ``SRCREV_<name>`` for an entry with ``name=``, else (or when
     that is not set) ``SRCREV``, with bitbake's ``=``/``:=``/``?=``/``??=``
     order, and the file holding the assignment that counts is the recipe
@@ -791,6 +811,7 @@ def find_pin_recipe(
     CodeError lists them all.
     """
     hosted = _uri_location(url) if url and not url.startswith("file:") else None
+    moved = {_uri_location(old) for old in moved_from}
     candidates = []
     pins: dict[str, list[str]] = {}
     parts: dict[Path, list[tuple[Path, str]]] = {}
@@ -808,7 +829,7 @@ def find_pin_recipe(
         if text is not None:
             parts[path] = [(path, text)]
     for path in sorted(parts):
-        names = _source_names(parts[path], repo, hosted)
+        names = _source_names(parts[path], repo, hosted, moved)
         if names is None:
             continue
         found = _last_srcrev(parts[path], names)
@@ -837,7 +858,7 @@ def find_pin_recipe(
         raise CodeError(
             f"no fixed SRCREV for {repo} in this release: {'; '.join(candidates)}"
         )
-    raise CodeError(f"no recipe in this release names {repo}")
+    raise NoRecipe(f"no recipe in this release names {repo}")
 
 
 _REQUIRE = re.compile(r"^[ \t]*(?:require|include)[ \t]+(\S+)[ \t]*$", re.MULTILINE)
@@ -901,7 +922,10 @@ def _uri_location(uri: str) -> str:
 
 
 def _source_names(
-    parts: list[tuple[Path, str]], repo: str, hosted: str | None
+    parts: list[tuple[Path, str]],
+    repo: str,
+    hosted: str | None,
+    moved: set[str] = frozenset(),
 ) -> list[str] | None:
     """The ``name=`` of every SRC_URI entry of the recipe that names the
     repository ("" for an unnamed entry); None when no entry does."""
@@ -912,7 +936,9 @@ def _source_names(
                 if "://" not in entry:
                     continue
                 loc = _uri_location(entry)
-                if hosted is not None:
+                if loc in moved:
+                    pass
+                elif hosted is not None:
                     if loc != hosted:
                         continue
                 elif loc.rsplit("/", 1)[-1] != repo.lower():
@@ -963,6 +989,62 @@ def _variable_value(
             else:
                 weakest = found
     return value if value is not None else weakest
+
+
+def find_recipe_version(openbmc_tree: Path, repo: str) -> tuple[str, str]:
+    """(version, recipe path relative to the tree) of the recipe named like
+    the repository: ``<repo>_<version>.bb`` in any layer, its version from
+    the file name unless the recipe, or an ``.inc`` it requires, sets
+    ``PV``. For a component built from a tarball, with no SRCREV to pin.
+    Recipes of that name in several layers must agree on the version,
+    otherwise the CodeError lists them all."""
+    versions: dict[str, list[str]] = {}
+    candidates = []
+    prefix = f"{repo}_".lower()
+    for path in sorted(openbmc_tree.rglob("*.bb")):
+        name = path.name.lower()
+        if ".git" in path.parts or not name.startswith(prefix) or not path.is_file():
+            continue
+        rel = path.relative_to(openbmc_tree).as_posix()
+        version = path.name[len(prefix) : -len(".bb")]
+        found = _variable_value(_recipe_parts(openbmc_tree, path, set()), "PV")
+        if found is not None:
+            version = found[0]
+        if not version or "${" in version or version == "git":
+            candidates.append(f"{rel} gives no version ({version or 'empty'})")
+            continue
+        versions.setdefault(version, []).append(rel)
+    if len(versions) > 1:
+        listed = "; ".join(
+            f"{', '.join(paths)} is version {version}"
+            for version, paths in versions.items()
+        )
+        raise CodeError(
+            f"the recipes of this release build {repo} at different versions: {listed}"
+        )
+    if versions:
+        version, paths = next(iter(versions.items()))
+        return version, paths[0]
+    if candidates:
+        raise CodeError(
+            f"no version for {repo} in this release: {'; '.join(candidates)}"
+        )
+    raise NoRecipe(f"no recipe in this release names {repo}")
+
+
+def release_tag(template: str, version: str) -> str:
+    """The tag a recipe version names, from the catalog's ``release_tag``."""
+    return template.replace("{version}", version, 1)
+
+
+def remote_has_tag(url: str, tag: str) -> bool:
+    """Whether the remote has the tag (``git ls-remote``); CodeError when
+    the remote cannot be asked."""
+    proc = run_git(["ls-remote", "--tags", url, f"refs/tags/{tag}"])
+    return any(
+        line.split("\t", 1)[-1].strip() == f"refs/tags/{tag}"
+        for line in proc.stdout.splitlines()
+    )
 
 
 # -------------------------------------------------------------- reading
@@ -1137,6 +1219,7 @@ __all__ = [
     "Config",
     "GitMissing",
     "Hit",
+    "NoRecipe",
     "Provenance",
     "SparseError",
     "Tree",
@@ -1145,11 +1228,14 @@ __all__ = [
     "default_branch",
     "find_pin",
     "find_pin_recipe",
+    "find_recipe_version",
     "gh_search",
     "grep",
     "guess_url",
     "load_config",
     "read_lines",
+    "release_tag",
+    "remote_has_tag",
     "run_git",
     "same_paths",
 ]

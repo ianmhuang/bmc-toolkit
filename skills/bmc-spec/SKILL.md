@@ -108,7 +108,8 @@ names (or the default branch), searched with `grep` and read with `code`.
   `superseded`, never deletes it.
 - **Ref**: a name on the component repository itself: a branch, a tag or
   a full commit id. Without one, the repository's default branch at fetch
-  time (`master` for most OpenBMC repositories, `main` for libpldm and
+  time (`master` for most OpenBMC repositories, `main` for libpldm). A
+  library from another project has its own project's default (`main` for
   libspdm).
 - **Release**: a tag (`2.18.0`) or a Yocto-named branch (`scarthgap`) of
   `openbmc/openbmc`, whose recipes fix which commit of every component
@@ -278,8 +279,11 @@ once): how long to wait for that Session before giving up with 3.
    specification, the driver and `Documentation/` are the reference.
    Libraries OpenBMC fetches from other projects are catalog trees too,
    pinned by `--release` like the rest: `libspdm`, `spdm-emu` (SPDM),
-   `mctp` (the mctp tool and mctpd), `nvme-cli`, `libnvme`, and the IPMI
-   command line tool (`repos --topic ipmi`).
+   `mctp` (the mctp tool and mctpd), `nvme-cli`, `libnvme`, the IPMI
+   command line tool (`repos --topic ipmi`), `i2c-tools`, `ethtool`,
+   `tpm2-tss` and `tpm2-tools`. The last four are built from release
+   tarballs: `--release` checks out the tag the recipe's version names
+   (the `pin:` line says which), the tag's source, not the tarball.
    A question that names a SoC vendor (Aspeed, Nuvoton), a SoC (AST2600,
    AST2700, NPCM7XX, NPCM8XX) or a vendor SDK version goes to that
    vendor's tree first (`repos --topic aspeed`, `--topic ast2600`, ...:
@@ -296,8 +300,11 @@ once): how long to wait for that Session before giving up with 3.
    `clone` and the reading commands then use and announce. A vendor tree
    has no Release: it is held at the vendor's default branch (its newest
    SDK branch), another SDK branch is `--ref`, `--release` exits 2 and the
-   configured Release is skipped with a `note:`. Name the tree's branch
-   and date in the answer, as the `cite:` line gives them. Never edit
+   configured Release is skipped with a `note:`. A library the Release
+   does not ship (`no recipe in this release names spdm-emu`) is read at
+   `--ref` (its default branch or a tag), and the answer says the Release
+   does not carry it. Name the tree's branch and date in the answer, as
+   the `cite:` line gives them. Never edit
    `config.toml` yourself; a newer release is the user's move. `check`
    (no document) says when `openbmc/openbmc` has a tag newer than the
    configured release; mention it, do not act on it.

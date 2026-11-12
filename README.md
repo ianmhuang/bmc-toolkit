@@ -25,7 +25,7 @@ flowchart LR
     S["«component»<br/><b>Claude Code session</b><br/>bmc-spec Skill · Stop hook"]:::read
     T["«component»<br/><b>bmcspec.py</b><br/>catalog · fetch · extract · search · tables"]:::read
     N["«add-on, default off»<br/><b>Notes</b><br/>remembers cited answers"]:::mem
-    W["«external»<br/><b>Publishers · Internet Archive · GitHub · Codeberg</b>"]:::disk
+    W["«external»<br/><b>Publishers · Internet Archive · git hosts</b>"]:::disk
     subgraph L["Library  ~/.bmc-specs"]
         direction TB
         D[("specs/ · code/<br/>originals · Extracts · Code Trees")]:::disk
@@ -103,7 +103,7 @@ sequenceDiagram
     CLI-->>Claude: note: newer DSP0236 ... (or nothing)
     Claude-->>User: answer, Citation copied from cite:
     Claude->>CLI: Stop hook, every turn: notes record (writes notes.jsonl only when Notes is on)
-    Note over Claude,Lib: OpenBMC questions have the same shape:<br/>repos, clone (GitHub), grep, code, cite:
+    Note over Claude,Lib: OpenBMC questions have the same shape:<br/>repos, clone (git hosts), grep, code, cite:
 ```
 
 Solid arrows are commands and Library access, dashed arrows what comes back.
