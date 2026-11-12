@@ -108,7 +108,8 @@ names (or the default branch), searched with `grep` and read with `code`.
   `superseded`, never deletes it.
 - **Ref**: a name on the component repository itself: a branch, a tag or
   a full commit id. Without one, the repository's default branch at fetch
-  time (`master` for most OpenBMC repositories, `main` for libpldm).
+  time (`master` for most OpenBMC repositories, `main` for libpldm and
+  libspdm).
 - **Release**: a tag (`2.18.0`) or a Yocto-named branch (`scarthgap`) of
   `openbmc/openbmc`, whose recipes fix which commit of every component
   ships together. `config.toml` at the Library root may set a default
@@ -275,6 +276,10 @@ once): how long to wait for that Session before giving up with 3.
    `hwmon`, `ipmi`, `mctp`, ...), which holds `Documentation/` and the
    BMC-facing driver directories only; PECI in particular has no open
    specification, the driver and `Documentation/` are the reference.
+   Libraries OpenBMC fetches from other projects are catalog trees too,
+   pinned by `--release` like the rest: `libspdm`, `spdm-emu` (SPDM),
+   `mctp` (the mctp tool and mctpd), `nvme-cli`, `libnvme`, and the IPMI
+   command line tool (`repos --topic ipmi`).
    A question that names a SoC vendor (Aspeed, Nuvoton), a SoC (AST2600,
    AST2700, NPCM7XX, NPCM8XX) or a vendor SDK version goes to that
    vendor's tree first (`repos --topic aspeed`, `--topic ast2600`, ...:

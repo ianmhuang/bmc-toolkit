@@ -25,7 +25,7 @@ flowchart LR
     S["«component»<br/><b>Claude Code session</b><br/>bmc-spec Skill · Stop hook"]:::read
     T["«component»<br/><b>bmcspec.py</b><br/>catalog · fetch · extract · search · tables"]:::read
     N["«add-on, default off»<br/><b>Notes</b><br/>remembers cited answers"]:::mem
-    W["«external»<br/><b>Publishers · Internet Archive · GitHub</b>"]:::disk
+    W["«external»<br/><b>Publishers · Internet Archive · GitHub · Codeberg</b>"]:::disk
     subgraph L["Library  ~/.bmc-specs"]
         direction TB
         D[("specs/ · code/<br/>originals · Extracts · Code Trees")]:::disk

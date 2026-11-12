@@ -127,8 +127,10 @@ def test_shipped_catalog_lists_the_ten_vendor_trees(shipped):
         assert repo.owner == repo.id.split("-", 1)[0]
         assert repo.owner in repo.topics
     assert shipped.owners == {"aspeed", "nuvoton"}
+    # T76.2: the six external libraries a Release pins have their own URLs
+    external = {"libspdm", "spdm-emu", "mctp", "nvme-cli", "libnvme", "ipmitool"}
     for repo in shipped.repos:
-        if not repo.owner:
+        if not repo.owner and repo.id not in external:
             assert repo.url.startswith("https://github.com/openbmc/"), repo.id
 
 

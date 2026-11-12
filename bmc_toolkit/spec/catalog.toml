@@ -4217,8 +4217,9 @@ unlisted = true
 # ------------------------------------------------------------------ repos
 #
 # Code repositories the Skill can bring into the Library as Code Trees:
-# upstream OpenBMC here, the SoC vendors' forks under "vendor repos" at the
-# end (they carry an owner). "topics" are keywords for `repos --topic`;
+# upstream OpenBMC here, the libraries OpenBMC recipes fetch from other
+# projects under "external libraries", the SoC vendors' forks under "vendor
+# repos" at the end (they carry an owner). "topics" are keywords for `repos --topic`;
 # "sparse" limits the checkout to the listed directories, or, with glob
 # patterns, to the matching files (openbmc/openbmc is held only for the
 # recipe files of every layer, which pin every component in a release).
@@ -5343,6 +5344,52 @@ topics = ["openpower", "dump", "debug"]
 id = "openpower-host-ipmi-flash"
 url = "https://github.com/openbmc/openpower-host-ipmi-flash.git"
 topics = ["openpower", "ipmi", "firmware-update"]
+
+# --------------------------------------------------------- external libraries
+#
+# Libraries outside the openbmc organisation that OpenBMC recipes fetch by
+# git commit (a SRCREV in meta-openembedded), so a Release pins them like
+# an upstream component: no owner. A plain clone takes the project's own
+# default branch. Git submodules are not fetched (spdm-emu's libspdm is
+# the libspdm entry).
+
+[[repos]]
+id = "libspdm"
+url = "https://github.com/DMTF/libspdm.git"
+topics = ["spdm", "attestation", "security", "dmtf"]
+sparse = ["include", "library", "os_stub", "doc"]
+# DMTF's reference implementation of SPDM (requester and responder)
+# Without unit_test/ (35 MB of test vectors on main in 2026-11, 60 MB in all)
+
+[[repos]]
+id = "spdm-emu"
+url = "https://github.com/DMTF/spdm-emu.git"
+topics = ["spdm", "emulator", "attestation", "dmtf"]
+# DMTF's SPDM requester and responder emulators built on libspdm
+
+[[repos]]
+id = "mctp"
+url = "https://github.com/CodeConstruct/mctp.git"
+topics = ["mctp", "mctpd", "af_mctp"]
+# Linux kernel MCTP userspace: the mctp tool and the mctpd control daemon
+
+[[repos]]
+id = "nvme-cli"
+url = "https://github.com/linux-nvme/nvme-cli.git"
+topics = ["nvme", "nvme-mi", "cli"]
+# The nvme command line tool, NVMe-MI over MCTP included
+
+[[repos]]
+id = "libnvme"
+url = "https://github.com/linux-nvme/libnvme.git"
+topics = ["nvme", "nvme-mi"]
+# The NVMe and NVMe-MI library under nvme-cli
+
+[[repos]]
+id = "ipmitool"
+url = "https://codeberg.org/IPMITool/ipmitool.git"
+topics = ["ipmi", "cli"]
+# The ipmitool command line utility
 
 # ------------------------------------------------------------ vendor repos
 #

@@ -94,9 +94,12 @@ before the workflow does, please open that pull request yourself.
 
 The `[[repos]]` table lists the code repositories `clone` brings into the
 Library as Code Trees: the ones a BMC developer asks about, not every
-repository a publisher has. Upstream OpenBMC repositories carry no
-`owner`; an unlisted `openbmc/<name>` can still be cloned by name. The
-SoC vendors' forks and SDK repositories (Aspeed's `AspeedTech-BMC`,
+repository a publisher has. An entry without `owner` is one an OpenBMC
+Release pins: an upstream OpenBMC repository, or a library from another
+project that an OpenBMC recipe fetches by git commit (`libspdm`,
+`spdm-emu`, `mctp`, `nvme-cli`, `libnvme`, `ipmitool`, at their own
+projects' URLs). An unlisted `openbmc/<name>` can still be cloned by
+name. The SoC vendors' forks and SDK repositories (Aspeed's `AspeedTech-BMC`,
 Nuvoton's `Nuvoton-Israel`) carry `owner = "aspeed"` or `"nuvoton"`, and
 their ids start with the owner (`aspeed-linux`, `nuvoton-u-boot`); an
 unlisted id with a vendor prefix is refused rather than guessed. A

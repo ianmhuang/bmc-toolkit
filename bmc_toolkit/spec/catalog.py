@@ -65,7 +65,9 @@ Schema (``schema_version = 1``)::
                                directory name under the Library's code/
     owner = "aspeed"           optional: the vendor that publishes a fork
                                (lowercase); the id then starts "<owner>-".
-                               Absent means upstream OpenBMC
+                               Absent means upstream OpenBMC or a library
+                               an OpenBMC recipe fetches by git commit
+                               (libspdm), which a Release pins
     ref = "NPCM-6.18-OpenBMC"  optional: the branch a clone without --ref or
                                --release fetches, instead of the remote's
                                default branch
@@ -202,7 +204,7 @@ class Repo:
     url: str
     topics: tuple[str, ...]
     sparse: tuple[str, ...] = ()
-    owner: str = ""  # the vendor of a fork; "" for upstream OpenBMC
+    owner: str = ""  # a fork's vendor; "" for what a Release pins (upstream, libspdm)
     ref: str = ""  # the branch a plain clone fetches; "" for the remote's default
 
 
