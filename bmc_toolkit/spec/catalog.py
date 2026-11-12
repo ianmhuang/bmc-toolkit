@@ -73,7 +73,7 @@ Schema (``schema_version = 1``)::
                                https://; file:// for a local mirror (and tests)
     topics = ["redfish"]       what the repository is about, for `repos --topic`
     sparse = ["meta-phosphor"] optional: only these directories are checked
-                               out, or with globs ("/meta-*/**/*.bb") only the
+                               out, or with globs ("/**/*.bb") only the
                                matching files
 """
 

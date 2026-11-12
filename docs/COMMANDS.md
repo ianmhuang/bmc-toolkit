@@ -418,12 +418,26 @@ an older registry version is read from an older bundle with `--version`.
 entry, or any `openbmc/<name>` when the catalog does not list it), a
 shallow checkout at one commit under `code/<repo>/<commit>/` with a
 `.bmc-tree.json` recording the URL, the commit, how it was reached (the
-default branch, a `--ref` branch/tag/commit, or a `--release`) and when.
+default branch, a `--ref` branch/tag/commit, or a `--release`), the paths
+checked out (`sparse`, `[]` for the whole repository) and when.
 `--release L` resolves an OpenBMC release: `openbmc/openbmc` is fetched at
-tag or branch L (only the `.bb` and `.inc` recipe files of every `meta-*`
-layer, about 20 MB) and the component's `SRCREV` there is the commit
-checked out; a repository no layer's recipe pins has no release commit,
-and `clone` says so. For the `openbmc` repository itself `--release L` is
+tag or branch L (only the `.bb` and `.inc` recipe files of every layer:
+the top-level `meta-*` ones and the Yocto layers under `upstream-layers/`
+or, up to 2.18.0, `poky/`; about 25 MB at 2.18.0 and 28 MB at `master` in
+2026-11) and the component's `SRCREV` there is the commit checked out. A
+recipe is read with the `.inc` files it `require`s; an entry with
+`name=X` takes `SRCREV_X`. A catalog entry with a hosted URL
+(`https://github.com/openbmc/bmcweb.git`) is pinned only by a recipe that
+fetches that host and path, not by another project of the same name. A
+repository no layer's recipe pins has no release commit, and `clone`
+says so; layers that pin it at different commits are listed. A tree held
+with other paths than the catalog's (one fetched by an older version, or
+before trees recorded them) is brought to the catalog's paths in place by
+the next `clone` that reaches it, commit unchanged, with
+`note: <repo> <commit> now holds the catalog's paths (...) instead of
+(...)`; when git cannot (the new paths are fetched from the tree's
+origin), `clone` exits 1, the tree stays as it was and the next `clone`
+tries again. For the `openbmc` repository itself `--release L` is
 the same as `--ref L`. A vendor tree (a catalog entry with an `owner`,
 see [CATALOG.md](CATALOG.md#code-trees)) is never guessed: an unlisted
 id starting with a vendor owner (`aspeed-`, `nuvoton-`) exits 2. It has

@@ -460,8 +460,8 @@ even hedged or as a search term.
   who holds the lock (copy the `busy:` line) and stop. Never read
   `extract.txt`, `tables.json` or a Code Tree directly to get around it:
   the files may be half-written.
-- `clone` is one repository at a time (2 to 32 MB each); a Release needs the
-  the `openbmc` repository too (the recipe files of every layer, about 20
+- `clone` is one repository at a time (2 to 32 MB each); a Release needs
+  the `openbmc` repository too (the recipe files of every layer, about 28
   MB), so `--release` resolves any repository a layer's recipe pins; a
   repository no layer builds has no Pin and `clone` says so. For the
   `openbmc` repository itself a release is its tag or branch: `clone openbmc
