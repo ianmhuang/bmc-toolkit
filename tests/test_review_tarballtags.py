@@ -3,7 +3,8 @@ tag and for repositories that moved (T76.3: AC-1 to AC-6).
 
 AC-1, AC-2, AC-3 and AC-5 go through the ``bmcspec`` CLI against local bare
 git repositories: a component whose tags are ``v1.0`` and ``v1.1`` plus an
-untagged tip, one whose tag is the bare version, a repository a recipe still
+untagged tip, one whose tag is the bare version, one with a branch named
+like its tag, one whose tag is a date, a repository a recipe still
 fetches at its earlier URL, and an openbmc remote whose tags are releases
 with different recipes. AC-4 reads the shipped catalog, asks ``repos
 --topic`` for it, and runs each shipped ``release_tag`` against the recipe
@@ -115,8 +116,28 @@ def _build(root):
     for name in TOOL_TAGS:
         push(work, name)
 
+    # twin: the tag v2.0 on the first commit and a branch of the same name
+    # at the tip (review round 1 F3)
+    work, _bare, twin_url = make_repo(root, "twin", {"twin.c": "int twin_v20;\n"})
+    t20 = git("rev-parse", "HEAD", cwd=work)
+    git("tag", "-a", "v2.0", "-m", "2.0", cwd=work)
+    twin_tip = commit(work, {"twin.c": "int twin_next;\n"}, "next")
+    push(work, "main")
+    push(work, "refs/tags/v2.0")
+    git("push", "-q", "origin", f"{twin_tip}:refs/heads/v2.0", cwd=work)
+
+    # dated: its tag is a date, which reads like a commit id (round 1 F4)
+    work, _bare, dated_url = make_repo(root, "dated", {"d.c": "int dated_tag;\n"})
+    d1 = git("rev-parse", "HEAD", cwd=work)
+    git("tag", "20240305", cwd=work)
+    commit(work, {"d.c": "int dated_next;\n"}, "next")
+    push(work, "main")
+    push(work, "refs/tags/20240305")
+
     files = {
         f"{POKY}/gizmo/gizmo_1.0.bb": _tarball("gizmo"),
+        f"{POKY}/twin/twin_2.0.bb": _tarball("twin"),
+        f"{POKY}/dated/dated_20240305.bb": _tarball("dated"),
         f"{SEC}/plain/plain_3.2.1.bb": _tarball("plain"),
         f"{OE}/oldtool/oldtool_1.8.bb": _git_recipe(FORMER, pinned),
         f"{POKY}/i2c-tools/i2c-tools_4.4.bb": _tarball("i2c-tools"),
@@ -185,8 +206,18 @@ def _build(root):
             ),
         },
     )
+    # 7.0.0: the only recipe named gizmo has no version to form a tag from
+    release(
+        "7.0.0",
+        removed=[f"{UP}/gizmo/gizmo_1.1.bb", f"{ACME}/gizmo/gizmo_git.bb"],
+        added={f"{UP}/gizmo/gizmo_git.bb": _tarball("gizmo")},
+    )
     return {
         "gizmo": gizmo_url,
+        "twin": twin_url,
+        "dated": dated_url,
+        "t20": t20,
+        "d1": d1,
         "plain": plain_url,
         "oldtool": old_url,
         "tools": tools_url,
@@ -234,6 +265,8 @@ def _catalog(
         ),
         _entry("gizmo", remotes["gizmo"], **gizmo),
         _entry("plain", remotes["plain"], release_tag="{version}"),
+        _entry("twin", remotes["twin"], release_tag="v{version}"),
+        _entry("dated", remotes["dated"], release_tag="{version}"),
         _entry("oldtool", remotes["oldtool"], **old),
     ]
     if tools:
@@ -427,7 +460,66 @@ def test_ac1_two_releases_naming_one_tag_share_one_tree(
         assert _hit("gizmo", c10, "src/gizmo.c", "int gizmo_v10;") in out
 
 
+@needs_git
+def test_ac1_the_tag_is_checked_out_not_a_branch_of_its_name(
+    tmp_path, remotes, library, capsys
+):
+    """AC-1: 'forms the tag, and checks out that tag's commit'. The remote
+    has the tag ``v2.0`` on its first commit and a branch ``v2.0`` at the
+    tip: the tree is the tag's commit, with the tag's source."""
+    cat = _catalog(tmp_path, remotes)
+    code, out = _clone(capsys, cat, "twin", "1.0.0")
+    assert code == 0, out
+    t20 = remotes["t20"]
+    assert set(_trees(library, "twin")) == {t20}, out
+    held = library / "code" / "twin" / t20 / "twin.c"
+    assert held.read_text(encoding="utf-8") == "int twin_v20;\n"
+    pin = _pin_line(out)
+    assert t20[:7] in pin
+    assert "v2.0" in pin
+
+
+@needs_git
+def test_ac1_a_version_that_reads_like_a_commit_id_is_a_tag(
+    tmp_path, remotes, library, capsys
+):
+    """AC-1: with ``"{version}"`` the tag is the version itself, here a date
+    (``dated_20240305.bb``, tag ``20240305``, all hex digits): it is checked
+    out as a tag, and a second release building the same version finds the
+    same tree and reads it."""
+    cat = _catalog(tmp_path, remotes)
+    d1 = remotes["d1"]
+    for release in ("1.0.0", "1.5.0"):
+        code, out = _clone(capsys, cat, "dated", release)
+        assert code == 0, out
+        pin = _pin_line(out)
+        assert d1[:7] in pin
+        assert "20240305" in pin
+    assert set(_trees(library, "dated")) == {d1}
+    code, out = _run(capsys, cat, "grep", "dated", "dated_", "--release", "1.5.0")
+    assert code == 0, out
+    assert _hit("dated", d1, "d.c", "int dated_tag;") in out
+
+
 # --------------------------------------------------------------- AC-2
+
+
+@needs_git
+def test_ac2_a_recipe_of_that_name_without_a_usable_version(
+    tmp_path, remotes, library, capsys
+):
+    """AC-2's shape for the failure path the documentation names beside the
+    three: at 7.0.0 the only recipe named like the entry is ``gizmo_git.bb``,
+    a tarball recipe with no SRCREV, so no version forms a tag. Exit 2, the
+    repository and the recipe in the message, no tree."""
+    cat = _catalog(tmp_path, remotes)
+    code, out = _clone(capsys, cat, "gizmo", "7.0.0")
+    assert code == 2, out
+    message = _message(out)
+    assert "gizmo" in message
+    assert f"{UP}/gizmo/gizmo_git.bb" in message
+    assert "pin:" not in out
+    assert _nothing_held(library, "gizmo")
 
 
 @needs_git
