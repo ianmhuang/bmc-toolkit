@@ -127,6 +127,27 @@ def test_a_longer_recipe_name_is_not_the_entry(tmp_path):
         _release_pin(SimpleNamespace(path=tmp_path), _repo(release_tag="v{version}"))
 
 
+@pytest.mark.parametrize(
+    ("name", "text", "said"),
+    [
+        ("widget_git.bb", _tarball("widget"), "gives no version (git)"),
+        (
+            "widget_2.1.bb",
+            _tarball("widget") + 'PV = "2.1+git${SRCPV}"\n',
+            "gives no version (2.1+git${SRCPV})",
+        ),
+    ],
+)
+def test_a_recipe_without_a_usable_version_is_named(tmp_path, name, text, said):
+    _write(tmp_path, {f"{WIDGET_DIR}/{name}": text})
+    with pytest.raises(code_mod.CodeError) as exc:
+        _release_pin(SimpleNamespace(path=tmp_path), _repo(release_tag="v{version}"))
+    assert not isinstance(exc.value, code_mod.NoRecipe)
+    assert str(exc.value) == (
+        f"no version for widget in this release: {WIDGET_DIR}/{name} {said}"
+    )
+
+
 def test_without_release_tag_nothing_changes(tmp_path):
     _write(tmp_path, {f"{WIDGET_DIR}/widget_2.1.bb": _tarball("widget")})
     with pytest.raises(
@@ -254,9 +275,13 @@ def _build(root):
     v21 = commit(work, {"src/widget.c": "int widget21;\n"}, "2.1")
     git("tag", "-a", "v2.1", "-m", "2.1", cwd=work)
     tip = commit(work, {"src/widget.c": "int widget22dev;\n"}, "dev")
+    # a branch named like the tag, at another commit (review round 1 F3),
+    # and a tag that reads like a commit id (F4)
+    git("tag", "20240305", tip, cwd=work)
     push(work, "main")
-    push(work, "v2.0")
-    push(work, "v2.1")
+    git("push", "-q", "origin", f"{tip}:refs/heads/v2.1", cwd=work)
+    for name in ("refs/tags/v2.0", "refs/tags/v2.1", "refs/tags/20240305"):
+        push(work, name)
     lwork, _lb, lurl = make_repo(root, "oldtool", {"o.c": "int oldtool;\n"})
     legacy = git("rev-parse", "HEAD", cwd=lwork)
     files = {
@@ -345,6 +370,39 @@ def test_release_clone_checks_out_the_tag(tmp_path, remotes, library, capsys):
         "of openbmc " in out
     )
     assert (library / "code" / "widget" / v21).is_dir()
+
+
+@needs_git
+def test_a_tag_is_never_a_branch_of_its_name(tmp_path, remotes, library, capsys):
+    # the remote has a branch v2.1 at the dev tip; git clone --branch v2.1
+    # would take it (review round 1 F3)
+    cat = _catalog(tmp_path, remotes)
+    code, out = run(capsys, cat, "clone", "widget", "--release", "1.0.0")
+    assert code == 0, out
+    assert remotes["tip"][:7] not in out
+    assert (library / "code" / "widget" / remotes["v21"]).is_dir()
+
+
+@needs_git
+def test_a_tag_that_reads_like_a_commit_id_is_a_tag(tmp_path, remotes, library):
+    # 20240305 is all hex: as a --ref it would be taken for a commit (F4)
+    lib = code_mod.CodeLibrary(library)
+    tree, fetched = lib.clone(
+        "widget",
+        remotes["widget"],
+        code_mod.Provenance("ref", "20240305"),
+        ref="20240305",
+        tag=True,
+    )
+    assert fetched and tree.commit == remotes["tip"]
+    again, fetched = lib.clone(
+        "widget",
+        remotes["widget"],
+        code_mod.Provenance("ref", "20240305"),
+        ref="20240305",
+        tag=True,
+    )
+    assert not fetched and again.commit == remotes["tip"]
 
 
 @needs_git

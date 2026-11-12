@@ -106,7 +106,8 @@ the version of the recipe named like the entry and checks out that tag.
 `moved_from` lists a repository's earlier URLs, which older releases'
 recipes may still fetch (`ipmitool`, on GitHub up to openbmc 2.14.0);
 the commit is cloned from `url`. Neither key goes with `owner`. An
-unlisted `openbmc/<name>` can still be cloned by name. The SoC vendors' forks and SDK repositories (Aspeed's `AspeedTech-BMC`,
+unlisted `openbmc/<name>` can still be cloned by name. The SoC vendors'
+forks and SDK repositories (Aspeed's `AspeedTech-BMC`,
 Nuvoton's `Nuvoton-Israel`) carry `owner = "aspeed"` or `"nuvoton"`, and
 their ids start with the owner (`aspeed-linux`, `nuvoton-u-boot`); an
 unlisted id with a vendor prefix is refused rather than guessed. A

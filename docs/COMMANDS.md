@@ -444,19 +444,23 @@ tag is checked out as `--ref v4.4` would, then named after the release:
 <commit7>`. The tree is the tag's source, not the tarball: files the
 tarball generates and the recipe's patches are not in it. A recipe that
 pins the entry by `SRCREV` still wins. Recipes of that name at
-different versions are listed, and a version whose tag the remote does
-not have exits 2 with `the release builds <repo> <version>, but <url>
-has no tag <tag>`. A tree held
-with other paths than the catalog's (one fetched by an older version, or
-before trees recorded them) is brought to the catalog's paths in place by
-the next `clone` that reaches it, commit unchanged, with
-`note: <repo> <commit> now holds the catalog's paths (...) instead of
-(...)`; when git cannot (the new paths are fetched from the tree's
+different versions are listed; a recipe named like the entry with no
+usable version (`<id>_git.bb`, a `PV` holding `${...}`) exits 2 with
+`no version for <repo> in this release: <recipe> gives no version
+(...)`; a version whose tag the remote does not have exits 2 with
+`the release builds <repo> <version>, but <url> has no tag <tag>`. The
+tag is fetched as `refs/tags/<tag>`, never a branch of that name. A
+tree held with other paths than the catalog's (one fetched by an older
+version, or before trees recorded them) is brought to the catalog's
+paths in place by the next `clone` that reaches it, commit unchanged,
+with `note: <repo> <commit> now holds the catalog's paths (...) instead
+of (...)`; when git cannot (the new paths are fetched from the tree's
 origin), `clone` exits 1, the old paths are put back (the message says
 so when that fails too) and the next `clone` tries again. For the
-`openbmc` repository itself `--release L` is the same as `--ref L`. A vendor tree (a catalog entry with an `owner`,
-see [CATALOG.md](CATALOG.md#code-trees)) is never guessed: an unlisted
-id starting with a vendor owner (`aspeed-`, `nuvoton-`) exits 2. It has
+`openbmc` repository itself `--release L` is the same as `--ref L`. A
+vendor tree (a catalog entry with an `owner`, see
+[CATALOG.md](CATALOG.md#code-trees)) is never guessed: an unlisted id
+starting with a vendor owner (`aspeed-`, `nuvoton-`) exits 2. It has
 no Release: `--release` on
 `clone`, `grep` or `code` prints `<repo> has no Release; use --ref with an
 SDK branch or tag` and exits 2, and the `config.toml` default Release is

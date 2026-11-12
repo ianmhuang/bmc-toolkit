@@ -1822,6 +1822,7 @@ def _clone_tag(library, repo, tag, args, known):
             repo.url,
             code_mod.Provenance("ref", tag_name),
             ref=tag_name,
+            tag=True,  # refs/tags/<tag>: not a branch of that name, not a commit id
             sparse=repo.sparse,
             force=args.force,
             catalog_known=known,

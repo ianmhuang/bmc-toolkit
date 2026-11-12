@@ -415,12 +415,16 @@ class CodeLibrary:
         sparse: tuple[str, ...] = (),
         force: bool = False,
         catalog_known: bool = True,
+        tag: bool = False,
     ) -> tuple[Tree, bool]:
         """Bring the repository in at ``ref`` (branch or tag), at ``commit``,
-        or at the default branch; returns (tree, fetched). A tree already
+        or at the default branch; returns (tree, fetched). With ``tag``,
+        ``ref`` is only a tag name (``refs/tags/<ref>``): never a branch of
+        that name, never a commit id however it reads. A tree already
         held at the resolved commit is returned with fetched False. A
         default-branch clone leaves its tree the one current default tree."""
-        held = self._already_held(repo, provenance, ref, commit)
+        # a tag is found by its name only: never as a commit prefix
+        held = self._already_held(repo, provenance, None if tag else ref, commit)
         if held is not None and not force:
             name = held.name_for(provenance)
             if name is None and provenance.kind != "default":
@@ -437,7 +441,7 @@ class CodeLibrary:
                 if held.is_default:  # a --ref tree retires no default tree
                     self._retire_defaults(held, provenance)
             return held, False
-        if ref and _SHA.match(ref) and len(ref) < 40:
+        if ref and not tag and _SHA.match(ref) and len(ref) < 40:
             raise CodeError(
                 f"{ref} looks like a commit; fetching one needs its full "
                 f"40-character id (a branch or tag name is fine as it is)"
@@ -448,6 +452,8 @@ class CodeLibrary:
         try:
             if commit:
                 _fetch_commit(url, commit, tmp, sparse)
+            elif tag and ref:
+                _fetch_commit(url, f"refs/tags/{ref}", tmp, sparse)
             else:
                 _clone_ref(url, ref, tmp, sparse)
             sha = head_commit(tmp)
@@ -750,8 +756,9 @@ def _clone_ref(url: str, ref: str | None, tmp: Path, sparse: tuple[str, ...]) ->
 
 
 def _fetch_commit(url: str, commit: str, tmp: Path, sparse: tuple[str, ...]) -> None:
-    """A shallow fetch of one commit by its id. The remote must serve a
-    commit that no ref names; GitHub and Codeberg do."""
+    """A shallow fetch of one commit by its id, or of a full ref name
+    (``refs/tags/v4.4``). For an id the remote must serve a commit that no
+    ref names; GitHub and Codeberg do."""
     tmp.mkdir(parents=True, exist_ok=True)
     run_git(["init", "--quiet", str(tmp)])
     run_git(["remote", "add", "origin", url], cwd=tmp)
@@ -761,8 +768,9 @@ def _fetch_commit(url: str, commit: str, tmp: Path, sparse: tuple[str, ...]) -> 
         _apply_sparse(tmp, sparse)
     proc = run_git([*fetch, "origin", commit], cwd=tmp, check=False)
     if proc.returncode != 0:
+        what = commit if commit.startswith("refs/") else commit[:12]
         raise CodeError(
-            f"git fetch of {commit[:12]} failed: {_last_line(proc.stderr, proc.stdout)}"
+            f"git fetch of {what} failed: {_last_line(proc.stderr, proc.stdout)}"
         )
     run_git(["checkout", "--quiet", "FETCH_HEAD"], cwd=tmp)
 

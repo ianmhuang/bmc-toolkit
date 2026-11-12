@@ -303,8 +303,8 @@ once): how long to wait for that Session before giving up with 3.
    configured Release is skipped with a `note:`. A library the Release
    does not ship (`no recipe in this release names spdm-emu`) is read at
    `--ref` (its default branch or a tag), and the answer says the Release
-   does not carry it. Name the tree's branch
-   and date in the answer, as the `cite:` line gives them. Never edit
+   does not carry it. Name the tree's branch and date in the answer, as
+   the `cite:` line gives them. Never edit
    `config.toml` yourself; a newer release is the user's move. `check`
    (no document) says when `openbmc/openbmc` has a tag newer than the
    configured release; mention it, do not act on it.
