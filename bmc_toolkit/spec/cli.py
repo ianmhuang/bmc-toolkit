@@ -1644,12 +1644,27 @@ def _openbmc_tree(args, catalog, library, release: str, force: bool) -> code_mod
             f"the catalog has no '{code_mod.OPENBMC_REPO}' repository to resolve "
             f"releases from"
         )
+    held = None
     if not force:
-        for t in library.trees(source.id):
-            if t.answers(("ref",), release) and not t.superseded:
-                return t
+        held = next(
+            (
+                t
+                for t in library.trees(source.id)
+                if t.answers(("ref",), release) and not t.superseded
+            ),
+            None,
+        )
+        if held is not None and held.sparse == source.sparse:
+            return held
     with _clone_lock(args, library, source.id, release):
-        tree, fetched = library.clone(
+        if held is not None:  # held, with other paths than the catalog's
+            held = library.read_tree(held.path) or held
+            note = library.ensure_sparse(held, source.sparse)
+            if note:
+                print(note)
+            return held
+        tree, fetched, note = _clone_tree(
+            library,
             source.id,
             source.url,
             code_mod.Provenance("ref", release),
@@ -1657,9 +1672,20 @@ def _openbmc_tree(args, catalog, library, release: str, force: bool) -> code_mod
             sparse=source.sparse,
             force=force,
         )
+    if note:
+        print(note)
     if fetched:
         print(f"cloned {tree.label} (release {release}) -> {tree.path}")
     return tree
+
+
+def _clone_tree(library, repo_id, url, provenance, *, sparse, **kwargs):
+    """``library.clone`` plus the catch-up of a tree it found held with
+    other paths than the catalog's: (tree, fetched, note or None). The
+    caller holds the clone lock."""
+    tree, fetched = library.clone(repo_id, url, provenance, sparse=sparse, **kwargs)
+    note = None if fetched else library.ensure_sparse(tree, sparse)
+    return tree, fetched, note
 
 
 def cmd_clone(args: argparse.Namespace) -> int:
@@ -1688,11 +1714,12 @@ def cmd_clone(args: argparse.Namespace) -> int:
     try:
         if release:
             source = _openbmc_tree(args, catalog, library, release, args.force)
-            pin, recipe = code_mod.find_pin_recipe(source.path, repo.id)
+            pin, recipe = code_mod.find_pin_recipe(source.path, repo.id, repo.url)
             prov = code_mod.Provenance("release", release, source.commit)
             with _clone_lock(args, library, repo.id, f"release {release}"):
                 current = _current_commits(library, repo.id)
-                tree, fetched = library.clone(
+                tree, fetched, note = _clone_tree(
+                    library,
                     repo.id,
                     repo.url,
                     prov,
@@ -1705,7 +1732,8 @@ def cmd_clone(args: argparse.Namespace) -> int:
             prov = code_mod.Provenance("ref", args.ref)
             with _clone_lock(args, library, repo.id, args.ref):
                 current = _current_commits(library, repo.id)
-                tree, fetched = library.clone(
+                tree, fetched, note = _clone_tree(
+                    library,
                     repo.id,
                     repo.url,
                     prov,
@@ -1720,7 +1748,8 @@ def cmd_clone(args: argparse.Namespace) -> int:
             prov = code_mod.Provenance("default", repo.ref)
             with _clone_lock(args, library, repo.id, "default branch"):
                 current = _current_commits(library, repo.id)
-                tree, fetched = library.clone(
+                tree, fetched, note = _clone_tree(
+                    library,
                     repo.id,
                     repo.url,
                     prov,
@@ -1729,12 +1758,17 @@ def cmd_clone(args: argparse.Namespace) -> int:
                     force=args.force,
                     catalog_known=known,
                 )
+    except code_mod.SparseError as exc:
+        print(str(exc))
+        return EXIT_ERROR
     except code_mod.CodeError as exc:
         print(str(exc))
         return EXIT_ACTION
     except lock_mod.Busy as exc:
         print(exc)
         return EXIT_BUSY
+    if note:
+        print(note)
     what = tree.provenance.label(tree.fetched_at)
     if fetched:
         print(f"cloned {tree.label} ({what}) -> {tree.path}")

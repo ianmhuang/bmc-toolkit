@@ -4796,8 +4796,9 @@ published = "2026-07-02"
 id = "openbmc"
 url = "https://github.com/openbmc/openbmc.git"
 topics = ["release", "yocto", "recipes", "distro"]
-sparse = ["/meta-*/**/*.bb", "/meta-*/**/*.inc"]
-# The OpenBMC distribution: Yocto layers and the recipes that pin every component (releases live here)
+sparse = ["/**/*.bb", "/**/*.inc"]
+# The OpenBMC distribution: Yocto layers and the recipes that pin every component (releases live here).
+# Every layer's recipes: top-level meta-*, upstream-layers/ (master since 2026-03) and poky/ (2.18.0 and before)
 
 [[repos]]
 id = "linux"
