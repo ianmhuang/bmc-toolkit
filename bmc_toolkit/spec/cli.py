@@ -1654,7 +1654,7 @@ def _openbmc_tree(args, catalog, library, release: str, force: bool) -> code_mod
             ),
             None,
         )
-        if held is not None and held.sparse == source.sparse:
+        if held is not None and code_mod.same_paths(held.sparse, source.sparse):
             return held
     with _clone_lock(args, library, source.id, release):
         if held is not None:  # held, with other paths than the catalog's

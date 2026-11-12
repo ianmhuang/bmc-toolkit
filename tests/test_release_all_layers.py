@@ -376,3 +376,116 @@ def test_the_recipe_reported_is_the_file_that_holds_the_srcrev(tmp_path):
         a,
         "meta-phosphor/recipes/p/p.inc",
     )
+
+
+# ------------------------------------------------- round 1 findings
+
+
+def test_cone_directories_listed_in_another_order_are_the_same_paths(
+    tmp_path, monkeypatch
+):
+    # F1: git lists cone-mode directories sorted; the catalog need not
+    files = {"src/a.c": "a\n", "docs/b.md": "b\n", "other/c": "c\n"}
+    _work, _bare, url = make_repo(tmp_path, "cone", files)
+    lib = code_mod.CodeLibrary(tmp_path / "lib")
+    wanted = ("src", "docs")
+    tree, _ = lib.clone(
+        "cone", url, code_mod.Provenance("ref", "main"), ref="main", sparse=wanted
+    )
+    meta = _meta(tree.path)
+    meta.pop("sparse")  # a tree from before trees recorded their paths
+    (tree.path / code_mod.TREE_META).write_text(json.dumps(meta), encoding="utf-8")
+    (tree,) = lib.trees("cone")
+    calls = []
+    real = code_mod.run_git
+
+    def spy(args, **kwargs):
+        calls.append(list(args))
+        return real(args, **kwargs)
+
+    monkeypatch.setattr(code_mod, "run_git", spy)
+    assert lib.ensure_sparse(tree, wanted) is None
+    assert not [c for c in calls if c[:2] == ["sparse-checkout", "set"]]
+    assert _meta(tree.path)["sparse"] == list(wanted)
+    calls.clear()
+    (tree,) = lib.trees("cone")
+    assert lib.ensure_sparse(tree, ("docs", "src")) is None
+    assert calls == []  # recorded, in any order: no git at all
+
+
+def test_a_named_entry_without_its_own_srcrev_takes_the_plain_one(tmp_path):
+    # F2: bitbake falls back from SRCREV_<name> to SRCREV
+    a = "a" * 40
+    _recipes(
+        tmp_path,
+        {
+            "upstream-layers/l/recipes/x/x_1.bb": (
+                'SRC_URI = "git://github.com/acme/x;name=x;branch=main"\n'
+                f'SRCREV = "{a}"\n'
+            ),
+        },
+    )
+    url = "https://github.com/acme/x.git"
+    assert code_mod.find_pin_recipe(tmp_path, "x", url)[0] == a
+
+
+def test_a_failed_restore_is_not_reported_as_an_unchanged_tree(
+    tmp_path, library, remotes, capsys, monkeypatch
+):
+    # F3: when putting the old paths back fails too, the message says so
+    old = _catalog(tmp_path, remotes, OLD_SPARSE)
+    run(capsys, old, "clone", "openbmc", "--ref", "1.0.0")
+
+    def fail(work, sparse):
+        raise code_mod.CodeError(f"git sparse-checkout failed for {list(sparse)}")
+
+    monkeypatch.setattr(code_mod, "_set_sparse", fail)
+    new = _catalog(tmp_path, remotes, SHIPPED_SPARSE)
+    code, out = run(capsys, new, "clone", "foo", "--release", "1.0.0")
+    assert code == 1, out
+    assert "putting the old paths back failed too" in out
+    assert "the tree is as it was" not in out
+
+
+def test_an_inc_required_through_a_parent_directory_is_read_once(tmp_path):
+    # F4: require ../common/y.inc lands in pulled_in in rglob's form
+    a, b = "a" * 40, "b" * 40
+    _recipes(
+        tmp_path,
+        {
+            "upstream-layers/l/recipes/common/y.inc": (
+                f'SRC_URI = "git://github.com/acme/y;branch=main"\nSRCREV = "{a}"\n'
+            ),
+            "upstream-layers/l/recipes/y/y_1.bb": (
+                f'require ../common/y.inc\nSRCREV = "{b}"\n'
+            ),
+        },
+    )
+    url = "https://github.com/acme/y.git"
+    assert code_mod.find_pin_recipe(tmp_path, "y", url) == (
+        b,
+        "upstream-layers/l/recipes/y/y_1.bb",
+    )
+
+
+def test_a_weak_default_after_a_set_srcrev_does_not_override_it(tmp_path):
+    # F5: ?= and ??= set a value only when nothing has
+    a, b, c = "a" * 40, "b" * 40, "c" * 40
+    _recipes(
+        tmp_path,
+        {
+            "upstream-layers/l/recipes/z/z.inc": (
+                f'SRCREV ?= "{a}"\nSRCREV ??= "{c}"\n'
+            ),
+            "upstream-layers/l/recipes/z/z_1.bb": (
+                'SRC_URI = "git://github.com/acme/z;branch=main"\n'
+                f'SRCREV = "{b}"\nrequire z.inc\n'
+            ),
+            "upstream-layers/l/recipes/w/w_1.bb": (
+                'SRC_URI = "git://github.com/acme/w;branch=main"\n'
+                f'SRCREV ??= "{c}"\nSRCREV ?= "{a}"\n'
+            ),
+        },
+    )
+    assert code_mod.find_pin_recipe(tmp_path, "z", "https://github.com/acme/z")[0] == b
+    assert code_mod.find_pin_recipe(tmp_path, "w", "https://github.com/acme/w")[0] == a

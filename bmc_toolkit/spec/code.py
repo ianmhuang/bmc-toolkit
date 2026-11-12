@@ -61,7 +61,6 @@ GIT_TIMEOUT = 600  # seconds for one git command
 MAX_WHOLE_FILE = 200  # ``code`` prints a longer file only with --lines
 
 _SHA = re.compile(r"^[0-9a-f]{7,40}$")
-_SRCREV = re.compile(r'^\s*SRCREV\s*(?:=|\?=|:=)\s*"([^"]*)"', re.MULTILINE)
 _SRC_URI = re.compile(r'SRC_URI\s*(?:=|\?=|:=|\+=)\s*"([^"]*)"', re.MULTILINE)
 
 
@@ -356,31 +355,35 @@ class CodeLibrary:
         """Bring a held tree to the catalog's paths in place, keeping its
         commit; the ``note:`` line to print, or None when the checkout did
         not change. A tree whose recorded paths match costs no git call.
-        The caller holds the repository's clone lock.
+        Paths are compared as sets: git lists cone-mode directories sorted,
+        a catalog entry need not be. The caller holds the repository's
+        clone lock.
 
         SparseError when git cannot (the blobs of the new paths are fetched
         from the tree's origin): the old paths are put back and the meta is
-        not written, so the next command tries again."""
+        not written, so the next command tries again; when putting them back
+        fails too, the message says so."""
         wanted = tuple(sparse)
-        if tree.sparse == wanted:
+        if same_paths(tree.sparse, wanted):
             return None
         before = _checked_out_sparse(tree.path)
-        if before != wanted:
+        changed = not same_paths(before, wanted)
+        if changed:
             try:
                 _set_sparse(tree.path, wanted)
             except CodeError as exc:
                 try:
                     _set_sparse(tree.path, before)
-                except CodeError:
-                    pass  # the error below is the one to report
+                    after = "the tree is as it was"
+                except CodeError as undo:
+                    after = f"putting the old paths back failed too ({undo})"
                 raise SparseError(
                     f"cannot check out the catalog's paths in {tree.label} "
-                    f"({exc}); the tree is as it was, the next command tries "
-                    f"again"
+                    f"({exc}); {after}; the next command tries again"
                 ) from exc
         tree.sparse = wanted
         self.write_tree(tree)
-        if before == wanted:
+        if not changed:
             return None  # an unrecorded tree that already had them
         return (
             f"note: {tree.label} now holds the catalog's paths "
@@ -711,6 +714,12 @@ def _checked_out_sparse(work: Path) -> tuple[str, ...]:
     return tuple(line.strip() for line in listed.splitlines() if line.strip())
 
 
+def same_paths(held: tuple[str, ...] | None, wanted: tuple[str, ...]) -> bool:
+    """Whether a tree's paths (None: not recorded) are the catalog's, in
+    any order."""
+    return held is not None and sorted(held) == sorted(wanted)
+
+
 def _recorded_sparse(value) -> tuple[str, ...] | None:
     if not isinstance(value, list):
         return None
@@ -774,9 +783,10 @@ def find_pin_recipe(
     names it when its host and path are the same
     (``git://github.com/openbmc/bmcweb;...``); without one, or for a
     ``file://`` URL, when its last path segment is ``repo``. An entry's
-    commit is the last ``SRCREV`` assignment (``SRCREV_<name>`` for an
-    entry with ``name=``), as in bitbake, and the file holding that
-    assignment is the recipe reported. Several recipes may name it (a layer
+    commit is ``SRCREV_<name>`` for an entry with ``name=``, else (or when
+    that is not set) ``SRCREV``, with bitbake's ``=``/``:=``/``?=``/``??=``
+    order, and the file holding the assignment that counts is the recipe
+    reported. Several recipes may name it (a layer
     overriding another); they must agree on the commit, otherwise the
     CodeError lists them all.
     """
@@ -863,8 +873,10 @@ def _recipe_parts(
             continue
         target = None
         for base in (recipe.parent, *recipe.parent.parents):
-            if (base / rel).is_file():
-                target = base / rel
+            # normalised, so pulled_in and the reported path match rglob's
+            candidate = Path(os.path.normpath(base / rel))
+            if candidate.is_file():
+                target = candidate
                 break
             if base == tree:
                 break
@@ -913,25 +925,44 @@ def _source_names(
 def _last_srcrev(
     parts: list[tuple[Path, str]], names: list[str]
 ) -> tuple[str, Path] | None:
-    """(commit, file holding it): the last SRCREV assignment for the
-    entries' names (``SRCREV`` for an unnamed entry or ``name=default``)."""
-    patterns = []
+    """(commit, file holding it) for the first of the entries' names that
+    has one: ``SRCREV_<name>`` for a named entry, falling back to
+    ``SRCREV`` as bitbake does, and ``SRCREV`` for an unnamed entry or
+    ``name=default``."""
     for name in dict.fromkeys(names):
-        if name in ("", "default"):
-            patterns.append(_SRCREV)
-        else:
-            patterns.append(
-                re.compile(
-                    rf'^\s*SRCREV_{re.escape(name)}\s*(?:=|\?=|:=)\s*"([^"]*)"',
-                    re.MULTILINE,
-                )
-            )
-    found = None
+        found = None
+        if name not in ("", "default"):
+            found = _variable_value(parts, f"SRCREV_{name}")
+        if found is None:
+            found = _variable_value(parts, "SRCREV")
+        if found is not None:
+            return found
+    return None
+
+
+def _variable_value(
+    parts: list[tuple[Path, str]], variable: str
+) -> tuple[str, Path] | None:
+    """(value, file holding it) of a plain variable in reading order, the
+    way bitbake applies the operators: ``=`` and ``:=`` set it, ``?=`` only
+    while nothing has, ``??=`` only when nothing else ever does."""
+    assign = re.compile(
+        rf'^[ \t]*{re.escape(variable)}[ \t]*(\?\?=|\?=|:=|=)[ \t]*"([^"]*)"',
+        re.MULTILINE,
+    )
+    value = None
+    weakest = None
     for path, text in parts:
-        hits = [m for pattern in patterns for m in pattern.finditer(text)]
-        for m in sorted(hits, key=lambda m: m.start()):
-            found = (m.group(1).strip(), path)
-    return found
+        for m in assign.finditer(text):
+            op, found = m.group(1), (m.group(2).strip(), path)
+            if op in ("=", ":="):
+                value = found
+            elif op == "?=":
+                if value is None:
+                    value = found
+            else:
+                weakest = found
+    return value if value is not None else weakest
 
 
 # -------------------------------------------------------------- reading
@@ -1107,6 +1138,7 @@ __all__ = [
     "GitMissing",
     "Hit",
     "Provenance",
+    "SparseError",
     "Tree",
     "checkout_tree",
     "cite",
@@ -1119,4 +1151,5 @@ __all__ = [
     "load_config",
     "read_lines",
     "run_git",
+    "same_paths",
 ]
