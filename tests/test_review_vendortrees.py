@@ -115,9 +115,13 @@ def test_ac2_shipped_catalog_lists_the_ten_vendor_trees(shipped):
         assert repo.owner in (t.lower() for t in repo.topics)
         assert repo.url.startswith("https://")
     # the upstream entries are untouched: no owner, no ref, openbmc URLs
+    # (T76.2: the six external libraries a Release pins have their own URLs)
+    external = {"libspdm", "spdm-emu", "mctp", "nvme-cli", "libnvme", "ipmitool"}
     for repo in shipped.repos:
         if not repo.owner:
             assert repo.ref == "", repo.id
+            if repo.id in external:
+                continue
             assert repo.url.startswith("https://github.com/openbmc/"), repo.id
 
 

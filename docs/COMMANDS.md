@@ -419,7 +419,9 @@ entry, or any `openbmc/<name>` when the catalog does not list it), a
 shallow checkout at one commit under `code/<repo>/<commit>/` with a
 `.bmc-tree.json` recording the URL, the commit, how it was reached (the
 default branch, a `--ref` branch/tag/commit, or a `--release`), the paths
-checked out (`sparse`, `[]` for the whole repository) and when.
+checked out (`sparse`, `[]` for the whole repository) and when. The
+catalog also lists libraries OpenBMC recipes fetch from other projects
+(`libspdm`, `ipmitool`, ...); `--release` pins them like the rest.
 `--release L` resolves an OpenBMC release: `openbmc/openbmc` is fetched at
 tag or branch L (only the `.bb` and `.inc` recipe files of every layer:
 the top-level `meta-*` ones and the Yocto layers under `upstream-layers/`
@@ -436,8 +438,8 @@ before trees recorded them) is brought to the catalog's paths in place by
 the next `clone` that reaches it, commit unchanged, with
 `note: <repo> <commit> now holds the catalog's paths (...) instead of
 (...)`; when git cannot (the new paths are fetched from the tree's
-origin), `clone` exits 1, the tree stays as it was and the next `clone`
-tries again. For the `openbmc` repository itself `--release L` is
+origin), `clone` exits 1, the old paths are put back (the message says
+so when that fails too) and the next `clone` tries again. For the `openbmc` repository itself `--release L` is
 the same as `--ref L`. A vendor tree (a catalog entry with an `owner`,
 see [CATALOG.md](CATALOG.md#code-trees)) is never guessed: an unlisted
 id starting with a vendor owner (`aspeed-`, `nuvoton-`) exits 2. It has
@@ -667,6 +669,6 @@ temporary files (see above).
   DSP8011 2026.1's 264 members); the privilege registries, the HTML and
   the PDF stay in the ZIP.
 - `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/projects/<page>/` for the pages named in the catalog's `listing` keys. They download no document. A reading command reads the one listing page of the document it answered from when that document's Freshness Check is due (at most once per document per `freshness_days`), never with `[library] offline = true`.
-- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed. The vendor kernels `aspeed-linux` and `nuvoton-linux` are cloned sparse like `linux` (its directories plus the vendor's arch, dts and soc ones), and the vendor SDK layers `aspeed-openbmc` and `nuvoton-openbmc` hold only `meta-<vendor>*` and `meta-evb`. `nuvoton-igps` holds only its text files (scripts, XML layouts, notes), not the prebuilt images beside them.
+- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed. `repos --search` searches the openbmc organisation only, not the external libraries the catalog lists (`libspdm`, `ipmitool`, ...). `clone` fetches from the URL of the catalog entry, which is GitHub for every entry but `ipmitool` (Codeberg). The vendor kernels `aspeed-linux` and `nuvoton-linux` are cloned sparse like `linux` (its directories plus the vendor's arch, dts and soc ones), and the vendor SDK layers `aspeed-openbmc` and `nuvoton-openbmc` hold only `meta-<vendor>*` and `meta-evb`. `nuvoton-igps` holds only its text files (scripts, XML layouts, notes), not the prebuilt images beside them. `libspdm` holds `include/`, `library/`, `os_stub/` and `doc/`, not `unit_test/` (about 7.5 MB instead of 60 MB at `main` in 2026-11).
 - `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory that is removed on failure, and `code/<repo>/.lock` while it runs. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees, `.tmp-*` and `.part` leftovers and stale `.lock` files under `code/` and `specs/` and at the Library root, nothing else.
 - `check` writes `freshness.json` at the Library root, and so does a reading command that ran the due check; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it inserts version entries into the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).
