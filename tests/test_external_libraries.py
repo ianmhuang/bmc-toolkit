@@ -45,8 +45,8 @@ def test_shipped_catalog_lists_the_six_libraries_without_owner_or_ref():
     # libspdm without unit_test/ (AC-6: 60 MB whole on main in 2026-11)
     spdm_paths = ("include", "library", "os_stub", "doc")
     assert SHIPPED.get_repo("libspdm").sparse == spdm_paths
-    assert len(SHIPPED.repos) == 114
-    assert len([r for r in SHIPPED.repos if r.id not in EXTERNAL]) == 108
+    # one entry per id; the total is not pinned, so a later entry needs no edit
+    assert len({r.id.lower() for r in SHIPPED.repos}) == len(SHIPPED.repos)
 
 
 @pytest.mark.parametrize(

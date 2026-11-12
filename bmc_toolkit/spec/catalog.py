@@ -77,6 +77,15 @@ Schema (``schema_version = 1``)::
     sparse = ["meta-phosphor"] optional: only these directories are checked
                                out, or with globs ("/**/*.bb") only the
                                matching files
+    release_tag = "v{version}" optional: for a component OpenBMC builds from
+                               a tarball (no SRCREV), the tag a Release's
+                               recipe version names: the version of the
+                               recipe <id>_<version>.bb (or its PV) goes
+                               into {version}. Not with owner
+    moved_from = ["https://github.com/ipmitool/ipmitool.git"]
+                               optional: earlier URLs of the repository; a
+                               recipe fetching one pins the entry, which is
+                               cloned from url. Not with owner
 """
 
 import datetime
@@ -206,6 +215,8 @@ class Repo:
     sparse: tuple[str, ...] = ()
     owner: str = ""  # a fork's vendor; "" for what a Release pins (upstream, libspdm)
     ref: str = ""  # the branch a plain clone fetches; "" for the remote's default
+    release_tag: str = ""  # "v{version}": a tarball recipe's version as a tag
+    moved_from: tuple[str, ...] = ()  # earlier URLs a recipe may still fetch
 
 
 @dataclass
@@ -410,6 +421,32 @@ def _parse_repo(raw: dict, where: str) -> Repo:
     ref = _expect(raw, "ref", str, where, default="", required=False).strip()
     if "ref" in raw and not ref:
         raise CatalogError(f"{where}.ref: must name a branch or tag")
+    release_tag = _expect(raw, "release_tag", str, where, default="", required=False)
+    release_tag = release_tag.strip()
+    rest = release_tag.replace("{version}", "", 1)
+    if "release_tag" in raw and (
+        "{version}" not in release_tag
+        or "{" in rest
+        or "}" in rest
+        or any(c.isspace() for c in release_tag)
+    ):
+        raise CatalogError(
+            f"{where}.release_tag: '{release_tag}' must hold {{version}} once "
+            "and nothing else in braces"
+        )
+    moved = _expect(raw, "moved_from", list, where, default=[], required=False)
+    for old in moved:
+        if not isinstance(old, str) or not (
+            old.strip().startswith("https://") or old.strip().startswith("file://")
+        ):
+            raise CatalogError(
+                f"{where}.moved_from: '{old}' must start with https:// (or file://)"
+            )
+    if owner and (release_tag or moved):
+        raise CatalogError(
+            f"{where}: release_tag and moved_from are for what a Release pins; "
+            "a vendor tree (owner) has no Release"
+        )
     return Repo(
         repo_id,
         url,
@@ -417,6 +454,8 @@ def _parse_repo(raw: dict, where: str) -> Repo:
         tuple(s.strip() for s in sparse),
         owner,
         ref,
+        release_tag,
+        tuple(old.strip() for old in moved),
     )
 
 

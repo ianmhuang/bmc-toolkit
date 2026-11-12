@@ -114,9 +114,10 @@ def test_ac1_shipped_entry_has_the_projects_url_and_no_owner_or_ref(repo_id):
 def test_ac1_six_entries_are_added_to_the_108():
     """AC-1: 'The other 108 entries do not change': the six are additions,
     none replaces or removes an entry."""
-    assert len(SHIPPED.repos) == 114
-    assert len([r for r in SHIPPED.repos if r.id not in URLS]) == 108
-    assert len({r.id.lower() for r in SHIPPED.repos}) == 114
+    # T76.3 adds four more (i2c-tools, ethtool, tpm2-tss, tpm2-tools)
+    assert len(SHIPPED.repos) == 118
+    assert len([r for r in SHIPPED.repos if r.id not in URLS]) == 112
+    assert len({r.id.lower() for r in SHIPPED.repos}) == 118
 
 
 @pytest.mark.parametrize(

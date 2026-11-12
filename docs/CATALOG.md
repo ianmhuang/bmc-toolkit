@@ -98,8 +98,15 @@ repository a publisher has. An entry without `owner` is one an OpenBMC
 Release pins: an upstream OpenBMC repository, or a library from another
 project that an OpenBMC recipe fetches by git commit (`libspdm`,
 `spdm-emu`, `mctp`, `nvme-cli`, `libnvme`, `ipmitool`, at their own
-projects' URLs). An unlisted `openbmc/<name>` can still be cloned by
-name. The SoC vendors' forks and SDK repositories (Aspeed's `AspeedTech-BMC`,
+projects' URLs), or one OpenBMC builds from a release tarball
+(`i2c-tools`, `ethtool`, `tpm2-tss`, `tpm2-tools`). A tarball recipe has
+no `SRCREV`, so such an entry carries `release_tag`, the project's tag
+form with `{version}` (`"v{version}"`, `"{version}"`): `--release` takes
+the version of the recipe named like the entry and checks out that tag.
+`moved_from` lists a repository's earlier URLs, which older releases'
+recipes may still fetch (`ipmitool`, on GitHub up to openbmc 2.14.0);
+the commit is cloned from `url`. Neither key goes with `owner`. An
+unlisted `openbmc/<name>` can still be cloned by name. The SoC vendors' forks and SDK repositories (Aspeed's `AspeedTech-BMC`,
 Nuvoton's `Nuvoton-Israel`) carry `owner = "aspeed"` or `"nuvoton"`, and
 their ids start with the owner (`aspeed-linux`, `nuvoton-u-boot`); an
 unlisted id with a vendor prefix is refused rather than guessed. A
