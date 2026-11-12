@@ -3,8 +3,10 @@ catalog's sparse set (T76.1: AC-4, AC-5).
 
 Black-box, through the ``bmcspec`` CLI, against local bare git
 repositories: a tree is cloned with one catalog, then the same Library is
-used with a catalog whose ``sparse`` differs. No network. Skipped when git
-is not on PATH.
+used with a catalog whose ``sparse`` differs. Where an AC is about which
+git commands run ("no git call", "no sparse-checkout set", a failing
+restore), ``code.run_git`` is wrapped. No network. Skipped when git is not
+on PATH.
 """
 
 import json
@@ -259,6 +261,130 @@ def test_any_repository_catches_up_with_directories_and_with_no_set(
     assert _meta(tree)["sparse"] == []
 
 
+def _no_git(*args, **kwargs):
+    raise AssertionError(f"git ran for a tree whose set matches: {args}")
+
+
+def test_a_recorded_set_in_another_order_is_the_same_set(
+    tmp_path, library, remotes, capsys, monkeypatch
+):
+    """AC-4 (amended): 'Sets are compared in any order. A tree whose
+    recorded set already matches is left untouched, with no git call.'
+    thing is held with the directories src, docs; a catalog that lists
+    docs, src names the same set: no note:, no git call, the meta and the
+    files stay byte for byte.
+    """
+    first = _catalog(tmp_path, "src-docs", remotes, thing=("src", "docs"))
+    code, out = run(capsys, first, "clone", "thing", "--ref", "main")
+    assert code == 0, out
+    (tree,) = _trees(library, "thing")
+    assert sorted(_meta(tree)["sparse"]) == ["docs", "src"]
+    files = _files(tree)
+    assert files == ["docs/guide.txt", "src/a.c"]
+    meta_bytes = (tree / code_mod.TREE_META).read_bytes()
+
+    monkeypatch.setattr(code_mod, "run_git", _no_git)
+    other = _catalog(tmp_path, "docs-src", remotes, thing=("docs", "src"))
+    code, out = run(capsys, other, "clone", "thing", "--ref", "main")
+    assert code == 0, out
+    assert "held thing " in out
+    assert _notes(out, "thing") == []
+    assert (tree / code_mod.TREE_META).read_bytes() == meta_bytes
+    assert _files(tree) == files
+
+
+def test_an_unrecorded_tree_that_already_has_the_set_gets_the_meta_only(
+    tmp_path, library, remotes, capsys, monkeypatch
+):
+    """AC-4 (amended): 'an unrecorded tree whose checkout already has the
+    catalog's set gets the meta only, with no sparse-checkout set and no
+    note:'. Two trees written before trees recorded their set: thing, held
+    with the directories the catalog lists as src, docs (git itself lists
+    them sorted), and foo, a full checkout. The next clone of each records
+    the set, changes no file, says nothing, and runs no sparse-checkout
+    command that changes a tree. After that the set is recorded, so a
+    further clone runs no git at all.
+    """
+    catalog = _catalog(tmp_path, "src-docs", remotes, thing=("src", "docs"))
+    held = {}
+    for repo in ("thing", "foo"):
+        code, out = run(capsys, catalog, "clone", repo, "--ref", "main")
+        assert code == 0, out
+        (tree,) = _trees(library, repo)
+        meta = _meta(tree)
+        assert "sparse" in meta
+        del meta["sparse"]  # as a tree written before this change
+        (tree / code_mod.TREE_META).write_text(
+            json.dumps(meta), encoding="utf-8", newline=""
+        )
+        held[repo] = (tree, _files(tree))
+
+    calls = []
+    real = code_mod.run_git
+
+    def spy(args, **kwargs):
+        calls.append(list(args))
+        return real(args, **kwargs)
+
+    monkeypatch.setattr(code_mod, "run_git", spy)
+    for repo, wanted in (("thing", ["docs", "src"]), ("foo", [])):
+        tree, files = held[repo]
+        code, out = run(capsys, catalog, "clone", repo, "--ref", "main")
+        assert code == 0, out
+        assert f"held {repo} " in out
+        assert _notes(out, repo) == [], out
+        assert sorted(_meta(tree)["sparse"]) == wanted
+        assert _files(tree) == files
+        assert _trees(library, repo) == [tree]
+    changing = [c for c in calls if c[0] == "sparse-checkout" and c[1] != "list"]
+    assert changing == []
+
+    monkeypatch.setattr(code_mod, "run_git", _no_git)
+    for repo in ("thing", "foo"):
+        code, out = run(capsys, catalog, "clone", repo, "--ref", "main")
+        assert code == 0, out
+        assert _notes(out, repo) == []
+
+
+def test_reading_commands_do_not_catch_a_tree_up_and_do_not_clone(
+    tmp_path, library, remotes, capsys
+):
+    """AC-4: 'Reading commands (grep, code) do not clone and do not catch a
+    tree up.' The openbmc tree is held with the older patterns; with the
+    catalog's new ones `grep` and `code` read it as it is (no note:, same
+    meta, same files, the upstream-layers recipe still absent) and `grep`
+    on a repository that is not held fetches nothing. The next `clone`
+    is the command that catches the tree up.
+    """
+    old = _catalog(tmp_path, "old", remotes, openbmc=OLD)
+    code, out = run(capsys, old, "clone", "openbmc", "--ref", "1.0.0")
+    assert code == 0, out
+    (tree,) = _trees(library, "openbmc")
+    meta_bytes = (tree / code_mod.TREE_META).read_bytes()
+    assert _files(tree) == [TOP_RECIPE]
+
+    new = _catalog(tmp_path, "new", remotes)
+    code, out = run(capsys, new, "grep", "openbmc", "SRCREV", "--release", "1.0.0")
+    assert code == 0, out
+    assert f"{TOP_RECIPE}:2 | SRCREV" in out
+    assert "note:" not in out
+    code, out = run(capsys, new, "code", "openbmc", TOP_RECIPE, "--release", "1.0.0")
+    assert code == 0, out
+    assert "SRCREV" in out
+    assert "note:" not in out
+    code, out = run(capsys, new, "grep", "foo", "int", "--release", "1.0.0")
+    assert code != 0, out
+    assert _trees(library, "foo") == []
+    assert _trees(library, "openbmc") == [tree]
+    assert (tree / code_mod.TREE_META).read_bytes() == meta_bytes
+    assert _files(tree) == [TOP_RECIPE]
+
+    code, out = run(capsys, new, "clone", "openbmc", "--ref", "1.0.0")
+    assert code == 0, out
+    assert len(_notes(out, "openbmc")) == 1, out
+    assert _files(tree) == sorted([TOP_RECIPE, UP_RECIPE])
+
+
 # --------------------------------------------------------------- AC-5
 
 
@@ -267,9 +393,9 @@ def test_a_failed_catch_up_exits_1_leaves_the_tree_and_is_tried_again(
 ):
     """AC-5: 'When applying the new set fails (no network to fetch the
     blobs ...), the command exits 1 with a message naming the repository
-    and the commit, the tree's files and meta stay as they were, and the
-    next command tries again.' The tree's origin is moved away while the
-    command runs, then put back.
+    and the commit, the old set is put back and the meta is not written,
+    and the next command tries again.' The tree's origin is moved away
+    while the command runs, then put back.
     """
     old = _catalog(tmp_path, "old", remotes, openbmc=OLD)
     run(capsys, old, "clone", "openbmc", "--ref", "1.0.0")
@@ -301,3 +427,42 @@ def test_a_failed_catch_up_exits_1_leaves_the_tree_and_is_tried_again(
     assert _meta(tree)["sparse"] == list(NEW)
     (foo,) = _trees(library, "foo")
     assert foo.name == remotes["foo"]
+
+
+def test_a_failed_restore_is_said_and_the_tree_is_not_called_unchanged(
+    tmp_path, library, remotes, capsys, monkeypatch
+):
+    """AC-5 (amended): 'when putting the old set back fails too, the
+    message says so instead of saying the tree is as it was.' Every
+    `git sparse-checkout set` fails here (run_git raises its CodeError), so
+    applying the catalog's set fails and so does putting the old one back:
+    exit 1, the repository and the commit are named, the message does not
+    claim the tree is as it was, the meta is not written, and the next
+    command, with git working again, catches the tree up.
+    """
+    old = _catalog(tmp_path, "old", remotes, openbmc=OLD)
+    run(capsys, old, "clone", "openbmc", "--ref", "1.0.0")
+    (tree,) = _trees(library, "openbmc")
+    meta_bytes = (tree / code_mod.TREE_META).read_bytes()
+    real = code_mod.run_git
+
+    def failing(args, **kwargs):
+        if list(args[:2]) == ["sparse-checkout", "set"]:
+            raise code_mod.CodeError("git sparse-checkout failed: injected failure")
+        return real(args, **kwargs)
+
+    new = _catalog(tmp_path, "new", remotes)
+    monkeypatch.setattr(code_mod, "run_git", failing)
+    code, out = run(capsys, new, "clone", "foo", "--release", "1.0.0")
+    monkeypatch.setattr(code_mod, "run_git", real)
+    assert code == 1, out
+    assert "openbmc" in out and tree.name[:7] in out
+    assert "as it was" not in out
+    assert (tree / code_mod.TREE_META).read_bytes() == meta_bytes
+    assert _trees(library, "foo") == []
+
+    code, out = run(capsys, new, "clone", "foo", "--release", "1.0.0")
+    assert code == 0, out
+    assert len(_notes(out, "openbmc")) == 1, out
+    assert _files(tree) == sorted([TOP_RECIPE, UP_RECIPE])
+    assert _meta(tree)["sparse"] == list(NEW)

@@ -3,10 +3,11 @@ every layer of openbmc/openbmc (T76.1: AC-1, AC-2, AC-3, AC-9).
 
 AC-1 to AC-3 go through the ``bmcspec`` CLI against local bare git
 repositories, with the ``openbmc`` entry's ``sparse`` value taken from the
-shipped catalog. AC-9 is about how one recipe's text is read, so it is
-checked on ``find_pin_recipe`` with hand-written recipe files (a hosted
-catalog URL cannot be cloned in the sandbox). No network. Skipped when git
-is not on PATH.
+shipped catalog. AC-9 is about how one recipe's text is read (host and
+path, ``name=`` and its fallback, the assignment operators, an ``.inc``
+required through ``..``), so it is checked on ``find_pin_recipe`` with
+hand-written recipe files (a hosted catalog URL cannot be cloned in the
+sandbox). No network. Skipped when git is not on PATH.
 """
 
 import json
@@ -344,3 +345,127 @@ def test_the_recipe_reported_is_the_file_holding_the_srcrev(tmp_path):
     assert code_mod.find_pin_recipe(
         tmp_path, "r", "https://github.com/openbmc/r.git"
     ) == (B, f"{TOP}/r/r_git.bb")
+
+
+def test_a_named_entry_falls_back_to_the_plain_srcrev(tmp_path):
+    """AC-9 (amended): a SRC_URI entry with name=X 'falls back to SRCREV
+    when SRCREV_X is not set'. x: one entry with name=x and only a plain
+    SRCREV, so that SRCREV is the pin, for a hosted and for a file://
+    catalog URL. y: both are set, so SRCREV_y is the pin although the plain
+    SRCREV comes after it.
+    """
+    x, y = f"{UP}/x/x_1.0.bb", f"{UP}/y/y_1.0.bb"
+    _recipes(
+        tmp_path,
+        {
+            x: (
+                'SRC_URI = "git://github.com/acme/x;name=x;branch=main"\n'
+                f'SRCREV = "{A}"\n'
+            ),
+            y: (
+                'SRC_URI = "git://github.com/acme/y;name=y;branch=main"\n'
+                f'SRCREV_y = "{B}"\n'
+                f'SRCREV = "{C}"\n'
+            ),
+        },
+    )
+    find = code_mod.find_pin_recipe
+    assert find(tmp_path, "x", "https://github.com/acme/x.git") == (A, x)
+    assert find(tmp_path, "x", "file:///mirror/x.git") == (A, x)
+    assert find(tmp_path, "y", "https://github.com/acme/y.git") == (B, y)
+
+
+OPERATOR_CASES = {
+    # name: (the SRCREV lines in reading order, the commit that counts)
+    "set-then-default": ([("=", A), ("?=", B)], A),
+    "default-then-default": ([("?=", A), ("?=", B)], A),
+    "default-then-set": ([("?=", A), ("=", B)], B),
+    "weak-then-default": ([("??=", A), ("?=", B)], B),
+    "default-then-weak": ([("?=", B), ("??=", A)], B),
+    "weak-alone": ([("??=", A)], A),
+    "set-then-immediate": ([("=", A), (":=", B)], B),
+    "immediate-then-weaker": ([(":=", A), ("??=", C), ("?=", B)], A),
+}
+
+
+@pytest.mark.parametrize("case", sorted(OPERATOR_CASES))
+def test_srcrev_assignments_follow_the_operators_in_reading_order(tmp_path, case):
+    """AC-9 (amended): 'Assignments follow bitbake's operators in reading
+    order: = / := set, ?= only while unset, ??= only when nothing else sets
+    it.' One recipe per combination; the pin is the commit that rule gives.
+    """
+    lines, expected = OPERATOR_CASES[case]
+    recipe = f"{UP}/{case}/{case}_1.0.bb"
+    text = f'SRC_URI = "git://github.com/acme/{case};branch=main"\n'
+    text += "".join(f'SRCREV {op} "{rev}"\n' for op, rev in lines)
+    _recipes(tmp_path, {recipe: text})
+    url = f"https://github.com/acme/{case}.git"
+    assert code_mod.find_pin_recipe(tmp_path, case, url) == (expected, recipe)
+
+
+def test_the_operators_hold_across_a_required_inc(tmp_path):
+    """AC-9 (amended): the reading order runs through the .inc a recipe
+    requires, and 'the recipe reported is the file that holds the SRCREV
+    assignment that counts'. late: the .bb sets SRCREV, then requires an
+    .inc with a ?= default, which does not count (the .bb, its commit).
+    early: the .inc's ?= default comes first and the .bb's own ?= after
+    it does not count (the .inc, its commit).
+    """
+    _recipes(
+        tmp_path,
+        {
+            f"{UP}/late/late.inc": f'SRCREV ?= "{A}"\n',
+            f"{UP}/late/late_1.0.bb": (
+                'SRC_URI = "git://github.com/acme/late;branch=main"\n'
+                f'SRCREV = "{B}"\n'
+                "require late.inc\n"
+            ),
+            f"{UP}/early/early.inc": f'SRCREV ?= "{A}"\n',
+            f"{UP}/early/early_1.0.bb": (
+                'SRC_URI = "git://github.com/acme/early;branch=main"\n'
+                "require early.inc\n"
+                f'SRCREV ?= "{B}"\n'
+            ),
+        },
+    )
+    find = code_mod.find_pin_recipe
+    assert find(tmp_path, "late", "https://github.com/acme/late.git") == (
+        B,
+        f"{UP}/late/late_1.0.bb",
+    )
+    assert find(tmp_path, "early", "https://github.com/acme/early.git") == (
+        A,
+        f"{UP}/early/early.inc",
+    )
+
+
+def test_an_inc_required_through_a_parent_directory_is_one_file(tmp_path):
+    """AC-9 (amended): 'An .inc required through .. is the same file as
+    when found on its own.' y: the .bb requires ../common/y.inc (SRC_URI
+    and a SRCREV) and sets its own SRCREV after it; the .inc must not be
+    read a second time on its own, which would give two commits for y.
+    z: the .bb only requires ../common/z.inc, so the .inc holds the SRCREV
+    and is reported by its plain path, with no '..' in it.
+    """
+    _recipes(
+        tmp_path,
+        {
+            f"{UP}/common/y.inc": (
+                f'SRC_URI = "git://github.com/acme/y;branch=main"\nSRCREV = "{A}"\n'
+            ),
+            f"{UP}/y/y_1.0.bb": f'require ../common/y.inc\nSRCREV = "{B}"\n',
+            f"{UP}/common/z.inc": (
+                f'SRC_URI = "git://github.com/acme/z;branch=main"\nSRCREV = "{C}"\n'
+            ),
+            f"{UP}/z/z_1.0.bb": "require ../common/z.inc\n",
+        },
+    )
+    find = code_mod.find_pin_recipe
+    assert find(tmp_path, "y", "https://github.com/acme/y.git") == (
+        B,
+        f"{UP}/y/y_1.0.bb",
+    )
+    assert find(tmp_path, "z", "https://github.com/acme/z.git") == (
+        C,
+        f"{UP}/common/z.inc",
+    )
