@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from bmc_toolkit.spec import catalog as catalog_mod
+from bmc_toolkit.spec import cli as cli_mod
 from bmc_toolkit.spec import code as code_mod
 from bmc_toolkit.spec.cli import _release_pin, main
 from tests.conftest import MINI_CATALOG
@@ -432,6 +433,69 @@ def test_a_missing_tag_is_named(tmp_path, remotes, library, capsys):
     assert not widget_dir.exists() or not [
         p for p in widget_dir.iterdir() if p.is_dir() and not p.name.startswith(".")
     ]
+
+
+@needs_git
+def test_an_unreachable_remote_keeps_the_fetch_error(
+    tmp_path, remotes, library, capsys
+):
+    # ls-remote cannot say whether the tag is missing, so the fetch's own
+    # error is what the user sees, not the ls-remote one
+    cat = _catalog(tmp_path, remotes)
+    bare = remotes["widget_bare"]
+    away = tmp_path / "gone"
+    bare.rename(away)
+    try:
+        code, out = run(capsys, cat, "clone", "widget", "--release", "3.0.0")
+    finally:
+        away.rename(bare)
+    assert code == 2, out
+    assert "git fetch of refs/tags/v9.9 failed" in out
+    assert "ls-remote" not in out
+    assert "has no tag" not in out and "pin:" not in out
+    widget_dir = library / "code" / "widget"
+    assert not widget_dir.exists() or not [
+        p for p in widget_dir.iterdir() if p.is_dir() and not p.name.startswith(".")
+    ]
+
+
+def _failed_fetch(monkeypatch, has_tag):
+    """_clone_tag with a fetch that fails and ``has_tag`` standing in for
+    ``remote_has_tag``: True, False, or an exception it raises."""
+
+    def fetch(*args, **kwargs):
+        raise code_mod.CodeError("git fetch failed: the fetch's error")
+
+    def ask(url, tag):
+        if isinstance(has_tag, Exception):
+            raise has_tag
+        return has_tag
+
+    monkeypatch.setattr(cli_mod, "_clone_tree", fetch)
+    monkeypatch.setattr(code_mod, "remote_has_tag", ask)
+    repo = _repo(release_tag="v{version}")
+    with pytest.raises(code_mod.CodeError) as caught:
+        cli_mod._clone_tag(
+            None, repo, ("v2.1", "2.1"), SimpleNamespace(force=False), True
+        )
+    return str(caught.value)
+
+
+@pytest.mark.parametrize(
+    "has_tag, message",
+    [
+        (code_mod.CodeError("git ls-remote failed: no network"), "git fetch failed"),
+        (True, "git fetch failed"),
+        (
+            False,
+            "the release builds widget 2.1, but https://example.org/widget.git "
+            "has no tag v2.1",
+        ),
+    ],
+    ids=["ls-remote-fails", "tag-present", "tag-missing"],
+)
+def test_a_failed_tag_fetch_says_why(monkeypatch, has_tag, message):
+    assert _failed_fetch(monkeypatch, has_tag).startswith(message)
 
 
 @needs_git

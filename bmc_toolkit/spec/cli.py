@@ -1830,7 +1830,13 @@ def _clone_tag(library, repo, tag, args, known):
     except code_mod.SparseError:
         raise
     except code_mod.CodeError as exc:
-        if code_mod.remote_has_tag(repo.url, tag_name):
+        try:
+            missing = not code_mod.remote_has_tag(repo.url, tag_name)
+        except code_mod.CodeError:
+            # the remote cannot be asked either: the fetch's error says
+            # what was being fetched, the ls-remote one does not
+            missing = False
+        if not missing:
             raise
         raise code_mod.CodeError(
             f"the release builds {repo.id} {version}, but {repo.url} has no tag "

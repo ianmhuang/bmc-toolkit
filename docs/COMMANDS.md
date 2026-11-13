@@ -448,7 +448,8 @@ different versions are listed; a recipe named like the entry with no
 usable version (`<id>_git.bb`, a `PV` holding `${...}`) exits 2 with
 `no version for <repo> in this release: <recipe> gives no version
 (...)`; a version whose tag the remote does not have exits 2 with
-`the release builds <repo> <version>, but <url> has no tag <tag>`. The
+`the release builds <repo> <version>, but <url> has no tag <tag>`; when
+the remote cannot be asked, the fetch's error is printed instead. The
 tag is fetched as `refs/tags/<tag>`, never a branch of that name. A
 tree held with other paths than the catalog's (one fetched by an older
 version, or before trees recorded them) is brought to the catalog's
@@ -460,15 +461,14 @@ so when that fails too) and the next `clone` tries again. For the
 `openbmc` repository itself `--release L` is the same as `--ref L`. A
 vendor tree (a catalog entry with an `owner`, see
 [CATALOG.md](CATALOG.md#code-trees)) is never guessed: an unlisted id
-starting with a vendor owner (`aspeed-`, `nuvoton-`) exits 2. It has
-no Release: `--release` on
-`clone`, `grep` or `code` prints `<repo> has no Release; use --ref with an
-SDK branch or tag` and exits 2, and the `config.toml` default Release is
-not used for it (`note: <repo> has no Release; config.toml release L not
-used`). A catalog entry's `ref` stands in for the remote's default branch
-when no flag is given (`nuvoton-linux`); a tree held from `--ref` at that
-branch and a default-branch tree of it are one branch: either answers the
-other without the network. Several
+starting with a vendor owner (`aspeed-`, `nuvoton-`) exits 2. It has no
+Release: `--release` on `clone`, `grep` or `code` prints `<repo> has no
+Release; use --ref with an SDK branch or tag` and exits 2, and the
+`config.toml` default Release is not used for it (`note: <repo> has no
+Release; config.toml release L not used`). A catalog entry's `ref` stands
+in for the remote's default branch when no flag is given (`nuvoton-linux`);
+a tree held from `--ref` at that branch and a default-branch tree of it are
+one branch: either answers the other without the network. Several
 commits of one repository coexist; `--force` on a moving name fetches again
 and marks the older tree of that branch superseded (whether it was held
 under `--ref` or as the default branch) rather than deleting it. A plain
