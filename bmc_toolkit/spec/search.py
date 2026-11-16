@@ -223,20 +223,11 @@ class Version:
         anything else matches entries whose title contains every word of the
         query, case-insensitively.
         """
-        q = query.strip().rstrip(".")
-        numeric = bool(_NUMBER_QUERY.match(q))
-        words = [w for w in _norm(q).split() if w]
         out = []
         entries = self.outline
         for i, e in enumerate(entries):
             sec = Section(e["title"], e["page"], bool(e.get("approximate")))
-            if numeric:
-                num = sec.number
-                matched = bool(num) and (num == q or num.startswith(q + "."))
-            else:
-                title = _norm(sec.title)
-                matched = bool(words) and all(w in title for w in words)
-            if not matched:
+            if not query_matches(query, sec.title):
                 continue
             sec = Section(sec.title, self.placed_page(sec), sec.approximate)
             end = self.page_count
@@ -366,6 +357,21 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
+def query_matches(query: str, title: str, text: str | None = None) -> bool:
+    """Whether an Outline entry answers a ``section`` query. A query that
+    looks like a section number (``20.1``, ``A.2``) matches a title whose
+    number is it or starts with it on a dot boundary; anything else matches
+    when ``text`` (the title by default) contains every word of the query,
+    case-insensitively."""
+    q = query.strip().rstrip(".")
+    if _NUMBER_QUERY.match(q):
+        num = Section(title, 0).number
+        return bool(num) and (num == q or num.startswith(q + "."))
+    words = _norm(q).split()
+    haystack = _norm(title if text is None else text)
+    return bool(words) and all(w in haystack for w in words)
+
+
 def split_pages(text: str) -> list[list[str]]:
     """The Extract's page blocks, in order; a missing or out-of-order marker
     is a SearchError."""
@@ -459,5 +465,6 @@ __all__ = [
     "format_page",
     "load_version",
     "origin_of",
+    "query_matches",
     "split_pages",
 ]

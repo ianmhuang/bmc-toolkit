@@ -44,7 +44,8 @@ Schema (``schema_version = 1``)::
     version = "1.3.3"          the publisher's own string, verbatim
     url = "https://..."        may be "" when fetch = "manual" or the
                                version's access is not open
-    type = "pdf"               pdf | zip
+    type = "pdf"               pdf | zip | md (Markdown, read by line
+                               numbers; pin the url to a commit)
     published = "2024-03-25"   ISO date
     wip = false                optional, default false
     access = "gated"           optional: this version's tier when it differs
@@ -96,7 +97,7 @@ from pathlib import Path
 
 ACCESS_TIERS = ("open", "gated", "member", "confidential")
 FETCH_METHODS = ("direct", "wayback", "manual")
-FILE_TYPES = ("pdf", "zip")
+FILE_TYPES = ("pdf", "zip", "md")
 LISTING_SOURCES = ("dmtf", "nvme", "ocp")
 SCHEMA_VERSION = 1
 DEFAULT_CATALOG = Path(__file__).with_name("catalog.toml")

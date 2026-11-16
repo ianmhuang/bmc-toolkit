@@ -16,7 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from bmc_toolkit.spec.catalog import Document, Version
-from bmc_toolkit.spec.library import MAGIC, Library
+from bmc_toolkit.spec.library import Library, body_matches_type
 
 WAYBACK_AVAILABLE = "https://archive.org/wayback/available?url="
 BROWSER_UA = (
@@ -86,7 +86,7 @@ def check_body(resp: Response, expected_type: str) -> bytes:
     if resp.status != 200:
         raise RejectedBody(f"HTTP {resp.status}")
     body = resp.body
-    if not any(body.startswith(m) for m in MAGIC[expected_type]):
+    if not body_matches_type(body, expected_type):
         ctype = resp.header("content-type") or "unknown content type"
         raise RejectedBody(f"not a {expected_type} ({ctype}, {len(body)} bytes)")
     declared = resp.header("content-length")

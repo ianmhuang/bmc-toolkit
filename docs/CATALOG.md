@@ -34,6 +34,10 @@ checked on (`G13, G15 (<version>)`); `--by-family` prints the reader's form
 kept in `docs/SUPPORT.md`: a heading and a table per family, without the
 Fetch column, Verified reduced to `PASS` or `-`, and documents marked
 `unlisted = true` in the catalog left out (the BMC SoC datasheets are).
+A version's `type` is `pdf`, `zip` (a Redfish bundle) or `md`: a
+Markdown document that exists only in a repository, read by its line
+numbers (see [COMMANDS.md](COMMANDS.md#reading-commands)); its URL is the
+raw file at a pinned commit, so the lines a Citation names do not move.
 The latest version is the one with the newest publication date; same-day
 versions are told apart by the numbers in their version strings (`2.0.0`
 over `1.3.0`). A document
