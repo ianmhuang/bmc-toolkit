@@ -90,6 +90,11 @@ def held(tmp_path, library, scripted, capsys):
         # a dot inside the query stays
         ("e.g. keys", ["e.g.", "keys"]),
         ("Boot flow > Scope", ["boot", "flow", ">", "scope"]),
+        # one pass only: the dots are dropped from the end of the stripped
+        # query, and what that uncovers is not stripped of dots again
+        ("fuses. .", ["fuses."]),
+        ("4.2. .", ["4.2."]),
+        ("fuses..", ["fuses"]),
         # nothing to compare
         ("", []),
         ("   ", []),
@@ -115,6 +120,13 @@ WORD_CASES = [
     # ``text`` replaces the title as what the words are looked for in
     ("scope notes", "Notes", "Overview > Scope > Notes", True),
     ("scope notes", "Notes", None, False),
+    # a query ending in dot, whitespace, dot keeps the first dot in its word
+    # (round 1, F1): the word is compared with the dot, as before the change
+    ("fuses. .", "Fuses", None, False),
+    ("fuses. .", "Fuses. Goals", None, True),
+    ("4.2. .", "4.2 Measured boot", None, False),
+    ("4.2. .", "4.2. Measured boot", None, True),
+    ("goals. .", "Goals", "Fuses > Goals", False),
 ]
 
 
@@ -164,6 +176,11 @@ def test_a_section_number_query_is_matched_as_before(query, title, expected):
         ("ladder", ["1 | Ladder | lines 7-8"]),
         ("keys ladder", ["no matching section"]),
         ("   ", ["no matching section"]),
+        # the dot that stays in the word is in no title and no heading path
+        # (round 1, F1): the PDF side and this side read the query alike
+        ("fuses. .", ["no matching section"]),
+        ("keys goals. .", ["no matching section"]),
+        ("fuses..", ["0 | Fuses | lines 1-3"]),
     ],
 )
 def test_markdown_sections_answer_the_same_words(held, capsys, query, lines):
