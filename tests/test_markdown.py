@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from bmc_toolkit.spec import markdown as md
+from bmc_toolkit.spec.library import file_matches_type
 
 # Line numbers matter in every test below: keep the text as it is.
 MD_TEXT = """\
@@ -79,11 +80,11 @@ def test_html_binary_or_empty_is_not_markdown(body):
 
 def test_file_check_reads_the_whole_file(tmp_path):
     good = write(tmp_path)
-    assert md.file_is_markdown(good)
+    assert file_matches_type(good, "md")
     bad = tmp_path / "bad.md"
     bad.write_bytes(b"# fine start\n" + b"\xff" * 10)
-    assert not md.file_is_markdown(bad)
-    assert not md.file_is_markdown(tmp_path / "missing.md")
+    assert not file_matches_type(bad, "md")
+    assert not file_matches_type(tmp_path / "missing.md", "md")
 
 
 # ------------------------------------------------------------- outline
@@ -136,8 +137,8 @@ def test_crlf_and_lf_number_the_same_and_a_bom_is_dropped(tmp_path):
 
 def test_a_line_break_python_would_split_on_is_kept(tmp_path):
     path = tmp_path / "original.md"
-    path.write_bytes("# A B\nnext\n".encode())
-    assert md.read_lines(path) == ["# A B", "next"]
+    path.write_bytes("# A\u2028B\nnext\n".encode())
+    assert md.read_lines(path) == ["# A\u2028B", "next"]
 
 
 # ------------------------------------------------------ version reading
@@ -195,6 +196,8 @@ def test_match_by_words_by_path_and_by_number(version):
 
     assert found("goals") == ["Introduction > Goals", "Fuses > Goals"]
     assert found("fuses goals") == ["Fuses > Goals"]
+    assert found("fuses") == ["Fuses"]  # not the repeated title under it
+    assert found("introduction") == ["Introduction"]
     assert found("Fuses > Goals") == ["Fuses > Goals"]
     assert found("5.2") == ["5.2 Zeroization"]
     assert found("5") == ["5.2 Zeroization"]

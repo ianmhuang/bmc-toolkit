@@ -121,8 +121,11 @@ a space, outside fenced code blocks; level is the count of `#` minus one)
 and prints `extracted DOC V: N lines, outline headings (K entries)`.
 `section` prints `LEVEL | title | lines A-B`, the section ending before
 the next heading of the same or a higher level. A title that two or more
-headings share is shown, cited and matched as its heading path, `Fuses >
-Goals`, so `section DOC "fuses goals"` picks one of them. `find` prints
+headings share is shown and cited as its heading path, `Fuses > Goals`.
+Words match a title as they do for a PDF; a repeated title also matches
+when every word is in its path and one is in the title itself, so
+`section DOC "fuses goals"` picks one of them and `fuses` alone lists
+only `Fuses`. `find` prints
 `DOC l.N | section | text`, N the file's line, and `--context` lines as
 `line n: text`. `page DOC --lines A-B` prints lines A to B behind their
 numbers (B past the end is cut to it; more than 200 lines, A outside the

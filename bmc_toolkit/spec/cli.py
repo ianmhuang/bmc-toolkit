@@ -1408,6 +1408,14 @@ def _held_type(holding) -> str:
     return holding.original.suffix.lower().lstrip(".")
 
 
+def _load_version(holding):
+    """A Ready holding loaded for reading: a ``markdown.MarkdownVersion``
+    for a Markdown original, else the PDF's ``search.Version``."""
+    if _held_type(holding) == "md":
+        return md_mod.load_version(holding, search_mod.origin_of(holding.meta))
+    return search_mod.load_version(holding)
+
+
 def _open_version(args: argparse.Namespace, kinds: tuple[str, ...] = ("pdf", "md")):
     """(Version, document, exit code): a loaded version (a PDF's
     ``search.Version`` or a ``markdown.MarkdownVersion``) or the code to
@@ -1432,10 +1440,7 @@ def _open_version(args: argparse.Namespace, kinds: tuple[str, ...] = ("pdf", "md
     if state != "ready":
         return None, doc, _not_ready(holding, state)
     try:
-        if held_type == "md":
-            version = md_mod.load_version(holding, search_mod.origin_of(holding.meta))
-        else:
-            version = search_mod.load_version(holding)
+        version = _load_version(holding)
     except (search_mod.SearchError, md_mod.MarkdownError) as exc:
         print(f"cannot read {holding.document} {holding.version}: {exc}")
         return None, doc, EXIT_ERROR
@@ -1461,7 +1466,7 @@ def _context_lines(version, hit, n: int):
         lines = version.lines
         for number in range(max(1, hit.line - n), min(len(lines), hit.line + n) + 1):
             if number != hit.line:
-                yield f"    line {number}: {lines[number - 1]}"
+                yield f"    line {number}: {lines[number - 1].rstrip()}"
         return
     lines = version.lines(hit.page)
     for index in range(max(0, hit.index - n), min(len(lines), hit.index + n + 1)):
@@ -1491,8 +1496,8 @@ def cmd_find(args: argparse.Namespace) -> int:
             # and a companion that cannot be read is left out.
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
-                holding, _, _ = _ready_holding(args, other, None, ("pdf",))
-                if holding is not None and holding.original.suffix.lower() != ".pdf":
+                holding, _, _ = _ready_holding(args, other, None, ("pdf", "md"))
+                if holding is not None and _held_type(holding) not in ("pdf", "md"):
                     print(_bundle_pointer(holding))
                     holding = None
                 elif holding is not None and _make_current(args, holding) != "ready":
@@ -1502,8 +1507,8 @@ def cmd_find(args: argparse.Namespace) -> int:
             if holding is None:
                 continue
             try:
-                targets.append(search_mod.load_version(holding))
-            except search_mod.SearchError as exc:
+                targets.append(_load_version(holding))
+            except (search_mod.SearchError, md_mod.MarkdownError) as exc:
                 print(f"note: cannot read {other}: {exc}")
     targets.append(version)
     args.answered = [version, *targets[:-1]]  # the Notes are served by them
@@ -1615,12 +1620,12 @@ def _page_markdown(args: argparse.Namespace, version) -> int:
     limit = md_mod.MAX_LINES
     if args.lines is not None:
         m = re.match(r"^(\d+)-(\d+)$", args.lines.strip())
-        if not m:
+        if not m or int(m.group(2)) < int(m.group(1)):
             print("--lines takes A-B (line numbers, 1-based)")
             return EXIT_ACTION
         first, last = int(m.group(1)), int(m.group(2))
         total = version.line_count
-        if first < 1 or last < first or first > total:
+        if first < 1 or first > total:
             print(
                 f"{version.label} has {total} lines; --lines {args.lines} is outside it"
             )

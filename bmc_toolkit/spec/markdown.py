@@ -78,19 +78,12 @@ def looks_like_markdown(data: bytes) -> bool:
     return True
 
 
-def file_is_markdown(path: Path) -> bool:
-    try:
-        return looks_like_markdown(path.read_bytes())
-    except OSError:
-        return False
-
-
 # ------------------------------------------------------------- reading
 
 
 def split_lines(text: str) -> list[str]:
     """The file's lines as a repository viewer numbers them."""
-    if text.startswith("﻿"):
+    if text.startswith("\ufeff"):
         text = text[1:]
     lines = text.split("\n")
     if lines and lines[-1] == "":
@@ -284,14 +277,25 @@ class MarkdownVersion:
         return self.line_count
 
     def match_sections(self, query: str) -> list[tuple[int, Heading, int]]:
-        """(level, heading, end line) for the headings matching the query: a
-        section number (``5.2``) against the title as for a PDF, words
-        against the label, so a heading path picks one of two equal titles."""
-        return [
-            (h.level, h, self.end_of(h))
-            for h in self.headings
-            if query_matches(query, h.title, h.label)
-        ]
+        """(level, heading, end line) for the headings matching the query,
+        as for a PDF (a section number against the title, words against the
+        title). A repeated title, whose label is its heading path, also
+        matches when every word is in the path and at least one is in its
+        own title: ``fuses goals`` picks ``Fuses > Goals``, while ``fuses``
+        alone does not list every repeated title under ``Fuses``."""
+        out = []
+        words = " ".join(query.strip().rstrip(".").split()).lower().split()
+        for h in self.headings:
+            if query_matches(query, h.title):
+                matched = True
+            elif h.label != h.title and query_matches(query, h.title, h.label):
+                title = " ".join(h.title.split()).lower()
+                matched = any(w in title for w in words)
+            else:
+                matched = False
+            if matched:
+                out.append((h.level, h, self.end_of(h)))
+        return out
 
     def find(
         self, pattern: str, *, regex: bool = False, case: bool = False
@@ -356,7 +360,6 @@ __all__ = [
     "MarkdownHit",
     "MarkdownVersion",
     "extract",
-    "file_is_markdown",
     "is_current",
     "load_version",
     "looks_like_markdown",

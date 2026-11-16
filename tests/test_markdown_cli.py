@@ -332,7 +332,7 @@ def test_page_lines_clamps_the_end(held, md_catalog, capsys):
         ("a-b", "--lines takes A-B (line numbers, 1-based)"),
         ("0-3", "ROT 2.1 has 24 lines; --lines 0-3 is outside it"),
         ("25-30", "ROT 2.1 has 24 lines; --lines 25-30 is outside it"),
-        ("9-3", "ROT 2.1 has 24 lines; --lines 9-3 is outside it"),
+        ("9-3", "--lines takes A-B (line numbers, 1-based)"),
     ],
 )
 def test_page_lines_refusals(held, md_catalog, capsys, value, message):
@@ -474,6 +474,42 @@ def test_a_markdown_draft_beside_a_released_pdf(md_catalog, library, scripted, c
     assert code == 2
     assert out.strip().startswith("--lines reads a Markdown document; ROTMIX 2.0")
     assert scripted.calls == []
+
+
+def test_a_markdown_companion_is_searched_with_the_document(
+    tmp_path, library, scripted, capsys
+):
+    """PR #132 F5: a searched_with companion held as Markdown is searched,
+    its hits first, not refused as a bundle."""
+    other = "https://example.test/raw/abc123/doc/RoT-notes.md"
+    path = tmp_path / "catalog.toml"
+    path.write_text(
+        MD_CATALOG.replace(
+            'title = "A root of trust specification"',
+            'title = "A root of trust specification"\nsearched_with = ["ROTNOTES"]',
+        )
+        + f"""
+[[documents]]
+id = "ROTNOTES"
+family = "security"
+title = "Notes on the root of trust specification"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1"
+url = "{other}"
+type = "md"
+published = "2026-09-18"
+""",
+        encoding="utf-8",
+    )
+    scripted.responses[MD_URL] = ok(MD_TEXT.encode(), PLAIN)
+    scripted.responses[other] = ok(b"# Errata\nThe fuse note.\n", PLAIN)
+    code, out = run(capsys, path, "find", "ROT", "fuse note")
+    assert code == 0, out
+    assert out.splitlines()[-1] == "ROTNOTES l.2 | Errata | The fuse note."
+    assert "bundle" not in out
 
 
 # --------------------------------------------------------------- Notes
