@@ -10,6 +10,10 @@ block whose ``version`` or ``published`` line the text scan cannot read
 (``UnreadableBlock``) makes the document be skipped rather than edited at
 the wrong place.
 OCP versions are only reported: their links are viewers, not files.
+A document's newest Markdown version, pinned to a commit in a
+raw.githubusercontent.com URL, is compared with the newest commit touching
+its file (``check_pin``, one GitHub API request); a newer one is reported
+as ``changed`` with the URL to re-pin to, and never written.
 A DSP id on DMTF's published-documents page that the catalog neither
 lists nor names in ``[listings.dmtf] not_taken`` is reported
 (``unlisted``) and never written.
@@ -19,14 +23,17 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 
 from bmc_toolkit.spec.catalog import (
     Catalog,
     CatalogError,
     Document,
+    Version,
     load_catalog,
     version_numbers,
 )
+from bmc_toolkit.spec.fetch import HttpClient
 from bmc_toolkit.spec.listing import ListingError, Listings, Seen, version_key
 
 _BLOCK_START = re.compile(r"^\[\[(documents|repos)\]\]\s*$")
@@ -138,6 +145,115 @@ def unlisted(catalog: Catalog, listings: Listings) -> list[Unlisted]:
         for dsp, (seen, title) in sorted(listings.dmtf_published().items())
         if dsp not in listed and not catalog.dmtf_not_taken_covers(dsp)
     ]
+
+
+# ------------------------------------------------- pinned Markdown files
+
+PIN_SOURCE = "github"
+_RAW_PIN = re.compile(
+    r"^https://raw\.githubusercontent\.com/([^/]+)/([^/]+)/([0-9a-f]{40})/(.+)$"
+)
+COMMITS_API = (
+    "https://api.github.com/repos/{owner}/{repo}/commits?path={path}&per_page=1"
+)
+RAW_URL = "https://raw.githubusercontent.com/{owner}/{repo}/{sha}/{path}"
+
+
+@dataclass(frozen=True)
+class PinReport:
+    """What the repository says about the commit a Markdown version pins."""
+
+    kind: str  # changed | confirm | unreachable
+    document: str
+    version: str
+    text: str
+
+    def line(self) -> str:
+        return f"{self.kind} {self.document} {self.version}: {self.text}"
+
+
+def markdown_version(doc: Document) -> Version | None:
+    """The document's newest Markdown version (versions are listed in
+    publication order), or None."""
+    pinned = [v for v in doc.versions if v.type == "md"]
+    return pinned[-1] if pinned else None
+
+
+def _newest_commit(body: bytes) -> tuple[str, str] | None:
+    """(sha, YYYY-MM-DD) of the first commit in a commits API reply, None
+    for an empty list; ValueError when the reply is not such a list."""
+    try:
+        data = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("the reply is not JSON") from exc
+    if not isinstance(data, list):
+        raise ValueError("the reply is not a list of commits")
+    if not data:
+        return None
+    first = data[0]
+    try:
+        sha = first["sha"]
+        date = first["commit"]["committer"]["date"]
+    except (KeyError, TypeError) as exc:
+        raise ValueError("the first commit has no sha or committer date") from exc
+    if not (isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{40}", sha)):
+        raise ValueError("the first commit's sha is not a commit id")
+    if not (isinstance(date, str) and re.match(r"\d{4}-\d{2}-\d{2}", date)):
+        raise ValueError("the first commit's date is not a date")
+    return sha, date[:10]
+
+
+def check_pin(doc: Document, client: HttpClient) -> PinReport | None:
+    """Compare the commit the document's newest Markdown version pins with
+    the newest commit touching its file on the default branch. None when
+    there is nothing to report (no Markdown version, or the pin is the
+    newest commit). Never edits the catalog: a newer commit may be a new
+    revision, whose version string the maintainer decides."""
+    ver = markdown_version(doc)
+    if ver is None:
+        return None
+
+    def report(kind: str, text: str) -> PinReport:
+        return PinReport(kind, doc.id, ver.version, text)
+
+    m = _RAW_PIN.match(ver.url)
+    if not m:
+        return report(
+            "confirm",
+            f"{ver.url} (cannot check: not a pinned raw.githubusercontent.com URL)",
+        )
+    owner, repo, pinned, path = m.groups()
+    api = COMMITS_API.format(owner=owner, repo=repo, path=quote(path, safe="/"))
+    try:
+        resp = client(api)
+    except OSError as exc:
+        return report("unreachable", f"{api}: {exc}")
+    if resp.status in (403, 429):
+        return report(
+            "unreachable",
+            f"{api}: HTTP {resp.status} (the GitHub API rate limit: "
+            f"60 requests an hour without a token; try again later)",
+        )
+    if resp.status != 200:
+        return report("unreachable", f"{api}: HTTP {resp.status}")
+    try:
+        newest = _newest_commit(resp.body)
+    except ValueError as exc:
+        return report("unreachable", f"{api}: {exc}")
+    if newest is None:
+        return report(
+            "unreachable",
+            f"{path} has no commit on the default branch of {owner}/{repo}",
+        )
+    sha, date = newest
+    if sha == pinned:
+        return None
+    url = RAW_URL.format(owner=owner, repo=repo, sha=sha, path=path)
+    return report(
+        "changed",
+        f"{path} has commit {sha[:7]} ({date}), the catalog pins {pinned[:7]}; "
+        f"{url} (not written; re-pin by hand)",
+    )
 
 
 def _toml_string(value: str) -> str:
@@ -282,10 +398,14 @@ def append_versions(path: Path, doc_id: str, seen: list[Seen]) -> None:
 
 
 __all__ = [
+    "PIN_SOURCE",
+    "PinReport",
     "Proposal",
     "RefreshError",
     "UnreadableBlock",
     "append_versions",
+    "check_pin",
+    "markdown_version",
     "proposals",
     "version_block",
 ]

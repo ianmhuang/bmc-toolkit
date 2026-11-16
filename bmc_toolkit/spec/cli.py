@@ -75,6 +75,9 @@ ROW_CAP = 300  # a table longer than this is printed one page at a time
 MAX_HITS = 50  # find: hits printed per call unless --max says otherwise
 MAX_PAGES = 10  # page: pages printed per call unless --max-pages says otherwise
 OCP_NOTE_CHARS = 60  # check: how much of an OCP row's description is printed
+# refresh --skip-source: the listing sources, and the commit check of
+# pinned Markdown versions.
+REFRESH_SOURCES = (*LISTING_SOURCES, refresh_mod.PIN_SOURCE)
 
 # Tests replace this to keep the network out.
 CLIENT_FACTORY = fetch_mod.default_client
@@ -168,10 +171,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-source",
         action="append",
         default=[],
-        choices=LISTING_SOURCES,
+        choices=REFRESH_SOURCES,
         metavar="SOURCE",
-        help="leave out the documents listed by this publisher (repeatable): "
-        + ", ".join(LISTING_SOURCES),
+        help="leave out the documents listed by this publisher, or with "
+        "github the commit check of pinned Markdown versions (repeatable): "
+        + ", ".join(REFRESH_SOURCES),
     )
 
     p = sub.add_parser("extract", help="turn a PDF in the Library into text")
@@ -932,25 +936,66 @@ def _check_release(catalog: Catalog, library: Library, state) -> None:
         print(f"{head} -> {config.release} is the newest")
 
 
+def _refreshable(catalog: Catalog, requested: str | None):
+    """(documents refresh looks at, exit code): those with a listing or a
+    Markdown version (its pin is checked), or the one requested; a message
+    and exit 2 when it has neither."""
+    if requested:
+        doc = catalog.get(requested)
+        if doc is not None and refresh_mod.markdown_version(doc) is not None:
+            return [doc], EXIT_OK
+        return _checkable(catalog, requested)
+    return [
+        d
+        for d in catalog.documents
+        if d.listing or refresh_mod.markdown_version(d) is not None
+    ], EXIT_OK
+
+
 def cmd_refresh(args: argparse.Namespace) -> int:
     catalog = _load(args)
     path = args.catalog or DEFAULT_CATALOG
-    docs, code = _checkable(catalog, args.document)
+    docs, code = _refreshable(catalog, args.document)
     if code != EXIT_OK:
         return code
     skipped = set(args.skip_source)
-    if args.document and docs[0].listing_source in skipped:
-        print(
-            f"{docs[0].id} is listed by {docs[0].listing_source}, which "
-            f"--skip-source leaves out"
+
+    def by_listing(d) -> bool:
+        return bool(d.listing) and d.listing_source not in skipped
+
+    def by_pin(d) -> bool:
+        return (
+            refresh_mod.PIN_SOURCE not in skipped
+            and refresh_mod.markdown_version(d) is not None
         )
+
+    if args.document and not (by_listing(docs[0]) or by_pin(docs[0])):
+        doc = docs[0]
+        if doc.listing:
+            print(
+                f"{doc.id} is listed by {doc.listing_source}, which "
+                f"--skip-source leaves out"
+            )
+        else:
+            print(
+                f"{doc.id} is checked on {refresh_mod.PIN_SOURCE}, which "
+                f"--skip-source leaves out"
+            )
         return EXIT_ACTION
-    docs = [d for d in docs if d.listing_source not in skipped]
+    docs = [d for d in docs if by_listing(d) or by_pin(d)]
     # No client when every source is skipped: nothing will be read.
-    listings = listing_mod.Listings(CLIENT_FACTORY()) if docs else None
+    client = CLIENT_FACTORY() if docs else None
+    listings = listing_mod.Listings(client) if docs else None
     counts = {"add": 0, "confirm": 0, "changed": 0, "unreachable": 0}
     written = 0
     for doc in docs:
+        if by_pin(doc):
+            pin = refresh_mod.check_pin(doc, client)
+            if pin is not None:
+                counts[pin.kind] += 1
+                print(pin.line())
+        if not by_listing(doc):
+            continue
         found = refresh_mod.proposals(doc, listings)
         for prop in found:
             counts[prop.kind] += 1

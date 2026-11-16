@@ -608,7 +608,8 @@ reading commands' check off.
 OCP versions are mostly Google Drive links on the OCP pages, so `check`
 reports them with `(URL to confirm by hand)`. `refresh --skip-source
 SOURCE` (repeatable; `dmtf`, `nvme` or `ocp`) leaves that publisher's
-documents out, neither read nor reported; the catalog workflow runs
+documents out, neither read nor reported (`github` leaves out the commit
+check below); the catalog workflow runs
 `refresh --skip-source ocp` because opencompute.org refuses GitHub's
 runners ([CATALOG.md](CATALOG.md)). Naming a document whose publisher is
 skipped exits 2.
@@ -620,6 +621,22 @@ not_taken` does not cover; the summary then ends its counts with
 `unlisted N`. A page that cannot be read prints `unreachable unlisted:
 <reason>` and counts as one `unreachable`. `unlisted` ids are never
 written, `--write` or not. `check` does not read the page for this.
+
+A Markdown version pins a commit in its raw.githubusercontent.com URL.
+`refresh` takes each document's newest Markdown version (a document with
+one and no listing included, so `refresh CALIPTRA` works) and asks the
+GitHub API for the newest commit touching that file on the repository's
+default branch. The pinned commit prints nothing; another one prints
+`changed DOC V: <path> has commit <sha7> (<date>), the catalog pins
+<sha7>; <raw URL at the new commit> (not written; re-pin by hand)`. It is
+never written, `--write` or not: a newer commit may be a new revision of
+the document, whose version string the maintainer decides. A Markdown URL
+on another host or without a full 40-hex commit id prints `confirm DOC V:
+<url> (cannot check: not a pinned raw.githubusercontent.com URL)` and is
+not requested. A request that fails prints `unreachable DOC V: <reason>`
+(HTTP 403 or 429 is GitHub's limit of 60 requests an hour without a
+token). The summary counts these with the listing lines, so the catalog
+workflow reports a moved pin like any other proposal.
 
 ## Sessions sharing a Library
 
@@ -714,7 +731,7 @@ temporary files (see above).
   message registry leaves the archive (22 files, about 0.8 MB, out of
   DSP8011 2026.1's 264 members); the privilege registries, the HTML and
   the PDF stay in the ZIP.
-- `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/projects/<page>/` for the pages named in the catalog's `listing` keys. They download no document. A reading command reads the one listing page of the document it answered from when that document's Freshness Check is due (at most once per document per `freshness_days`), never with `[library] offline = true`.
+- `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/projects/<page>/` for the pages named in the catalog's `listing` keys. They download no document. `refresh` also makes one unauthenticated request to `https://api.github.com/repos/<owner>/<repo>/commits?path=<path>&per_page=1` per document whose newest Markdown version is pinned in a raw.githubusercontent.com URL; `check` and the reading commands never do. A reading command reads the one listing page of the document it answered from when that document's Freshness Check is due (at most once per document per `freshness_days`), never with `[library] offline = true`.
 - Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed. `repos --search` searches the openbmc organisation only, not the external libraries the catalog lists (`libspdm`, `ipmitool`, ...). `clone` fetches from the URL of the catalog entry: GitHub, but Codeberg for `ipmitool` and git.kernel.org for `i2c-tools` and `ethtool`. For an entry with `release_tag`, `clone --release` also runs `git ls-remote --tags` on that URL when fetching the tag fails, to say whether the tag is missing. The vendor kernels `aspeed-linux` and `nuvoton-linux` are cloned sparse like `linux` (its directories plus the vendor's arch, dts and soc ones), and the vendor SDK layers `aspeed-openbmc` and `nuvoton-openbmc` hold only `meta-<vendor>*` and `meta-evb`. `nuvoton-igps` holds only its text files (scripts, XML layouts, notes), not the prebuilt images beside them. `libspdm` holds `include/`, `library/`, `os_stub/` and `doc/`, not `unit_test/` (about 7.5 MB instead of 60 MB at `main` in 2026-11).
 - `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory that is removed on failure, and `code/<repo>/.lock` while it runs. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees, `.tmp-*` and `.part` leftovers and stale `.lock` files under `code/` and `specs/` and at the Library root, nothing else.
 - `check` writes `freshness.json` at the Library root, and so does a reading command that ran the due check; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it inserts version entries into the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).
