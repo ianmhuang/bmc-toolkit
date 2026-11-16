@@ -661,3 +661,118 @@ def test_the_workflow_counts_a_moved_pin_as_one_proposal(
     proc, _step_summary, proposals = _run_refresh_block(work, same)
     assert proc.returncode == 0, proc.stderr
     assert proposals == "0"
+
+
+# ------------------------------------------- round 2: AC-1, its edge cases
+
+
+def one_document(tmp_path, doc_id, versions):
+    """MINI_CATALOG plus one Markdown-only document; ``versions`` are
+    (version, url, published) and are written in the order given."""
+    blocks = "".join(
+        f"""
+[[documents.versions]]
+version = "{version}"
+url = "{url}"
+type = "md"
+published = "{published}"
+"""
+        for version, url, published in versions
+    )
+    path = tmp_path / f"{doc_id.lower()}.toml"
+    path.write_text(
+        MINI_CATALOG
+        + f"""
+[families.security]
+title = "Security"
+publisher = "various"
+
+[[documents]]
+id = "{doc_id}"
+family = "security"
+title = "A Markdown specification kept in a repository"
+access = "open"
+fetch = "direct"
+"""
+        + blocks,
+        encoding="utf-8",
+        newline="",
+    )
+    return path
+
+
+@pytest.mark.parametrize(
+    "escaped",
+    ["docs/My%20Spec.md", "docs/%E8%A6%8F%E6%A0%BC.md"],
+    ids=["space", "non-ascii"],
+)
+def test_a_percent_encoded_path_is_asked_about_once_encoded(
+    tmp_path, library, scripted, capsys, escaped
+):
+    """A catalog URL is a URL: a file name with a space or a non-ASCII
+    character is stored percent-encoded. The API is asked for that file
+    (the escapes are not escaped a second time), and the URL to re-pin to
+    is one that can be fetched, spelled as the catalog spells it."""
+    catalog = one_document(
+        tmp_path,
+        "MDESC",
+        [("1.0", raw("acme/rot-spec", PINNED, escaped), "2026-06-01")],
+    )
+    asked = api("acme/rot-spec", escaped)
+    scripted.responses[asked] = reply(commit(NEWER))
+    code, out = run(capsys, catalog, "refresh", "MDESC")
+    assert code == 0, out
+    assert scripted.calls == [asked]
+    lines = out.splitlines()
+    assert len(lines) == 2, out
+    assert lines[0].startswith("changed MDESC 1.0: "), out
+    assert "has commit 0a2b4c6 (2026-11-20), the catalog pins 1f3a5c7; " in lines[0]
+    assert lines[0].endswith(
+        f"; {raw('acme/rot-spec', NEWER, escaped)} (not written; re-pin by hand)"
+    ), out
+    assert lines[1] == summary(changed=1)
+    # and the pinned commit being the newest is still nothing to report
+    scripted.calls.clear()
+    scripted.responses[asked] = reply(commit(PINNED))
+    code, out = run(capsys, catalog, "refresh", "MDESC")
+    assert (code, out.splitlines()) == (0, [summary()])
+    assert scripted.calls == [asked]
+
+
+@pytest.mark.parametrize(
+    "versions, newest",
+    [
+        (
+            [
+                ("1.1", raw("acme/rot-spec", PINNED, "docs/spec.md"), "2026-06-01"),
+                ("1.0", raw("acme/rot-spec", OLDER, "docs/old.md"), "2025-03-01"),
+            ],
+            "1.1",
+        ),
+        (
+            [
+                ("1.10", raw("acme/rot-spec", PINNED, "docs/spec.md"), "2026-06-01"),
+                ("1.9", raw("acme/rot-spec", OLDER, "docs/old.md"), "2026-06-01"),
+            ],
+            "1.10",
+        ),
+    ],
+    ids=["newer-date-listed-first", "same-day-higher-number-listed-first"],
+)
+def test_the_newest_markdown_version_is_checked_whatever_the_listing_order(
+    tmp_path, library, scripted, capsys, versions, newest
+):
+    """The newest version is the one the catalog calls latest (publication
+    date, same-day versions by their numbers), not the one written last."""
+    catalog = one_document(tmp_path, "MDORDER", versions)
+    scripted.responses[API_SPEC] = reply(commit(NEWER))
+    scripted.responses[API_OLD] = reply(commit(NEWER))
+    code, out = run(capsys, catalog, "refresh", "MDORDER")
+    assert code == 0, out
+    assert scripted.calls == [API_SPEC]
+    assert out.splitlines() == [
+        f"changed MDORDER {newest}: docs/spec.md has commit 0a2b4c6 (2026-11-20), "
+        f"the catalog pins 1f3a5c7; {raw('acme/rot-spec', NEWER, 'docs/spec.md')} "
+        "(not written; re-pin by hand)",
+        summary(changed=1),
+    ]
