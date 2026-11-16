@@ -1,6 +1,7 @@
 """Reviewer acceptance tests for reading a Markdown version: ``section``,
 ``find``, ``page --lines``, ``page --section``, the section labels, the
-``cite:`` line and the line numbering (AC-6 to AC-11, AC-14).
+``cite:`` line and the line numbering (AC-6 to AC-11, AC-14), and ``find``
+across a Markdown ``searched_with`` companion (round 1, F5).
 
 Black-box through the CLI. The document is the synthetic one of
 ``test_review_mdlibrary``; its comments give the line numbers used here.
@@ -17,6 +18,7 @@ from tests.test_review_mdlibrary import (
     PLAIN,
     add_bytes,
     run,
+    said,
     version_dir,
 )
 
@@ -80,7 +82,9 @@ def long_document(body_lines):
         ),
     ],
 )
-def test_section_prints_level_title_and_line_range(held, md_catalog, capsys, query, lines):
+def test_section_prints_level_title_and_line_range(
+    held, md_catalog, capsys, query, lines
+):
     code, out = run(capsys, md_catalog, "section", "RVW", query)
     assert (code, out.splitlines()) == (0, lines)
 
@@ -121,6 +125,51 @@ def test_words_are_matched_against_the_title_as_for_a_pdf(held, md_catalog, caps
     assert (code, out.splitlines()) == (0, ["1 | 4.2 Measured boot | lines 18-21"])
     code, out = run(capsys, md_catalog, "section", "RVW", "overview")
     assert (code, out.splitlines()) == (0, ["0 | Overview | lines 3-12"])
+
+
+@pytest.mark.parametrize(
+    "query, lines",
+    [
+        # every word in the heading path, one of them in the title itself
+        ("boot flow scope", ["1 | Boot flow > Scope | lines 14-17"]),
+        ("overview scope", ["1 | Overview > Scope | lines 6-12"]),
+        ("scope notes", ["2 | Overview > Scope > Notes | lines 8-12"]),
+        ("Boot flow > Scope", ["1 | Boot flow > Scope | lines 14-17"]),
+        (
+            "measured notes",
+            ["2 | Boot flow > 4.2 Measured boot > Notes | lines 20-21"],
+        ),
+        # the words of the title alone list every heading that carries it
+        (
+            "notes",
+            [
+                "2 | Overview > Scope > Notes | lines 8-12",
+                "2 | Boot flow > 4.2 Measured boot > Notes | lines 20-21",
+            ],
+        ),
+        # a word of an enclosing heading alone does not list what is under it
+        ("boot flow", ["0 | Boot flow | lines 13-21"]),
+    ],
+)
+def test_a_repeated_title_is_also_matched_by_its_heading_path(
+    held, md_catalog, capsys, query, lines
+):
+    """AC-6 as amended in round 1: a title two or more headings share is
+    printed as its label and also matches when every word of the query is in
+    its heading path and at least one is in its own title."""
+    code, out = run(capsys, md_catalog, "section", "RVW", query)
+    assert (code, out.splitlines()) == (0, lines)
+
+
+def test_a_path_word_does_not_reach_a_unique_title_under_it(held, md_catalog, capsys):
+    """Only a repeated title has a heading path: ``4.1 Reset vector`` is
+    unique, so words of the heading above it do not select it."""
+    code, out = run(capsys, md_catalog, "section", "RVW", "boot flow reset")
+    assert (code, out.strip()) == (0, "no matching section")
+    # "Notes" under "4.2 Measured boot" has both words in its path and
+    # neither in its own title: only the heading that carries them answers
+    code, out = run(capsys, md_catalog, "section", "RVW", "boot measured")
+    assert (code, out.splitlines()) == (0, ["1 | 4.2 Measured boot | lines 18-21"])
 
 
 @pytest.mark.parametrize("query", ["no such heading", "4.3", "9", "fence"])
@@ -195,6 +244,79 @@ def test_find_is_a_case_insensitive_literal_unless_told(held, md_catalog, capsys
     assert (code, out.strip()) == (0, "no hits")
     code, out = run(capsys, md_catalog, "find", "RVW", "nowhere in the file")
     assert (code, out.strip()) == (0, "no hits")
+
+
+NOTES_URL = "https://example.test/raw/0123abc/doc/review-notes.md"
+NOTES_BYTES = b"# Errata\nRead-only fuses are listed here.\n"
+NOTES_HIT = "RVWNOTES l.2 | Errata | Read-only fuses are listed here."
+
+
+@pytest.fixture
+def companion_catalog(tmp_path, scripted):
+    """MD_CATALOG with RVW searched together with RVWNOTES, a second
+    Markdown document; both URLs answer."""
+    title = 'title = "A Markdown specification written for the review"'
+    assert title in MD_CATALOG
+    path = tmp_path / "companion_catalog.toml"
+    path.write_text(
+        MD_CATALOG.replace(title, title + '\nsearched_with = ["RVWNOTES"]')
+        + f"""
+[[documents]]
+id = "RVWNOTES"
+family = "security"
+title = "Errata of the Markdown specification written for the review"
+access = "open"
+fetch = "direct"
+
+[[documents.versions]]
+version = "1"
+url = "{NOTES_URL}"
+type = "md"
+published = "2026-10-02"
+""",
+        encoding="utf-8",
+        newline="",
+    )
+    scripted.responses[MD_URL] = ok(MD_BYTES, PLAIN)
+    scripted.responses[NOTES_URL] = ok(NOTES_BYTES, PLAIN)
+    return path
+
+
+def test_a_markdown_document_searched_with_another_is_searched_too(
+    companion_catalog, library, capsys
+):
+    """Round 1, F5: ``find`` reads Markdown, so a ``searched_with`` companion
+    of type md is brought to Ready and searched like a PDF companion: what
+    that prints is a ``note:``, its hits come first, ``--only`` skips it."""
+    catalog = companion_catalog
+    code, out = run(capsys, catalog, "find", "RVW", "read-only")
+    assert code == 0, out
+    lines = out.splitlines()
+    assert said(out, "note: fetched RVWNOTES 1 via direct"), out
+    assert said(out, "note: extracted RVWNOTES 1: 2 lines"), out
+    assert lines[-2:] == [NOTES_HIT, "RVW l.23 | Glossary | ROM: read-only memory."]
+    companion = library.specs / "security" / "RVWNOTES" / "1" / "original.md"
+    assert companion.read_bytes() == NOTES_BYTES
+    # both are Ready now: the answer alone, the companion's hit with context
+    code, out = run(
+        capsys, catalog, "find", "RVW", "fuses are listed", "--context", "1"
+    )
+    assert (code, out.splitlines()) == (0, [NOTES_HIT, "    line 1: # Errata", "--"])
+    code, out = run(capsys, catalog, "find", "RVW", "read-only", "--only")
+    assert (code, out.splitlines()) == (
+        0,
+        ["RVW l.23 | Glossary | ROM: read-only memory."],
+    )
+
+
+def test_only_keeps_find_from_fetching_a_markdown_companion(
+    companion_catalog, library, scripted, capsys
+):
+    code, out = run(capsys, companion_catalog, "find", "RVW", "read-only", "--only")
+    assert code == 0, out
+    assert out.splitlines()[-1] == "RVW l.23 | Glossary | ROM: read-only memory."
+    assert NOTES_URL not in scripted.calls
+    assert not (library.specs / "security" / "RVWNOTES").exists()
 
 
 # ------------------------------------------------------------------- AC-8
@@ -288,6 +410,20 @@ def test_an_end_past_the_file_is_clamped(held, md_catalog, capsys):
 def test_page_lines_refusals(held, md_catalog, capsys, value, message):
     code, out = run(capsys, md_catalog, "page", "RVW", "--lines", value)
     assert (code, out.strip()) == (2, message)
+
+
+def test_a_reversed_range_is_refused_and_prints_nothing_of_the_file(
+    held, md_catalog, capsys
+):
+    """AC-9 names no message for B before A; it is a refusal with exit 2,
+    and not the message that says the range is outside the file (both
+    numbers are inside it)."""
+    code, out = run(capsys, md_catalog, "page", "RVW", "--lines", "9-3")
+    assert code == 2, out
+    text = out.strip()
+    assert len(text.splitlines()) == 1 and not text.startswith("cite:")
+    assert "outside" not in text
+    assert "--lines" in text
 
 
 def test_more_than_200_lines_per_call_is_refused(
@@ -446,7 +582,7 @@ def test_crlf_and_a_bom_change_neither_the_numbers_nor_the_text(
     assert read_all(capsys, md_catalog, tmp_path, with_bom, "--force") == lf
     assert all(code == 0 for code, _ in lf)
     for _, out in lf:
-        assert "\r" not in out and "﻿" not in out
+        assert "\r" not in out and chr(0xFEFF) not in out
 
 
 def test_a_bom_is_not_printed(md_catalog, library, tmp_path, capsys):
