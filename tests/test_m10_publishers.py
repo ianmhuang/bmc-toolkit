@@ -89,8 +89,13 @@ def test_ac1_new_publishers_carry_the_current_version_fetched_directly(shipped):
         assert doc is not None, doc_id
         assert doc.family == family and shipped.families[family] is not None
         assert doc.fetch == "direct" and doc.access == "open"
-        assert len(doc.versions) == 1, doc_id
-        (ver,) = doc.versions
+        # T5.2 added the Caliptra 2.1 draft as a WIP Markdown version
+        # (tests/test_caliptra_markdown.py); the released PDF is still one.
+        versions = [
+            v for v in doc.versions if (doc_id, v.version) != ("CALIPTRA", "2.1")
+        ]
+        assert len(versions) == 1, doc_id
+        (ver,) = versions
         assert ver.open and ver.url.startswith("https://") and ver.type == "pdf"
         assert doc.latest() is ver
 
