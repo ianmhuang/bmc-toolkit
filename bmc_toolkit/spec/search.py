@@ -373,7 +373,7 @@ def query_matches(query: str, title: str, text: str | None = None) -> bool:
     if _NUMBER_QUERY.match(q):
         num = Section(title, 0).number
         return bool(num) and (num == q or num.startswith(q + "."))
-    words = query_words(q)
+    words = query_words(query)
     haystack = _norm(title if text is None else text)
     return bool(words) and all(w in haystack for w in words)
 

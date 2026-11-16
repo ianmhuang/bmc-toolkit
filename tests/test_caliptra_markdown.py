@@ -10,7 +10,7 @@ import pytest
 from bmc_toolkit.spec.catalog import load_catalog
 from bmc_toolkit.spec.cli import main
 from bmc_toolkit.spec.markdown import MarkdownVersion
-from bmc_toolkit.spec.search import query_words
+from bmc_toolkit.spec.search import query_matches, query_words
 from tests.conftest import PDF_BYTES, ok
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -146,6 +146,23 @@ def test_an_unpinned_url_is_caught(url):
 )
 def test_query_words(query, words):
     assert query_words(query) == words
+
+
+def test_pdf_and_markdown_split_a_query_alike(tmp_path):
+    # PR #133 F1: query_matches once split an already stripped query, so
+    # "fuses. ." lost both dots and matched "Fuses" while Markdown did not.
+    from bmc_toolkit.spec import markdown
+
+    assert not query_matches("fuses. .", "Fuses")
+    assert query_matches("fuses.", "Fuses")
+    original = tmp_path / "original.md"
+    original.write_bytes(b"# Fuses\n")
+    markdown.extract(original, tmp_path)
+    version = MarkdownVersion.load(
+        family="f", document="D", version="1", path=tmp_path, original=original
+    )
+    assert version.match_sections("fuses. .") == []
+    assert [h.title for _, h, _ in version.match_sections("fuses.")] == ["Fuses"]
 
 
 def test_markdown_matching_uses_the_shared_query_words(tmp_path, monkeypatch):
