@@ -366,3 +366,99 @@ def test_the_workflow_counts_a_changed_pin(md_catalog, scripted, capsys, tmp_pat
     assert proc.returncode == 0, proc.stderr
     assert proposals == "1"
     assert CHANGED in summary
+
+
+# ------------------------------------------------------- PR #134 round 1
+
+
+def _one_doc_catalog(tmp_path, versions: str):
+    path = tmp_path / "one.toml"
+    path.write_text(
+        MINI_CATALOG
+        + """
+[families.security]
+title = "Security"
+publisher = "various"
+
+[[documents]]
+id = "ESC"
+family = "security"
+title = "Markdown with an escaped path"
+access = "open"
+fetch = "direct"
+"""
+        + versions,
+        encoding="utf-8",
+        newline="",
+    )
+    return path
+
+
+def test_an_escaped_path_is_asked_about_by_its_name(tmp_path, scripted, capsys):
+    # F1: the catalog URL spells a space %20; the API is asked for the file
+    # "doc/Ro T.md" (escaped once), not for "doc/Ro%2520T.md".
+    pinned = "https://raw.githubusercontent.com/chips/RoT/" + PINNED + "/doc/Ro%20T.md"
+    catalog = _one_doc_catalog(
+        tmp_path,
+        f"""
+[[documents.versions]]
+version = "1.0"
+url = "{pinned}"
+type = "md"
+published = "2026-01-01"
+""",
+    )
+    scripted.responses[API] = commits(commit(NEWER))
+    code, out = run(capsys, catalog, "refresh", "ESC")
+    assert code == 0
+    assert scripted.calls == [API]
+    assert lines(out)[0] == (
+        "changed ESC 1.0: doc/Ro T.md has commit bbbbbbb (2026-11-20), the "
+        "catalog pins aaaaaaa; https://raw.githubusercontent.com/chips/RoT/"
+        + NEWER
+        + "/doc/Ro%20T.md (not written; re-pin by hand)"
+    )
+
+
+def test_the_newest_markdown_version_goes_by_date_not_list_position(tmp_path):
+    # F2: versions out of publication order; the newer pin is the one checked.
+    newer = RAW.format(sha=PINNED)
+    catalog = _one_doc_catalog(
+        tmp_path,
+        f"""
+[[documents.versions]]
+version = "2.1"
+url = "{newer}"
+type = "md"
+published = "2026-09-17"
+
+[[documents.versions]]
+version = "2.0"
+url = "{OLD_RAW}"
+type = "md"
+published = "2025-07-31"
+""",
+    )
+    doc = load_catalog(catalog).get("ESC")
+    assert refresh_mod.markdown_version(doc).version == "2.1"
+
+
+def test_same_day_markdown_versions_go_by_their_numbers(tmp_path):
+    catalog = _one_doc_catalog(
+        tmp_path,
+        f"""
+[[documents.versions]]
+version = "1.10"
+url = "{RAW.format(sha=PINNED)}"
+type = "md"
+published = "2026-09-17"
+
+[[documents.versions]]
+version = "1.9"
+url = "{OLD_RAW}"
+type = "md"
+published = "2026-09-17"
+""",
+    )
+    doc = load_catalog(catalog).get("ESC")
+    assert refresh_mod.markdown_version(doc).version == "1.10"

@@ -23,7 +23,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 from bmc_toolkit.spec.catalog import (
     Catalog,
@@ -173,10 +173,13 @@ class PinReport:
 
 
 def markdown_version(doc: Document) -> Version | None:
-    """The document's newest Markdown version (versions are listed in
-    publication order), or None."""
+    """The document's newest Markdown version, ordered as
+    ``Document.latest`` orders versions (publication date, then the numbers
+    in the version string, then catalog order), or None."""
     pinned = [v for v in doc.versions if v.type == "md"]
-    return pinned[-1] if pinned else None
+    if not pinned:
+        return None
+    return sorted(pinned, key=lambda v: (v.published, version_numbers(v.version)))[-1]
 
 
 def _newest_commit(body: bytes) -> tuple[str, str] | None:
@@ -223,7 +226,11 @@ def check_pin(doc: Document, client: HttpClient) -> PinReport | None:
             f"{ver.url} (cannot check: not a pinned raw.githubusercontent.com URL)",
         )
     owner, repo, pinned, path = m.groups()
-    api = COMMITS_API.format(owner=owner, repo=repo, path=quote(path, safe="/"))
+    # The catalog URL may carry escapes (a space is %20): the API takes the
+    # file's name, so decode before encoding it once; the messages name the
+    # file, and the re-pin URL keeps the catalog's spelling.
+    name = unquote(path)
+    api = COMMITS_API.format(owner=owner, repo=repo, path=quote(name, safe="/"))
     try:
         resp = client(api)
     except OSError as exc:
@@ -243,7 +250,7 @@ def check_pin(doc: Document, client: HttpClient) -> PinReport | None:
     if newest is None:
         return report(
             "unreachable",
-            f"{path} has no commit on the default branch of {owner}/{repo}",
+            f"{name} has no commit on the default branch of {owner}/{repo}",
         )
     sha, date = newest
     if sha == pinned:
@@ -251,7 +258,7 @@ def check_pin(doc: Document, client: HttpClient) -> PinReport | None:
     url = RAW_URL.format(owner=owner, repo=repo, sha=sha, path=path)
     return report(
         "changed",
-        f"{path} has commit {sha[:7]} ({date}), the catalog pins {pinned[:7]}; "
+        f"{name} has commit {sha[:7]} ({date}), the catalog pins {pinned[:7]}; "
         f"{url} (not written; re-pin by hand)",
     )
 
