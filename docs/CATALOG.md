@@ -38,6 +38,9 @@ A version's `type` is `pdf`, `zip` (a Redfish bundle) or `md`: a
 Markdown document that exists only in a repository, read by its line
 numbers (see [COMMANDS.md](COMMANDS.md#reading-commands)); its URL is the
 raw file at a pinned commit, so the lines a Citation names do not move.
+`refresh` reports when a newer commit touches that file (`changed`, with
+the URL to re-pin to); re-pinning, and a new version string when the file
+is a new revision, are done by hand.
 The latest version is the one with the newest publication date; same-day
 versions are told apart by the numbers in their version strings (`2.0.0`
 over `1.3.0`). A document
