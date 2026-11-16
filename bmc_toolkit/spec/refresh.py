@@ -59,7 +59,7 @@ class Proposal:
 
 def _file_type(url: str) -> str:
     lower = url.lower().split("?", 1)[0]
-    for ext in ("pdf", "zip"):
+    for ext in ("pdf", "zip", "md"):
         if lower.endswith("." + ext):
             return ext
     return ""
@@ -82,7 +82,7 @@ def _why_confirm(source: str, seen: Seen) -> str:
         return "URL to confirm by hand"
     if _is_wip(seen):
         return "work in progress, not written; add it by hand with wip = true"
-    return "not a pdf or zip URL, not written"
+    return "not a pdf, zip or md URL, not written"
 
 
 def proposals(doc: Document, listings: Listings) -> list[Proposal]:

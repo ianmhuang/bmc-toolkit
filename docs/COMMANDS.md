@@ -113,6 +113,29 @@ origin URL or `user-provided`, and the
 Library path. The Skill copies Citations from those lines and never
 composes them.
 
+A Markdown version (catalog type `md`, held as `original.md`) has no
+pages and is read by the line numbers of the file as stored, which are
+the numbers the publisher's repository shows at the commit its URL pins.
+`extract` writes its Outline from the ATX headings (`#` to `######` and
+a space, outside fenced code blocks; level is the count of `#` minus one)
+and prints `extracted DOC V: N lines, outline headings (K entries)`.
+`section` prints `LEVEL | title | lines A-B`, the section ending before
+the next heading of the same or a higher level. A title that two or more
+headings share is shown, cited and matched as its heading path, `Fuses >
+Goals`, so `section DOC "fuses goals"` picks one of them. `find` prints
+`DOC l.N | section | text`, N the file's line, and `--context` lines as
+`line n: text`. `page DOC --lines A-B` prints lines A to B behind their
+numbers (B past the end is cut to it; more than 200 lines, A outside the
+file or a malformed range is exit 2), `page DOC --section X` the first
+matching section the same way (one over 200 lines is exit 2: read it in
+parts with `--lines`). The `cite:` line has `Markdown` where a PDF's has
+`PDF page N` and the file's lines as `lines A-B`; its sections are the
+one owning line A, then every heading on the lines after it. `page DOC
+N`, `render` and `table` on a Markdown version, and `--lines` on a PDF,
+are exit 2 with the command that reads it, before any download. Pipe
+tables are printed as text; images are not fetched (their `![alt](path)`
+line stays). Notes do not record a Citation of a Markdown version.
+
 `invocation PROTOCOL 'NAME:SIZE=VALUE' ...` arranges the bytes of a
 request from its fields and prints them in the syntax of the sending
 tools. It reads no Document, no catalog and no network, takes no lock and
@@ -659,8 +682,10 @@ temporary files (see above).
   "rate limited by archive.org (HTTP 429)" rather than "no Wayback
   snapshot", and does not retry on its own. Run the command again later.
 - A response that is not the expected PDF or ZIP (an HTML block page, a
-  cut-off download) is discarded and never written to the Library. The same
-  leading-bytes check applies to files given to `add` or found by `scan`.
+  cut-off download) is discarded and never written to the Library. A
+  Markdown version, which has no leading bytes to check, must be UTF-8
+  text that does not start as an HTML page. The same check applies to
+  files given to `add` or found by `scan`.
 - Writes only under the Library. Files placed there by hand are registered
   as Drop-ins and their origin is recorded as user-provided, never as a URL;
   `scan` also records whether the document id is in the catalog

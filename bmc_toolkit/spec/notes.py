@@ -77,7 +77,7 @@ _NORM = re.compile(
 # The first line of the answer proper: a section line, a find hit, or the
 # no-match line; everything before it is the preamble (note:, fetched,
 # extracted, Library created, the attempt lines of a download, skipped).
-_BODY = re.compile(r"^(\d+ \| |no hits$|no matching section$|\S+ p\.\d+)")
+_BODY = re.compile(r"^(\d+ \| |no hits$|no matching section$|\S+ [pl]\.\d+)")
 _TOKEN = re.compile(r"[A-Za-z0-9_]{3,}")
 _SIZE = re.compile(r"^(?:(?P<n>\d+)\s*(?P<unit>KB|MB)|0)$", re.IGNORECASE)
 # Messages Claude Code injects as user turns; not prompts.
