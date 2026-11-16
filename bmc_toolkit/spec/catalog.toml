@@ -3704,13 +3704,21 @@ family = "ocp-security"
 title = "Caliptra: A Datacenter System on a Chip (SoC) Root of Trust (RoT) Modular Base Specification"
 access = "open"
 fetch = "direct"
-notes = "The OCP-published PDF of the Caliptra specification; the living text is Markdown in the chipsalliance/Caliptra repository."
+notes = "2.0 is the OCP-published PDF; 2.1 is the draft Markdown in the chipsalliance/Caliptra repository, read with --version 2.1."
 
 [[documents.versions]]
 version = "2.0"
 url = "https://www.opencompute.org/documents/caliptra-2-0-pdf"
 type = "pdf"
 published = "2025-07-31"
+
+[[documents.versions]]
+version = "2.1"
+url = "https://raw.githubusercontent.com/chipsalliance/Caliptra/e81808ad1983e7582fd587c9ddae4b40331682c4/doc/Caliptra.md"
+type = "md"
+published = "2026-09-17"
+wip = true
+notes = "doc/Caliptra.md of chipsalliance/Caliptra at commit e81808a."
 
 [[documents]]
 id = "OCP-ATTEST"

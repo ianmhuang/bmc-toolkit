@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from bmc_toolkit.spec.library import atomic_write_json
-from bmc_toolkit.spec.search import USER_PROVIDED, query_matches
+from bmc_toolkit.spec.search import USER_PROVIDED, query_matches, query_words
 
 MARKDOWN_VERSION = 1
 KIND = "markdown"
@@ -284,13 +284,13 @@ class MarkdownVersion:
         own title: ``fuses goals`` picks ``Fuses > Goals``, while ``fuses``
         alone does not list every repeated title under ``Fuses``."""
         out = []
-        words = " ".join(query.strip().rstrip(".").split()).lower().split()
+        words = query_words(query)
         for h in self.headings:
             if query_matches(query, h.title):
                 matched = True
             elif h.label != h.title and query_matches(query, h.title, h.label):
-                title = " ".join(h.title.split()).lower()
-                matched = any(w in title for w in words)
+                # A word holds no whitespace, so the raw title serves.
+                matched = any(w in h.title.lower() for w in words)
             else:
                 matched = False
             if matched:

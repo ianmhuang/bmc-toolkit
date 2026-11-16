@@ -1481,7 +1481,7 @@ def cmd_find(args: argparse.Namespace) -> int:
     version, doc, code = _open_version(args)
     if version is None:
         return code
-    targets: list[search_mod.Version] = []
+    targets: list[search_mod.Version | md_mod.MarkdownVersion] = []
     if doc is not None and doc.searched_with and not args.only:
         companions = doc.companions_for(version.version)
         for other in doc.searched_with:

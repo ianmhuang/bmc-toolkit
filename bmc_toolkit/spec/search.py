@@ -357,6 +357,12 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
+def query_words(query: str) -> list[str]:
+    """The words of a ``section`` query as matching compares them: the query
+    stripped, a trailing ``.`` dropped, lower-cased, split on whitespace."""
+    return _norm(query.strip().rstrip(".")).split()
+
+
 def query_matches(query: str, title: str, text: str | None = None) -> bool:
     """Whether an Outline entry answers a ``section`` query. A query that
     looks like a section number (``20.1``, ``A.2``) matches a title whose
@@ -367,7 +373,7 @@ def query_matches(query: str, title: str, text: str | None = None) -> bool:
     if _NUMBER_QUERY.match(q):
         num = Section(title, 0).number
         return bool(num) and (num == q or num.startswith(q + "."))
-    words = _norm(q).split()
+    words = query_words(q)
     haystack = _norm(title if text is None else text)
     return bool(words) and all(w in haystack for w in words)
 
@@ -466,5 +472,6 @@ __all__ = [
     "load_version",
     "origin_of",
     "query_matches",
+    "query_words",
     "split_pages",
 ]
