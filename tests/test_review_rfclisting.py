@@ -182,6 +182,25 @@ def test_ac1_the_source_is_named_the_rfc_editor_in_the_fetch_reminder(
     assert json_url(1111) not in scripted.calls
 
 
+def test_ac4_status_prints_the_reminder_naming_the_rfc_editor(
+    rfc_catalog, library, scripted, capsys
+):
+    scripted.responses[txt_url(1111)] = ok(RFC_BODY, "text/plain; charset=utf-8")
+    code, out = run(capsys, rfc_catalog, "fetch", "RFC1111")
+    assert code == 0, out
+    # fetch stamped its reminder; without the stamp status is the one to remind
+    (library.root / "freshness.json").unlink(missing_ok=True)
+    code, out = run(capsys, rfc_catalog, "status")
+    assert code == 0, out
+    assert (
+        "note: RFC1111 has never been checked against the RFC Editor; "
+        "run: bmcspec check RFC1111"
+    ) in out.splitlines()
+    # a reminder only: status reads no listing and never says "obsoleted"
+    assert "obsoleted" not in out
+    assert json_url(1111) not in scripted.calls
+
+
 # ----------------------------------------------------------------- AC-2
 
 
@@ -291,6 +310,13 @@ UNUSABLE = {
     "null-field": ok(b'{"doc_id": "RFC1111", "obsoleted_by": null}'),
     "a-string-field": ok(b'{"obsoleted_by": "RFC4444"}', "application/json"),
     "a-top-level-list": ok(b'["RFC4444"]', "application/json"),
+    # entries that name no RFC: a reason, never a traceback or a finding
+    "a-number-entry": ok(b'{"obsoleted_by": [4444]}', "application/json"),
+    "not-an-rfc-entry": ok(b'{"obsoleted_by": ["BCP14"]}', "application/json"),
+    "rfc-zero-entry": ok(b'{"obsoleted_by": ["RFC0"]}', "application/json"),
+    "superscript-digit-entry": ok(
+        '{"obsoleted_by": ["RFC¹"]}'.encode(), "application/json"
+    ),
 }
 
 
@@ -383,6 +409,46 @@ def test_ac4_a_recorded_obsoleting_rfc_is_not_reported_again_beside_a_new_one(
     assert out.splitlines()[0] == sentence("RFC2222", 4444, 6666)
     newer = freshness(library)["documents"]["RFC2222"]["newer"]
     assert [n["version"] for n in newer] == ["RFC4444", "RFC6666"]
+
+
+def test_ac3_ac4_a_zero_padded_id_is_the_same_rfc_and_gets_its_real_text_url(
+    rfc_catalog, library, scripted, capsys
+):
+    # an id may come padded with zeros (RFC0959): it is RFC959, whose text
+    # is rfc959.txt, and a padded id the catalog records is not new
+    scripted.responses[json_url(2222)] = rfc_json("RFC03333", "RFC0959")
+    code, out = run(capsys, rfc_catalog, "check", "RFC2222")
+    assert code == 0, out
+    assert out.splitlines()[0] == sentence("RFC2222", 959)
+    newer = freshness(library)["documents"]["RFC2222"]["newer"]
+    assert [(n["version"], n["url"]) for n in newer] == [("RFC959", txt_url(959))]
+
+
+def test_ac4_ac7_an_obsoleted_rfc_is_not_called_a_newer_version_and_dmtf_is_as_before(
+    rfc_catalog, library, scripted, capsys
+):
+    scripted.responses[json_url(1111)] = rfc_json("RFC4444")
+    code, out = run(capsys, rfc_catalog, "check", "RFC1111")
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0] == sentence("RFC1111", 4444)
+    assert lines[-1] == "summary: current 0, newer 1, unreachable 0"
+    # there is no newer version of RFC1111 to wait for or to drop in
+    assert not any(ln.startswith("nothing was downloaded") for ln in lines), out
+    # a DMTF document prints exactly what it printed before the RFC check
+    scripted.responses[DMTF_PUBLISHED] = ok(PUBLISHED_HTML.encode(), "text/html")
+    code, out = run(capsys, rfc_catalog, "check", "DSP0236")
+    assert code == 0, out
+    hint = (
+        "nothing was downloaded: a newer version enters the Library only "
+        "after the catalog lists it (bmcspec refresh, or a pull request) "
+        "or as a Drop-in"
+    )
+    assert out.splitlines() == [
+        f"newer DSP0236: catalog latest 1.3.3, DMTF lists 1.3.4 {URL_134}",
+        hint,
+        "summary: current 0, newer 1, unreachable 0",
+    ]
 
 
 def test_ac4_ac7_check_over_every_document_counts_the_rfc_and_keeps_the_dmtf_line(
