@@ -123,6 +123,37 @@ def test_a_malformed_obsoleted_by_does_not_load(tmp_path, value):
         load_catalog(path)
 
 
+def test_a_zero_padded_rfc_id_is_refused_and_the_error_says_why(tmp_path):
+    """T81.4 AC-8 (review 2 of #139, F10)."""
+    path = tmp_path / "padded.toml"
+    path.write_text(
+        RFC_CATALOG.replace('id = "RFC1111"', 'id = "RFC01111"'),
+        encoding="utf-8",
+        newline="",
+    )
+    with pytest.raises(CatalogError, match="RFC01111.*no leading zero"):
+        load_catalog(path)
+    path.write_text(
+        RFC_CATALOG.replace('["RFC3333"]', '["RFC03333"]'),
+        encoding="utf-8",
+        newline="",
+    )
+    with pytest.raises(CatalogError, match=r"obsoleted_by\[0\].*no leading zero"):
+        load_catalog(path)
+
+
+def test_a_zero_padded_id_outside_an_ietf_family_is_left_alone(tmp_path):
+    path = tmp_path / "other.toml"
+    path.write_text(
+        RFC_CATALOG.replace(
+            'id = "RFC1111"\nfamily = "ietf"', 'id = "RFC01111"\nfamily = "ipmi"'
+        ),
+        encoding="utf-8",
+        newline="",
+    )
+    assert load_catalog(path).get("RFC01111").listing == ""
+
+
 def test_the_shipped_rfc5246_records_its_two_obsoleting_rfcs():
     cat = load_catalog()
     assert cat.get("RFC5246").obsoleted_by == ("RFC8446", "RFC9846")

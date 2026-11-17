@@ -41,7 +41,8 @@ Schema (``schema_version = 1``)::
                                obsoleting this one that the catalog already
                                knows, copied from rfc-editor.org's
                                rfcNNNN.json; the RFC check reports only the
-                               others
+                               others. RFC ids, here and as document ids
+                               of an IETF family, take no leading zero
 
     [[documents.versions]]     in publication order, same-day versions
                                ascending by version number (refresh --write
@@ -113,6 +114,8 @@ DEFAULT_CATALOG = Path(__file__).with_name("catalog.toml")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _DSP_RE = re.compile(r"^DSP\d+$", re.IGNORECASE)
 _RFC_RE = re.compile(r"^RFC([1-9][0-9]*)$")  # no leading zero, as listed
+_RFC_PADDED_RE = re.compile(r"^RFC0[0-9]*$")
+_NO_ZERO = "RFC ids take no leading zero (RFC793, not RFC0793)"
 _OWNER_RE = re.compile(r"^[a-z][a-z0-9]*$")
 
 
@@ -387,6 +390,8 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
         raise CatalogError(
             f"{where}.searched_with_from: '{with_from}' is not a version of {doc_id}"
         )
+    if families[family].publisher == "IETF" and _RFC_PADDED_RE.match(doc_id):
+        raise CatalogError(f"{where}.id: '{doc_id}': {_NO_ZERO}")
     listing = _expect(raw, "listing", str, where, default="", required=False)
     listing = listing.strip()
     if listing:
@@ -402,6 +407,8 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
         listing = f"rfc:{_RFC_RE.match(doc_id).group(1)}"
     raw_obs = _expect(raw, "obsoleted_by", list, where, default=[], required=False)
     for k, item in enumerate(raw_obs):
+        if isinstance(item, str) and _RFC_PADDED_RE.match(item):
+            raise CatalogError(f"{where}.obsoleted_by[{k}]: '{item}': {_NO_ZERO}")
         if not isinstance(item, str) or not _RFC_RE.match(item):
             raise CatalogError(
                 f"{where}.obsoleted_by[{k}]: expected an RFC id such as RFC8446"
