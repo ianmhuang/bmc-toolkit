@@ -35,15 +35,17 @@ Schema (``schema_version = 1``)::
                                DMTF documents), nvme (key: the specification
                                slug of the nvmexpress.org API), ocp (key:
                                "<project page path>|<description prefix>")
-                               or rfc (key: the RFC number; the default for
-                               an RFCnnnn document of an IETF family)
+                               or rfc (key: the RFC number, no leading
+                               zero; the default for an RFCnnnn document
+                               of an IETF family)
     obsoleted_by = ["RFC8446"] optional: the RFCs the RFC Editor lists as
                                obsoleting this one that the catalog already
                                knows, copied from rfc-editor.org's
                                rfcNNNN.json; the RFC check reports only the
                                others. RFC ids, here and as document ids
                                of an IETF family, are RFC and digits in
-                               upper case with no leading zero (RFC793)
+                               upper case with no leading zero (RFC793);
+                               rfc793, RFC 793 or RFC0793 is refused
 
     [[documents.versions]]     in publication order, same-day versions
                                ascending by version number (refresh --write
@@ -112,18 +114,21 @@ LISTING_SOURCES = ("dmtf", "nvme", "ocp", "rfc")
 SCHEMA_VERSION = 1
 DEFAULT_CATALOG = Path(__file__).with_name("catalog.toml")
 
-_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-_DSP_RE = re.compile(r"^DSP\d+$", re.IGNORECASE)
-# RFC id patterns are used with fullmatch; match with `$` lets "RFC1\n" pass
+# These patterns are used with fullmatch: match with `$` lets "RFC1\n" pass.
+_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_DSP_RE = re.compile(r"DSP\d+", re.IGNORECASE)
 _RFC_RE = re.compile(r"RFC([1-9][0-9]*)")  # no leading zero, as listed
-_RFC_PADDED_RE = re.compile(r"RFC0[0-9]+")
-_RFC_ANY_CASE_RE = re.compile(r"RFC[0-9]+", re.IGNORECASE)
+# a zero before a non-zero number; RFC0 and RFC00 are no RFC at all
+_RFC_PADDED_RE = re.compile(r"RFC0+[1-9][0-9]*")
+# what reads as an RFC id in any case or spelling: rfc793, RFC 793, RFC-793
+_RFC_LIKE_RE = re.compile(r"RFC[\s_-]*[0-9]+", re.IGNORECASE)
+_RFC_NUMBER_RE = re.compile(r"[1-9][0-9]*")  # the key of an rfc: listing
 _NO_ZERO = "RFC ids take no leading zero (RFC793, not RFC0793)"
 _RFC_FORM = (
     "not an RFC id: RFC ids are written RFC and digits, upper case, "
     "without a leading zero (RFC793)"
 )
-_OWNER_RE = re.compile(r"^[a-z][a-z0-9]*$")
+_OWNER_RE = re.compile(r"[a-z][a-z0-9]*")
 
 
 class CatalogError(Exception):
@@ -327,7 +332,7 @@ def _parse_version(raw: dict, where: str, default_access: str) -> Version:
         raise CatalogError(f"{where}.type: '{ftype}' not one of {FILE_TYPES}")
     published = _expect(raw, "published", str, where)
     try:
-        if not _DATE_RE.match(published):
+        if not _DATE_RE.fullmatch(published):
             raise ValueError
         datetime.date.fromisoformat(published)
     except ValueError:
@@ -351,7 +356,7 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
     if families[family].publisher == "IETF":
         if _RFC_PADDED_RE.fullmatch(doc_id):
             raise CatalogError(f"{where}.id: '{doc_id}': {_NO_ZERO}")
-        if _RFC_ANY_CASE_RE.fullmatch(doc_id) and not _RFC_RE.fullmatch(doc_id):
+        if _RFC_LIKE_RE.fullmatch(doc_id) and not _RFC_RE.fullmatch(doc_id):
             raise CatalogError(f"{where}.id: '{doc_id}' is {_RFC_FORM}")
     title = _expect(raw, "title", str, where)
     access = _expect(raw, "access", str, where)
@@ -411,7 +416,12 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
                 f"{where}.listing: '{listing}' is not '<source>:<key>' with "
                 f"source one of {LISTING_SOURCES}"
             )
-    elif families[family].publisher == "DMTF" and _DSP_RE.match(doc_id):
+        if source == "rfc" and not _RFC_NUMBER_RE.fullmatch(key):
+            raise CatalogError(
+                f"{where}.listing: '{listing}': the key of an rfc listing is "
+                f"the RFC number without a leading zero (rfc:793)"
+            )
+    elif families[family].publisher == "DMTF" and _DSP_RE.fullmatch(doc_id):
         listing = f"dmtf:{doc_id.upper()}"
     elif families[family].publisher == "IETF" and _RFC_RE.fullmatch(doc_id):
         listing = f"rfc:{_RFC_RE.fullmatch(doc_id).group(1)}"
@@ -460,7 +470,7 @@ def _parse_repo(raw: dict, where: str) -> Repo:
     if not all(isinstance(s, str) and s.strip() for s in sparse):
         raise CatalogError(f"{where}.sparse: expected non-empty path strings")
     owner = _expect(raw, "owner", str, where, default="", required=False)
-    if "owner" in raw and not _OWNER_RE.match(owner):
+    if "owner" in raw and not _OWNER_RE.fullmatch(owner):
         raise CatalogError(f"{where}.owner: '{owner}' is not a lowercase name")
     if owner and not (
         repo_id.startswith(f"{owner}-") and len(repo_id) > len(owner) + 1
