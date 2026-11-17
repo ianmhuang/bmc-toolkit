@@ -151,11 +151,14 @@ the running header starting `RFC <number> ` and the blank lines padding
 them; in a file with a page break, a footer that ends the file is
 furniture too. The Outline holds lines starting in column 0: numbered
 headings (`4.1.2.  Title`, `1.1 Title`, `Appendix A.  Title`, `A.1.
-Title`; level is the count of number parts minus one), a title wrapped
-onto an indented next line joined to it; and, after the file's first
-block (the authors), unnumbered headings (`Abstract`, `Authors'
-Addresses`), a line with blank lines around it and indented text next,
-at level 0. Titles are shown as `4.1.2 Client Hello` and `Appendix A
+Title`; level is the count of number parts minus one; the older
+`APPENDIX A - Title`, `Appendix A - Title` and `Appendix A: Title` are
+read as `Appendix A.  Title`), a title wrapped onto an indented next line
+joined to it; and, after the file's first block (the authors), unnumbered
+headings (`Abstract`, `Authors' Addresses`), a line with blank lines
+around it and indented text next that neither starts with a lowercase
+letter nor ends with a colon (so a MIB line at a page's foot or a legend
+such as `Key:` is not one), at level 0. Titles are shown as `4.1.2 Client Hello` and `Appendix A
 State Machine`; `section DOC A` finds that appendix as `section DOC 4`
 finds section 4.
 A text file without that layout has an empty Outline: `section` finds
@@ -612,8 +615,8 @@ asks the publisher what it lists now and compares with the catalog:
 (date) URL`. `check` alone does every document that has a listing (the
 DMTF published-documents page, the nvmexpress.org specifications API, the
 OCP project pages' specification tables; publishers with no parseable
-index, such as Intel, NXP, SMBus, OIF, NIST and OASIS, are printed as
-`unchecked`), then, when `config.toml`
+index, such as Intel, NXP, SMBus, OIF, NIST, OASIS and IETF, are printed
+as `unchecked`), then, when `config.toml`
 pins a release, compares it with the newest `X.Y.Z` tag of
 `openbmc/openbmc` (`release: 2.18.0 (config.toml); newest openbmc tag
 3.0.0 -> newer`). Nothing is downloaded and no version is switched: a

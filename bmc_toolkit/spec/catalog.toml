@@ -56,6 +56,10 @@ publisher = "DMTF"
 title = "Open Data Protocol (OData 4.0)"
 publisher = "OASIS"
 
+[families.ietf]
+title = "IETF Requests for Comments"
+publisher = "IETF"
+
 [families.nvme]
 title = "NVM Express"
 publisher = "NVM Express, Inc."
@@ -4905,6 +4909,254 @@ url = "https://docs.oasis-open.org/odata/odata-json-format/v4.0/errata03/os/odat
 type = "pdf"
 published = "2016-06-02"
 notes = "OASIS Standard incorporating Approved Errata 03 (and 01, 02)."
+
+# ---------------------------------------------------------------- IETF RFCs
+# One document per RFC, id RFCnnnn, read as the plain text rfc-editor.org
+# publishes (type txt, cited by section and lines; ADR 0010). The version
+# is the month and year the RFC prints; published is the first day of that
+# month, since an RFC gives no day. An obsoleted RFC is listed only while
+# it alone defines a version still deployed (RFC 5246, TLS 1.2). Errata
+# and updating RFCs are not merged into a document. Titles and months from
+# rfc-editor.org's rfcNNNN.json; URLs confirmed 2026-11-17.
+
+[[documents]]
+id = "RFC9846"
+family = "ietf"
+title = "The Transport Layer Security (TLS) Protocol Version 1.3"
+access = "open"
+fetch = "direct"
+notes = "TLS 1.3, which obsoletes RFC 8446 and RFC 5246: the handshake, the record layer, alerts and cipher suites; the transport security of the BMC's HTTPS and Redfish service."
+
+[[documents.versions]]
+version = "July 2026"
+url = "https://www.rfc-editor.org/rfc/rfc9846.txt"
+type = "txt"
+published = "2026-07-01"
+
+[[documents]]
+id = "RFC5246"
+family = "ietf"
+title = "The Transport Layer Security (TLS) Protocol Version 1.2"
+access = "open"
+fetch = "direct"
+notes = "TLS 1.2. Obsoleted by RFC 8446 and RFC 9846; kept because TLS 1.2 is still deployed on BMCs and their clients, and no later RFC defines it."
+
+[[documents.versions]]
+version = "August 2008"
+url = "https://www.rfc-editor.org/rfc/rfc5246.txt"
+type = "txt"
+published = "2008-08-01"
+
+[[documents]]
+id = "RFC9110"
+family = "ietf"
+title = "HTTP Semantics"
+access = "open"
+fetch = "direct"
+notes = "HTTP semantics: methods, status codes and header fields (Content-Type, ETag, If-Match, Authorization, WWW-Authenticate). Redfish runs on it."
+
+[[documents.versions]]
+version = "June 2022"
+url = "https://www.rfc-editor.org/rfc/rfc9110.txt"
+type = "txt"
+published = "2022-06-01"
+
+[[documents]]
+id = "RFC9112"
+family = "ietf"
+title = "HTTP/1.1"
+access = "open"
+fetch = "direct"
+notes = "HTTP/1.1 message syntax: request and status lines, header field syntax, chunked transfer coding, connection management."
+
+[[documents.versions]]
+version = "June 2022"
+url = "https://www.rfc-editor.org/rfc/rfc9112.txt"
+type = "txt"
+published = "2022-06-01"
+
+[[documents]]
+id = "RFC7617"
+family = "ietf"
+title = "The 'Basic' HTTP Authentication Scheme"
+access = "open"
+fetch = "direct"
+notes = "The Basic HTTP authentication scheme, which Redfish services accept."
+
+[[documents.versions]]
+version = "September 2015"
+url = "https://www.rfc-editor.org/rfc/rfc7617.txt"
+type = "txt"
+published = "2015-09-01"
+
+[[documents]]
+id = "RFC4251"
+family = "ietf"
+title = "The Secure Shell (SSH) Protocol Architecture"
+access = "open"
+fetch = "direct"
+notes = "SSH architecture: host keys, and the data types (string, mpint, name-list) the other SSH documents use."
+
+[[documents.versions]]
+version = "January 2006"
+url = "https://www.rfc-editor.org/rfc/rfc4251.txt"
+type = "txt"
+published = "2006-01-01"
+
+[[documents]]
+id = "RFC4252"
+family = "ietf"
+title = "The Secure Shell (SSH) Authentication Protocol"
+access = "open"
+fetch = "direct"
+notes = "SSH user authentication: the publickey, password and hostbased methods and the userauth messages."
+
+[[documents.versions]]
+version = "January 2006"
+url = "https://www.rfc-editor.org/rfc/rfc4252.txt"
+type = "txt"
+published = "2006-01-01"
+
+[[documents]]
+id = "RFC4253"
+family = "ietf"
+title = "The Secure Shell (SSH) Transport Layer Protocol"
+access = "open"
+fetch = "direct"
+notes = "SSH transport layer: version exchange, binary packet protocol, key exchange and algorithm negotiation."
+
+[[documents.versions]]
+version = "January 2006"
+url = "https://www.rfc-editor.org/rfc/rfc4253.txt"
+type = "txt"
+published = "2006-01-01"
+
+[[documents]]
+id = "RFC4254"
+family = "ietf"
+title = "The Secure Shell (SSH) Connection Protocol"
+access = "open"
+fetch = "direct"
+notes = "SSH connection protocol: channels, interactive sessions, pseudo-terminals and port forwarding (the BMC's SSH console)."
+
+[[documents.versions]]
+version = "January 2006"
+url = "https://www.rfc-editor.org/rfc/rfc4254.txt"
+type = "txt"
+published = "2006-01-01"
+
+[[documents]]
+id = "RFC3414"
+family = "ietf"
+title = "User-based Security Model (USM) for version 3 of the Simple Network Management Protocol (SNMPv3)"
+access = "open"
+fetch = "direct"
+notes = "SNMPv3 User-based Security Model: authentication and privacy protocols, key localisation, the USM MIB (SNMP alerting from a BMC)."
+limits = "Section 12.1 is numbered twice in the RFC (Normative References and Informative References); section RFC3414 12.1 lists both."
+
+[[documents.versions]]
+version = "December 2002"
+url = "https://www.rfc-editor.org/rfc/rfc3414.txt"
+type = "txt"
+published = "2002-12-01"
+
+[[documents]]
+id = "RFC3416"
+family = "ietf"
+title = "Version 2 of the Protocol Operations for the Simple Network Management Protocol (SNMP)"
+access = "open"
+fetch = "direct"
+notes = "SNMP protocol operations: the PDU types (GetRequest, Response, SNMPv2-Trap, InformRequest) and error-status values."
+
+[[documents.versions]]
+version = "December 2002"
+url = "https://www.rfc-editor.org/rfc/rfc3416.txt"
+type = "txt"
+published = "2002-12-01"
+
+[[documents]]
+id = "RFC5424"
+family = "ietf"
+title = "The Syslog Protocol"
+access = "open"
+fetch = "direct"
+notes = "The syslog message format: PRI (facility and severity), header fields, structured data (a BMC's remote syslog)."
+
+[[documents.versions]]
+version = "March 2009"
+url = "https://www.rfc-editor.org/rfc/rfc5424.txt"
+type = "txt"
+published = "2009-03-01"
+
+[[documents]]
+id = "RFC5905"
+family = "ietf"
+title = "Network Time Protocol Version 4: Protocol and Algorithms Specification"
+access = "open"
+fetch = "direct"
+notes = "NTPv4: packet format, on-wire protocol, clock filter and selection algorithms (BMC time synchronisation)."
+
+[[documents.versions]]
+version = "June 2010"
+url = "https://www.rfc-editor.org/rfc/rfc5905.txt"
+type = "txt"
+published = "2010-06-01"
+
+[[documents]]
+id = "RFC2131"
+family = "ietf"
+title = "Dynamic Host Configuration Protocol"
+access = "open"
+fetch = "direct"
+notes = "DHCP for IPv4: message format, client states, lease allocation and renewal (BMC network configuration). The options are in RFC 2132, not listed."
+
+[[documents.versions]]
+version = "March 1997"
+url = "https://www.rfc-editor.org/rfc/rfc2131.txt"
+type = "txt"
+published = "1997-03-01"
+
+[[documents]]
+id = "RFC9915"
+family = "ietf"
+title = "Dynamic Host Configuration Protocol for IPv6 (DHCPv6)"
+access = "open"
+fetch = "direct"
+notes = "DHCPv6, which obsoletes RFC 8415: message types, client and server behaviour, DUIDs and options."
+
+[[documents.versions]]
+version = "January 2026"
+url = "https://www.rfc-editor.org/rfc/rfc9915.txt"
+type = "txt"
+published = "2026-01-01"
+
+[[documents]]
+id = "RFC6455"
+family = "ietf"
+title = "The WebSocket Protocol"
+access = "open"
+fetch = "direct"
+notes = "The WebSocket protocol: opening handshake, framing and close codes (bmcweb's KVM, serial console and event streams)."
+
+[[documents.versions]]
+version = "December 2011"
+url = "https://www.rfc-editor.org/rfc/rfc6455.txt"
+type = "txt"
+published = "2011-12-01"
+
+[[documents]]
+id = "RFC6143"
+family = "ietf"
+title = "The Remote Framebuffer Protocol"
+access = "open"
+fetch = "direct"
+notes = "The Remote Framebuffer (RFB) protocol, the VNC protocol a BMC's KVM speaks over a WebSocket."
+
+[[documents.versions]]
+version = "March 2011"
+url = "https://www.rfc-editor.org/rfc/rfc6143.txt"
+type = "txt"
+published = "2011-03-01"
 
 [[repos]]
 id = "openbmc"

@@ -18,12 +18,17 @@ The Outline holds the lines that start in column 0 and are not furniture:
 - numbered headings, ``4.1.2.  Title``, ``1.1 Title``, ``1.1. Title``,
   ``Appendix A.  Title``, ``A.1.  Title`` (one or two spaces after the
   number; the number holds a dot or follows ``Appendix``); level is the
-  number of parts minus one; anywhere in the file;
+  number of parts minus one; anywhere in the file; the older forms
+  ``APPENDIX A - Title``, ``Appendix A - Title`` and ``Appendix A: Title``
+  read as ``Appendix A.  Title``;
 - unnumbered headings, a column-0 line with a blank or furniture line (or
   the file's edge) on both sides and an indented line as the next text
-  (or none), after the file's first block (the author and stream block):
+  (or none), after the file's first block (the author and stream block),
+  not starting with a lowercase letter and not ending with a colon:
   ``Abstract``, ``Status of This Memo``, level 0. The indented next line
-  keeps column-0 code, such as a MIB module, out of the Outline.
+  keeps column-0 code, such as a MIB module, out of the Outline; the case
+  and colon rules keep out a MIB line alone at a page's foot and a legend
+  such as ``Key:``.
 
 A numbered heading followed directly by an indented non-blank line is
 wrapped: the title joins both lines. A heading's title is its number without
@@ -50,7 +55,7 @@ from bmc_toolkit.spec import markdown as md_mod
 from bmc_toolkit.spec.library import atomic_write_json
 from bmc_toolkit.spec.markdown import Heading, MarkdownVersion
 
-TEXT_VERSION = 1
+TEXT_VERSION = 2  # 2: the T81.2 heading rules (older appendix forms, AC-4)
 KIND = "text"
 META_NAME = md_mod.META_NAME
 OUTLINE_NAME = md_mod.OUTLINE_NAME
@@ -64,6 +69,10 @@ _NUMBERED = re.compile(
     r"^(?P<appendix>Appendix )?"
     r"(?P<number>(?:\d+|[A-Z])(?:\.\d+)*)(?P<dot>\.?)"
     r" {1,2}(?P<title>\S.*?)\s*$"
+)
+# Older appendix headings: "APPENDIX A - Title", "Appendix A: Title".
+_OLD_APPENDIX = re.compile(
+    r"^(?:APPENDIX|Appendix) (?P<letter>[A-Z])\.? *[-:] +(?P<title>\S.*?)\s*$"
 )
 _SPACES = re.compile(r"\s+")
 
@@ -138,6 +147,10 @@ def _first_block_end(lines: list[str]) -> int:
 
 def _numbered(text: str) -> tuple[int, str] | None:
     """(level, title) of a numbered heading line, else None."""
+    old = _OLD_APPENDIX.match(text)
+    if old:
+        title = _SPACES.sub(" ", old.group("title"))
+        return 0, f"Appendix {old.group('letter')} {title}"
     m = _NUMBERED.match(text)
     if not m:
         return None
@@ -191,6 +204,8 @@ def outline(lines: list[str], hidden: frozenset[int] | None = None) -> list[dict
             out.append({"level": level, "title": title, "line": index + 1})
         elif (
             index >= start
+            and not text[0].islower()
+            and not text.rstrip().endswith(":")
             and gap(index - 1)
             and gap(index + 1)
             and indented_next(index)

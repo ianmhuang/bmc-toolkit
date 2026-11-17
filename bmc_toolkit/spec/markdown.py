@@ -212,9 +212,6 @@ def _labelled(entries: list[dict]) -> list[Heading]:
     return out
 
 
-labelled = _labelled  # the text reader labels its headings the same way
-
-
 @dataclass
 class MarkdownVersion:
     """One held, extracted Markdown version."""

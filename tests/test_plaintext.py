@@ -365,3 +365,100 @@ def test_an_appendix_letter_finds_the_appendix_heading(version, query):
 
 def test_another_letter_finds_no_appendix(version):
     assert [h.label for _, h, _ in version.match_sections("B")] == []
+
+
+# ------------------------------------------------------- T81.2 (RFCs)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        # RFC 3414: a MIB line left alone at the bottom of a page
+        "usmStatsWrongDigests OBJECT-TYPE",
+        # RFC 2131: a table legend
+        "Key:",
+        "Notes for implementers:",
+    ],
+)
+def test_a_lowercase_start_or_a_trailing_colon_is_no_heading(line):
+    """AC-4: neither cuts the numbered section it stands in short."""
+    text = "Author block\n\n5.  Section\n\n   body\n\n" + line + "\n\n   more body\n"
+    entries = txt_mod.outline(split_lines(text))
+    assert [e["title"] for e in entries] == ["5 Section"]
+
+
+@pytest.mark.parametrize(
+    "line, expected",
+    [
+        ("APPENDIX A - Installation", "Appendix A Installation"),
+        ("Appendix A - Installation", "Appendix A Installation"),
+        ("Appendix A: Installation", "Appendix A Installation"),
+        ("Appendix A.  Installation", "Appendix A Installation"),
+    ],
+)
+def test_older_appendix_forms_are_level_0_headings(line, expected):
+    """AC-5: RFC 3414 writes ``APPENDIX A - Installation`` with A.1 next."""
+    text = (
+        "Author block\n\n1.  One\n\n   body\n\n"
+        + line
+        + "\nA.1. Parameters\n\n   text\n\nA.2. More\n\n   text\n"
+    )
+    entries = txt_mod.outline(split_lines(text))
+    assert [(e["level"], e["title"]) for e in entries] == [
+        (0, "1 One"),
+        (0, expected),
+        (1, "A.1 Parameters"),
+        (1, "A.2 More"),
+    ]
+
+
+def test_an_older_appendix_heading_is_found_by_its_letter(tmp_path):
+    """AC-5: ``section DOC A`` lists the appendix, then its subsections."""
+    text = (
+        "Author block\n\n1.  One\n\n   body\n\n"
+        "APPENDIX A - Installation\nA.1. Parameters\n\n   text\n"
+    )
+    labels = [h.label for _, h, _ in _load(tmp_path, text).match_sections("A")]
+    assert labels == ["Appendix A Installation", "A.1 Parameters"]
+
+
+def test_a_letter_with_a_dot_is_a_numbered_appendix(tmp_path):
+    """AC-5: RFC 2131 writes ``A. Host Configuration Parameters``."""
+    text = (
+        "Author block\n\n4.  Last\n\n   body\n\n"
+        "A. Host Configuration Parameters\n\n   table\n\nKey:\n\n   legend\n"
+    )
+    version = _load(tmp_path, text)
+    assert [(h.level, h.label) for h in version.headings] == [
+        (0, "4 Last"),
+        (0, "A Host Configuration Parameters"),
+    ]
+    matches = version.match_sections("A")
+    assert [h.label for _, h, _ in matches] == ["A Host Configuration Parameters"]
+    assert matches[0][2] == len(split_lines(text))  # runs past the legend
+
+
+def test_the_extractor_version_is_two():
+    """AC-6: extracts written before the T81.2 heading rules are stale."""
+    assert txt_mod.TEXT_VERSION == 2
+
+
+def test_the_markdown_labelled_alias_is_gone():
+    """AC-7 (review 1 of #137, F8)."""
+    from bmc_toolkit.spec import markdown
+
+    assert not hasattr(markdown, "labelled")
+
+
+def _load(tmp_path, text):
+    original = tmp_path / "original.txt"
+    original.write_text(text, encoding="utf-8", newline="")
+    txt_mod.extract(original, tmp_path)
+    return txt_mod.TextVersion.load(
+        family="ietf",
+        document="RFC9999",
+        version="March 2026",
+        path=tmp_path,
+        original=original,
+        origin=URL,
+    )
