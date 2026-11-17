@@ -150,20 +150,20 @@ ending in `[Page N]`, the form-feed line (which may carry the header),
 the running header starting `RFC <number> ` and the blank lines padding
 them; in a file with a page break, a footer that ends the file is
 furniture too. The Outline holds lines starting in column 0: numbered
-headings (`4.1.2.  Title`, `1.1 Title`, `Appendix A.  Title`, `A.1.
-Title`; level is the count of number parts minus one; the older
+headings (`4.1.2.  Title`, `1.1 Title`, `Appendix A.  Title`,
+`A.1. Title`; level is the count of number parts minus one; the older
 `APPENDIX A - Title`, `Appendix A - Title` and `Appendix A: Title` are
-read as `Appendix A.  Title`), a title wrapped onto an indented next line
-joined to it; and, after the file's first block (the authors), unnumbered
-headings (`Abstract`, `Authors' Addresses`), a line with blank lines
-around it and indented text next that neither starts with a lowercase
-letter nor ends with a colon (so a MIB line at a page's foot or a legend
-such as `Key:` is not one), at level 0. Titles are shown as `4.1.2 Client Hello` and `Appendix A
-State Machine`; `section DOC A` finds that appendix as `section DOC 4`
-finds section 4.
-A text file without that layout has an empty Outline: `section` finds
-nothing, `find` and `page --lines` read it. `page DOC N`, `render` and
-`table` refuse it as they refuse Markdown, and Notes do not record its
+read as `Appendix A.  Title`), a title wrapped onto an indented next
+line joined to it; and, after the file's first block (the authors),
+unnumbered headings (`Abstract`, `Authors' Addresses`), a line with
+blank lines around it and indented text next that neither starts with a
+lowercase letter nor ends with a colon (so a MIB line at a page's foot
+or a legend such as `Key:` is not one), at level 0. Titles are shown as
+`4.1.2 Client Hello` and `Appendix A State Machine`; `section DOC A`
+finds that appendix as `section DOC 4` finds section 4. A text file
+without that layout has an empty Outline: `section` finds nothing,
+`find` and `page --lines` read it. `page DOC N`, `render` and `table`
+refuse it as they refuse Markdown, and Notes do not record its
 Citations.
 
 `invocation PROTOCOL 'NAME:SIZE=VALUE' ...` arranges the bytes of a
@@ -614,10 +614,10 @@ asks the publisher what it lists now and compares with the catalog:
 `current DOC V`, or `newer DOC: catalog latest V, <publisher> lists W
 (date) URL`. `check` alone does every document that has a listing (the
 DMTF published-documents page, the nvmexpress.org specifications API, the
-OCP project pages' specification tables; publishers with no parseable
-index, such as Intel, NXP, SMBus, OIF, NIST, OASIS and IETF, are printed
-as `unchecked`), then, when `config.toml`
-pins a release, compares it with the newest `X.Y.Z` tag of
+OCP project pages' specification tables, the RFC Editor's metadata for an
+RFC; publishers with no parseable index, such as Intel, NXP, SMBus, OIF,
+NIST and OASIS, are printed as `unchecked`), then, when `config.toml` pins
+a release, compares it with the newest `X.Y.Z` tag of
 `openbmc/openbmc` (`release: 2.18.0 (config.toml); newest openbmc tag
 3.0.0 -> newer`). Nothing is downloaded and no version is switched: a
 newer version enters the Library only after the catalog lists it (see
@@ -635,9 +635,9 @@ reminder never touches the network. `[library] offline = true` turns the
 reading commands' check off.
 OCP versions are mostly Google Drive links on the OCP pages, so `check`
 reports them with `(URL to confirm by hand)`. `refresh --skip-source
-SOURCE` (repeatable; `dmtf`, `nvme` or `ocp`) leaves that publisher's
-documents out, neither read nor reported (`github` leaves out the commit
-check below); the catalog workflow runs
+SOURCE` (repeatable; `dmtf`, `nvme`, `ocp` or `rfc`) leaves that
+publisher's documents out, neither read nor reported (`github` leaves
+out the commit check below); the catalog workflow runs
 `refresh --skip-source ocp` because opencompute.org refuses GitHub's
 runners ([CATALOG.md](CATALOG.md)). Naming a document whose publisher is
 skipped exits 2.
@@ -665,6 +665,24 @@ not requested. A request that fails prints `unreachable DOC V: <reason>`
 (HTTP 403 or 429 is GitHub's limit of 60 requests an hour without a
 token). The summary counts these with the listing lines, so the catalog
 workflow reports a moved pin like any other proposal.
+
+An RFC (an `RFCnnnn` document of a family whose publisher is IETF; its
+listing is `rfc:nnnn`) is checked against the RFC Editor's metadata,
+`https://www.rfc-editor.org/rfc/rfcnnnn.json`. For an RFC, newer means
+an RFC that obsoletes it, which is a different document: `check`,
+`refresh` and the reading commands' note print `obsoleted RFCnnnn: the
+RFC Editor lists it as obsoleted by RFCxxxx (<URL of its text>)`,
+several joined by `; `, for each obsoleting RFC that the document's
+`obsoleted_by` in the catalog does not already record. `check` prints
+`current RFCnnnn V` when there is none and `refresh` prints nothing.
+`check` counts an obsoleted RFC among `newer` and adds a line saying the
+obsoleted RFC stays readable and citable. Whenever it checked an RFC,
+`refresh`'s summary adds `obsoleted N` (the RFCs reported) after
+`unreachable`, before `unlisted`, so the catalog workflow reports it
+like any other proposal; `--write` writes nothing for it: the maintainer
+adds the newer RFC as a document and extends `obsoleted_by` by hand.
+`--skip-source rfc` leaves the RFCs out. RFCs that only update an RFC,
+and errata, are not followed.
 
 ## Sessions sharing a Library
 
@@ -759,7 +777,7 @@ temporary files (see above).
   message registry leaves the archive (22 files, about 0.8 MB, out of
   DSP8011 2026.1's 264 members); the privilege registries, the HTML and
   the PDF stay in the ZIP.
-- `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/projects/<page>/` for the pages named in the catalog's `listing` keys. They download no document. The one exception is `refresh`, which also makes one unauthenticated request to `https://api.github.com/repos/<owner>/<repo>/commits?path=<path>&per_page=1` per document whose newest Markdown version is pinned in a raw.githubusercontent.com URL; `check` and the reading commands never do. A reading command reads the one listing page of the document it answered from when that document's Freshness Check is due (at most once per document per `freshness_days`), never with `[library] offline = true`.
+- `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/projects/<page>/` for the pages named in the catalog's `listing` keys. They download no document. For each RFC they read `https://www.rfc-editor.org/rfc/rfc<N>.json`, the RFC Editor's record of it, not the RFC itself. The one exception is `refresh`, which also makes one unauthenticated request to `https://api.github.com/repos/<owner>/<repo>/commits?path=<path>&per_page=1` per document whose newest Markdown version is pinned in a raw.githubusercontent.com URL; `check` and the reading commands never do. A reading command reads the one listing page of the document it answered from when that document's Freshness Check is due (at most once per document per `freshness_days`), never with `[library] offline = true`.
 - Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed. `repos --search` searches the openbmc organisation only, not the external libraries the catalog lists (`libspdm`, `ipmitool`, ...). `clone` fetches from the URL of the catalog entry: GitHub, but Codeberg for `ipmitool` and git.kernel.org for `i2c-tools` and `ethtool`. For an entry with `release_tag`, `clone --release` also runs `git ls-remote --tags` on that URL when fetching the tag fails, to say whether the tag is missing. The vendor kernels `aspeed-linux` and `nuvoton-linux` are cloned sparse like `linux` (its directories plus the vendor's arch, dts and soc ones), and the vendor SDK layers `aspeed-openbmc` and `nuvoton-openbmc` hold only `meta-<vendor>*` and `meta-evb`. `nuvoton-igps` holds only its text files (scripts, XML layouts, notes), not the prebuilt images beside them. `libspdm` holds `include/`, `library/`, `os_stub/` and `doc/`, not `unit_test/` (about 7.5 MB instead of 60 MB at `main` in 2026-11).
 - `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory that is removed on failure, and `code/<repo>/.lock` while it runs. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees, `.tmp-*` and `.part` leftovers and stale `.lock` files under `code/` and `specs/` and at the Library root, nothing else.
 - `check` writes `freshness.json` at the Library root, and so does a reading command that ran the due check; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it inserts version entries into the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).

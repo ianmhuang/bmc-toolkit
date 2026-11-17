@@ -122,20 +122,22 @@ names (or the default branch), searched with `grep` and read with `code`.
   (`[code.checkouts] bmcweb = "/path"`); it wins over every Library Code
   Tree of that repository, whatever it has checked out.
 - **Freshness Check**: `check` asks the publisher (DMTF, nvmexpress.org,
-  the OCP project pages) what versions it lists and reports one the catalog lacks
-  (`newer DOC: ...`). It never downloads or switches versions; the catalog
-  stays the authority for Latest until a maintainer updates it. The
-  outcome and the time go to `freshness.json` at the Library root. A
-  reading command runs the check itself, after its output, when the
-  document has not been checked within `freshness_days` (`[library]` in
-  `config.toml`, default 30), and prints the outcome as `note: newer DOC:
-  ...` (nothing when current, `note: unreachable DOC: ...` when the
+  the OCP project pages) what versions it lists and reports one the
+  catalog lacks (`newer DOC: ...`); for an RFC it asks the RFC Editor
+  which RFCs obsolete it and reports one the catalog does not record
+  (`obsoleted RFCnnnn: ...`). It never downloads or switches versions;
+  the catalog stays the authority for Latest until a maintainer updates
+  it. The outcome and the time go to `freshness.json` at the Library
+  root. A reading command runs the check itself, after its output, when
+  the document has not been checked within `freshness_days` (`[library]`
+  in `config.toml`, default 30), and prints the outcome as `note: newer
+  DOC: ...` (nothing when current, `note: unreachable DOC: ...` when the
   publisher could not be read); the outcome is recorded, so the next
   question within that age does not check again. `fetch` and `status`
   print a `note:` reminder to run `check` instead, once per document.
-  `[library] offline = true` in `config.toml` turns the reading commands'
-  downloads and checks off (a held version is still extracted); `fetch`,
-  `check` and `clone` ignore it.
+  `[library] offline = true` in `config.toml` turns the reading
+  commands' downloads and checks off (a held version is still
+  extracted); `fetch`, `check` and `clone` ignore it.
 - **Citation**: a `cite:` line printed by `page`, `render` or `table`. Its
   fields, separated by ` | `: family, document and version, the sections
   the page spans (joined by `; `; the section the table starts in for
@@ -170,11 +172,11 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | `add FILE --document DOC --version V [--force]` | register a file the user obtained themselves (Drop-in); refuses to replace a version already present unless `--force`; the file must really be a PDF, ZIP, Markdown (`.md`) or text (`.txt`) file |
 | `scan` | register files placed by hand under `specs/<family>/<document>/<version>/original.pdf` (or `original.zip`, `original.md`, `original.txt`) |
 | `status` | what the Library holds; columns: family, id, version, origin, size, `extracted` / `stale` (extracted by an older extractor: run `extract` again) / `-`, outline source; then one `lock:` line per lock another Session holds (path, pid, host, command, since when, `live` or `stale`); a final `note:` when held documents are due for a Freshness Check |
-| `check [DOC]` | ask the publisher whether the catalog is behind: `current DOC V`, `newer DOC: catalog latest V, <publisher> lists W (date) URL` (OCP: `(URL to confirm by hand)`), or `unreachable DOC: reason`; without DOC every document with a listing, an `unchecked:` line for the hand-maintained ones, an `unchecked (manual):` line naming each manual document with its access tier, a `release:` line comparing `config.toml`'s release with the newest `openbmc/openbmc` tag (`-> newer` or `-> L is the newest`), and a `summary:`. Nothing is downloaded. Exit 2 for an unknown document or one without a listing |
-| `refresh [DOC] [--write] [--skip-source SOURCE]` | maintainer command: what `check` found, per version (`add`, `changed`, `confirm` with the reason: an OCP URL to find, a DMTF Work-in-Progress row); `--write` inserts the `add` entries into the catalog file at their place in publication order (a document whose version blocks the text scan cannot read is reported and left alone); `--skip-source dmtf|nvme|ocp` (repeatable) leaves that publisher's documents out. A document's newest Markdown version is compared with the newest commit touching its file on GitHub: `changed DOC V: ... (not written; re-pin by hand)`; `--skip-source github` leaves that out. Without DOC it also prints `unlisted DSP.. V "Title" URL` for a DMTF document the catalog neither lists nor names in `[listings.dmtf] not_taken` (never written). Not for answering questions |
+| `check [DOC]` | ask the publisher whether the catalog is behind: `current DOC V`, `newer DOC: catalog latest V, <publisher> lists W (date) URL` (OCP: `(URL to confirm by hand)`), `obsoleted RFCnnnn: the RFC Editor lists it as obsoleted by RFCxxxx (URL)` for an RFC obsoleted by one the catalog does not record in `obsoleted_by`, or `unreachable DOC: reason`; without DOC every document with a listing, an `unchecked:` line for the hand-maintained ones, an `unchecked (manual):` line naming each manual document with its access tier, a `release:` line comparing `config.toml`'s release with the newest `openbmc/openbmc` tag (`-> newer` or `-> L is the newest`), and a `summary:`. Nothing is downloaded. Exit 2 for an unknown document or one without a listing |
+| `refresh [DOC] [--write] [--skip-source SOURCE]` | maintainer command: what `check` found, per version (`add`, `changed`, `confirm` with the reason: an OCP URL to find, a DMTF Work-in-Progress row); `--write` inserts the `add` entries into the catalog file at their place in publication order (a document whose version blocks the text scan cannot read is reported and left alone); `--skip-source dmtf|nvme|ocp|rfc` (repeatable) leaves that publisher's documents out (`rfc`: the RFC Editor's check of the IETF RFCs). An RFC obsoleted by one the catalog does not record prints the same `obsoleted RFCnnnn: ...` line as `check`, counted as `obsoleted N` in the summary and never written: the maintainer adds the new RFC and extends `obsoleted_by` by hand. A document's newest Markdown version is compared with the newest commit touching its file on GitHub: `changed DOC V: ... (not written; re-pin by hand)`; `--skip-source github` leaves that out. Without DOC it also prints `unlisted DSP.. V "Title" URL` for a DMTF document the catalog neither lists nor names in `[listings.dmtf] not_taken` (never written). Not for answering questions |
 | `extract DOC [--version V] [--force]` | write the Extract, Outline, Line Map and figure regions for a PDF version already in the Library (latest held version by default), or unpack a bundle: a schema bundle's JSON Schema into `schemas/` (DSP8010, and DSP8013's profile schema), a registries bundle's newest registry files into `registries/` (DSP8011); skips if current. A ZIP with neither is skipped with a message |
 | `extract --all [--force]` | every PDF and bundle in the Library; ends with a `summary:` line |
-| `section DOC QUERY [--version V]` | Outline entries matching a section number prefix (`20.1` also matches `20.1.2`) or every word of QUERY; one per line: `LEVEL \| title \| pages FIRST-LAST` (LEVEL 0 is a top-level heading), where LAST is where the next entry of the same or a higher level begins, or the page before it when that heading opens the page (`~` in front of an approximate page). `no matching section` when nothing matches. Like every reading command it first brings the version to Ready (Latest, or `--version V`): `fetched DOC V via ...` and `extracted DOC V: ...` lines come before the answer when the Library lacked it; a download that fails with an older version held prints `note: could not fetch DOC V: ...; answering from held W` and answers from W; with nothing held, exit 2 with the browser URL and the save path; a gated version, exit 2 with the Drop-in instruction; an unknown `--version`, exit 2 listing the known ones (exact match); another Session downloading or extracting the same version, exit 3 (`busy:`). After the answer, a due Freshness Check may add `note: newer DOC: ...` or `note: unreachable DOC: ...` |
+| `section DOC QUERY [--version V]` | Outline entries matching a section number prefix (`20.1` also matches `20.1.2`) or every word of QUERY; one per line: `LEVEL \| title \| pages FIRST-LAST` (LEVEL 0 is a top-level heading), where LAST is where the next entry of the same or a higher level begins, or the page before it when that heading opens the page (`~` in front of an approximate page). `no matching section` when nothing matches. Like every reading command it first brings the version to Ready (Latest, or `--version V`): `fetched DOC V via ...` and `extracted DOC V: ...` lines come before the answer when the Library lacked it; a download that fails with an older version held prints `note: could not fetch DOC V: ...; answering from held W` and answers from W; with nothing held, exit 2 with the browser URL and the save path; a gated version, exit 2 with the Drop-in instruction; an unknown `--version`, exit 2 listing the known ones (exact match); another Session downloading or extracting the same version, exit 3 (`busy:`). After the answer, a due Freshness Check may add `note: newer DOC: ...`, `note: obsoleted RFCnnnn: ...` or `note: unreachable DOC: ...` |
 | `find DOC PATTERN [--version V] [--regex] [--case] [--context N] [--max N] [--only]` | search the Extract (the version is brought to Ready first, as `section` says); one line per hit: `DOC p.N [line L] \| section \| [figure] text`. Case-insensitive literal unless `--regex` / `--case`; `--context N` adds the surrounding lines (`line L:` or `row I:`) and a `--` separator; at most 50 hits unless `--max N` (`--max 0` prints all), then a `... more hits` line. Documents the catalog lists in `searched_with` (IPMI-UPDATE for IPMI; DSP0251 for DSP0248 from 1.4.0, an earlier version gets a `note:` instead) are searched too, their hits first; they are brought to Ready the same way, with every line about that as a `note:` (`note: fetched IPMI-UPDATE ...`, or why it could not be), and one that cannot be read is left out; `--only` skips them. `no hits` when nothing matches |
 | `page DOC N [--to M]` or `page DOC --section QUERY [--version V] [--max-pages K]` | print pages of the Extract (the version is brought to Ready first, as `section` says), each starting with a `cite:` line, every line behind its printed line number when there is one, `[figure]` appended to lines inside a figure. Refuses more than 10 pages per call unless `--max-pages` |
 | `page DOC --lines A-B` or `page DOC --section QUERY` on a Markdown or text document (catalog type `md` or `txt`) | a `cite:` line, then the lines behind the file's own line numbers, at most 200 per call (an RFC's page footer, form feed and header are left out; the other lines keep their numbers). Neither is read by pages: `section` prints `lines A-B` where a PDF prints pages, `find` prints `DOC l.N` (the file's line N), and `page DOC N`, `render` and `table` refuse it with this command |
@@ -247,7 +249,10 @@ once): how long to wait for that Session before giving up with 3.
    tell the user in one sentence that the publisher lists W and that the
    answer comes from V; never fetch or add W unless the user asks, and
    never edit the catalog during a question (`refresh` is for
-   maintainers). `note: unreachable DOC: ...`: say nothing about it.
+   maintainers). `note: obsoleted RFCnnnn: the RFC Editor lists it as
+   obsoleted by RFCxxxx (URL)`: the answer and its Citation stay on
+   RFCnnnn; tell the user in one sentence that RFCxxxx obsoletes it and may
+   change what was cited. `note: unreachable DOC: ...`: say nothing about it.
    `check` is run only when the user asks whether a newer version exists,
    never during a question.
 5. When the answer sits in a table (a `Table` caption near the hit, or

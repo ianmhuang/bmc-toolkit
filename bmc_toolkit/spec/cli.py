@@ -383,6 +383,8 @@ def cmd_catalog(args: argparse.Namespace) -> int:
             print(f"notes: {doc.notes}")
         if doc.limits:
             print(f"limits: {doc.limits}")
+        if doc.obsoleted_by:
+            print(f"obsoleted_by: {', '.join(doc.obsoleted_by)}")
         if not doc.versions:
             print(
                 "versions: (none listed; add any version with: bmcspec add FILE "
@@ -860,6 +862,26 @@ def _seen_line(doc: Document, seen: listing_mod.Seen) -> str:
     return f"{seen.version}{when} {seen.url}{note}"
 
 
+def _obsoleted_line(doc: Document, newer) -> str:
+    """The line naming the RFCs that obsolete an RFC the catalog lacks."""
+    listed = "; ".join(f"{s.version} ({s.url})" for s in newer)
+    return (
+        f"obsoleted {doc.id}: {fresh_mod.publisher_name(doc)} lists it as "
+        f"obsoleted by {listed}"
+    )
+
+
+def _newer_line(doc: Document, check) -> str:
+    """The ``newer`` (or, for an RFC, ``obsoleted``) line of a check."""
+    if doc.listing_source == "rfc":
+        return _obsoleted_line(doc, check.newer)
+    listed = "; ".join(_seen_line(doc, s) for s in check.newer)
+    return (
+        f"newer {doc.id}: catalog latest {check.catalog_latest}, "
+        f"{fresh_mod.publisher_name(doc)} lists {listed}"
+    )
+
+
 def cmd_check(args: argparse.Namespace) -> int:
     catalog = _load(args)
     library = Library(resolve_library())
@@ -869,6 +891,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     state = fresh_mod.Freshness(library.root)
     listings = listing_mod.Listings(CLIENT_FACTORY())
     counts = {"current": 0, "newer": 0, "unreachable": 0}
+    newer_sources = set()
     for doc in docs:
         check = fresh_mod.check_document(doc, listings)
         state.record(check)
@@ -878,11 +901,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         elif check.status == "unreachable":
             print(f"unreachable {doc.id}: {check.problem}")
         else:
-            listed = "; ".join(_seen_line(doc, s) for s in check.newer)
-            print(
-                f"newer {doc.id}: catalog latest {check.catalog_latest}, "
-                f"{fresh_mod.publisher_name(doc)} lists {listed}"
-            )
+            print(_newer_line(doc, check))
+            newer_sources.add(doc.listing_source)
     # A manual document with a listing was checked above like any other;
     # the manual line is for those nobody can check.
     unchecked = [
@@ -898,11 +918,17 @@ def cmd_check(args: argparse.Namespace) -> int:
     if not args.document:
         _check_release(catalog, library, state)
     state.save()
-    if counts["newer"]:
+    if newer_sources - {"rfc"}:
         print(
             "nothing was downloaded: a newer version enters the Library only "
             "after the catalog lists it (bmcspec refresh, or a pull request) "
             "or as a Drop-in"
+        )
+    if "rfc" in newer_sources:
+        print(
+            "an obsoleting RFC is a different document: the obsoleted one "
+            "stays readable and citable, and the catalog adds the new one "
+            "only by hand (docs/CATALOG.md)"
         )
     print(
         f"summary: current {counts['current']}, newer {counts['newer']}, "
@@ -982,7 +1008,12 @@ def cmd_refresh(args: argparse.Namespace) -> int:
 
     if args.document and not (by_listing(docs[0]) or by_pin(docs[0])):
         doc = docs[0]
-        if doc.listing:
+        if doc.listing_source == "rfc":
+            print(
+                f"{doc.id} is checked against {fresh_mod.publisher_name(doc)}, "
+                f"which --skip-source rfc leaves out"
+            )
+        elif doc.listing:
             print(
                 f"{doc.id} is listed by {doc.listing_source}, which "
                 f"--skip-source leaves out"
@@ -997,7 +1028,9 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     # No client when every source is skipped: nothing will be read.
     client = CLIENT_FACTORY() if docs else None
     listings = listing_mod.Listings(client) if docs else None
-    counts = {"add": 0, "confirm": 0, "changed": 0, "unreachable": 0}
+    counts = {"add": 0, "confirm": 0, "changed": 0, "unreachable": 0, "obsoleted": 0}
+    # The obsoleted count is in the summary only when an RFC was checked.
+    any_rfc = any(by_listing(d) and d.listing_source == "rfc" for d in docs)
     written = 0
     for doc in docs:
         if by_pin(doc):
@@ -1008,7 +1041,13 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         if not by_listing(doc):
             continue
         found = refresh_mod.proposals(doc, listings)
+        obsoleting = [p.seen for p in found if p.kind == "obsoleted"]
+        if obsoleting:
+            counts["obsoleted"] += 1
+            print(_obsoleted_line(doc, obsoleting))
         for prop in found:
+            if prop.kind == "obsoleted":
+                continue
             counts[prop.kind] += 1
             if prop.kind == "unreachable":
                 print(f"unreachable {doc.id}: {prop.problem}")
@@ -1040,6 +1079,7 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     print(
         f"summary: add {counts['add']}, confirm {counts['confirm']}, "
         f"changed {counts['changed']}, unreachable {counts['unreachable']}"
+        + (f", obsoleted {counts['obsoleted']}" if any_rfc else "")
         + unlisted
         + (f", written {written}" if args.write else " (dry run; --write adds them)")
     )
@@ -2831,11 +2871,7 @@ def _check_when_due(args: argparse.Namespace) -> None:
     except Exception as exc:  # noqa: BLE001 - a lost stamp is a note of its own
         print(f"note: could not record the check of {doc.id}: {exc}")
     if check.status == "newer":
-        listed = "; ".join(_seen_line(doc, s) for s in check.newer)
-        print(
-            f"note: newer {doc.id}: catalog latest {check.catalog_latest}, "
-            f"{fresh_mod.publisher_name(doc)} lists {listed}"
-        )
+        print(f"note: {_newer_line(doc, check)}")
     elif check.status == "unreachable":
         print(f"note: unreachable {doc.id}: {check.problem}")
 

@@ -477,6 +477,9 @@ def test_refresh_passes_over_a_txt_version_and_keeps_the_pin_rule_for_md(
         "nvme",
         "--skip-source",
         "ocp",
+        # T81.3 added the RFC Editor check of IETF RFCs; skipped as well.
+        "--skip-source",
+        "rfc",
     )
     assert code == 0, out
     # the Markdown version's URL pins no commit and is reported; the text

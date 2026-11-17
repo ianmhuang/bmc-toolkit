@@ -42,6 +42,13 @@ numbers like `md` but with no pin. Each RFC is one document with id
 the URL the `.txt` on rfc-editor.org. An RFC that a later one obsoletes
 is listed only while it alone defines a version still deployed (RFC 5246,
 TLS 1.2); errata and updating RFCs are not merged into a document.
+An RFC's `obsoleted_by` lists the RFCs that the RFC Editor already names
+as obsoleting it and that are accounted for (RFC 5246: RFC8446 and
+RFC9846). It is copied from `obsoleted_by` in rfc-editor.org's
+`rfcNNNN.json`, never from the document's notes; `refresh` reports any
+other obsoleting RFC (`obsoleted`, see [COMMANDS.md](COMMANDS.md)), and
+the maintainer adds that RFC as a document when it is wanted, then
+extends the list.
 Before an RFC is added, its Outline is compared with the RFC's own table
 of contents (a maintainer check outside the repository), so a heading
 form the text reader does not know, or a false heading, shows up before
@@ -61,8 +68,9 @@ of its versions they go with (DSP0248: `1.4.0`, the version that moved the
 PDR definitions to DSP0251), so reading an earlier version searches it
 alone. It also takes a `listing`
 (`dmtf:<DSP>`, implied for DMTF documents; `nvme:<slug>` of the
-nvmexpress.org API; `ocp:<project page>|<description prefix>`) that `check`
-and `refresh` consult. `refresh` prints the versions the publishers list
+nvmexpress.org API; `ocp:<project page>|<description prefix>`;
+`rfc:<number>`, implied for an `RFCnnnn` document of a family whose
+publisher is IETF) that `check` and `refresh` consult. `refresh` prints the versions the publishers list
 that the catalog lacks (`add`), catalog URLs that moved (`changed`, for
 DMTF and NVMe; a URL has not moved while any row the publisher lists for
 that version names it, `http://` and `https://` alike, since DMTF lists
@@ -94,8 +102,8 @@ Once a month, and on demand from the Actions tab (`catalog`, Run
 workflow), `.github/workflows/catalog.yml` runs `refresh --skip-source
 ocp` without `--write` on a GitHub runner and puts the output in the
 run's summary, whether or not `refresh` succeeded. When it reports
-anything to add, confirm or change, or an `unlisted` DMTF document, it
-opens an issue labelled `catalog`
+anything to add, confirm or change, an `obsoleted` RFC, or an `unlisted`
+DMTF document, it opens an issue labelled `catalog`
 and assigned to the repository owner with that output, or comments on the
 open one; a run that finds nothing,
 or only unreachable listings, opens nothing. OCP is left out because
@@ -105,7 +113,9 @@ gets the pages from a developer machine), so OCP versions come from
 request: run `refresh --write` locally, confirm any OCP URL by hand,
 verify each new version against `docs/golden-questions.md`, and open the
 pull request into `develop` without touching the version, as CONVENTIONS.md
-says. If `check` reports a newer version
+says. `refresh --write` writes nothing for an `obsoleted` RFC: add the
+new RFC as a document when it is wanted, with its Golden Question, and
+extend the old one's `obsoleted_by`. If `check` reports a newer version
 before the workflow does, please open that pull request yourself.
 
 ## Code Trees

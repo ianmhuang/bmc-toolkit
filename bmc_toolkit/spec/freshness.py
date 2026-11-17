@@ -128,10 +128,17 @@ class Check:
 
 
 def compare(doc: Document, seen: list[Seen], checked_at: str | None = None) -> Check:
-    """Which of the listed versions the catalog lacks."""
-    known = {version_key(doc.listing_source, v.version) for v in doc.versions}
+    """Which of the listed versions the catalog lacks; for an RFC, which
+    of the RFCs obsoleting it the catalog's ``obsoleted_by`` lacks."""
+    if doc.listing_source == "rfc":
+        known = set(doc.obsoleted_by)
+        newer = [s for s in seen if s.version not in known]
+    else:
+        known = {version_key(doc.listing_source, v.version) for v in doc.versions}
+        newer = [
+            s for s in seen if version_key(doc.listing_source, s.version) not in known
+        ]
     latest = doc.latest()
-    newer = [s for s in seen if version_key(doc.listing_source, s.version) not in known]
     return Check(
         doc.id, latest.version if latest else "-", checked_at or now_iso(), newer
     )

@@ -4233,17 +4233,6 @@ fetch = "manual"
 notes = "Nuvoton NDA."
 unlisted = true
 
-# ------------------------------------------------------------------ repos
-#
-# Code repositories the Skill can bring into the Library as Code Trees:
-# upstream OpenBMC here, the libraries OpenBMC recipes fetch from other
-# projects under "external libraries", the SoC vendors' forks under "vendor
-# repos" at the end (they carry an owner). "topics" are keywords for
-# `repos --topic`; "sparse" limits the checkout to the listed directories,
-# or, with glob patterns, to the matching files (openbmc/openbmc is held
-# only for the recipe files of every layer, which pin every component in a
-# release); "release_tag" and "moved_from" are described in catalog.py.
-
 # ---------------------------------------------------------------- Redfish bundles
 # DSP8011 (message registries) and DSP8013 (profile schema) belong to the
 # redfish family but sit last so that the Golden Questions added for them
@@ -4939,6 +4928,7 @@ family = "ietf"
 title = "The Transport Layer Security (TLS) Protocol Version 1.2"
 access = "open"
 fetch = "direct"
+obsoleted_by = ["RFC8446", "RFC9846"]  # rfc5246.json, 2026-11-17
 notes = "TLS 1.2. Obsoleted by RFC 8446 and RFC 9846; kept because TLS 1.2 is still deployed on BMCs and their clients, and no later RFC defines it."
 
 [[documents.versions]]
@@ -5157,6 +5147,17 @@ version = "March 2011"
 url = "https://www.rfc-editor.org/rfc/rfc6143.txt"
 type = "txt"
 published = "2011-03-01"
+
+# ------------------------------------------------------------------ repos
+#
+# Code repositories the Skill can bring into the Library as Code Trees:
+# upstream OpenBMC here, the libraries OpenBMC recipes fetch from other
+# projects under "external libraries", the SoC vendors' forks under "vendor
+# repos" at the end (they carry an owner). "topics" are keywords for
+# `repos --topic`; "sparse" limits the checkout to the listed directories,
+# or, with glob patterns, to the matching files (openbmc/openbmc is held
+# only for the recipe files of every layer, which pin every component in a
+# release); "release_tag" and "moved_from" are described in catalog.py.
 
 [[repos]]
 id = "openbmc"
