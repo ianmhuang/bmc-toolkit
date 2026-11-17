@@ -2,7 +2,8 @@
 side: the ``ietf`` family and its seventeen RFCs (AC-1), the notes and
 limits the criteria name (AC-2), what ``catalog`` prints and the totals
 (AC-3), and the Golden Questions G118 to G134 with the Verified column and
-the Support Level table they feed (AC-8).
+the Support Level table they feed (AC-8), and where the IETF block sits in
+the catalog file (AC-13, round 2).
 
 Only the shipped catalog, docs/golden-questions.md and docs/SUPPORT.md are
 read; nothing touches the network or the Library. Whether a cited line of
@@ -16,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from bmc_toolkit.spec import plaintext
-from bmc_toolkit.spec.catalog import load_catalog
+from bmc_toolkit.spec.catalog import DEFAULT_CATALOG, load_catalog
 from bmc_toolkit.spec.cli import main
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -362,3 +363,43 @@ def test_ac8_support_md_holds_the_generated_ietf_section(capsys):
     limits = {r[0].split("`")[1]: r[4] for r in rows}
     assert "12.1" in limits["RFC3414"]
     assert {v for k, v in limits.items() if k != "RFC3414"} == {"-"}
+
+
+# ----------------------------------------------------------------- AC-13
+
+
+def _tables_of_the_catalog_file():
+    """(table, id, line number) of every ``[[documents]]`` and ``[[repos]]``
+    table of the shipped catalog file, in file order."""
+    lines = DEFAULT_CATALOG.read_text(encoding="utf-8").splitlines()
+    tables = []
+    for index, line in enumerate(lines):
+        if line.strip() not in ("[[documents]]", "[[repos]]"):
+            continue
+        found = None
+        for follower in lines[index + 1 :]:
+            if follower.startswith("["):
+                break
+            found = re.fullmatch(r'id\s*=\s*"([^"]+)"\s*', follower)
+            if found:
+                break
+        assert found, f"line {index + 1}: a table without an id"
+        tables.append((line.strip().strip("[]"), found.group(1), index + 1))
+    return tables
+
+
+def test_ac13_the_ietf_block_follows_odata_and_precedes_the_first_repository():
+    tables = _tables_of_the_catalog_file()
+    kinds = [kind for kind, _, _ in tables]
+    assert "repos" in kinds
+    first_repo = kinds.index("repos")
+    # the seventeen are the last documents before the first repository,
+    # in the order AC-1 gives, and the OData documents come right before
+    before = [name for _, name, _ in tables[:first_repo]]
+    assert before[-len(IDS) :] == IDS
+    odata = ["ODATA-PROTOCOL", "ODATA-URL", "ODATA-CSDL", "ODATA-JSON"]
+    assert before[-len(IDS) - len(odata) : -len(IDS)] == odata
+    # no RFC (and no other document) is left among the repositories
+    assert "documents" not in kinds[first_repo:]
+    after = [name for _, name, _ in tables[first_repo:]]
+    assert not [name for name in after if name.startswith("RFC")]
