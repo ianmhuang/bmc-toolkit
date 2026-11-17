@@ -112,7 +112,7 @@ by itself: the catalog's latest, or the one `--version` names. The publisher
 is contacted only when the Library lacks the version, and once per document
 per 30 days to ask whether it lists a newer one (reported, never downloaded).
 The skill copies its Citation from the `cite:` line of every printed page (a
-Markdown document, which has no pages, is cited by its file's line numbers).
+Markdown or plain-text document is cited by its file's line numbers).
 What each command does: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 A named Command gets an Invocation: IPMI as `ipmitool raw`; MCTP control, PLDM
@@ -157,8 +157,8 @@ Exit codes, `--wait` (several conversations can share one Library), flags, outpu
 
 - Downloads only URLs listed in the Source Catalog, the publisher's first
   and then the Internet Archive's snapshot of it; a manual document is
-  never requested, and a response that is not the expected PDF, ZIP or
-  Markdown text is discarded. A reading command downloads the version it
+  never requested, and a response that is not the expected PDF, ZIP,
+  Markdown or plain text is discarded. A reading command downloads the version it
   answers from when the Library lacks it (`offline = true` in `config.toml` stops that).
 - Writes only under the Library, replacing nothing without `--force`; from a
   Redfish ZIP bundle only the files an answer needs are unpacked.

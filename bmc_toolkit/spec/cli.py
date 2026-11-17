@@ -26,6 +26,7 @@ from bmc_toolkit.spec import listing as listing_mod
 from bmc_toolkit.spec import lock as lock_mod
 from bmc_toolkit.spec import markdown as md_mod
 from bmc_toolkit.spec import notes as notes_mod
+from bmc_toolkit.spec import plaintext as txt_mod
 from bmc_toolkit.spec import refresh as refresh_mod
 from bmc_toolkit.spec import registry as registry_mod
 from bmc_toolkit.spec import render as render_mod
@@ -214,7 +215,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("page", nargs="?", type=int, help="physical page (1-based)")
     p.add_argument("--to", type=int, help="last page of a range")
     p.add_argument("--section", help="the pages of the first section matching this")
-    p.add_argument("--lines", help="lines A-B of a Markdown document")
+    p.add_argument("--lines", help="lines A-B of a Markdown or text document")
     p.add_argument("--version", dest="doc_version", help="exact version string")
     p.add_argument("--max-pages", type=int, default=MAX_PAGES, help="pages per call")
 
@@ -667,7 +668,7 @@ def cmd_add(args: argparse.Namespace) -> int:
         return EXIT_ACTION
     ext = source.suffix.lower().lstrip(".")
     if ext not in FILE_TYPES:
-        print(f"unsupported file type '.{ext}': expected .pdf, .zip or .md")
+        print(f"unsupported file type '.{ext}': expected .pdf, .zip, .md or .txt")
         return EXIT_ACTION
     if not file_matches_type(source, ext):
         print(f"{source} is not a {ext} (wrong leading bytes); not added")
@@ -799,9 +800,12 @@ def cmd_status(args: argparse.Namespace) -> int:
                 wanted = bundle_mod.BUNDLE_VERSION
             elif em.get("kind") == registry_mod.KIND:
                 wanted = registry_mod.REGISTRY_VERSION
-            elif em.get("kind") == md_mod.KIND:
-                wanted = md_mod.MARKDOWN_VERSION
             current = em.get("extractor_version") == wanted
+            # A line-read original goes by its own reader, whatever kind
+            # extract.json names, so status agrees with Ready.
+            reader = _LINE_READERS.get(h.original.suffix.lower().lstrip("."))
+            if reader is not None:
+                current = reader.is_current(h.path)
             extracted = "extracted" if current else "stale"
         outline = em.get("outline_source", "-") if em else "-"
         size = h.meta.get("size", "?")
@@ -1067,9 +1071,12 @@ def _extract_one(holding, force: bool) -> str:
         return _unpack_one(holding, force, label)
     if original.suffix.lower() == ".md":
         return _extract_markdown(holding, force, label)
+    if original.suffix.lower() == ".txt":
+        return _extract_markdown(holding, force, label, txt_mod)
     if original.suffix.lower() != ".pdf":
         print(
-            f"skipped {label}: {original.name} is not a PDF, a ZIP or a Markdown file"
+            f"skipped {label}: {original.name} is not a PDF, a ZIP, a Markdown "
+            "or a text file"
         )
         return "skipped"
     if not force and extract_mod.is_current(holding.path):
@@ -1099,20 +1106,20 @@ def _extract_one(holding, force: bool) -> str:
     return "extracted"
 
 
-def _extract_markdown(holding, force: bool, label: str) -> str:
-    """Write the Outline of a Markdown original; returns extracted |
-    skipped | failed."""
-    if not force and md_mod.is_current(holding.path):
+def _extract_markdown(holding, force: bool, label: str, reader=md_mod) -> str:
+    """Write the Outline of a Markdown original (or, with the ``plaintext``
+    reader, of a text original); returns extracted | skipped | failed."""
+    if not force and reader.is_current(holding.path):
         print(f"skipped {label}: already extracted")
         return "skipped"
     try:
-        result = md_mod.extract(holding.original, holding.path)
+        result = reader.extract(holding.original, holding.path)
     except (md_mod.MarkdownError, OSError) as exc:
         print(f"failed {label}: {exc}")
         return "failed"
     print(
         f"extracted {label}: {result.lines} lines, outline "
-        f"{md_mod.OUTLINE_SOURCE} ({result.entries} entries)"
+        f"{reader.OUTLINE_SOURCE} ({result.entries} entries)"
     )
     return "extracted"
 
@@ -1211,13 +1218,15 @@ def _extract_locked(args: argparse.Namespace, holding, force=None) -> str:
 
 def _is_ready(holding) -> bool:
     """Ready: the Extract of a PDF, the unpacked schemas or registries of a
-    bundle, or the Outline of a Markdown document, are current."""
+    bundle, or the Outline of a Markdown or text document, are current."""
     if holding.original.suffix.lower() == ".zip":
         return bundle_mod.is_current(holding.path) or registry_mod.is_current(
             holding.path
         )
     if holding.original.suffix.lower() == ".md":
         return md_mod.is_current(holding.path)
+    if holding.original.suffix.lower() == ".txt":
+        return txt_mod.is_current(holding.path)
     return extract_mod.is_current(holding.path)
 
 
@@ -1266,7 +1275,9 @@ def _extract_hint(name: str, version: str | None) -> str:
     return f"run: bmcspec extract {name}{flag}"
 
 
-_TYPE_NAMES = {"pdf": "PDF", "md": "Markdown"}
+_TYPE_NAMES = {"pdf": "PDF", "md": "Markdown", "txt": "text"}
+_LINE_TYPES = ("md", "txt")  # read by line numbers, not pages
+_LINE_READERS = {"md": md_mod, "txt": txt_mod}
 
 
 def _type_name(file_type: str) -> str:
@@ -1275,13 +1286,22 @@ def _type_name(file_type: str) -> str:
 
 def _page_pointer(name: str, file_type: str) -> str:
     """How ``page`` reads a document of this type."""
-    return f"bmcspec page {name} " + ("--section QUERY" if file_type == "md" else "N")
+    return f"bmcspec page {name} " + (
+        "--section QUERY" if file_type in _LINE_TYPES else "N"
+    )
 
 
-def _markdown_pointer(name: str, version: str, command: str | None) -> str:
-    """A command that needs pages met a Markdown version."""
+def _markdown_pointer(
+    name: str, version: str, command: str | None, file_type: str = "md"
+) -> str:
+    """A command that needs pages met a Markdown or text version."""
+    what = (
+        "a Markdown document with no pages"
+        if file_type == "md"
+        else "a text document, read by its lines and not by pages"
+    )
     text = (
-        f"{name} {version} is a Markdown document with no pages; read it with: "
+        f"{name} {version} is {what}; read it with: "
         f"bmcspec page {name} --section QUERY, or: bmcspec page {name} --lines A-B"
     )
     if command == "table":
@@ -1311,10 +1331,10 @@ def _wrong_kind(
             f"bundle; read it with: bmcspec find {name} PATTERN, or: "
             + _page_pointer(name, file_type)
         )
-    if file_type == "md":
-        return _markdown_pointer(name, version, command)
+    if file_type in _LINE_TYPES:
+        return _markdown_pointer(name, version, command, file_type)
     return (
-        f"--lines reads a Markdown document; {name} {version} is a "
+        f"--lines reads a Markdown or text document; {name} {version} is a "
         f"{_type_name(file_type)}: give a page number or --section"
     )
 
@@ -1356,7 +1376,7 @@ def _ready_holding(
     """(holding, document, exit code): the version a reading command answers
     from, downloaded when the Library lacks it: the version asked for, else
     the catalog's Latest, else (offline, or the download failed) the newest
-    held version with a note. ``kinds`` (pdf, zip, md) are the types the
+    held version with a note. ``kinds`` (pdf, zip, md, txt) are the types the
     command reads; a catalog version of another type is refused before any
     download. ``holding`` is None when a message was printed; the code is
     then 2 (the user must act) or 3 (busy). Whether the holding is
@@ -1462,15 +1482,21 @@ def _held_type(holding) -> str:
 
 def _load_version(holding):
     """A Ready holding loaded for reading: a ``markdown.MarkdownVersion``
-    for a Markdown original, else the PDF's ``search.Version``."""
+    for a Markdown original, a ``plaintext.TextVersion`` (one of those) for
+    a text original, else the PDF's ``search.Version``."""
     if _held_type(holding) == "md":
         return md_mod.load_version(holding, search_mod.origin_of(holding.meta))
+    if _held_type(holding) == "txt":
+        return txt_mod.load_version(holding, search_mod.origin_of(holding.meta))
     return search_mod.load_version(holding)
 
 
-def _open_version(args: argparse.Namespace, kinds: tuple[str, ...] = ("pdf", "md")):
+def _open_version(
+    args: argparse.Namespace, kinds: tuple[str, ...] = ("pdf", "md", "txt")
+):
     """(Version, document, exit code): a loaded version (a PDF's
-    ``search.Version`` or a ``markdown.MarkdownVersion``) or the code to
+    ``search.Version``, a ``markdown.MarkdownVersion`` or a
+    ``plaintext.TextVersion``) or the code to
     return. ``kinds`` are the types the command reads. The version is
     brought to Ready first: downloaded when the Library lacks it, extracted
     when its Extract is not current."""
@@ -1517,7 +1543,7 @@ def _context_lines(version, hit, n: int):
     if isinstance(hit, md_mod.MarkdownHit):
         lines = version.lines
         for number in range(max(1, hit.line - n), min(len(lines), hit.line + n) + 1):
-            if number != hit.line:
+            if number != hit.line and number not in version.hidden:
                 yield f"    line {number}: {lines[number - 1].rstrip()}"
         return
     lines = version.lines(hit.page)
@@ -1548,8 +1574,11 @@ def cmd_find(args: argparse.Namespace) -> int:
             # and a companion that cannot be read is left out.
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
-                holding, _, _ = _ready_holding(args, other, None, ("pdf", "md"))
-                if holding is not None and _held_type(holding) not in ("pdf", "md"):
+                holding, _, _ = _ready_holding(args, other, None, ("pdf", *_LINE_TYPES))
+                if holding is not None and _held_type(holding) not in (
+                    "pdf",
+                    *_LINE_TYPES,
+                ):
                     print(_bundle_pointer(holding))
                     holding = None
                 elif holding is not None and _make_current(args, holding) != "ready":
@@ -1619,7 +1648,7 @@ def cmd_page(args: argparse.Namespace) -> int:
         if args.to is not None:
             print("--to goes with a page number, not with --lines")
             return EXIT_ACTION
-        kinds: tuple[str, ...] = ("md",)
+        kinds: tuple[str, ...] = _LINE_TYPES
     elif (args.page is None) == (args.section is None):
         print("give a page number or --section (not both)")
         return EXIT_ACTION
@@ -1627,7 +1656,7 @@ def cmd_page(args: argparse.Namespace) -> int:
         print("--to goes with a page number, not with --section")
         return EXIT_ACTION
     else:
-        kinds = ("pdf",) if args.page is not None else ("pdf", "md")
+        kinds = ("pdf",) if args.page is not None else ("pdf", *_LINE_TYPES)
     version, _, code = _open_version(args, kinds)
     if version is None:
         return code
@@ -1668,7 +1697,7 @@ def cmd_page(args: argparse.Namespace) -> int:
 
 
 def _page_markdown(args: argparse.Namespace, version) -> int:
-    """``page --lines`` or ``page --section`` on a Markdown version."""
+    """``page --lines`` or ``page --section`` on a Markdown or text version."""
     limit = md_mod.MAX_LINES
     if args.lines is not None:
         m = re.match(r"^(\d+)-(\d+)$", args.lines.strip())

@@ -96,10 +96,10 @@ def test_catalog_lists_the_md_type(md_catalog, capsys):
 
 def test_an_unknown_type_names_md_among_the_types(tmp_path, capsys):
     path = tmp_path / "catalog.toml"
-    path.write_text(MD_CATALOG.replace('type = "md"', 'type = "txt"', 1), "utf-8")
+    path.write_text(MD_CATALOG.replace('type = "md"', 'type = "html"', 1), "utf-8")
     code, out = run(capsys, path, "catalog")
     assert code == 1
-    assert "'txt' not one of ('pdf', 'zip', 'md')" in out
+    assert "'html' not one of ('pdf', 'zip', 'md', 'txt')" in out
 
 
 # --------------------------------------------------------------- fetch
@@ -164,13 +164,15 @@ def test_add_refuses_an_html_page_saved_as_md(md_catalog, tmp_path, capsys):
 
 
 def test_add_names_md_among_the_accepted_types(md_catalog, tmp_path, capsys):
-    source = tmp_path / "notes.txt"
+    source = tmp_path / "notes.docx"
     source.write_text("x", "utf-8")
     code, out = run(
         capsys, md_catalog, "add", str(source), "--document", "ROT", "--version", "2.1"
     )
     assert code == 2
-    assert out.strip() == "unsupported file type '.txt': expected .pdf, .zip or .md"
+    assert out.strip() == (
+        "unsupported file type '.docx': expected .pdf, .zip, .md or .txt"
+    )
 
 
 def test_scan_registers_original_md_and_skips_a_bad_one(md_catalog, library, capsys):
@@ -418,8 +420,8 @@ def test_lines_on_a_pdf_is_refused_before_any_download(md_catalog, scripted, cap
     code, out = run(capsys, md_catalog, "page", "DSP0236", "--lines", "1-5")
     assert (code, out.strip()) == (
         2,
-        "--lines reads a Markdown document; DSP0236 1.3.3 is a PDF: give a page "
-        "number or --section",
+        "--lines reads a Markdown or text document; DSP0236 1.3.3 is a PDF: "
+        "give a page number or --section",
     )
     assert scripted.calls == []
 
@@ -430,8 +432,8 @@ def test_lines_on_a_held_pdf_is_refused(md_catalog, library, scripted, capsys):
     code, out = run(capsys, md_catalog, "page", "DSP0236", "--lines", "1-5")
     assert (code, out.strip()) == (
         2,
-        "--lines reads a Markdown document; DSP0236 1.3.3 is a PDF: give a page "
-        "number or --section",
+        "--lines reads a Markdown or text document; DSP0236 1.3.3 is a PDF: "
+        "give a page number or --section",
     )
 
 
@@ -472,7 +474,9 @@ def test_a_markdown_draft_beside_a_released_pdf(md_catalog, library, scripted, c
     scripted.calls.clear()
     code, out = run(capsys, md_catalog, "page", "ROTMIX", "--lines", "3-4")
     assert code == 2
-    assert out.strip().startswith("--lines reads a Markdown document; ROTMIX 2.0")
+    assert out.strip().startswith(
+        "--lines reads a Markdown or text document; ROTMIX 2.0"
+    )
     assert scripted.calls == []
 
 

@@ -212,7 +212,7 @@ def test_add_rejects_missing_file_bad_type_unknown_document(
         catalog_file=catalog_file,
     )
     assert code == 2 and "file not found" in out
-    txt = tmp_path / "x.txt"
+    txt = tmp_path / "x.docx"
     txt.write_text("x")
     code, out = run(
         capsys,

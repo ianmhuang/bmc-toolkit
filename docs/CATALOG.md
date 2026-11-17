@@ -34,7 +34,9 @@ checked on (`G13, G15 (<version>)`); `--by-family` prints the reader's form
 kept in `docs/SUPPORT.md`: a heading and a table per family, without the
 Fetch column, Verified reduced to `PASS` or `-`, and documents marked
 `unlisted = true` in the catalog left out (the BMC SoC datasheets are).
-A version's `type` is `pdf`, `zip` (a Redfish bundle) or `md`: a
+A version's `type` is `pdf`, `zip` (a Redfish bundle), `md` or `txt`.
+`txt` is a plain-text document in the IETF layout, read by its line
+numbers like `md` but with no pin. `md` is a
 Markdown document that exists only in a repository, read by its line
 numbers (see [COMMANDS.md](COMMANDS.md#reading-commands)); its URL is the
 raw file at a pinned commit, so the lines a Citation names do not move.
