@@ -31,7 +31,8 @@ DEVELOP_LINES = 52  # the cap before T53
 MAX_LINES = 58  # 46 until T52 (NC-SI Invocation); 52 until T53
 # sha256 of SKILL.md's front matter on develop (AC-7: unchanged); the same
 # value test_invocation_ncsi.py pins on develop
-FRONT_MATTER_SHA = "46edbffa30899ddf84be501e93d260d25163b63bf7f6fcf49c1ec13efeced22a"
+# T81.4 named OData and the RFCs in the description (was 46edbffa...)
+FRONT_MATTER_SHA = "5026d6953854f5bcb258da8112ae273b191e0492c81dc93f978fb87c00051444"
 
 MESSAGE = "message: "
 PASSTHRU = "nvme admin-passthru mctp:<net>,<eid>:"
