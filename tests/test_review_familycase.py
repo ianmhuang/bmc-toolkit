@@ -2,10 +2,12 @@
 matched whatever case and surrounding whitespace the caller writes (AC-1), a
 miss exits 2 and names every family id in catalog order (AC-2), a catalog
 whose family ids differ only in case does not load (AC-3), the lookup is a
-`Catalog` method that `by_family` and `cmd_catalog` share (AC-4), and
-`--table` with `--family` keeps its own message (AC-5). A hand-written
-catalog with a mixed-case family id and a family without documents, plus the
-shipped catalog; no network, no Library."""
+`Catalog` method that `by_family` and `cmd_catalog` share (AC-4),
+`--table` with `--family` keeps its own message (AC-5), a document id with
+`--family` is refused (AC-8), and a family id that is empty or carries
+surrounding whitespace does not load (AC-9). A hand-written catalog with a
+mixed-case family id and a family without documents, plus the shipped
+catalog; no network, no Library."""
 
 import tomllib
 from pathlib import Path
@@ -18,6 +20,7 @@ from bmc_toolkit.spec.cli import main
 ROOT = Path(__file__).resolve().parents[1]
 SHIPPED = ROOT / "bmc_toolkit" / "spec" / "catalog.toml"
 TABLE_MESSAGE = "--table prints every document; drop the document id or --family\n"
+FAMILY_MESSAGE = "--family lists a family; drop the document id or --family\n"
 FAMILY_IDS = ["mctp", "Ocp-NIC", "empty"]
 
 CATALOG = """
@@ -277,3 +280,96 @@ def test_table_with_family_keeps_its_message_whatever_the_family(capsys, cat_fil
             capsys, "catalog", "--table", "--family", name, catalog_file=cat_file
         )
         assert (code, out) == (2, TABLE_MESSAGE), repr(name)
+
+
+# ---------------------------------------------------------------- AC-8
+
+
+@pytest.mark.parametrize("name", ["mctp", "MCTP", " mctp ", "Ocp-NIC", "nope", ""])
+def test_a_document_id_with_family_is_refused_whatever_the_family(
+    capsys, cat_file, name
+):
+    code, out = run(
+        capsys, "catalog", "DSP0236", "--family", name, catalog_file=cat_file
+    )
+    assert (code, out) == (2, FAMILY_MESSAGE), repr(name)
+
+
+def test_the_refusal_does_not_depend_on_the_argument_order(capsys, cat_file):
+    for argv in (
+        ["--family", "mctp", "DSP0236"],
+        ["--family", "nope", "dsp0237"],
+        ["--family=", "NIC30"],
+        ["NIC30", "--family=mctp"],
+    ):
+        code, out = run(capsys, "catalog", *argv, catalog_file=cat_file)
+        assert (code, out) == (2, FAMILY_MESSAGE), argv
+
+
+def test_a_document_or_a_family_alone_is_still_answered(capsys, cat_file):
+    code, out = run(capsys, "catalog", "DSP0236", catalog_file=cat_file)
+    assert code == 0
+    assert out.startswith("document: DSP0236\n")
+    assert "family: mctp (DMTF)" in out
+    code, out = run(capsys, "catalog", "--family", "mctp", catalog_file=cat_file)
+    assert code == 0
+    assert doc_ids(out) == ["DSP0236", "DSP0237"]
+
+
+def test_table_with_a_document_and_family_keeps_the_table_message(capsys, cat_file):
+    for name in ("mctp", "nope", ""):
+        code, out = run(
+            capsys,
+            "catalog",
+            "--table",
+            "DSP0236",
+            "--family",
+            name,
+            catalog_file=cat_file,
+        )
+        assert (code, out) == (2, TABLE_MESSAGE), repr(name)
+
+
+# ---------------------------------------------------------------- AC-9
+
+
+@pytest.mark.parametrize(
+    "fid", [" x", "x ", " x ", "\tx", "x\n", " mctp", "MCTP ", "", " ", "\t"]
+)
+def test_a_family_id_that_is_empty_or_padded_does_not_load(fid):
+    stripped = fid.strip() or "x"
+    if stripped.lower() == "mctp":
+        stripped = "other"
+    assert list(parse_catalog(catalog_of("mctp", stripped)).families) == [
+        "mctp",
+        stripped,
+    ]
+    for ids in (("mctp", fid), (fid, "mctp")):
+        with pytest.raises(CatalogError) as err:
+            parse_catalog(catalog_of(*ids))
+        assert f"'{fid}'" in str(err.value), ids
+
+
+@pytest.mark.parametrize("key", ['" odd"', '"odd "', '"\\todd"', '""', '" "'])
+def test_a_catalog_file_with_a_padded_family_key_is_refused(tmp_path, key):
+    head, mark, tail = CATALOG.partition("[[documents]]")
+    assert mark
+    plain = '[families.odd]\ntitle = "Odd"\npublisher = "x"\n\n'
+    path = tmp_path / "plain.toml"
+    path.write_text(head + plain + mark + tail, encoding="utf-8", newline="")
+    assert list(load_catalog(path).families) == [*FAMILY_IDS, "odd"]
+    padded = f'[families.{key}]\ntitle = "Odd"\npublisher = "x"\n\n'
+    path = tmp_path / "padded.toml"
+    path.write_text(head + padded + mark + tail, encoding="utf-8", newline="")
+    with pytest.raises(CatalogError) as err:
+        load_catalog(path)
+    assert "families." in str(err.value)
+
+
+def test_every_family_id_a_catalog_holds_is_reachable_when_padded(cat_file):
+    for catalog in (load_catalog(cat_file), load_catalog()):
+        assert catalog.families
+        for fid, fam in catalog.families.items():
+            assert fid and fid == fid.strip(), repr(fid)
+            assert catalog.family(f"  {fid}\t") == fam, fid
+            assert catalog.family(f" {fid.upper()} ") == fam, fid
