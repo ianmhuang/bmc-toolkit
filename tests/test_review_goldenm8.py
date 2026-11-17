@@ -349,7 +349,8 @@ def test_ac4_new_rows_cite_a_page_and_a_locator(catalog, rows):
         # T81.2: a text version (an RFC) is located by its file's lines
         located = page.search(where) or "#/" in where
         located = located or (_is_text_row(catalog, cells[2]) and lines.search(where))
-        assert located, f"{qid}: no physical PDF page named"
+        what = "lines" if _is_text_row(catalog, cells[2]) else "physical PDF page"
+        assert located, f"{qid}: no {what} named"
         # the cell starts by naming the document, not with the locator
         assert not locator.match(where.strip()), f"{qid}: cell does not open with the document"
 

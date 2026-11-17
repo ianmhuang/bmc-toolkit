@@ -41,7 +41,11 @@ numbers like `md` but with no pin. Each RFC is one document with id
 2022`), `published` the first day of that month (an RFC gives no day),
 the URL the `.txt` on rfc-editor.org. An RFC that a later one obsoletes
 is listed only while it alone defines a version still deployed (RFC 5246,
-TLS 1.2); errata and updating RFCs are not merged into a document. `md` is a
+TLS 1.2); errata and updating RFCs are not merged into a document.
+Before an RFC is added, its Outline is compared with the RFC's own table
+of contents (a maintainer check outside the repository), so a heading
+form the text reader does not know, or a false heading, shows up before
+it ships. `md` is a
 Markdown document that exists only in a repository, read by its line
 numbers (see [COMMANDS.md](COMMANDS.md#reading-commands)); its URL is the
 raw file at a pinned commit, so the lines a Citation names do not move.

@@ -151,11 +151,14 @@ the running header starting `RFC <number> ` and the blank lines padding
 them; in a file with a page break, a footer that ends the file is
 furniture too. The Outline holds lines starting in column 0: numbered
 headings (`4.1.2.  Title`, `1.1 Title`, `Appendix A.  Title`, `A.1.
-Title`; level is the count of number parts minus one), a title wrapped
-onto an indented next line joined to it; and, after the file's first
-block (the authors), unnumbered headings (`Abstract`, `Authors'
-Addresses`), a line with blank lines around it and indented text next,
-at level 0. Titles are shown as `4.1.2 Client Hello` and `Appendix A
+Title`; level is the count of number parts minus one; the older
+`APPENDIX A - Title`, `Appendix A - Title` and `Appendix A: Title` are
+read as `Appendix A.  Title`), a title wrapped onto an indented next line
+joined to it; and, after the file's first block (the authors), unnumbered
+headings (`Abstract`, `Authors' Addresses`), a line with blank lines
+around it and indented text next that neither starts with a lowercase
+letter nor ends with a colon (so a MIB line at a page's foot or a legend
+such as `Key:` is not one), at level 0. Titles are shown as `4.1.2 Client Hello` and `Appendix A
 State Machine`; `section DOC A` finds that appendix as `section DOC 4`
 finds section 4.
 A text file without that layout has an empty Outline: `section` finds
