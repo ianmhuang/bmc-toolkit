@@ -353,7 +353,7 @@ def _doc_line(catalog: Catalog, doc: Document) -> str:
 def cmd_catalog(args: argparse.Namespace) -> int:
     catalog = _load(args)
     if args.table:
-        if args.document or args.family:
+        if args.document or args.family is not None:
             print("--table prints every document; drop the document id or --family")
             return EXIT_ACTION
         return _catalog_table(catalog, args.golden, args.by_family)
@@ -398,10 +398,14 @@ def cmd_catalog(args: argparse.Namespace) -> int:
                 f"\t{v.access}"
             )
         return EXIT_OK
-    docs = catalog.by_family(args.family) if args.family else catalog.documents
-    if args.family and args.family not in catalog.families:
-        print(f"unknown family '{args.family}'")
-        return EXIT_ACTION
+    docs = catalog.documents
+    if args.family is not None:
+        fam = catalog.family(args.family)
+        if fam is None:
+            known = ", ".join(catalog.families)
+            print(f"unknown family '{args.family}'; families: {known}")
+            return EXIT_ACTION
+        docs = catalog.by_family(fam.id)
     for doc in docs:
         print(_doc_line(catalog, doc))
     return EXIT_OK

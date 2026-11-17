@@ -228,16 +228,25 @@ class Catalog:
     dmtf_not_taken: tuple[str, ...] = ()  # upper-cased DSP ids or prefixes
     _index: dict[str, Document] = field(default_factory=dict, repr=False)
     _repo_index: dict[str, Repo] = field(default_factory=dict, repr=False)
+    _family_index: dict[str, Family] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         self._index = {d.id.lower(): d for d in self.documents}
         self._repo_index = {r.id.lower(): r for r in self.repos}
+        self._family_index = {f.lower(): fam for f, fam in self.families.items()}
 
     def get(self, doc_id: str) -> Document | None:
         return self._index.get(doc_id.strip().lower())
 
+    def family(self, name: str) -> Family | None:
+        """The family whose id is NAME in any case (whitespace stripped)."""
+        return self._family_index.get(name.strip().lower())
+
     def by_family(self, family_id: str) -> list[Document]:
-        return [d for d in self.documents if d.family == family_id]
+        fam = self.family(family_id)
+        if fam is None:
+            return []
+        return [d for d in self.documents if d.family == fam.id]
 
     @property
     def owners(self) -> set[str]:
@@ -477,6 +486,11 @@ def parse_catalog(data: dict) -> Catalog:
         where = f"families.{fid}"
         if not isinstance(raw, dict):
             raise CatalogError(f"{where}: expected a table")
+        twin = next((f for f in families if f.lower() == fid.lower()), None)
+        if twin is not None:
+            raise CatalogError(
+                f"{where}: duplicate id '{fid}' (differs from '{twin}' only in case)"
+            )
         families[fid] = Family(
             fid,
             _expect(raw, "title", str, where),

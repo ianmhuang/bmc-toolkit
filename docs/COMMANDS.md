@@ -15,6 +15,7 @@ alias bmcspec='python skills/bmc-spec/scripts/bmcspec.py'
 
 bmcspec catalog              # every document, one per line
 bmcspec catalog DSP0236      # one document, all versions
+bmcspec catalog --family pldm   # one family's documents (any case; a miss lists the family ids)
 bmcspec catalog --table --golden docs/golden-questions.md   # Support Level table, one flat table
 bmcspec catalog --table --by-family --golden docs/golden-questions.md   # the same per family (docs/SUPPORT.md)
 bmcspec fetch DSP0236        # latest published version
