@@ -419,8 +419,8 @@ def test_lines_on_a_pdf_is_still_refused(txt_catalog, scripted, capsys):
     code, out = run(capsys, txt_catalog, "page", "DSP0236", "--lines", "1-5")
     assert (code, out.strip()) == (
         2,
-        "--lines reads a Markdown document; DSP0236 1.3.3 is a PDF: give a page "
-        "number or --section",
+        "--lines reads a Markdown or text document; DSP0236 1.3.3 is a PDF: "
+        "give a page number or --section",
     )
     assert scripted.calls == []
 
@@ -483,3 +483,25 @@ def test_refresh_passes_over_a_text_version(txt_catalog, scripted, capsys):
     assert "RFC9999" not in out
     assert "Traceback" not in out
     assert txt_catalog.read_bytes() == before
+
+
+# ------------------------------------------------- review 1 (round 2)
+
+
+def test_status_goes_by_the_text_reader_whatever_kind_extract_json_names(
+    held, txt_catalog, capsys
+):
+    """F4: a markdown extract.json beside original.txt is stale in status,
+    as Ready treats it."""
+    meta_path = held / "extract.json"
+    meta = json.loads(meta_path.read_text("utf-8"))
+    meta["kind"] = "markdown"
+    meta["extractor_version"] = 1
+    meta_path.write_text(json.dumps(meta), "utf-8")
+    assert status_row(capsys, txt_catalog, "RFC9999")[5] == "stale"
+
+
+def test_section_by_appendix_letter(held, txt_catalog, capsys):
+    code, out = run(capsys, txt_catalog, "section", "RFC9999", "A")
+    assert code == 0
+    assert out.splitlines()[0].startswith("0 | Appendix A Collected Rules | lines ")

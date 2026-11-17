@@ -146,14 +146,18 @@ file as stored, with `Text` in the `cite:` line where Markdown has
 `Markdown`; an RFC is cited by section and line even where its text is
 printed in pages. Page furniture keeps its line numbers but is never a
 heading, a `find` hit, a `--context` line or a printed line: the footer
-ending in `[Page N]`, the form-feed line, the running header starting
-`RFC <number> ` and the blank lines padding them. The Outline holds the
-lines starting in column 0, after the file's first block (the authors):
-numbered headings (`4.1.2.  Title`, `1.1 Title`, `Appendix A.  Title`,
-`A.1.  Title`; level is the count of number parts minus one), a title
-wrapped onto an indented next line joined to it; and unnumbered headings
-(`Abstract`, `Authors' Addresses`), a line with blank lines around it and
-indented text next, at level 0. Titles are shown as `4.1.2 Client Hello`.
+ending in `[Page N]`, the form-feed line (which may carry the header),
+the running header starting `RFC <number> ` and the blank lines padding
+them; in a file with a page break, a footer that ends the file is
+furniture too. The Outline holds lines starting in column 0: numbered
+headings (`4.1.2.  Title`, `1.1 Title`, `Appendix A.  Title`, `A.1.
+Title`; level is the count of number parts minus one), a title wrapped
+onto an indented next line joined to it; and, after the file's first
+block (the authors), unnumbered headings (`Abstract`, `Authors'
+Addresses`), a line with blank lines around it and indented text next,
+at level 0. Titles are shown as `4.1.2 Client Hello` and `Appendix A
+State Machine`; `section DOC A` finds that appendix as `section DOC 4`
+finds section 4.
 A text file without that layout has an empty Outline: `section` finds
 nothing, `find` and `page --lines` read it. `page DOC N`, `render` and
 `table` refuse it as they refuse Markdown, and Notes do not record its

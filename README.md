@@ -112,7 +112,7 @@ by itself: the catalog's latest, or the one `--version` names. The publisher
 is contacted only when the Library lacks the version, and once per document
 per 30 days to ask whether it lists a newer one (reported, never downloaded).
 The skill copies its Citation from the `cite:` line of every printed page (a
-Markdown or RFC text document is cited by its file's line numbers).
+Markdown or plain-text document is cited by its file's line numbers).
 What each command does: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 A named Command gets an Invocation: IPMI as `ipmitool raw`; MCTP control, PLDM

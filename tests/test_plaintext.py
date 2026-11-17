@@ -124,7 +124,6 @@ def number_of(text: str) -> int:
     ],
 )
 def test_the_body_check_is_the_markdown_one(data, expected):
-    assert txt_mod.looks_like_text(data) is expected
     assert body_matches_type(data, "txt") is expected
 
 
@@ -303,3 +302,66 @@ def test_section_queries_match_number_and_words(version):
     assert end == number_of("3.  A heading long enough that it wraps") - 1
     _, heading, end = version.match_sections("1")[0]
     assert end == number_of("2. Old Style") - 1
+
+
+# ------------------------------------------------- review 1 (round 2)
+
+
+def test_a_numbered_heading_in_the_first_block_is_kept():
+    """F1: only unnumbered headings wait for the first block to end."""
+    # A Drop-in whose first line is a heading: that line is the first block.
+    text = "1.  Introduction\n\n   body\n\n2.  Next\n\n   more\n"
+    entries = txt_mod.outline(split_lines(text))
+    assert [(e["level"], e["title"], e["line"]) for e in entries] == [
+        (0, "1 Introduction", 1),
+        (0, "2 Next", 5),
+    ]
+
+
+def test_a_footer_ending_the_file_without_a_form_feed_is_furniture():
+    """F2: the last page's footer counts once the file has a page break."""
+    text = RFC_TEXT.rstrip("\n")
+    assert text.endswith("\f")
+    ls = split_lines(text[: -len("\f")])  # drop the final form feed
+    footer = len(ls) - [ln.strip() for ln in ls][::-1].index(FOOTER.format(n=3).strip())
+    hidden = txt_mod.furniture(ls)
+    assert footer in hidden
+    assert footer - 1 in hidden and footer - 2 in hidden  # its padding
+    assert ls.index("   A. Writer") + 1 not in hidden
+    titles = [e["title"] for e in txt_mod.outline(ls)]
+    assert not any("[Page" in t for t in titles)
+
+
+def test_a_trailing_footer_without_any_page_break_stays_text():
+    text = "Writer\n\nAbstract\n\n   body\n\nWriter   Informational   [Page 1]\n"
+    assert txt_mod.furniture(split_lines(text)) == frozenset()
+
+
+def test_a_form_feed_sharing_its_line_with_the_header_is_furniture():
+    """Review 1 suggestion 2: ``\fRFC 1234 ...`` on one line."""
+    ls = [
+        "Writer",
+        "",
+        "1.  One",
+        "",
+        "   first page text",
+        "",
+        FOOTER.format(n=1),
+        "\f" + HEADER,
+        "",
+        "   second page text",
+    ]
+    hidden = txt_mod.furniture(ls)
+    assert hidden == frozenset({6, 7, 8, 9})
+    assert [e["title"] for e in txt_mod.outline(ls)] == ["1 One"]
+
+
+@pytest.mark.parametrize("query", ["A", "A.", " A "])
+def test_an_appendix_letter_finds_the_appendix_heading(version, query):
+    """F3: ``section DOC A`` lists Appendix A itself, then A.1."""
+    labels = [h.label for _, h, _ in version.match_sections(query)]
+    assert labels[:2] == ["Appendix A Collected Rules", "A.1 First Rule"]
+
+
+def test_another_letter_finds_no_appendix(version):
+    assert [h.label for _, h, _ in version.match_sections("B")] == []

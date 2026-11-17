@@ -800,11 +800,12 @@ def cmd_status(args: argparse.Namespace) -> int:
                 wanted = bundle_mod.BUNDLE_VERSION
             elif em.get("kind") == registry_mod.KIND:
                 wanted = registry_mod.REGISTRY_VERSION
-            elif em.get("kind") == md_mod.KIND:
-                wanted = md_mod.MARKDOWN_VERSION
-            elif em.get("kind") == txt_mod.KIND:
-                wanted = txt_mod.TEXT_VERSION
             current = em.get("extractor_version") == wanted
+            # A line-read original goes by its own reader, whatever kind
+            # extract.json names, so status agrees with Ready.
+            reader = _LINE_READERS.get(h.original.suffix.lower().lstrip("."))
+            if reader is not None:
+                current = reader.is_current(h.path)
             extracted = "extracted" if current else "stale"
         outline = em.get("outline_source", "-") if em else "-"
         size = h.meta.get("size", "?")
@@ -1276,6 +1277,7 @@ def _extract_hint(name: str, version: str | None) -> str:
 
 _TYPE_NAMES = {"pdf": "PDF", "md": "Markdown", "txt": "text"}
 _LINE_TYPES = ("md", "txt")  # read by line numbers, not pages
+_LINE_READERS = {"md": md_mod, "txt": txt_mod}
 
 
 def _type_name(file_type: str) -> str:
@@ -1332,7 +1334,7 @@ def _wrong_kind(
     if file_type in _LINE_TYPES:
         return _markdown_pointer(name, version, command, file_type)
     return (
-        f"--lines reads a Markdown document; {name} {version} is a "
+        f"--lines reads a Markdown or text document; {name} {version} is a "
         f"{_type_name(file_type)}: give a page number or --section"
     )
 
@@ -1374,7 +1376,7 @@ def _ready_holding(
     """(holding, document, exit code): the version a reading command answers
     from, downloaded when the Library lacks it: the version asked for, else
     the catalog's Latest, else (offline, or the download failed) the newest
-    held version with a note. ``kinds`` (pdf, zip, md) are the types the
+    held version with a note. ``kinds`` (pdf, zip, md, txt) are the types the
     command reads; a catalog version of another type is refused before any
     download. ``holding`` is None when a message was printed; the code is
     then 2 (the user must act) or 3 (busy). Whether the holding is
@@ -1493,7 +1495,8 @@ def _open_version(
     args: argparse.Namespace, kinds: tuple[str, ...] = ("pdf", "md", "txt")
 ):
     """(Version, document, exit code): a loaded version (a PDF's
-    ``search.Version`` or a ``markdown.MarkdownVersion``) or the code to
+    ``search.Version``, a ``markdown.MarkdownVersion`` or a
+    ``plaintext.TextVersion``) or the code to
     return. ``kinds`` are the types the command reads. The version is
     brought to Ready first: downloaded when the Library lacks it, extracted
     when its Extract is not current."""

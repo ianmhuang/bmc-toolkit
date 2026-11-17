@@ -420,8 +420,8 @@ def test_lines_on_a_pdf_is_refused_before_any_download(md_catalog, scripted, cap
     code, out = run(capsys, md_catalog, "page", "DSP0236", "--lines", "1-5")
     assert (code, out.strip()) == (
         2,
-        "--lines reads a Markdown document; DSP0236 1.3.3 is a PDF: give a page "
-        "number or --section",
+        "--lines reads a Markdown or text document; DSP0236 1.3.3 is a PDF: "
+        "give a page number or --section",
     )
     assert scripted.calls == []
 
@@ -432,8 +432,8 @@ def test_lines_on_a_held_pdf_is_refused(md_catalog, library, scripted, capsys):
     code, out = run(capsys, md_catalog, "page", "DSP0236", "--lines", "1-5")
     assert (code, out.strip()) == (
         2,
-        "--lines reads a Markdown document; DSP0236 1.3.3 is a PDF: give a page "
-        "number or --section",
+        "--lines reads a Markdown or text document; DSP0236 1.3.3 is a PDF: "
+        "give a page number or --section",
     )
 
 
@@ -474,7 +474,9 @@ def test_a_markdown_draft_beside_a_released_pdf(md_catalog, library, scripted, c
     scripted.calls.clear()
     code, out = run(capsys, md_catalog, "page", "ROTMIX", "--lines", "3-4")
     assert code == 2
-    assert out.strip().startswith("--lines reads a Markdown document; ROTMIX 2.0")
+    assert out.strip().startswith(
+        "--lines reads a Markdown or text document; ROTMIX 2.0"
+    )
     assert scripted.calls == []
 
 
