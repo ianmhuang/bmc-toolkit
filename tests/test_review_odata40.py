@@ -280,7 +280,8 @@ def test_ac4_each_has_one_golden_question_on_errata_03(shipped):
 def test_ac4_the_ids_stay_gap_free_and_end_at_g117():
     numbers = [int(cells[0][1:]) for cells in _rows(GOLDEN.read_text("utf-8"))]
     assert len(numbers) == len(set(numbers))
-    assert sorted(numbers) == list(range(1, 118))
+    # T81.2 (2026-11-17) added G118-G134 after them
+    assert sorted(numbers) == list(range(1, 135))
 
 
 def test_ac4_the_group_follows_the_documents_before_it_in_the_catalog(shipped):
@@ -421,7 +422,8 @@ def test_ac5_readme_counts_the_catalog_and_stays_within_200_lines(shipped):
     docs = shipped.documents
     open_docs = [d for d in docs if d.access == "open"]
     families = {d.family for d in docs}
-    assert (len(docs), len(open_docs), len(families)) == (128, 108, 36)
+    # T81.2 (2026-11-17) seventeen RFCs in a new family
+    assert (len(docs), len(open_docs), len(families)) == (145, 125, 37)
     # the gated, member and NDA documents are untouched
     assert len(docs) - len(open_docs) == 20
     text = README.read_text(encoding="utf-8")

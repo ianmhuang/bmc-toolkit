@@ -138,6 +138,19 @@ def _open_documents(catalog):
     return [d for d in catalog.documents if d.access == "open"]
 
 
+def _is_text_row(catalog, document_cell: str) -> bool:
+    """T81.2: every version the row names is a text (txt) version."""
+    pairs = _entries(document_cell)
+    if not pairs:
+        return False
+    for doc_id, version in pairs:
+        doc = catalog.get(doc_id)
+        found = [v for v in doc.versions if v.version == version] if doc else []
+        if not found or found[0].type != "txt":
+            return False
+    return True
+
+
 # ------------------------------------------------------------------ AC-1
 
 
@@ -320,11 +333,12 @@ def test_ac3_new_ids_follow_file_order(rows):
 # ------------------------------------------------------------------ AC-4
 
 
-def test_ac4_new_rows_cite_a_page_and_a_locator(rows):
+def test_ac4_new_rows_cite_a_page_and_a_locator(catalog, rows):
     locator = re.compile(  # M9: a bundle answer is located by a JSON pointer
         r"\b(section|sections|table|tables|figure|figures|appendix|clause)\b|#/", re.I
     )
     page = re.compile(r"\bpages?\s+\d+", re.I)
+    lines = re.compile(r"\blines?\s+\d+")
     for qid, cells, _ in rows:
         if _number(qid) <= 24:
             continue
@@ -332,7 +346,10 @@ def test_ac4_new_rows_cite_a_page_and_a_locator(rows):
         assert where.strip() and where.strip() != "-", qid
         assert locator.search(where), f"{qid}: no section, table or figure named"
         # M9: a bundle answer (JSON pointer) has no PDF page
-        assert page.search(where) or "#/" in where, f"{qid}: no physical PDF page named"
+        # T81.2: a text version (an RFC) is located by its file's lines
+        located = page.search(where) or "#/" in where
+        located = located or (_is_text_row(catalog, cells[2]) and lines.search(where))
+        assert located, f"{qid}: no physical PDF page named"
         # the cell starts by naming the document, not with the locator
         assert not locator.match(where.strip()), f"{qid}: cell does not open with the document"
 

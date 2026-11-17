@@ -36,7 +36,12 @@ Fetch column, Verified reduced to `PASS` or `-`, and documents marked
 `unlisted = true` in the catalog left out (the BMC SoC datasheets are).
 A version's `type` is `pdf`, `zip` (a Redfish bundle), `md` or `txt`.
 `txt` is a plain-text document in the IETF layout, read by its line
-numbers like `md` but with no pin. `md` is a
+numbers like `md` but with no pin. Each RFC is one document with id
+`RFCnnnn` and one version: the month and year the RFC prints (`June
+2022`), `published` the first day of that month (an RFC gives no day),
+the URL the `.txt` on rfc-editor.org. An RFC that a later one obsoletes
+is listed only while it alone defines a version still deployed (RFC 5246,
+TLS 1.2); errata and updating RFCs are not merged into a document. `md` is a
 Markdown document that exists only in a repository, read by its line
 numbers (see [COMMANDS.md](COMMANDS.md#reading-commands)); its URL is the
 raw file at a pinned commit, so the lines a Citation names do not move.
