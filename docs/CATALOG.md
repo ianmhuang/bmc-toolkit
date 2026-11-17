@@ -48,8 +48,10 @@ RFC9846). It is copied from `obsoleted_by` in rfc-editor.org's
 `rfcNNNN.json`, never from the document's notes; `refresh` reports any
 other obsoleting RFC (`obsoleted`, see [COMMANDS.md](COMMANDS.md)), and
 the maintainer adds that RFC as a document when it is wanted, then
-extends the list. RFC ids take no leading zero (`RFC793`, not
-`RFC0793`), as document ids of an IETF family and in `obsoleted_by`.
+extends the list. RFC ids, as document ids of an IETF family and in
+`obsoleted_by`, are written `RFC` and digits in upper case with no
+leading zero (`RFC793`, not `rfc793` or `RFC0793`); any other spelling
+of an RFC id stops the catalog from loading.
 Before an RFC is added, its Outline is compared with the RFC's own table
 of contents (a maintainer check outside the repository), so a heading
 form the text reader does not know, or a false heading, shows up before

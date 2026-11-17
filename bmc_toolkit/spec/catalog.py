@@ -42,7 +42,8 @@ Schema (``schema_version = 1``)::
                                knows, copied from rfc-editor.org's
                                rfcNNNN.json; the RFC check reports only the
                                others. RFC ids, here and as document ids
-                               of an IETF family, take no leading zero
+                               of an IETF family, are RFC and digits in
+                               upper case with no leading zero (RFC793)
 
     [[documents.versions]]     in publication order, same-day versions
                                ascending by version number (refresh --write
@@ -113,9 +114,15 @@ DEFAULT_CATALOG = Path(__file__).with_name("catalog.toml")
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _DSP_RE = re.compile(r"^DSP\d+$", re.IGNORECASE)
-_RFC_RE = re.compile(r"^RFC([1-9][0-9]*)$")  # no leading zero, as listed
-_RFC_PADDED_RE = re.compile(r"^RFC0[0-9]*$")
+# RFC id patterns are used with fullmatch; match with `$` lets "RFC1\n" pass
+_RFC_RE = re.compile(r"RFC([1-9][0-9]*)")  # no leading zero, as listed
+_RFC_PADDED_RE = re.compile(r"RFC0[0-9]+")
+_RFC_ANY_CASE_RE = re.compile(r"RFC[0-9]+", re.IGNORECASE)
 _NO_ZERO = "RFC ids take no leading zero (RFC793, not RFC0793)"
+_RFC_FORM = (
+    "not an RFC id: RFC ids are written RFC and digits, upper case, "
+    "without a leading zero (RFC793)"
+)
 _OWNER_RE = re.compile(r"^[a-z][a-z0-9]*$")
 
 
@@ -341,6 +348,11 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
     family = _expect(raw, "family", str, where)
     if family not in families:
         raise CatalogError(f"{where}.family: unknown family '{family}'")
+    if families[family].publisher == "IETF":
+        if _RFC_PADDED_RE.fullmatch(doc_id):
+            raise CatalogError(f"{where}.id: '{doc_id}': {_NO_ZERO}")
+        if _RFC_ANY_CASE_RE.fullmatch(doc_id) and not _RFC_RE.fullmatch(doc_id):
+            raise CatalogError(f"{where}.id: '{doc_id}' is {_RFC_FORM}")
     title = _expect(raw, "title", str, where)
     access = _expect(raw, "access", str, where)
     if access not in ACCESS_TIERS:
@@ -390,8 +402,6 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
         raise CatalogError(
             f"{where}.searched_with_from: '{with_from}' is not a version of {doc_id}"
         )
-    if families[family].publisher == "IETF" and _RFC_PADDED_RE.match(doc_id):
-        raise CatalogError(f"{where}.id: '{doc_id}': {_NO_ZERO}")
     listing = _expect(raw, "listing", str, where, default="", required=False)
     listing = listing.strip()
     if listing:
@@ -403,13 +413,13 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
             )
     elif families[family].publisher == "DMTF" and _DSP_RE.match(doc_id):
         listing = f"dmtf:{doc_id.upper()}"
-    elif families[family].publisher == "IETF" and _RFC_RE.match(doc_id):
-        listing = f"rfc:{_RFC_RE.match(doc_id).group(1)}"
+    elif families[family].publisher == "IETF" and _RFC_RE.fullmatch(doc_id):
+        listing = f"rfc:{_RFC_RE.fullmatch(doc_id).group(1)}"
     raw_obs = _expect(raw, "obsoleted_by", list, where, default=[], required=False)
     for k, item in enumerate(raw_obs):
-        if isinstance(item, str) and _RFC_PADDED_RE.match(item):
+        if isinstance(item, str) and _RFC_PADDED_RE.fullmatch(item):
             raise CatalogError(f"{where}.obsoleted_by[{k}]: '{item}': {_NO_ZERO}")
-        if not isinstance(item, str) or not _RFC_RE.match(item):
+        if not isinstance(item, str) or not _RFC_RE.fullmatch(item):
             raise CatalogError(
                 f"{where}.obsoleted_by[{k}]: expected an RFC id such as RFC8446"
             )
