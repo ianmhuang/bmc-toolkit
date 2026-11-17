@@ -891,6 +891,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     state = fresh_mod.Freshness(library.root)
     listings = listing_mod.Listings(CLIENT_FACTORY())
     counts = {"current": 0, "newer": 0, "unreachable": 0}
+    newer_sources = set()
     for doc in docs:
         check = fresh_mod.check_document(doc, listings)
         state.record(check)
@@ -901,6 +902,7 @@ def cmd_check(args: argparse.Namespace) -> int:
             print(f"unreachable {doc.id}: {check.problem}")
         else:
             print(_newer_line(doc, check))
+            newer_sources.add(doc.listing_source)
     # A manual document with a listing was checked above like any other;
     # the manual line is for those nobody can check.
     unchecked = [
@@ -916,11 +918,17 @@ def cmd_check(args: argparse.Namespace) -> int:
     if not args.document:
         _check_release(catalog, library, state)
     state.save()
-    if counts["newer"]:
+    if newer_sources - {"rfc"}:
         print(
             "nothing was downloaded: a newer version enters the Library only "
             "after the catalog lists it (bmcspec refresh, or a pull request) "
             "or as a Drop-in"
+        )
+    if "rfc" in newer_sources:
+        print(
+            "an obsoleting RFC is a different document: the obsoleted one "
+            "stays readable and citable, and the catalog adds the new one "
+            "only by hand (docs/CATALOG.md)"
         )
     print(
         f"summary: current {counts['current']}, newer {counts['newer']}, "

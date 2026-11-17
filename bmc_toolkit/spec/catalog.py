@@ -112,7 +112,7 @@ DEFAULT_CATALOG = Path(__file__).with_name("catalog.toml")
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _DSP_RE = re.compile(r"^DSP\d+$", re.IGNORECASE)
-_RFC_RE = re.compile(r"^RFC(\d+)$")
+_RFC_RE = re.compile(r"^RFC([1-9][0-9]*)$")  # no leading zero, as listed
 _OWNER_RE = re.compile(r"^[a-z][a-z0-9]*$")
 
 

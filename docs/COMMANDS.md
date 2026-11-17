@@ -635,9 +635,9 @@ reminder never touches the network. `[library] offline = true` turns the
 reading commands' check off.
 OCP versions are mostly Google Drive links on the OCP pages, so `check`
 reports them with `(URL to confirm by hand)`. `refresh --skip-source
-SOURCE` (repeatable; `dmtf`, `nvme`, `ocp` or `rfc`) leaves that publisher's
-documents out, neither read nor reported (`github` leaves out the commit
-check below); the catalog workflow runs
+SOURCE` (repeatable; `dmtf`, `nvme`, `ocp` or `rfc`) leaves that
+publisher's documents out, neither read nor reported (`github` leaves
+out the commit check below); the catalog workflow runs
 `refresh --skip-source ocp` because opencompute.org refuses GitHub's
 runners ([CATALOG.md](CATALOG.md)). Naming a document whose publisher is
 skipped exits 2.
@@ -668,18 +668,21 @@ workflow reports a moved pin like any other proposal.
 
 An RFC (an `RFCnnnn` document of a family whose publisher is IETF; its
 listing is `rfc:nnnn`) is checked against the RFC Editor's metadata,
-`https://www.rfc-editor.org/rfc/rfcnnnn.json`. For an RFC, newer means an
-RFC that obsoletes it, which is a different document: `check`, `refresh`
-and the reading commands' note print `obsoleted RFCnnnn: the RFC Editor
-lists it as obsoleted by RFCxxxx (<URL of its text>)`, several joined by
-`; `, for each obsoleting RFC that the document's `obsoleted_by` in the
-catalog does not already record. `check` prints `current RFCnnnn V` when
-there is none and `refresh` prints nothing. `refresh`'s summary then ends
-its counts with `obsoleted N` (the RFCs reported), so the catalog workflow
-reports it like any other proposal; `--write` writes nothing for it: the
-maintainer adds the newer RFC as a document and extends `obsoleted_by`
-by hand. `--skip-source rfc` leaves the RFCs out. RFCs that only update
-an RFC, and errata, are not followed.
+`https://www.rfc-editor.org/rfc/rfcnnnn.json`. For an RFC, newer means
+an RFC that obsoletes it, which is a different document: `check`,
+`refresh` and the reading commands' note print `obsoleted RFCnnnn: the
+RFC Editor lists it as obsoleted by RFCxxxx (<URL of its text>)`,
+several joined by `; `, for each obsoleting RFC that the document's
+`obsoleted_by` in the catalog does not already record. `check` prints
+`current RFCnnnn V` when there is none and `refresh` prints nothing.
+`check` counts an obsoleted RFC among `newer` and adds a line saying the
+obsoleted RFC stays readable and citable. Whenever it checked an RFC,
+`refresh`'s summary adds `obsoleted N` (the RFCs reported) after
+`unreachable`, before `unlisted`, so the catalog workflow reports it
+like any other proposal; `--write` writes nothing for it: the maintainer
+adds the newer RFC as a document and extends `obsoleted_by` by hand.
+`--skip-source rfc` leaves the RFCs out. RFCs that only update an RFC,
+and errata, are not followed.
 
 ## Sessions sharing a Library
 

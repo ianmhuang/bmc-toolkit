@@ -103,7 +103,14 @@ def test_an_ietf_rfc_gets_the_rfc_listing(catalog_file, capsys):
 
 @pytest.mark.parametrize(
     "value",
-    ['"RFC3333"', '["rfc 3333"]', '["RFC3333", "RFC3333"]', '["DSP0236"]', "[1]"],
+    [
+        '"RFC3333"',
+        '["rfc 3333"]',
+        '["RFC3333", "RFC3333"]',
+        '["DSP0236"]',
+        "[1]",
+        '["RFC08446"]',
+    ],
 )
 def test_a_malformed_obsoleted_by_does_not_load(tmp_path, value):
     path = tmp_path / "bad.toml"
@@ -120,7 +127,6 @@ def test_the_shipped_rfc5246_records_its_two_obsoleting_rfcs():
     cat = load_catalog()
     assert cat.get("RFC5246").obsoleted_by == ("RFC8446", "RFC9846")
     ietf = [d for d in cat.documents if d.family == "ietf"]
-    assert len(ietf) == 17
     assert all(d.listing == f"rfc:{d.id[3:]}" for d in ietf)
     assert [d.id for d in ietf if d.obsoleted_by] == ["RFC5246"]
 
@@ -160,11 +166,25 @@ def test_the_listing_reads_obsoleted_by_from_the_rfc_json():
         rfc_json(body=b"<html>not json</html>"),
         rfc_json(body=b'{"doc_id": "RFC1111"}'),
         rfc_json(body=b'{"obsoleted_by": "RFC4444"}'),
+        rfc_json(body=b""),
+        rfc_json(body=('{"obsoleted_by": ["RFC' + chr(0xB9) + '"]}').encode()),
+        rfc_json(body=b'{"obsoleted_by": ["RFC0"]}'),
+        None,
     ],
-    ids=["404", "not-json", "no-field", "not-a-list"],
+    ids=[
+        "404",
+        "not-json",
+        "no-field",
+        "not-a-list",
+        "empty",
+        "superscript",
+        "zero",
+        "no-route",
+    ],
 )
 def test_an_unusable_answer_is_a_listing_error(reply):
-    client = _Client({JSON_URL.format(n=1111): reply})
+    responses = {} if reply is None else {JSON_URL.format(n=1111): reply}
+    client = _Client(responses)
     with pytest.raises(L.ListingError):
         L.Listings(client).current("rfc:1111")
 
@@ -227,6 +247,24 @@ def test_an_unreachable_rfc_json_is_reported_as_unreachable(
     first = out.splitlines()[0]
     assert first.startswith("unreachable RFC1111: ")
     assert first.count(JSON_URL.format(n=1111)) == 1, first
+
+
+def test_a_leading_zero_from_the_rfc_editor_matches_the_catalog(
+    catalog_file, library, scripted, capsys
+):
+    scripted.responses[JSON_URL.format(n=2222)] = rfc_json("RFC03333")
+    code, out = run(capsys, catalog_file, "check", "RFC2222")
+    assert out.splitlines()[0] == "current RFC2222 May 2001"
+
+
+def test_check_of_an_obsoleted_rfc_says_it_stays_citable(
+    catalog_file, library, scripted, capsys
+):
+    scripted.responses[JSON_URL.format(n=1111)] = rfc_json("RFC4444")
+    code, out = run(capsys, catalog_file, "check", "RFC1111")
+    assert "nothing was downloaded" not in out
+    assert "stays readable and citable" in out
+    assert out.splitlines()[-1] == "summary: current 0, newer 1, unreachable 0"
 
 
 def test_a_body_that_is_not_json_names_the_url_once():

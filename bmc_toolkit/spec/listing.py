@@ -1,6 +1,6 @@
 """Publisher listings: what versions a publisher says exist right now.
 
-Three sources, named by a document's ``listing`` key in the Source Catalog:
+Four sources, named by a document's ``listing`` key in the Source Catalog:
 
 - ``dmtf:<DSP id>``: the published-documents page lists the current version
   of every DSP (one request for all of them); the per-DSP page lists every
@@ -320,8 +320,9 @@ def parse_rfc_obsoleted(body: bytes) -> list[Seen]:
     out = []
     for raw in ids:
         number = re.sub(r"\s+", "", raw).upper().removeprefix("RFC")
-        if not number.isdigit():
+        if not re.fullmatch(r"[0-9]+", number) or not int(number):
             raise ListingError(f"obsoleted_by holds '{raw}', not an RFC")
+        # the catalog's RFC ids carry no leading zero (catalog._RFC_RE)
         number = str(int(number))
         out.append(Seen(f"RFC{number}", RFC_TEXT.format(key=number)))
     return out
@@ -350,8 +351,9 @@ class Listings:
 
     def current(self, listing: str) -> list[Seen]:
         """What the publisher lists now for the key: one version for DMTF
-        and NVMe, the matching OCP rows (newest first as listed).
-        ListingError when the key is not on the page."""
+        and NVMe, the matching OCP rows (newest first as listed), the RFCs
+        that obsolete an RFC (empty when none does). ListingError when the
+        key is not on the page."""
         source, key = parse_listing(listing)
         if source == "dmtf":
             table = parse_dmtf_published(self._text(DMTF_PUBLISHED))
@@ -374,7 +376,7 @@ class Listings:
                 )
             return rows
         if source == "rfc":
-            if not key.isdigit():
+            if not re.fullmatch(r"[0-9]+", key):
                 raise ListingError(f"rfc key '{key}' is not an RFC number")
             url = RFC_JSON.format(key=key)
             body = self._get(url)  # its errors already name the URL
@@ -398,7 +400,7 @@ class Listings:
 
     def history(self, listing: str) -> list[Seen]:
         """Every version the publisher lists with dates where it gives
-        them: the DMTF per-DSP page; for NVMe and OCP the same as
+        them: the DMTF per-DSP page; for NVMe, OCP and RFC the same as
         ``current``."""
         source, key = parse_listing(listing)
         if source != "dmtf":
