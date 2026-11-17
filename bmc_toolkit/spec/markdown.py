@@ -34,6 +34,7 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import ClassVar
 
 from bmc_toolkit.spec.library import atomic_write_json
 from bmc_toolkit.spec.search import USER_PROVIDED, query_matches, query_words
@@ -211,6 +212,9 @@ def _labelled(entries: list[dict]) -> list[Heading]:
     return out
 
 
+labelled = _labelled  # the text reader labels its headings the same way
+
+
 @dataclass
 class MarkdownVersion:
     """One held, extracted Markdown version."""
@@ -222,6 +226,11 @@ class MarkdownVersion:
     origin: str
     lines: list[str]
     headings: list[Heading] = field(default_factory=list)
+    # Line numbers that are never a hit or a printed line (a text version's
+    # page furniture); a Markdown version hides none.
+    hidden: frozenset[int] = frozenset()
+
+    page_field: ClassVar[str] = PAGE_FIELD
 
     @classmethod
     def load(
@@ -303,7 +312,7 @@ class MarkdownVersion:
         flags = 0 if case else re.IGNORECASE
         rx = re.compile(pattern if regex else re.escape(pattern), flags)
         for number, text in enumerate(self.lines, start=1):
-            if rx.search(text):
+            if number not in self.hidden and rx.search(text):
                 yield MarkdownHit(number, text, self.owner(number))
 
     def spanned(self, first: int, last: int) -> list[Heading]:
@@ -322,7 +331,7 @@ class MarkdownVersion:
                 f"cite: {self.family}",
                 self.label,
                 section,
-                PAGE_FIELD,
+                self.page_field,
                 f"lines {first}-{last}",
                 self.origin,
                 str(self.path),
@@ -336,6 +345,7 @@ class MarkdownVersion:
         return [
             f"{str(n).rjust(width)}  {self.lines[n - 1]}".rstrip()
             for n in range(first, last + 1)
+            if n not in self.hidden
         ]
 
 

@@ -139,11 +139,11 @@ def test_catalog_prints_md_in_the_type_column(md_catalog, capsys):
 
 def test_another_unknown_type_is_still_refused_and_md_is_listed(tmp_path, capsys):
     path = tmp_path / "bad_catalog.toml"
-    bad = MD_CATALOG.replace('type = "md"', 'type = "txt"')
+    bad = MD_CATALOG.replace('type = "md"', 'type = "html"')
     path.write_text(bad, encoding="utf-8", newline="")
     code, out = run(capsys, path, "catalog")
     assert code == 1, out
-    assert "'txt' not one of (" in out
+    assert "'html' not one of (" in out
     assert "'md'" in out
 
 
@@ -258,13 +258,13 @@ def test_add_refuses_a_md_file_that_is_not_markdown(
 
 
 def test_add_names_md_among_the_types_it_takes(md_catalog, tmp_path, capsys):
-    source = tmp_path / "spec.txt"
+    source = tmp_path / "spec.docx"
     source.write_bytes(b"# Title\n")
     code, out = run(
         capsys, md_catalog, "add", str(source), "--document", "RVW", "--version", "1.0"
     )
     assert code == 2
-    assert out.strip() == "unsupported file type '.txt': expected .pdf, .zip or .md"
+    assert out.strip() == "unsupported file type '.docx': expected .pdf, .zip, .md or .txt"
 
 
 def test_scan_registers_original_md_and_skips_one_that_is_not_markdown(

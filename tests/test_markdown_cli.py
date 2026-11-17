@@ -96,10 +96,10 @@ def test_catalog_lists_the_md_type(md_catalog, capsys):
 
 def test_an_unknown_type_names_md_among_the_types(tmp_path, capsys):
     path = tmp_path / "catalog.toml"
-    path.write_text(MD_CATALOG.replace('type = "md"', 'type = "txt"', 1), "utf-8")
+    path.write_text(MD_CATALOG.replace('type = "md"', 'type = "html"', 1), "utf-8")
     code, out = run(capsys, path, "catalog")
     assert code == 1
-    assert "'txt' not one of ('pdf', 'zip', 'md')" in out
+    assert "'html' not one of ('pdf', 'zip', 'md', 'txt')" in out
 
 
 # --------------------------------------------------------------- fetch
@@ -164,13 +164,15 @@ def test_add_refuses_an_html_page_saved_as_md(md_catalog, tmp_path, capsys):
 
 
 def test_add_names_md_among_the_accepted_types(md_catalog, tmp_path, capsys):
-    source = tmp_path / "notes.txt"
+    source = tmp_path / "notes.docx"
     source.write_text("x", "utf-8")
     code, out = run(
         capsys, md_catalog, "add", str(source), "--document", "ROT", "--version", "2.1"
     )
     assert code == 2
-    assert out.strip() == "unsupported file type '.txt': expected .pdf, .zip or .md"
+    assert out.strip() == (
+        "unsupported file type '.docx': expected .pdf, .zip, .md or .txt"
+    )
 
 
 def test_scan_registers_original_md_and_skips_a_bad_one(md_catalog, library, capsys):

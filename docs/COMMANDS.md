@@ -140,6 +140,25 @@ are exit 2 with the command that reads it, before any download. Pipe
 tables are printed as text; images are not fetched (their `![alt](path)`
 line stays). Notes do not record a Citation of a Markdown version.
 
+A text version (catalog type `txt`, held as `original.txt`: an IETF RFC
+in its plain-text form) is read the same way, by the line numbers of the
+file as stored, with `Text` in the `cite:` line where Markdown has
+`Markdown`; an RFC is cited by section and line even where its text is
+printed in pages. Page furniture keeps its line numbers but is never a
+heading, a `find` hit, a `--context` line or a printed line: the footer
+ending in `[Page N]`, the form-feed line, the running header starting
+`RFC <number> ` and the blank lines padding them. The Outline holds the
+lines starting in column 0, after the file's first block (the authors):
+numbered headings (`4.1.2.  Title`, `1.1 Title`, `Appendix A.  Title`,
+`A.1.  Title`; level is the count of number parts minus one), a title
+wrapped onto an indented next line joined to it; and unnumbered headings
+(`Abstract`, `Authors' Addresses`), a line with blank lines around it and
+indented text next, at level 0. Titles are shown as `4.1.2 Client Hello`.
+A text file without that layout has an empty Outline: `section` finds
+nothing, `find` and `page --lines` read it. `page DOC N`, `render` and
+`table` refuse it as they refuse Markdown, and Notes do not record its
+Citations.
+
 `invocation PROTOCOL 'NAME:SIZE=VALUE' ...` arranges the bytes of a
 request from its fields and prints them in the syntax of the sending
 tools. It reads no Document, no catalog and no network, takes no lock and
@@ -705,7 +724,7 @@ temporary files (see above).
   snapshot", and does not retry on its own. Run the command again later.
 - A response that is not the expected PDF or ZIP (an HTML block page, a
   cut-off download) is discarded and never written to the Library. A
-  Markdown version, which has no leading bytes to check, must be UTF-8
+  Markdown or text version, which has no leading bytes to check, must be UTF-8
   text that does not start as an HTML page. The same check applies to
   files given to `add` or found by `scan`.
 - Writes only under the Library. Files placed there by hand are registered

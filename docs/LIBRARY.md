@@ -36,7 +36,9 @@ resource counts; for the registries bundle DSP8011 it writes
 type `md`) is held as `original.md`; for it `extract` writes only
 `outline.json` (each heading's level, title and line in `original.md`)
 and `extract.json` with `"kind": "markdown"`, since the original itself is
-what the reading commands read.
+what the reading commands read. A text document (catalog type `txt`, an
+IETF RFC) is held as `original.txt` and extracted the same way, with
+`"kind": "text"`.
 Code Trees live beside `specs/`, under `code/<repo>/<commit>/`, each with
 a `.bmc-tree.json`.
 

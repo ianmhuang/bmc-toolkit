@@ -44,6 +44,7 @@ ENV_LIBRARY = "BMC_SPEC_LIBRARY"
 DEFAULT_LIBRARY_DIRNAME = ".bmc-specs"
 META_NAME = "meta.json"
 ORIGINAL_STEM = "original"
+TEXT_TYPES = ("md", "txt")  # read by line numbers, checked as UTF-8 text
 DERIVED_NAMES = (
     "extract.txt",
     "extract.json",
@@ -84,9 +85,9 @@ class LibraryError(Exception):
 
 def body_matches_type(data: bytes, ext: str) -> bool:
     """True when ``data`` is a file of type ``ext``: the magic bytes of a
-    pdf or zip, or for md (which has none) UTF-8 text that is not an HTML
-    page (see ``markdown.looks_like_markdown``)."""
-    if ext == "md":
+    pdf or zip, or for md and txt (which have none) UTF-8 text that is not
+    an HTML page (see ``markdown.looks_like_markdown``)."""
+    if ext in TEXT_TYPES:
         # imported here: the markdown module writes through this one
         from bmc_toolkit.spec.markdown import looks_like_markdown
 
@@ -95,10 +96,10 @@ def body_matches_type(data: bytes, ext: str) -> bool:
 
 
 def file_matches_type(path: Path, ext: str) -> bool:
-    """:func:`body_matches_type` for a file; md reads the whole file."""
+    """:func:`body_matches_type` for a file; md and txt read the whole file."""
     try:
         with open(path, "rb") as fh:
-            data = fh.read() if ext == "md" else fh.read(8)
+            data = fh.read() if ext in TEXT_TYPES else fh.read(8)
     except OSError:
         return False
     return body_matches_type(data, ext)
@@ -203,7 +204,7 @@ class Holding:
     def extract_meta(self) -> dict | None:
         """Contents of extract.json when the version has been extracted
         (a PDF's Extract, a bundle's schemas or registries directory, or a
-        Markdown document's Outline)."""
+        Markdown or text document's Outline)."""
         path = self.path / "extract.json"
         if not path.is_file():
             return None
@@ -212,7 +213,7 @@ class Holding:
             and not (self.path / SCHEMAS_DIRNAME).is_dir()
             and not (self.path / REGISTRIES_DIRNAME).is_dir()
             and not (
-                self.original.suffix.lower() == ".md"
+                self.original.suffix.lower().lstrip(".") in TEXT_TYPES
                 and (self.path / "outline.json").is_file()
             )
         ):
