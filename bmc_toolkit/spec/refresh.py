@@ -51,7 +51,7 @@ class RefreshError(Exception):
 class Proposal:
     """One thing the publisher's listing says about a document."""
 
-    kind: str  # add | confirm | changed | unreachable
+    kind: str  # add | confirm | changed | unreachable | obsoleted
     document: str
     seen: Seen | None = None
     problem: str = ""
@@ -93,12 +93,19 @@ def _why_confirm(source: str, seen: Seen) -> str:
 
 
 def proposals(doc: Document, listings: Listings) -> list[Proposal]:
-    """What the listing adds to the catalog entry of one document."""
+    """What the listing adds to the catalog entry of one document; for an
+    RFC, an ``obsoleted`` proposal per obsoleting RFC its ``obsoleted_by``
+    lacks (never written)."""
     try:
         seen = listings.history(doc.listing)
     except ListingError as exc:
         return [Proposal("unreachable", doc.id, problem=str(exc))]
     source = doc.listing_source
+    if source == "rfc":
+        known = set(doc.obsoleted_by)
+        return [
+            Proposal("obsoleted", doc.id, s) for s in seen if s.version not in known
+        ]
     by_key = {version_key(source, v.version): v for v in doc.versions}
     # A publisher may list one version more than once (DMTF keeps a file and
     # its re-upload, DSP0266 1.20.2): the catalog URL has not moved while

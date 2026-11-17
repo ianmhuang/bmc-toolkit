@@ -163,8 +163,8 @@ Exit codes, `--wait` (several conversations can share one Library), flags, outpu
 - Writes only under the Library, replacing nothing without `--force`; from a
   Redfish ZIP bundle only the files an answer needs are unpacked.
 - `check`, `refresh` and a reading command due for its Freshness Check read
-  publisher listing pages, `refresh` also the GitHub API for the newest commit
-  of a pinned Markdown file; none downloads. `refresh --write` alone writes
+  publisher listing pages (an RFC's metadata on rfc-editor.org), `refresh` also
+  the GitHub API for the newest commit of a pinned Markdown file; none downloads. `refresh --write` alone writes
   outside the Library: version entries into the catalog file it was given.
 - Runs `notes record` from a Stop hook at the end of every turn; it exits
   unless `config.toml` says `notes = true`, then keeps the answer in

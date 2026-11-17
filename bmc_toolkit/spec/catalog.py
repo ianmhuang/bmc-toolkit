@@ -33,8 +33,15 @@ Schema (``schema_version = 1``)::
                                document's versions, "<source>:<key>" with
                                source dmtf (key: the DSP id; the default for
                                DMTF documents), nvme (key: the specification
-                               slug of the nvmexpress.org API) or ocp (key:
+                               slug of the nvmexpress.org API), ocp (key:
                                "<project page path>|<description prefix>")
+                               or rfc (key: the RFC number; the default for
+                               an RFCnnnn document of an IETF family)
+    obsoleted_by = ["RFC8446"] optional: the RFCs the RFC Editor lists as
+                               obsoleting this one that the catalog already
+                               knows, copied from rfc-editor.org's
+                               rfcNNNN.json; the RFC check reports only the
+                               others
 
     [[documents.versions]]     in publication order, same-day versions
                                ascending by version number (refresh --write
@@ -99,12 +106,13 @@ from pathlib import Path
 ACCESS_TIERS = ("open", "gated", "member", "confidential")
 FETCH_METHODS = ("direct", "wayback", "manual")
 FILE_TYPES = ("pdf", "zip", "md", "txt")
-LISTING_SOURCES = ("dmtf", "nvme", "ocp")
+LISTING_SOURCES = ("dmtf", "nvme", "ocp", "rfc")
 SCHEMA_VERSION = 1
 DEFAULT_CATALOG = Path(__file__).with_name("catalog.toml")
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _DSP_RE = re.compile(r"^DSP\d+$", re.IGNORECASE)
+_RFC_RE = re.compile(r"^RFC(\d+)$")
 _OWNER_RE = re.compile(r"^[a-z][a-z0-9]*$")
 
 
@@ -169,6 +177,7 @@ class Document:
     limits: str = ""  # Known Limits of the document itself, "" when none
     unlisted: bool = False  # left out of the per-family Support Level table
     searched_with_from: str = ""  # first version searched_with holds for
+    obsoleted_by: tuple[str, ...] = ()  # obsoleting RFCs already recorded
 
     def companions_for(self, version: str) -> tuple[str, ...]:
         """The searched_with documents that go with ``version``: all of them
@@ -184,7 +193,7 @@ class Document:
 
     @property
     def listing_source(self) -> str:
-        """dmtf | nvme | ocp, or "" without a listing."""
+        """dmtf | nvme | ocp | rfc, or "" without a listing."""
         return self.listing.partition(":")[0]
 
     @property
@@ -389,6 +398,16 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
             )
     elif families[family].publisher == "DMTF" and _DSP_RE.match(doc_id):
         listing = f"dmtf:{doc_id.upper()}"
+    elif families[family].publisher == "IETF" and _RFC_RE.match(doc_id):
+        listing = f"rfc:{_RFC_RE.match(doc_id).group(1)}"
+    raw_obs = _expect(raw, "obsoleted_by", list, where, default=[], required=False)
+    for k, item in enumerate(raw_obs):
+        if not isinstance(item, str) or not _RFC_RE.match(item):
+            raise CatalogError(
+                f"{where}.obsoleted_by[{k}]: expected an RFC id such as RFC8446"
+            )
+    if len(set(raw_obs)) != len(raw_obs):
+        raise CatalogError(f"{where}.obsoleted_by: an RFC is listed twice")
     return Document(
         doc_id,
         family,
@@ -402,6 +421,7 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
         limits,
         unlisted,
         with_from,
+        tuple(raw_obs),
     )
 
 

@@ -123,7 +123,8 @@ names (or the default branch), searched with `grep` and read with `code`.
   Tree of that repository, whatever it has checked out.
 - **Freshness Check**: `check` asks the publisher (DMTF, nvmexpress.org,
   the OCP project pages) what versions it lists and reports one the catalog lacks
-  (`newer DOC: ...`). It never downloads or switches versions; the catalog
+  (`newer DOC: ...`); for an RFC it asks the RFC Editor which RFCs obsolete it
+  and reports one the catalog does not record (`obsoleted RFCnnnn: ...`). It never downloads or switches versions; the catalog
   stays the authority for Latest until a maintainer updates it. The
   outcome and the time go to `freshness.json` at the Library root. A
   reading command runs the check itself, after its output, when the
@@ -247,7 +248,10 @@ once): how long to wait for that Session before giving up with 3.
    tell the user in one sentence that the publisher lists W and that the
    answer comes from V; never fetch or add W unless the user asks, and
    never edit the catalog during a question (`refresh` is for
-   maintainers). `note: unreachable DOC: ...`: say nothing about it.
+   maintainers). `note: obsoleted RFCnnnn: the RFC Editor lists it as
+   obsoleted by RFCxxxx (URL)`: the answer and its Citation stay on
+   RFCnnnn; tell the user in one sentence that RFCxxxx obsoletes it and may
+   change what was cited. `note: unreachable DOC: ...`: say nothing about it.
    `check` is run only when the user asks whether a newer version exists,
    never during a question.
 5. When the answer sits in a table (a `Table` caption near the hit, or

@@ -11,6 +11,10 @@ Three sources, named by a document's ``listing`` key in the Source Catalog:
 - ``ocp:<project page>|<description prefix>``: the OCP project page's specification
   tables (Description, Version or Revision, Submit Date, Link). Links are
   mostly Google Drive viewers, so a human confirms the download URL.
+- ``rfc:<number>``: the RFC Editor's metadata for one RFC
+  (``rfcNNNN.json``). What it "lists" is not versions but the RFCs that
+  obsolete this one, each as a ``Seen`` named ``RFCnnnn`` with the URL of
+  its text; the catalog's ``obsoleted_by`` holds the ones already known.
 
 Standard library only. Every page comes through the ``HttpClient`` of
 ``fetch``; pages are cached per ``Listings`` instance so a check over the
@@ -31,8 +35,15 @@ DMTF_PUBLISHED = "https://www.dmtf.org/standards/published_documents"
 DMTF_DSP = "https://www.dmtf.org/dsp/{key}"
 NVME_API = "https://nvmexpress.org/wp-json/vtm/v1/specifications"
 OCP_WIKI = "https://www.opencompute.org/projects/{page}/"
+RFC_JSON = "https://www.rfc-editor.org/rfc/rfc{key}.json"
+RFC_TEXT = "https://www.rfc-editor.org/rfc/rfc{key}.txt"
 
-PUBLISHER_NAMES = {"dmtf": "DMTF", "nvme": "NVM Express", "ocp": "the OCP project page"}
+PUBLISHER_NAMES = {
+    "dmtf": "DMTF",
+    "nvme": "NVM Express",
+    "ocp": "the OCP project page",
+    "rfc": "the RFC Editor",
+}
 
 _MONTHS = {
     m: i
@@ -295,6 +306,27 @@ def parse_ocp(html: str, prefix: str) -> list[Seen]:
 # ------------------------------------------------------------ fetching
 
 
+def parse_rfc_obsoleted(body: bytes) -> list[Seen]:
+    """The RFCs an ``rfcNNNN.json`` lists under ``obsoleted_by``, as
+    ``RFCnnnn`` (any case, spaces dropped) with the URL of their text.
+    ListingError when the body is not JSON or has no such list."""
+    try:
+        data = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise ListingError(f"not RFC Editor JSON: {exc}") from exc
+    ids = data.get("obsoleted_by") if isinstance(data, dict) else None
+    if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
+        raise ListingError("the RFC Editor JSON has no obsoleted_by list")
+    out = []
+    for raw in ids:
+        number = re.sub(r"\s+", "", raw).upper().removeprefix("RFC")
+        if not number.isdigit():
+            raise ListingError(f"obsoleted_by holds '{raw}', not an RFC")
+        number = str(int(number))
+        out.append(Seen(f"RFC{number}", RFC_TEXT.format(key=number)))
+    return out
+
+
 class Listings:
     """Publisher listings fetched on demand and cached for the instance."""
 
@@ -341,6 +373,15 @@ class Listings:
                     f"no row starting with '{prefix}' on OCP page {page}"
                 )
             return rows
+        if source == "rfc":
+            if not key.isdigit():
+                raise ListingError(f"rfc key '{key}' is not an RFC number")
+            url = RFC_JSON.format(key=key)
+            body = self._get(url)  # its errors already name the URL
+            try:
+                return parse_rfc_obsoleted(body)
+            except ListingError as exc:
+                raise ListingError(f"{url}: {exc}") from exc
         raise ListingError(f"unknown listing source '{source}'")
 
     def dmtf_published(self) -> dict[str, tuple[Seen, str]]:
@@ -374,6 +415,8 @@ __all__ = [
     "NVME_API",
     "OCP_WIKI",
     "PUBLISHER_NAMES",
+    "RFC_JSON",
+    "RFC_TEXT",
     "ListingError",
     "Listings",
     "Seen",
@@ -387,5 +430,6 @@ __all__ = [
     "parse_listing",
     "parse_nvme",
     "parse_ocp",
+    "parse_rfc_obsoleted",
     "version_key",
 ]

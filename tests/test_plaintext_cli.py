@@ -478,7 +478,9 @@ def test_notes_skip_text_cites(held):
 
 def test_refresh_passes_over_a_text_version(txt_catalog, scripted, capsys):
     before = txt_catalog.read_bytes()
-    code, out = run(capsys, txt_catalog, "refresh", "--write")
+    # T81.3 checks IETF RFCs against the RFC Editor; skipped here, so this
+    # stays a refresh that proposes no version for a text version.
+    code, out = run(capsys, txt_catalog, "refresh", "--write", "--skip-source", "rfc")
     assert code in (0, 1), out
     assert "RFC9999" not in out
     assert "Traceback" not in out

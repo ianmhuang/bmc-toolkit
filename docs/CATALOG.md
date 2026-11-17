@@ -42,6 +42,13 @@ numbers like `md` but with no pin. Each RFC is one document with id
 the URL the `.txt` on rfc-editor.org. An RFC that a later one obsoletes
 is listed only while it alone defines a version still deployed (RFC 5246,
 TLS 1.2); errata and updating RFCs are not merged into a document.
+An RFC's `obsoleted_by` lists the RFCs that the RFC Editor already names
+as obsoleting it and that are accounted for (RFC 5246: RFC8446 and
+RFC9846). It is copied from `obsoleted_by` in rfc-editor.org's
+`rfcNNNN.json`, never from the document's notes; `refresh` reports any
+other obsoleting RFC (`obsoleted`, see [COMMANDS.md](COMMANDS.md)), and
+the maintainer adds that RFC as a document when it is wanted, then
+extends the list.
 Before an RFC is added, its Outline is compared with the RFC's own table
 of contents (a maintainer check outside the repository), so a heading
 form the text reader does not know, or a false heading, shows up before

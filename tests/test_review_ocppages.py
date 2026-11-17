@@ -208,6 +208,7 @@ def test_refresh_over_ocp_reports_nothing_unreachable_and_ignores_the_empty_row(
     _serve_catalog_versions(scripted, shipped)
     # T5.3 added the commit check of pinned Markdown versions (CALIPTRA
     # 2.1); it is skipped too, so this stays a refresh over OCP only.
+    # T81.3 added the RFC Editor check of the IETF RFCs; skipped as well.
     code = main(
         [
             "refresh",
@@ -217,6 +218,8 @@ def test_refresh_over_ocp_reports_nothing_unreachable_and_ignores_the_empty_row(
             "nvme",
             "--skip-source",
             "github",
+            "--skip-source",
+            "rfc",
         ]
     )
     out = capsys.readouterr().out
