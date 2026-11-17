@@ -482,15 +482,21 @@ def parse_catalog(data: dict) -> Catalog:
     if not raw_families:
         raise CatalogError("catalog.families: must define at least one family")
     families: dict[str, Family] = {}
+    family_ids: dict[str, str] = {}  # lower-cased id -> the id as written
     for fid, raw in raw_families.items():
         where = f"families.{fid}"
         if not isinstance(raw, dict):
             raise CatalogError(f"{where}: expected a table")
-        twin = next((f for f in families if f.lower() == fid.lower()), None)
+        if not fid or fid != fid.strip():
+            raise CatalogError(
+                f"{where}: id '{fid}' is empty or has surrounding whitespace"
+            )
+        twin = family_ids.get(fid.lower())
         if twin is not None:
             raise CatalogError(
                 f"{where}: duplicate id '{fid}' (differs from '{twin}' only in case)"
             )
+        family_ids[fid.lower()] = fid
         families[fid] = Family(
             fid,
             _expect(raw, "title", str, where),

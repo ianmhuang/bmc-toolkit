@@ -111,7 +111,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("catalog", help="list documents in the Source Catalog")
     p.add_argument("document", nargs="?", help="show one document with its versions")
-    p.add_argument("--family", help="only documents of this family")
+    p.add_argument("--family", help="only documents of this family id (any case)")
     p.add_argument(
         "--table",
         action="store_true",
@@ -360,6 +360,9 @@ def cmd_catalog(args: argparse.Namespace) -> int:
     if args.golden or args.by_family:
         flag = "--golden" if args.golden else "--by-family"
         print(f"{flag} goes with --table")
+        return EXIT_ACTION
+    if args.document and args.family is not None:
+        print("--family lists a family; drop the document id or --family")
         return EXIT_ACTION
     if args.document:
         doc = catalog.get(args.document)

@@ -112,6 +112,42 @@ def test_table_with_family_keeps_its_message(capsys, catalog_file, name):
     assert out == "--table prints every document; drop the document id or --family\n"
 
 
+# ---------------------------------------------------------------- AC-8
+
+
+@pytest.mark.parametrize("name", ["mctp", "MCTP", "nope", ""])
+def test_a_document_with_family_is_refused(capsys, catalog_file, name):
+    code, out = run(
+        capsys, "catalog", "DSP0236", "--family", name, catalog_file=catalog_file
+    )
+    assert code == 2
+    assert out == "--family lists a family; drop the document id or --family\n"
+
+
+def test_a_document_alone_still_prints(capsys, catalog_file):
+    code, out = run(capsys, "catalog", "DSP0236", catalog_file=catalog_file)
+    assert code == 0
+    assert out.startswith("document: DSP0236\n")
+
+
+# ---------------------------------------------------------------- AC-9
+
+
+@pytest.mark.parametrize("key", ['" mctp2"', '"mctp2 "', '"\\tmctp2"', '""'])
+def test_a_family_id_with_surrounding_whitespace_is_refused(tmp_path, key):
+    path = tmp_path / "catalog.toml"
+    text = MINI_CATALOG.replace(
+        '[families.ipmi]\ntitle = "IPMI"',
+        f'[families.{key}]\ntitle = "Odd"\npublisher = "x"\n\n'
+        '[families.ipmi]\ntitle = "IPMI"',
+    )
+    assert text != MINI_CATALOG
+    path.write_text(text, encoding="utf-8", newline="")
+    with pytest.raises(CatalogError) as err:
+        load_catalog(path)
+    assert "surrounding whitespace" in str(err.value) or "empty" in str(err.value)
+
+
 # ---------------------------------------------------------------- AC-6
 
 
