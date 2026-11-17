@@ -3,12 +3,12 @@
 Claude Code plugin for BMC firmware developers.
 
 The first skill, `bmc-spec`, answers questions about BMC specifications (IPMI,
-DMTF MCTP / PLDM / SPDM / NC-SI / SMBIOS, Redfish, NVMe, OCP DC-SCM and DC-MHS,
-I2C, SMBus, PMBus, eSPI, LPC, SFF, CMIS, TCG, UEFI, ACPI, Arm server standards,
-NIST firmware resiliency and more) and about OpenBMC source code. It keeps a
-local library of the documents and repositories you have asked about, defaults
-to the latest published version of each document, serves any specific version
-on request, and cites document, version, section and page in every answer.
+DMTF MCTP / PLDM / SPDM / NC-SI / SMBIOS, Redfish, OData, NVMe, OCP DC-SCM and
+DC-MHS, I2C, SMBus, PMBus, eSPI, LPC, SFF, CMIS, TCG, UEFI, ACPI, Arm server
+standards, NIST firmware resiliency, IETF RFCs and more) and about OpenBMC
+source code. It keeps a local library of the documents and repositories you
+asked about, defaults to the latest published version, serves any other on
+request, and cites document, version, section and page or line in every answer.
 
 **Status: 1.7.0.** The Source Catalog lists 145 documents in
 37 families. The 125 open ones are downloaded by the tool and every one of

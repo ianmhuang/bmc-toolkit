@@ -50,8 +50,9 @@ other obsoleting RFC (`obsoleted`, see [COMMANDS.md](COMMANDS.md)), and
 the maintainer adds that RFC as a document when it is wanted, then
 extends the list. RFC ids, as document ids of an IETF family and in
 `obsoleted_by`, are written `RFC` and digits in upper case with no
-leading zero (`RFC793`, not `rfc793` or `RFC0793`); any other spelling
-of an RFC id (`RFC 793`, `RFC-793`, `rfc_793`) stops the catalog from
+leading zero (`RFC793`). An id in another case (`rfc793`), with a
+space, hyphen or underscore before the number (`RFC 793`, `RFC-793`,
+`rfc_793`) or with a leading zero (`RFC0793`) stops the catalog from
 loading.
 Before an RFC is added, its Outline is compared with the RFC's own table
 of contents (a maintainer check outside the repository), so a heading
@@ -70,11 +71,11 @@ may name companions in `searched_with` (errata, specification updates)
 that `find` searches together with it; `searched_with_from` names the first
 of its versions they go with (DSP0248: `1.4.0`, the version that moved the
 PDR definitions to DSP0251), so reading an earlier version searches it
-alone. It also takes a `listing`
-(`dmtf:<DSP>`, implied for DMTF documents; `nvme:<slug>` of the
-nvmexpress.org API; `ocp:<project page>|<description prefix>`;
-`rfc:<number>`, the number without a leading zero, implied for an
-`RFCnnnn` document of a family whose publisher is IETF) that `check` and `refresh` consult. `refresh` prints
+alone. It also takes a `listing` (`dmtf:<DSP>`, implied for DMTF
+documents; `nvme:<slug>` of the nvmexpress.org API;
+`ocp:<project page>|<description prefix>`; `rfc:<number>`, the number
+without a leading zero, implied for an `RFCnnnn` document of a family
+whose publisher is IETF) that `check` and `refresh` consult. `refresh` prints
 the versions the publishers list that the catalog lacks (`add`), catalog
 URLs that moved (`changed`, for DMTF and NVMe; a URL has not moved while
 any row the publisher lists for that version names it, `http://` and
