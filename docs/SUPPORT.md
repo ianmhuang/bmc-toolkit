@@ -134,6 +134,15 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0288` CXL to Redfish Mapping Specification | open | 1.4.0 | PASS | - |
 | `DSP0285` RedPath Specification | open | 1.1.0 | PASS | - |
 
+## Open Data Protocol (OData 4.0)
+
+| Document | Access | Latest | Verified | Known limit |
+|---|---|---|---|---|
+| `ODATA-PROTOCOL` OData Version 4.0 Part 1: Protocol | open | 4.0 Errata 03 | PASS | The 4.0 Errata 03 edition's contents list stops at the third heading level, so deeper sections (such as 8.2.8.1) are not outline entries and section does not list them; find reaches them under their enclosing section, and the 4.0 edition lists them. |
+| `ODATA-URL` OData Version 4.0 Part 2: URL Conventions | open | 4.0 Errata 03 | PASS | The 4.0 Errata 03 edition's contents list stops at the third heading level, so deeper sections (such as 5.1.1.1) are not outline entries and section does not list them; find reaches them under their enclosing section, and the 4.0 edition lists them. |
+| `ODATA-CSDL` OData Version 4.0 Part 3: Common Schema Definition Language (CSDL) | open | 4.0 Errata 03 | PASS | The 4.0 Errata 03 edition's contents list stops at the third heading level, so deeper sections (such as 12.1.1.1) are not outline entries and section does not list them; find reaches them under their enclosing section, and the 4.0 edition lists them. |
+| `ODATA-JSON` OData JSON Format Version 4.0 | open | 4.0 Errata 03 | PASS | - |
+
 ## NVM Express
 
 | Document | Access | Latest | Verified | Known limit |
