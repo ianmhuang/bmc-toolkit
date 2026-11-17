@@ -3,6 +3,7 @@ in a new OASIS family, each as the 4.0 OASIS Standard and the 4.0 Plus
 Errata 03 edition, with their Golden Questions. Shipped files only, no
 network."""
 
+import re
 from pathlib import Path
 
 from bmc_toolkit.spec import support
@@ -137,6 +138,23 @@ def test_each_is_verified_by_its_own_question_on_errata_03():
     assert "2026-11-17" in fresh
     for doc_id in NEW:
         assert doc_id in fresh, doc_id
+
+
+def test_no_golden_command_puts_a_dollar_inside_double_quotes():
+    """PR #135 F1: bash and PowerShell expand `$name` inside double quotes,
+    so `section ODATA-URL "$expand"` reached the tool as an empty query."""
+    text = GOLDEN.read_text("utf-8")
+    rows = [ln for ln in text.splitlines() if re.match(r"\| G\d+ \|", ln)]
+    assert len(rows) >= 117
+    bad = []
+    for row in rows:
+        commands = row.rsplit(" | ", 1)[1]
+        for command in commands.split("`")[1::2]:
+            if re.search(r'"[^"]*\$[^"]*"', command):
+                bad.append((row.split(" | ")[0], command))
+    assert bad == []
+    (row,) = [ln for ln in rows if ln.startswith("| G115 |")]
+    assert "`section ODATA-URL 5.1.2`" in row
 
 
 # ---------------------------------------------------------------- AC-5
