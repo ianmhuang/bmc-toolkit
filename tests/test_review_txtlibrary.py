@@ -1,7 +1,9 @@
 """Reviewer acceptance tests for the text document type (catalog type
 ``txt``) on its way into the Library and at the commands that do not read
 it: catalog, fetch, add, scan, extract, status, the page-number refusals,
-Notes and refresh (AC-1 to AC-3, AC-9, AC-11, AC-12).
+Notes and refresh (AC-1 to AC-3, AC-9, AC-11, AC-12), then ``status`` going
+by the original's own reader and the wording of ``--lines`` on a PDF
+(AC-18).
 
 Black-box through ``bmc_toolkit.spec.cli.main`` with the scripted client of
 conftest, except the two Notes functions the Stop hook records through. The
@@ -142,10 +144,10 @@ def write_extract_meta(holding, meta):
     )
 
 
-def status_row(capsys, catalog):
+def status_row(capsys, catalog, document="RFC7777"):
     code, out = run(capsys, catalog, "status")
     assert code == 0, out
-    rows = [ln.split("\t") for ln in out.splitlines() if "\tRFC7777\t" in ln]
+    rows = [ln.split("\t") for ln in out.splitlines() if f"\t{document}\t" in ln]
     assert len(rows) == 1, out
     return rows[0]
 
@@ -419,7 +421,10 @@ def test_lines_on_a_pdf_is_still_refused(txt_catalog, library, scripted, capsys)
     assert code == 2, out
     text = out.strip()
     assert len(text.splitlines()) == 1, out
-    assert "--lines" in text and "DSP0236 1.3.3" in text
+    # AC-18: the sentence names both types that are read by lines
+    assert text.startswith(
+        "--lines reads a Markdown or text document; DSP0236 1.3.3 is a "
+    )
     assert scripted.calls == []
     assert originals(library) == []
 
@@ -517,3 +522,37 @@ def test_a_markdown_version_hides_no_line_and_is_still_cited_as_markdown(
     lines = out.splitlines()
     assert lines[0].split(" | ")[1:5] == ["MDX 1.0", "Title", "Markdown", "lines 1-3"]
     assert lines[1:] == ["1  # Title", "2", f"3  {MD_LINES[2]}"]
+
+
+# ------------------------------------------------------------------ AC-18
+
+
+def test_status_judges_md_and_txt_originals_by_their_own_reader(
+    mixed_catalog, library, scripted, capsys
+):
+    fetch_small(capsys, mixed_catalog, scripted)
+    scripted.responses[MD_URL] = ok(MD_BYTES, PLAIN)
+    code, out = run(capsys, mixed_catalog, "fetch", "MDX")
+    assert code == 0, out
+    text = library.find("RFC7777", VERSION)
+    markdown = library.find("MDX", "1.0")
+    assert text is not None and markdown is not None
+    assert status_row(capsys, mixed_catalog)[5] == "extracted"
+    assert status_row(capsys, mixed_catalog, "MDX")[5] == "extracted"
+    text_meta, markdown_meta = extract_meta(text), extract_meta(markdown)
+    assert (text_meta["kind"], markdown_meta["kind"]) == ("text", "markdown")
+    # Each extract.json is current for its own reader. Swapped, each lies
+    # beside an original of the other kind, and neither is current.
+    write_extract_meta(text, markdown_meta)
+    write_extract_meta(markdown, text_meta)
+    assert status_row(capsys, mixed_catalog)[5] == "stale"
+    assert status_row(capsys, mixed_catalog, "MDX")[5] == "stale"
+    # status agrees with Ready: a reading command extracts each again
+    code, out = run(capsys, mixed_catalog, "section", "RFC7777", "scope")
+    assert code == 0, out
+    assert said(out, f"extracted {LABEL}:")
+    code, out = run(capsys, mixed_catalog, "section", "MDX", "title")
+    assert code == 0, out
+    assert said(out, "extracted MDX 1.0:")
+    assert status_row(capsys, mixed_catalog)[5] == "extracted"
+    assert status_row(capsys, mixed_catalog, "MDX")[5] == "extracted"

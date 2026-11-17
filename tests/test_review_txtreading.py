@@ -2,7 +2,9 @@
 ``txt``): line numbering, page furniture, the Outline and its labels,
 ``section``, ``find``, ``page --lines``, ``page --section``, the ``cite:``
 line, a ``searched_with`` companion and a text without RFC layout (AC-4 to
-AC-8, AC-10).
+AC-8, AC-10), then the round-2 criteria: a numbered heading in the first
+block (AC-15), a footer ending the file and a form feed on the header line
+(AC-16), and an appendix found by its letter (AC-17).
 
 Black-box through the CLI, plus ``outline.json`` (the Library layout the
 docs describe). The document is synthetic, laid out as a paginated RFC; the
@@ -438,6 +440,22 @@ def test_the_first_block_is_not_an_unnumbered_heading(
         ),
         ("state machine", ["0 | Appendix A State Machine | lines 56-63"]),
         ("A.1", ["1 | A.1 Idle State | lines 60-63"]),
+        # AC-17: the letter lists the appendix heading, then its subsections
+        (
+            "A",
+            [
+                "0 | Appendix A State Machine | lines 56-63",
+                "1 | A.1 Idle State | lines 60-63",
+            ],
+        ),
+        (
+            "A.",
+            [
+                "0 | Appendix A State Machine | lines 56-63",
+                "1 | A.1 Idle State | lines 60-63",
+            ],
+        ),
+        ("B", ["no matching section"]),
         ("abstract", ["0 | Abstract | lines 8-11"]),
         # furniture, the author block, the title and ASCII art match nothing
         ("reviewer", ["no matching section"]),
@@ -588,4 +606,175 @@ def test_a_text_without_rfc_layout_is_read_by_its_lines(
         "4  another paragraph",
         "5  of plain text",
         "6    an indented remark",
+    ]
+
+
+# ------------------------------------------------------------------ AC-15
+
+
+@pytest.mark.parametrize(
+    "body, expected",
+    [
+        (
+            "1.  Introduction\n\n   Body.\n\n2.  Next\n\n   More.\n",
+            [(0, "1 Introduction", 1), (0, "2 Next", 5)],
+        ),
+        (
+            "Review notes\n1.1 Scope\nColumn-0 text of the scope.\n\n"
+            "2.  Rules\n\n   Rule text.\n",
+            [(1, "1.1 Scope", 2), (0, "2 Rules", 5)],
+        ),
+        (
+            "\n\n1.  Introduction\n\n   Body.\n",
+            [(0, "1 Introduction", 3)],
+        ),
+    ],
+    ids=["first-line", "inside-the-block", "after-blank-lines"],
+)
+def test_a_numbered_heading_in_the_first_block_is_in_the_outline(
+    txt_catalog, library, scripted, capsys, body, expected
+):
+    # the other column-0 lines of the first block are not numbered, so they
+    # stay out: only unnumbered headings wait for the block to end
+    vdir, _ = hold(capsys, txt_catalog, library, scripted, body)
+    assert outline_of(vdir) == expected
+
+
+def test_a_heading_on_the_first_line_owns_its_section(
+    txt_catalog, library, scripted, capsys
+):
+    body = "\n".join(
+        [
+            "1.  Introduction",  # 1
+            "",  # 2
+            "   Body of it.",  # 3
+            "",  # 4
+            "1.1.  Terms",  # 5
+            "",  # 6
+            "   A term.",  # 7
+            "",  # 8
+            "2.  Next",  # 9
+            "",  # 10
+            "   More.",  # 11
+            "",
+        ]
+    )
+    vdir, _ = hold(capsys, txt_catalog, library, scripted, body)
+    code, out = run(capsys, txt_catalog, "section", "RFC7777", "1")
+    assert code == 0, out
+    assert out.splitlines() == [
+        "0 | 1 Introduction | lines 1-8",
+        "1 | 1.1 Terms | lines 5-8",
+    ]
+    code, out = run(capsys, txt_catalog, "page", "RFC7777", "--lines", "3-3")
+    assert code == 0, out
+    assert out.splitlines() == [
+        cite(vdir, "1 Introduction", 3, 3),
+        "3     Body of it.",
+    ]
+
+
+# ------------------------------------------------------------------ AC-16
+
+
+@pytest.mark.parametrize(
+    "tail", [[], ["", ""]], ids=["footer-last-line", "blank-lines-after"]
+)
+def test_a_footer_ending_a_paginated_file_without_a_form_feed_is_furniture(
+    txt_catalog, library, scripted, capsys, tail
+):
+    # the synthetic RFC without its final form-feed line: the last page's
+    # footer (line 69) is the last non-blank line
+    body = "\n".join(RFC_LINES[:69] + tail) + "\n"
+    vdir, out = hold(capsys, txt_catalog, library, scripted, body)
+    assert said(out, f"extracted {LABEL}: {69 + len(tail)} lines")
+    assert outline_of(vdir) == OUTLINE  # the footer is not a heading
+    code, out = run(capsys, txt_catalog, "find", "RFC7777", "Informational")
+    assert code == 0, out
+    assert out.splitlines() == [f"RFC7777 l.3 | - | {RFC_LINES[2]}"]
+    code, out = run(capsys, txt_catalog, "find", "RFC7777", "[Page")
+    assert (code, out.strip()) == (0, "no hits")
+    # the footer and the two blank lines padding it are not printed
+    code, out = run(capsys, txt_catalog, "page", "RFC7777", "--lines", "64-69")
+    assert code == 0, out
+    assert out.splitlines() == [
+        cite(vdir, "Acknowledgements", 64, 69),
+        row(64),
+        row(65),
+        row(66),
+    ]
+
+
+def test_a_form_feed_on_the_header_line_is_a_page_break(
+    txt_catalog, library, scripted, capsys
+):
+    body = "\n".join(
+        [
+            AUTHOR,  # 1
+            "",  # 2
+            "1.  Scope",  # 3
+            "",  # 4
+            "   Text that runs to the end of the first page and",  # 5
+            "",  # 6: furniture from here ...
+            FOOTER.format(n=1),  # 7
+            "\f" + HEADER,  # 8
+            "",  # 9: ... to here
+            "   goes on after the page break.",  # 10
+            "",  # 11
+            "2.  Rules",  # 12
+            "",  # 13
+            "   Rule text.",  # 14
+            "",
+        ]
+    )
+    vdir, out = hold(capsys, txt_catalog, library, scripted, body)
+    assert said(out, f"extracted {LABEL}: 14 lines")
+    assert outline_of(vdir) == [(0, "1 Scope", 3), (0, "2 Rules", 12)]
+    for pattern in ("[Page", "RFC 7777"):
+        code, out = run(capsys, txt_catalog, "find", "RFC7777", pattern)
+        assert (code, out.strip()) == (0, "no hits"), pattern
+    code, out = run(capsys, txt_catalog, "page", "RFC7777", "--lines", "5-12")
+    assert code == 0, out
+    lines = out.splitlines()
+    assert lines[0] == cite(vdir, "1 Scope; 2 Rules", 5, 12)
+    assert printed_numbers(lines[1:]) == [5, 10, 11, 12]
+
+
+def test_a_trailing_footer_in_a_file_without_a_form_feed_stays_text(
+    txt_catalog, library, scripted, capsys
+):
+    body = "\n".join(
+        [
+            AUTHOR,  # 1
+            "",  # 2
+            "1.  Scope",  # 3
+            "",  # 4
+            "   Text of the scope.",  # 5
+            "",  # 6
+            FOOTER.format(n=1),  # 7
+            "",
+        ]
+    )
+    hold(capsys, txt_catalog, library, scripted, body)
+    code, out = run(capsys, txt_catalog, "find", "RFC7777", "[Page 1]")
+    assert code == 0, out
+    assert len(out.splitlines()) == 1
+    assert out.startswith("RFC7777 l.7 | ")
+    code, out = run(capsys, txt_catalog, "page", "RFC7777", "--lines", "5-7")
+    assert code == 0, out
+    assert printed_numbers(out.splitlines()[1:]) == [5, 6, 7]
+
+
+# ------------------------------------------------------------------ AC-17
+
+
+def test_page_section_by_appendix_letter_prints_the_whole_appendix(
+    held, txt_catalog, capsys
+):
+    # the first match of the letter is the appendix heading, not A.1
+    code, out = run(capsys, txt_catalog, "page", "RFC7777", "--section", "A")
+    assert code == 0, out
+    assert out.splitlines() == [
+        cite(held, "Appendix A State Machine", 56, 63),
+        *(row(n) for n in range(56, 64)),
     ]
