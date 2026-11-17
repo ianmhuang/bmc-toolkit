@@ -8,6 +8,7 @@ README counts and its length follow (AC-5). Shipped files only, no network:
 the suite's default client refuses every URL."""
 
 import re
+import shlex
 import tomllib
 from pathlib import Path
 
@@ -318,6 +319,46 @@ def test_ac4_the_row_cites_section_and_page_with_commands_on_the_document(
         assert "--version" not in words, words
     # the answer is read with a page or table command, not only located
     assert any(words[0] in ("page", "table") for words in commands), commands
+
+
+def _shell_rewrites(command: str) -> bool:
+    """True when bash or PowerShell would expand part of the command: a `$`
+    that starts a variable or a substitution anywhere but inside single
+    quotes (both shells expand it in a bare word and inside double quotes)."""
+    single = double = False
+    for at, ch in enumerate(command):
+        if ch == "'" and not double:
+            single = not single
+        elif ch == '"' and not single:
+            double = not double
+        elif ch == "$" and not single:
+            following = command[at + 1 : at + 2]
+            if following.isalnum() or following in ("_", "{", "("):
+                return True
+    return False
+
+
+@pytest.mark.parametrize("qid", QUESTIONS)
+def test_ac4_the_commands_reach_the_tool_as_they_are_written(qid):
+    """Round 1 F1: the Commands column is typed into bash or PowerShell, so
+    a command must not carry a `$name` either shell expands (G115's
+    `"$expand"` reached the tool as an empty query), and each one names a
+    document and a non-empty argument."""
+    text = GOLDEN.read_text(encoding="utf-8")
+    (cells,) = [c for c in _rows(text) if c[0] == qid]
+    # the check itself tells the round 1 command from its safe spellings
+    assert _shell_rewrites('section ODATA-URL "$expand"')
+    assert _shell_rewrites("find ODATA-URL $levels")
+    assert not _shell_rewrites("section ODATA-URL '$expand'")
+    assert not _shell_rewrites("section ODATA-URL 5.1.2")
+    backticked = re.findall(r"`([^`]+)`", cells[4])
+    commands = [c for c in backticked if c.split()[0] in VERBS]
+    assert commands, cells[4]
+    for command in commands:
+        assert not _shell_rewrites(command), command
+        words = shlex.split(command)
+        assert len(words) >= 3, words
+        assert all(word.strip() for word in words), words
 
 
 # ------------------------------------------------------------------ AC-5
