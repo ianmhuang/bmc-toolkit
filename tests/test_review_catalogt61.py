@@ -75,8 +75,10 @@ def test_ac1_the_five_follow_dsp0251_in_order(shipped):
     # T63 (2026-11-08) added DSP0285 and DSP0294 after the five
     assert ids[ids.index("DSP0251") + 1 :][:5] == list(BATCH)
     # and T72 (2026-11-09) DSP0220, DSP0244 and DSP0280 after those
-    assert ids[-10:-5] == list(BATCH)
-    assert ids[-5:] == ["DSP0285", "DSP0294", "DSP0220", "DSP0244", "DSP0280"]
+    assert ids[-14:-9] == list(BATCH)
+    assert ids[-9:-4] == ["DSP0285", "DSP0294", "DSP0220", "DSP0244", "DSP0280"]
+    # and T78 (2026-11-17) the four OData documents last
+    assert ids[-4:] == ["ODATA-PROTOCOL", "ODATA-URL", "ODATA-CSDL", "ODATA-JSON"]
     assert len(ids) == len({i.lower() for i in ids})
 
 
@@ -241,8 +243,9 @@ def test_ac5_the_group_follows_the_pdr_group_and_ids_stay_gap_free():
     ids = [cells[0] for cells in _rows(section)]
     assert ids == list(QUESTIONS.values())
     numbers = [int(cells[0][1:]) for cells in _rows(text)]
-    # T63 (2026-11-08) added G109 and G110, T72 (2026-11-09) G111-G113
-    assert sorted(numbers) == list(range(1, 114))
+    # T63 (2026-11-08) added G109 and G110, T72 (2026-11-09) G111-G113,
+    # T78 (2026-11-17) G114-G117
+    assert sorted(numbers) == list(range(1, 118))
     assert numbers[numbers.index(103) + 1 :][:5] == [104, 105, 106, 107, 108]
 
 
@@ -318,12 +321,12 @@ def test_ac7_counts_grew_by_exactly_the_five_open_entries(shipped):
     docs = shipped.documents
     open_docs = [d for d in docs if d.access == "open"]
     # T63 (2026-11-08) added two open documents, T72 (2026-11-09) three:
-    # 124 and 104
-    assert len(docs) == 124
-    assert len(open_docs) == 104
+    # 124 and 104; T78 (2026-11-17) four in a new family: 128 and 108
+    assert len(docs) == 128
+    assert len(open_docs) == 108
     assert len(docs) - len(open_docs) == 20
-    assert len({d.family for d in docs}) == 35
+    assert len({d.family for d in docs}) == 36
     # the README status line states the same numbers
     readme = " ".join(README.read_text(encoding="utf-8").split())
-    assert "lists 124 documents in 35 families" in readme
-    assert "The 104 open ones" in readme
+    assert "lists 128 documents in 36 families" in readme
+    assert "The 108 open ones" in readme

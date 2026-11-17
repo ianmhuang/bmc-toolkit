@@ -587,8 +587,9 @@ asks the publisher what it lists now and compares with the catalog:
 `current DOC V`, or `newer DOC: catalog latest V, <publisher> lists W
 (date) URL`. `check` alone does every document that has a listing (the
 DMTF published-documents page, the nvmexpress.org specifications API, the
-OCP project pages' specification tables; Intel, NXP, SMBus and OIF have no
-parseable index and are printed as `unchecked`), then, when `config.toml`
+OCP project pages' specification tables; publishers with no parseable
+index, such as Intel, NXP, SMBus, OIF, NIST and OASIS, are printed as
+`unchecked`), then, when `config.toml`
 pins a release, compares it with the newest `X.Y.Z` tag of
 `openbmc/openbmc` (`release: 2.18.0 (config.toml); newest openbmc tag
 3.0.0 -> newer`). Nothing is downloaded and no version is switched: a
