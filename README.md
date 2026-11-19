@@ -10,7 +10,7 @@ source code. It keeps a local library of the documents and repositories you
 asked about, defaults to the latest published version, serves any other on
 request, and cites document, version, section and page or line in every answer.
 
-**Status: 1.7.0.** The Source Catalog lists 145 documents in
+**Status: 1.8.0.** The Source Catalog lists 145 documents in
 37 families. The 125 open ones are downloaded by the tool and every one of
 them has been checked against the acceptance questions in
 `docs/golden-questions.md`; the 20 gated, member and NDA documents are
