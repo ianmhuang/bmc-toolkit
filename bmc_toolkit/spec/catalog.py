@@ -33,8 +33,19 @@ Schema (``schema_version = 1``)::
                                document's versions, "<source>:<key>" with
                                source dmtf (key: the DSP id; the default for
                                DMTF documents), nvme (key: the specification
-                               slug of the nvmexpress.org API) or ocp (key:
+                               slug of the nvmexpress.org API), ocp (key:
                                "<project page path>|<description prefix>")
+                               or rfc (key: the RFC number, no leading
+                               zero; the default for an RFCnnnn document
+                               of an IETF family)
+    obsoleted_by = ["RFC8446"] optional: the RFCs the RFC Editor lists as
+                               obsoleting this one that the catalog already
+                               knows, copied from rfc-editor.org's
+                               rfcNNNN.json; the RFC check reports only the
+                               others. RFC ids, here and as document ids
+                               of an IETF family, are RFC and digits in
+                               upper case with no leading zero (RFC793);
+                               rfc793, RFC 793 or RFC0793 is refused
 
     [[documents.versions]]     in publication order, same-day versions
                                ascending by version number (refresh --write
@@ -44,7 +55,9 @@ Schema (``schema_version = 1``)::
     version = "1.3.3"          the publisher's own string, verbatim
     url = "https://..."        may be "" when fetch = "manual" or the
                                version's access is not open
-    type = "pdf"               pdf | zip
+    type = "pdf"               pdf | zip | md (Markdown, read by line
+                               numbers; pin the url to a commit) | txt
+                               (IETF plain text, read by line numbers)
     published = "2024-03-25"   ISO date
     wip = false                optional, default false
     access = "gated"           optional: this version's tier when it differs
@@ -65,7 +78,9 @@ Schema (``schema_version = 1``)::
                                directory name under the Library's code/
     owner = "aspeed"           optional: the vendor that publishes a fork
                                (lowercase); the id then starts "<owner>-".
-                               Absent means upstream OpenBMC
+                               Absent means upstream OpenBMC or a library
+                               an OpenBMC recipe fetches by git commit
+                               (libspdm), which a Release pins
     ref = "NPCM-6.18-OpenBMC"  optional: the branch a clone without --ref or
                                --release fetches, instead of the remote's
                                default branch
@@ -73,8 +88,17 @@ Schema (``schema_version = 1``)::
                                https://; file:// for a local mirror (and tests)
     topics = ["redfish"]       what the repository is about, for `repos --topic`
     sparse = ["meta-phosphor"] optional: only these directories are checked
-                               out, or with globs ("/meta-*/**/*.bb") only the
+                               out, or with globs ("/**/*.bb") only the
                                matching files
+    release_tag = "v{version}" optional: for a component OpenBMC builds from
+                               a tarball (no SRCREV), the tag a Release's
+                               recipe version names: the version of the
+                               recipe <id>_<version>.bb (or its PV) goes
+                               into {version}. Not with owner
+    moved_from = ["https://github.com/ipmitool/ipmitool.git"]
+                               optional: earlier URLs of the repository; a
+                               recipe fetching one pins the entry, which is
+                               cloned from url. Not with owner
 """
 
 import datetime
@@ -85,14 +109,26 @@ from pathlib import Path
 
 ACCESS_TIERS = ("open", "gated", "member", "confidential")
 FETCH_METHODS = ("direct", "wayback", "manual")
-FILE_TYPES = ("pdf", "zip")
-LISTING_SOURCES = ("dmtf", "nvme", "ocp")
+FILE_TYPES = ("pdf", "zip", "md", "txt")
+LISTING_SOURCES = ("dmtf", "nvme", "ocp", "rfc")
 SCHEMA_VERSION = 1
 DEFAULT_CATALOG = Path(__file__).with_name("catalog.toml")
 
-_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-_DSP_RE = re.compile(r"^DSP\d+$", re.IGNORECASE)
-_OWNER_RE = re.compile(r"^[a-z][a-z0-9]*$")
+# These patterns are used with fullmatch: match with `$` lets "RFC1\n" pass.
+_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_DSP_RE = re.compile(r"DSP\d+", re.IGNORECASE)
+_RFC_RE = re.compile(r"RFC([1-9][0-9]*)")  # no leading zero, as listed
+# a zero before a non-zero number; RFC0 and RFC00 are no RFC at all
+_RFC_PADDED_RE = re.compile(r"RFC0+[1-9][0-9]*")
+# what reads as an RFC id in any case or spelling: rfc793, RFC 793, RFC-793
+_RFC_LIKE_RE = re.compile(r"RFC[\s_-]*[0-9]+", re.IGNORECASE)
+_RFC_NUMBER_RE = re.compile(r"[1-9][0-9]*")  # the key of an rfc: listing
+_NO_ZERO = "RFC ids take no leading zero (RFC793, not RFC0793)"
+_RFC_FORM = (
+    "not an RFC id: RFC ids are written RFC and digits, upper case, "
+    "without a leading zero (RFC793)"
+)
+_OWNER_RE = re.compile(r"[a-z][a-z0-9]*")
 
 
 class CatalogError(Exception):
@@ -156,6 +192,7 @@ class Document:
     limits: str = ""  # Known Limits of the document itself, "" when none
     unlisted: bool = False  # left out of the per-family Support Level table
     searched_with_from: str = ""  # first version searched_with holds for
+    obsoleted_by: tuple[str, ...] = ()  # obsoleting RFCs already recorded
 
     def companions_for(self, version: str) -> tuple[str, ...]:
         """The searched_with documents that go with ``version``: all of them
@@ -171,7 +208,7 @@ class Document:
 
     @property
     def listing_source(self) -> str:
-        """dmtf | nvme | ocp, or "" without a listing."""
+        """dmtf | nvme | ocp | rfc, or "" without a listing."""
         return self.listing.partition(":")[0]
 
     @property
@@ -202,8 +239,10 @@ class Repo:
     url: str
     topics: tuple[str, ...]
     sparse: tuple[str, ...] = ()
-    owner: str = ""  # the vendor of a fork; "" for upstream OpenBMC
+    owner: str = ""  # a fork's vendor; "" for what a Release pins (upstream, libspdm)
     ref: str = ""  # the branch a plain clone fetches; "" for the remote's default
+    release_tag: str = ""  # "v{version}": a tarball recipe's version as a tag
+    moved_from: tuple[str, ...] = ()  # earlier URLs a recipe may still fetch
 
 
 @dataclass
@@ -214,16 +253,25 @@ class Catalog:
     dmtf_not_taken: tuple[str, ...] = ()  # upper-cased DSP ids or prefixes
     _index: dict[str, Document] = field(default_factory=dict, repr=False)
     _repo_index: dict[str, Repo] = field(default_factory=dict, repr=False)
+    _family_index: dict[str, Family] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         self._index = {d.id.lower(): d for d in self.documents}
         self._repo_index = {r.id.lower(): r for r in self.repos}
+        self._family_index = {f.lower(): fam for f, fam in self.families.items()}
 
     def get(self, doc_id: str) -> Document | None:
         return self._index.get(doc_id.strip().lower())
 
+    def family(self, name: str) -> Family | None:
+        """The family whose id is NAME in any case (whitespace stripped)."""
+        return self._family_index.get(name.strip().lower())
+
     def by_family(self, family_id: str) -> list[Document]:
-        return [d for d in self.documents if d.family == family_id]
+        fam = self.family(family_id)
+        if fam is None:
+            return []
+        return [d for d in self.documents if d.family == fam.id]
 
     @property
     def owners(self) -> set[str]:
@@ -284,7 +332,7 @@ def _parse_version(raw: dict, where: str, default_access: str) -> Version:
         raise CatalogError(f"{where}.type: '{ftype}' not one of {FILE_TYPES}")
     published = _expect(raw, "published", str, where)
     try:
-        if not _DATE_RE.match(published):
+        if not _DATE_RE.fullmatch(published):
             raise ValueError
         datetime.date.fromisoformat(published)
     except ValueError:
@@ -305,6 +353,11 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
     family = _expect(raw, "family", str, where)
     if family not in families:
         raise CatalogError(f"{where}.family: unknown family '{family}'")
+    if families[family].publisher == "IETF":
+        if _RFC_PADDED_RE.fullmatch(doc_id):
+            raise CatalogError(f"{where}.id: '{doc_id}': {_NO_ZERO}")
+        if _RFC_LIKE_RE.fullmatch(doc_id) and not _RFC_RE.fullmatch(doc_id):
+            raise CatalogError(f"{where}.id: '{doc_id}' is {_RFC_FORM}")
     title = _expect(raw, "title", str, where)
     access = _expect(raw, "access", str, where)
     if access not in ACCESS_TIERS:
@@ -363,8 +416,25 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
                 f"{where}.listing: '{listing}' is not '<source>:<key>' with "
                 f"source one of {LISTING_SOURCES}"
             )
-    elif families[family].publisher == "DMTF" and _DSP_RE.match(doc_id):
+        if source == "rfc" and not _RFC_NUMBER_RE.fullmatch(key):
+            raise CatalogError(
+                f"{where}.listing: '{listing}': the key of an rfc listing is "
+                f"the RFC number without a leading zero (rfc:793)"
+            )
+    elif families[family].publisher == "DMTF" and _DSP_RE.fullmatch(doc_id):
         listing = f"dmtf:{doc_id.upper()}"
+    elif families[family].publisher == "IETF" and _RFC_RE.fullmatch(doc_id):
+        listing = f"rfc:{_RFC_RE.fullmatch(doc_id).group(1)}"
+    raw_obs = _expect(raw, "obsoleted_by", list, where, default=[], required=False)
+    for k, item in enumerate(raw_obs):
+        if isinstance(item, str) and _RFC_PADDED_RE.fullmatch(item):
+            raise CatalogError(f"{where}.obsoleted_by[{k}]: '{item}': {_NO_ZERO}")
+        if not isinstance(item, str) or not _RFC_RE.fullmatch(item):
+            raise CatalogError(
+                f"{where}.obsoleted_by[{k}]: expected an RFC id such as RFC8446"
+            )
+    if len(set(raw_obs)) != len(raw_obs):
+        raise CatalogError(f"{where}.obsoleted_by: an RFC is listed twice")
     return Document(
         doc_id,
         family,
@@ -378,6 +448,7 @@ def _parse_document(raw: dict, families: dict[str, Family], where: str) -> Docum
         limits,
         unlisted,
         with_from,
+        tuple(raw_obs),
     )
 
 
@@ -399,7 +470,7 @@ def _parse_repo(raw: dict, where: str) -> Repo:
     if not all(isinstance(s, str) and s.strip() for s in sparse):
         raise CatalogError(f"{where}.sparse: expected non-empty path strings")
     owner = _expect(raw, "owner", str, where, default="", required=False)
-    if "owner" in raw and not _OWNER_RE.match(owner):
+    if "owner" in raw and not _OWNER_RE.fullmatch(owner):
         raise CatalogError(f"{where}.owner: '{owner}' is not a lowercase name")
     if owner and not (
         repo_id.startswith(f"{owner}-") and len(repo_id) > len(owner) + 1
@@ -408,6 +479,32 @@ def _parse_repo(raw: dict, where: str) -> Repo:
     ref = _expect(raw, "ref", str, where, default="", required=False).strip()
     if "ref" in raw and not ref:
         raise CatalogError(f"{where}.ref: must name a branch or tag")
+    release_tag = _expect(raw, "release_tag", str, where, default="", required=False)
+    release_tag = release_tag.strip()
+    rest = release_tag.replace("{version}", "", 1)
+    if "release_tag" in raw and (
+        "{version}" not in release_tag
+        or "{" in rest
+        or "}" in rest
+        or any(c.isspace() for c in release_tag)
+    ):
+        raise CatalogError(
+            f"{where}.release_tag: '{release_tag}' must hold {{version}} once "
+            "and nothing else in braces"
+        )
+    moved = _expect(raw, "moved_from", list, where, default=[], required=False)
+    for old in moved:
+        if not isinstance(old, str) or not (
+            old.strip().startswith("https://") or old.strip().startswith("file://")
+        ):
+            raise CatalogError(
+                f"{where}.moved_from: '{old}' must start with https:// (or file://)"
+            )
+    if owner and (release_tag or moved):
+        raise CatalogError(
+            f"{where}: release_tag and moved_from are for what a Release pins; "
+            "a vendor tree (owner) has no Release"
+        )
     return Repo(
         repo_id,
         url,
@@ -415,6 +512,8 @@ def _parse_repo(raw: dict, where: str) -> Repo:
         tuple(s.strip() for s in sparse),
         owner,
         ref,
+        release_tag,
+        tuple(old.strip() for old in moved),
     )
 
 
@@ -431,10 +530,21 @@ def parse_catalog(data: dict) -> Catalog:
     if not raw_families:
         raise CatalogError("catalog.families: must define at least one family")
     families: dict[str, Family] = {}
+    family_ids: dict[str, str] = {}  # lower-cased id -> the id as written
     for fid, raw in raw_families.items():
         where = f"families.{fid}"
         if not isinstance(raw, dict):
             raise CatalogError(f"{where}: expected a table")
+        if not fid or fid != fid.strip():
+            raise CatalogError(
+                f"{where}: id '{fid}' is empty or has surrounding whitespace"
+            )
+        twin = family_ids.get(fid.lower())
+        if twin is not None:
+            raise CatalogError(
+                f"{where}: duplicate id '{fid}' (differs from '{twin}' only in case)"
+            )
+        family_ids[fid.lower()] = fid
         families[fid] = Family(
             fid,
             _expect(raw, "title", str, where),

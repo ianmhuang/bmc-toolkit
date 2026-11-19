@@ -52,6 +52,14 @@ publisher = "DMTF"
 title = "Redfish"
 publisher = "DMTF"
 
+[families.odata]
+title = "Open Data Protocol (OData 4.0)"
+publisher = "OASIS"
+
+[families.ietf]
+title = "IETF Requests for Comments"
+publisher = "IETF"
+
 [families.nvme]
 title = "NVM Express"
 publisher = "NVM Express, Inc."
@@ -3692,7 +3700,8 @@ published = "2026-09-14"
 notes = "Informational"
 
 # ---------------------------------------------------------------- OCP Security and NIC
-# OCP Security and OCP NIC: current version only; as of 2026-09-04 the OCP
+# OCP Security and OCP NIC: current version only (CALIPTRA also holds the
+# 2.1 draft, see its version); as of 2026-09-04 the OCP
 # wiki pages for these groups had no specification table the ocp listing
 # source could read, so `check` reports them as unchecked. The project pages
 # that replaced the wiki have not been checked for one. URLs confirmed
@@ -3704,13 +3713,23 @@ family = "ocp-security"
 title = "Caliptra: A Datacenter System on a Chip (SoC) Root of Trust (RoT) Modular Base Specification"
 access = "open"
 fetch = "direct"
-notes = "The OCP-published PDF of the Caliptra specification; the living text is Markdown in the chipsalliance/Caliptra repository."
+notes = "2.0 is the OCP-published PDF; 2.1 is the draft Markdown in the chipsalliance/Caliptra repository, read with --version 2.1."
 
 [[documents.versions]]
 version = "2.0"
 url = "https://www.opencompute.org/documents/caliptra-2-0-pdf"
 type = "pdf"
 published = "2025-07-31"
+
+# The draft from chipsalliance/Caliptra, pinned to a commit: e81808a was the
+# newest commit touching doc/Caliptra.md on 2026-11-16 (URL confirmed then).
+[[documents.versions]]
+version = "2.1"
+url = "https://raw.githubusercontent.com/chipsalliance/Caliptra/e81808ad1983e7582fd587c9ddae4b40331682c4/doc/Caliptra.md"
+type = "md"
+published = "2026-09-17"
+wip = true
+notes = "doc/Caliptra.md of chipsalliance/Caliptra at commit e81808a."
 
 [[documents]]
 id = "OCP-ATTEST"
@@ -4213,15 +4232,6 @@ access = "confidential"
 fetch = "manual"
 notes = "Nuvoton NDA."
 unlisted = true
-
-# ------------------------------------------------------------------ repos
-#
-# Code repositories the Skill can bring into the Library as Code Trees:
-# upstream OpenBMC here, the SoC vendors' forks under "vendor repos" at the
-# end (they carry an owner). "topics" are keywords for `repos --topic`;
-# "sparse" limits the checkout to the listed directories, or, with glob
-# patterns, to the matching files (openbmc/openbmc is held only for the
-# recipe files of every layer, which pin every component in a release).
 
 # ---------------------------------------------------------------- Redfish bundles
 # DSP8011 (message registries) and DSP8013 (profile schema) belong to the
@@ -4792,12 +4802,370 @@ url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0280_1.1.
 type = "pdf"
 published = "2026-07-02"
 
+# ---------------------------------------------------------------- OData
+# OASIS OData 4.0, the four documents DSP0266 cites (Part 1 and Part 3 as
+# normative references, Part 2 and JSON Format in its bibliography). Two
+# versions each: the OASIS Standard of 2014-02-24 and the "Plus Errata 03"
+# edition of 2016-06-02, which folds in Errata 01 and 02. OData 4.01 is
+# left out on purpose: Redfish has not moved to it, and dates decide the
+# latest version, so listing it would make 4.01 the default answer. No
+# listing source watches docs.oasis-open.org; 4.0 has not changed since
+# 2016. Dates from each PDF's cover. URLs confirmed 2026-11-17.
+
+[[documents]]
+id = "ODATA-PROTOCOL"
+family = "odata"
+title = "OData Version 4.0 Part 1: Protocol"
+access = "open"
+fetch = "direct"
+notes = "Requests, responses, headers (OData-Version, Prefer), the service and metadata documents, batch. Redfish (DSP0266) cites OData 4.0; 4.01 is not listed, so the latest version is OData 4.0 with its approved errata (Errata 03), not a later OData version."
+limits = "The 4.0 Errata 03 edition's contents list stops at the third heading level, so deeper sections (such as 8.2.8.1) are not outline entries and section does not list them; find reaches them under their enclosing section, and the 4.0 edition lists them."
+
+[[documents.versions]]
+version = "4.0"
+url = "https://docs.oasis-open.org/odata/odata/v4.0/os/part1-protocol/odata-v4.0-os-part1-protocol.pdf"
+type = "pdf"
+published = "2014-02-24"
+
+[[documents.versions]]
+version = "4.0 Errata 03"
+url = "https://docs.oasis-open.org/odata/odata/v4.0/errata03/os/complete/part1-protocol/odata-v4.0-errata03-os-part1-protocol-complete.pdf"
+type = "pdf"
+published = "2016-06-02"
+notes = "OASIS Standard incorporating Approved Errata 03 (and 01, 02)."
+
+[[documents]]
+id = "ODATA-URL"
+family = "odata"
+title = "OData Version 4.0 Part 2: URL Conventions"
+access = "open"
+fetch = "direct"
+notes = "Resource paths and the system query options ($expand, $select, $filter, $top, $skip, $orderby). Redfish (DSP0266) cites OData 4.0; 4.01 is not listed, so the latest version is OData 4.0 with its approved errata (Errata 03), not a later OData version."
+limits = "The 4.0 Errata 03 edition's contents list stops at the third heading level, so deeper sections (such as 5.1.1.1) are not outline entries and section does not list them; find reaches them under their enclosing section, and the 4.0 edition lists them."
+
+[[documents.versions]]
+version = "4.0"
+url = "https://docs.oasis-open.org/odata/odata/v4.0/os/part2-url-conventions/odata-v4.0-os-part2-url-conventions.pdf"
+type = "pdf"
+published = "2014-02-24"
+
+[[documents.versions]]
+version = "4.0 Errata 03"
+url = "https://docs.oasis-open.org/odata/odata/v4.0/errata03/os/complete/part2-url-conventions/odata-v4.0-errata03-os-part2-url-conventions-complete.pdf"
+type = "pdf"
+published = "2016-06-02"
+notes = "OASIS Standard incorporating Approved Errata 03 (and 01, 02)."
+
+[[documents]]
+id = "ODATA-CSDL"
+family = "odata"
+title = "OData Version 4.0 Part 3: Common Schema Definition Language (CSDL)"
+access = "open"
+fetch = "direct"
+notes = "The XML schema language of Redfish's CSDL files: EntityType, Property, NavigationProperty, Action, Annotation. Redfish (DSP0266) cites OData 4.0; 4.01 is not listed, so the latest version is OData 4.0 with its approved errata (Errata 03), not a later OData version."
+limits = "The 4.0 Errata 03 edition's contents list stops at the third heading level, so deeper sections (such as 12.1.1.1) are not outline entries and section does not list them; find reaches them under their enclosing section, and the 4.0 edition lists them."
+
+[[documents.versions]]
+version = "4.0"
+url = "https://docs.oasis-open.org/odata/odata/v4.0/os/part3-csdl/odata-v4.0-os-part3-csdl.pdf"
+type = "pdf"
+published = "2014-02-24"
+
+[[documents.versions]]
+version = "4.0 Errata 03"
+url = "https://docs.oasis-open.org/odata/odata/v4.0/errata03/os/complete/part3-csdl/odata-v4.0-errata03-os-part3-csdl-complete.pdf"
+type = "pdf"
+published = "2016-06-02"
+notes = "OASIS Standard incorporating Approved Errata 03 (and 01, 02)."
+
+[[documents]]
+id = "ODATA-JSON"
+family = "odata"
+title = "OData JSON Format Version 4.0"
+access = "open"
+fetch = "direct"
+notes = "The JSON payloads: odata.metadata levels and the @odata control information (context, id, type, etag, nextLink). Redfish (DSP0266) cites OData 4.0; 4.01 is not listed, so the latest version is OData 4.0 with its approved errata (Errata 03), not a later OData version."
+
+[[documents.versions]]
+version = "4.0"
+url = "https://docs.oasis-open.org/odata/odata-json-format/v4.0/os/odata-json-format-v4.0-os.pdf"
+type = "pdf"
+published = "2014-02-24"
+
+[[documents.versions]]
+version = "4.0 Errata 03"
+url = "https://docs.oasis-open.org/odata/odata-json-format/v4.0/errata03/os/odata-json-format-v4.0-errata03-os-complete.pdf"
+type = "pdf"
+published = "2016-06-02"
+notes = "OASIS Standard incorporating Approved Errata 03 (and 01, 02)."
+
+# ---------------------------------------------------------------- IETF RFCs
+# One document per RFC, id RFCnnnn, read as the plain text rfc-editor.org
+# publishes (type txt, cited by section and lines; ADR 0010). The version
+# is the month and year the RFC prints; published is the first day of that
+# month, since an RFC gives no day. An obsoleted RFC is listed only while
+# it alone defines a version still deployed (RFC 5246, TLS 1.2). Errata
+# and updating RFCs are not merged into a document. Titles and months from
+# rfc-editor.org's rfcNNNN.json; URLs confirmed 2026-11-17.
+
+[[documents]]
+id = "RFC9846"
+family = "ietf"
+title = "The Transport Layer Security (TLS) Protocol Version 1.3"
+access = "open"
+fetch = "direct"
+notes = "TLS 1.3, which obsoletes RFC 8446 and RFC 5246: the handshake, the record layer, alerts and cipher suites; the transport security of the BMC's HTTPS and Redfish service."
+
+[[documents.versions]]
+version = "July 2026"
+url = "https://www.rfc-editor.org/rfc/rfc9846.txt"
+type = "txt"
+published = "2026-07-01"
+
+[[documents]]
+id = "RFC5246"
+family = "ietf"
+title = "The Transport Layer Security (TLS) Protocol Version 1.2"
+access = "open"
+fetch = "direct"
+obsoleted_by = ["RFC8446", "RFC9846"]  # rfc5246.json, 2026-11-17
+notes = "TLS 1.2. Obsoleted by RFC 8446 and RFC 9846; kept because TLS 1.2 is still deployed on BMCs and their clients, and no later RFC defines it."
+
+[[documents.versions]]
+version = "August 2008"
+url = "https://www.rfc-editor.org/rfc/rfc5246.txt"
+type = "txt"
+published = "2008-08-01"
+
+[[documents]]
+id = "RFC9110"
+family = "ietf"
+title = "HTTP Semantics"
+access = "open"
+fetch = "direct"
+notes = "HTTP semantics: methods, status codes and header fields (Content-Type, ETag, If-Match, Authorization, WWW-Authenticate). Redfish runs on it."
+
+[[documents.versions]]
+version = "June 2022"
+url = "https://www.rfc-editor.org/rfc/rfc9110.txt"
+type = "txt"
+published = "2022-06-01"
+
+[[documents]]
+id = "RFC9112"
+family = "ietf"
+title = "HTTP/1.1"
+access = "open"
+fetch = "direct"
+notes = "HTTP/1.1 message syntax: request and status lines, header field syntax, chunked transfer coding, connection management."
+
+[[documents.versions]]
+version = "June 2022"
+url = "https://www.rfc-editor.org/rfc/rfc9112.txt"
+type = "txt"
+published = "2022-06-01"
+
+[[documents]]
+id = "RFC7617"
+family = "ietf"
+title = "The 'Basic' HTTP Authentication Scheme"
+access = "open"
+fetch = "direct"
+notes = "The Basic HTTP authentication scheme, which Redfish services accept."
+
+[[documents.versions]]
+version = "September 2015"
+url = "https://www.rfc-editor.org/rfc/rfc7617.txt"
+type = "txt"
+published = "2015-09-01"
+
+[[documents]]
+id = "RFC4251"
+family = "ietf"
+title = "The Secure Shell (SSH) Protocol Architecture"
+access = "open"
+fetch = "direct"
+notes = "SSH architecture: host keys, and the data types (string, mpint, name-list) the other SSH documents use."
+
+[[documents.versions]]
+version = "January 2006"
+url = "https://www.rfc-editor.org/rfc/rfc4251.txt"
+type = "txt"
+published = "2006-01-01"
+
+[[documents]]
+id = "RFC4252"
+family = "ietf"
+title = "The Secure Shell (SSH) Authentication Protocol"
+access = "open"
+fetch = "direct"
+notes = "SSH user authentication: the publickey, password and hostbased methods and the userauth messages."
+
+[[documents.versions]]
+version = "January 2006"
+url = "https://www.rfc-editor.org/rfc/rfc4252.txt"
+type = "txt"
+published = "2006-01-01"
+
+[[documents]]
+id = "RFC4253"
+family = "ietf"
+title = "The Secure Shell (SSH) Transport Layer Protocol"
+access = "open"
+fetch = "direct"
+notes = "SSH transport layer: version exchange, binary packet protocol, key exchange and algorithm negotiation."
+
+[[documents.versions]]
+version = "January 2006"
+url = "https://www.rfc-editor.org/rfc/rfc4253.txt"
+type = "txt"
+published = "2006-01-01"
+
+[[documents]]
+id = "RFC4254"
+family = "ietf"
+title = "The Secure Shell (SSH) Connection Protocol"
+access = "open"
+fetch = "direct"
+notes = "SSH connection protocol: channels, interactive sessions, pseudo-terminals and port forwarding (the BMC's SSH console)."
+
+[[documents.versions]]
+version = "January 2006"
+url = "https://www.rfc-editor.org/rfc/rfc4254.txt"
+type = "txt"
+published = "2006-01-01"
+
+[[documents]]
+id = "RFC3414"
+family = "ietf"
+title = "User-based Security Model (USM) for version 3 of the Simple Network Management Protocol (SNMPv3)"
+access = "open"
+fetch = "direct"
+notes = "SNMPv3 User-based Security Model: authentication and privacy protocols, key localisation, the USM MIB (SNMP alerting from a BMC)."
+limits = "Section 12.1 is numbered twice in the RFC (Normative References and Informative References); section RFC3414 12.1 lists both."
+
+[[documents.versions]]
+version = "December 2002"
+url = "https://www.rfc-editor.org/rfc/rfc3414.txt"
+type = "txt"
+published = "2002-12-01"
+
+[[documents]]
+id = "RFC3416"
+family = "ietf"
+title = "Version 2 of the Protocol Operations for the Simple Network Management Protocol (SNMP)"
+access = "open"
+fetch = "direct"
+notes = "SNMP protocol operations: the PDU types (GetRequest, Response, SNMPv2-Trap, InformRequest) and error-status values."
+
+[[documents.versions]]
+version = "December 2002"
+url = "https://www.rfc-editor.org/rfc/rfc3416.txt"
+type = "txt"
+published = "2002-12-01"
+
+[[documents]]
+id = "RFC5424"
+family = "ietf"
+title = "The Syslog Protocol"
+access = "open"
+fetch = "direct"
+notes = "The syslog message format: PRI (facility and severity), header fields, structured data (a BMC's remote syslog)."
+
+[[documents.versions]]
+version = "March 2009"
+url = "https://www.rfc-editor.org/rfc/rfc5424.txt"
+type = "txt"
+published = "2009-03-01"
+
+[[documents]]
+id = "RFC5905"
+family = "ietf"
+title = "Network Time Protocol Version 4: Protocol and Algorithms Specification"
+access = "open"
+fetch = "direct"
+notes = "NTPv4: packet format, on-wire protocol, clock filter and selection algorithms (BMC time synchronisation)."
+
+[[documents.versions]]
+version = "June 2010"
+url = "https://www.rfc-editor.org/rfc/rfc5905.txt"
+type = "txt"
+published = "2010-06-01"
+
+[[documents]]
+id = "RFC2131"
+family = "ietf"
+title = "Dynamic Host Configuration Protocol"
+access = "open"
+fetch = "direct"
+notes = "DHCP for IPv4: message format, client states, lease allocation and renewal (BMC network configuration). The options are in RFC 2132, not listed."
+
+[[documents.versions]]
+version = "March 1997"
+url = "https://www.rfc-editor.org/rfc/rfc2131.txt"
+type = "txt"
+published = "1997-03-01"
+
+[[documents]]
+id = "RFC9915"
+family = "ietf"
+title = "Dynamic Host Configuration Protocol for IPv6 (DHCPv6)"
+access = "open"
+fetch = "direct"
+notes = "DHCPv6, which obsoletes RFC 8415: message types, client and server behaviour, DUIDs and options."
+
+[[documents.versions]]
+version = "January 2026"
+url = "https://www.rfc-editor.org/rfc/rfc9915.txt"
+type = "txt"
+published = "2026-01-01"
+
+[[documents]]
+id = "RFC6455"
+family = "ietf"
+title = "The WebSocket Protocol"
+access = "open"
+fetch = "direct"
+notes = "The WebSocket protocol: opening handshake, framing and close codes (bmcweb's KVM, serial console and event streams)."
+
+[[documents.versions]]
+version = "December 2011"
+url = "https://www.rfc-editor.org/rfc/rfc6455.txt"
+type = "txt"
+published = "2011-12-01"
+
+[[documents]]
+id = "RFC6143"
+family = "ietf"
+title = "The Remote Framebuffer Protocol"
+access = "open"
+fetch = "direct"
+notes = "The Remote Framebuffer (RFB) protocol, the VNC protocol a BMC's KVM speaks over a WebSocket."
+
+[[documents.versions]]
+version = "March 2011"
+url = "https://www.rfc-editor.org/rfc/rfc6143.txt"
+type = "txt"
+published = "2011-03-01"
+
+# ------------------------------------------------------------------ repos
+#
+# Code repositories the Skill can bring into the Library as Code Trees:
+# upstream OpenBMC here, the libraries OpenBMC recipes fetch from other
+# projects under "external libraries", the SoC vendors' forks under "vendor
+# repos" at the end (they carry an owner). "topics" are keywords for
+# `repos --topic`; "sparse" limits the checkout to the listed directories,
+# or, with glob patterns, to the matching files (openbmc/openbmc is held
+# only for the recipe files of every layer, which pin every component in a
+# release); "release_tag" and "moved_from" are described in catalog.py.
+
 [[repos]]
 id = "openbmc"
 url = "https://github.com/openbmc/openbmc.git"
 topics = ["release", "yocto", "recipes", "distro"]
-sparse = ["/meta-*/**/*.bb", "/meta-*/**/*.inc"]
-# The OpenBMC distribution: Yocto layers and the recipes that pin every component (releases live here)
+sparse = ["/**/*.bb", "/**/*.inc"]
+# The OpenBMC distribution: Yocto layers and the recipes that pin every component (releases live here).
+# Every layer's recipes: top-level meta-*, upstream-layers/ (master since 2026-03) and poky/ (2.18.0 and before)
 
 [[repos]]
 id = "linux"
@@ -5342,6 +5710,86 @@ topics = ["openpower", "dump", "debug"]
 id = "openpower-host-ipmi-flash"
 url = "https://github.com/openbmc/openpower-host-ipmi-flash.git"
 topics = ["openpower", "ipmi", "firmware-update"]
+
+# --------------------------------------------------------- external libraries
+#
+# Libraries outside the openbmc organisation that OpenBMC recipes fetch by
+# git commit (a SRCREV in meta-openembedded), so a Release pins them like
+# an upstream component: no owner. A plain clone takes the project's own
+# default branch. Git submodules are not fetched (spdm-emu's libspdm is
+# the libspdm entry).
+
+[[repos]]
+id = "libspdm"
+url = "https://github.com/DMTF/libspdm.git"
+topics = ["spdm", "attestation", "security", "dmtf"]
+sparse = ["include", "library", "os_stub", "doc"]
+# DMTF's reference implementation of SPDM (requester and responder)
+# Without unit_test/ (35 MB of test vectors on main in 2026-11, 60 MB in all)
+
+[[repos]]
+id = "spdm-emu"
+url = "https://github.com/DMTF/spdm-emu.git"
+topics = ["spdm", "emulator", "attestation", "dmtf"]
+# DMTF's SPDM requester and responder emulators built on libspdm
+
+[[repos]]
+id = "mctp"
+url = "https://github.com/CodeConstruct/mctp.git"
+topics = ["mctp", "mctpd", "af_mctp"]
+# Linux kernel MCTP userspace: the mctp tool and the mctpd control daemon
+
+[[repos]]
+id = "nvme-cli"
+url = "https://github.com/linux-nvme/nvme-cli.git"
+topics = ["nvme", "nvme-mi", "cli"]
+# The nvme command line tool, NVMe-MI over MCTP included
+
+[[repos]]
+id = "libnvme"
+url = "https://github.com/linux-nvme/libnvme.git"
+topics = ["nvme", "nvme-mi"]
+# The NVMe and NVMe-MI library under nvme-cli
+
+[[repos]]
+id = "ipmitool"
+url = "https://codeberg.org/IPMITool/ipmitool.git"
+topics = ["ipmi", "cli"]
+moved_from = ["https://github.com/ipmitool/ipmitool.git"]
+# The ipmitool command line utility
+# Fetched from GitHub (archived) up to openbmc 2.14.0; Codeberg serves those commits
+
+# Built from a release tarball (no SRCREV): the recipe's version names the
+# tag that is checked out ("release_tag"). The tree is the tag's source, not
+# the tarball (which may carry generated files).
+
+[[repos]]
+id = "i2c-tools"
+url = "https://git.kernel.org/pub/scm/utils/i2c-tools/i2c-tools.git"
+topics = ["i2c", "smbus", "cli"]
+release_tag = "v{version}"
+# i2cdetect, i2cget, i2cset, i2ctransfer and the i2c-dev helper library
+
+[[repos]]
+id = "ethtool"
+url = "https://git.kernel.org/pub/scm/network/ethtool/ethtool.git"
+topics = ["ethtool", "network", "cli"]
+release_tag = "v{version}"
+# The ethtool command line utility (netlink and ioctl interfaces)
+
+[[repos]]
+id = "tpm2-tss"
+url = "https://github.com/tpm2-software/tpm2-tss.git"
+topics = ["tpm", "tpm2", "tcg", "attestation"]
+release_tag = "{version}"
+# The TCG TPM2 Software Stack (ESAPI, FAPI, TCTI)
+
+[[repos]]
+id = "tpm2-tools"
+url = "https://github.com/tpm2-software/tpm2-tools.git"
+topics = ["tpm", "tpm2", "cli"]
+release_tag = "{version}"
+# The tpm2_* command line tools on tpm2-tss
 
 # ------------------------------------------------------------ vendor repos
 #

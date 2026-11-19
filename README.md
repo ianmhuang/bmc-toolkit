@@ -3,15 +3,15 @@
 Claude Code plugin for BMC firmware developers.
 
 The first skill, `bmc-spec`, answers questions about BMC specifications (IPMI,
-DMTF MCTP / PLDM / SPDM / NC-SI / SMBIOS, Redfish, NVMe, OCP DC-SCM and DC-MHS,
-I2C, SMBus, PMBus, eSPI, LPC, SFF, CMIS, TCG, UEFI, ACPI, Arm server standards,
-NIST firmware resiliency and more) and about OpenBMC source code. It keeps a
-local library of the documents and repositories you have asked about, defaults
-to the latest published version of each document, serves any specific version
-on request, and cites document, version, section and page in every answer.
+DMTF MCTP / PLDM / SPDM / NC-SI / SMBIOS, Redfish, OData, NVMe, OCP DC-SCM and
+DC-MHS, I2C, SMBus, PMBus, eSPI, LPC, SFF, CMIS, TCG, UEFI, ACPI, Arm server
+standards, NIST firmware resiliency, IETF RFCs and more) and about OpenBMC
+source code. It keeps a local library of the documents and repositories you
+asked about, defaults to the latest published version, serves any other on
+request, and cites document, version, section and page or line in every answer.
 
-**Status: 1.7.0.** The Source Catalog lists 124 documents in
-35 families. The 104 open ones are downloaded by the tool and every one of
+**Status: 1.8.0.** The Source Catalog lists 145 documents in
+37 families. The 125 open ones are downloaded by the tool and every one of
 them has been checked against the acceptance questions in
 `docs/golden-questions.md`; the 20 gated, member and NDA documents are
 listed with their tier and registered from your own copy. Which documents,
@@ -25,7 +25,7 @@ flowchart LR
     S["«component»<br/><b>Claude Code session</b><br/>bmc-spec Skill · Stop hook"]:::read
     T["«component»<br/><b>bmcspec.py</b><br/>catalog · fetch · extract · search · tables"]:::read
     N["«add-on, default off»<br/><b>Notes</b><br/>remembers cited answers"]:::mem
-    W["«external»<br/><b>Publishers · Internet Archive · GitHub</b>"]:::disk
+    W["«external»<br/><b>Publishers · Internet Archive · git hosts</b>"]:::disk
     subgraph L["Library  ~/.bmc-specs"]
         direction TB
         D[("specs/ · code/<br/>originals · Extracts · Code Trees")]:::disk
@@ -103,7 +103,7 @@ sequenceDiagram
     CLI-->>Claude: note: newer DSP0236 ... (or nothing)
     Claude-->>User: answer, Citation copied from cite:
     Claude->>CLI: Stop hook, every turn: notes record (writes notes.jsonl only when Notes is on)
-    Note over Claude,Lib: OpenBMC questions have the same shape:<br/>repos, clone (GitHub), grep, code, cite:
+    Note over Claude,Lib: OpenBMC questions have the same shape:<br/>repos, clone (git hosts), grep, code, cite:
 ```
 
 Solid arrows are commands and Library access, dashed arrows what comes back.
@@ -111,7 +111,8 @@ A reading command brings the version it needs to Ready (held and extracted)
 by itself: the catalog's latest, or the one `--version` names. The publisher
 is contacted only when the Library lacks the version, and once per document
 per 30 days to ask whether it lists a newer one (reported, never downloaded).
-The skill copies its Citation from the `cite:` line of every printed page.
+The skill copies its Citation from the `cite:` line of every printed page (a
+Markdown or plain-text document is cited by its file's line numbers).
 What each command does: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 A named Command gets an Invocation: IPMI as `ipmitool raw`; MCTP control, PLDM
@@ -150,22 +151,21 @@ bmcspec grep bmcweb CurrentPowerState --context 2
 bmcspec code bmcweb redfish-core/lib/chassis.hpp --lines 160-175
 ```
 
-Exit codes, `--wait` (several conversations can share one Library), flags,
-output formats and `config.toml`: [docs/COMMANDS.md](docs/COMMANDS.md).
+Exit codes, `--wait` (several conversations can share one Library), flags, output formats and `config.toml`: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## What the tool does on the network and on disk
 
 - Downloads only URLs listed in the Source Catalog, the publisher's first
   and then the Internet Archive's snapshot of it; a manual document is
-  never requested, and a response that is not the expected PDF or ZIP is
-  discarded. A reading command downloads the version it answers from when
-  the Library lacks it (`offline = true` in `config.toml` stops that).
+  never requested, and a response that is not the expected PDF, ZIP,
+  Markdown or plain text is discarded. A reading command downloads the version it
+  answers from when the Library lacks it (`offline = true` in `config.toml` stops that).
 - Writes only under the Library, replacing nothing without `--force`; from a
   Redfish ZIP bundle only the files an answer needs are unpacked.
-- `check`, `refresh` and a reading command due for its Freshness Check read
-  publisher listing pages and download nothing. `refresh --write` is the one
-  command that writes outside the Library: version entries into the catalog
-  file it was given.
+- `check`, `refresh` and a reading command due for its Freshness Check
+  read publisher listings (an RFC's rfc-editor.org JSON), `refresh` also
+  GitHub's newest commit of a pinned Markdown file; none downloads.
+  `refresh --write` alone writes outside the Library, into the catalog.
 - Runs `notes record` from a Stop hook at the end of every turn; it exits
   unless `config.toml` says `notes = true`, then keeps the answer in
   `notes.jsonl` and serves it again, unverified and marked as such

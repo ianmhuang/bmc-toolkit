@@ -123,8 +123,13 @@ def test_ac1_direct_publishers_hold_one_open_pdf_version(shipped, doc_id):
     assert doc.id == doc_id  # written as the catalog does
     assert doc.family == DIRECT[doc_id]
     assert doc.access == "open" and doc.fetch == "direct"
-    assert len(doc.versions) == 1, [v.version for v in doc.versions]
-    (ver,) = doc.versions
+    # T5.2 added the Caliptra 2.1 draft as a WIP Markdown version
+    # (tests/test_caliptra_markdown.py); the released PDF is still one.
+    versions = [
+        v for v in doc.versions if (doc_id, v.version) != ("CALIPTRA", "2.1")
+    ]
+    assert len(versions) == 1, [v.version for v in versions]
+    (ver,) = versions
     assert ver.open and not ver.wip
     assert ver.type == "pdf"
     assert ver.url.startswith("https://"), ver.url

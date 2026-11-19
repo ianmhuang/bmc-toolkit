@@ -32,7 +32,13 @@ instead (DSP8010, and the profile schema of DSP8013): the JSON Schema
 files, flat, and `extract.json` with `"kind": "schemas"` and the file and
 resource counts; for the registries bundle DSP8011 it writes
 `registries/`, the newest file of each message registry, and
-`extract.json` with `"kind": "registries"`.
+`extract.json` with `"kind": "registries"`. A Markdown document (catalog
+type `md`) is held as `original.md`; for it `extract` writes only
+`outline.json` (each heading's level, title and line in `original.md`)
+and `extract.json` with `"kind": "markdown"`, since the original itself is
+what the reading commands read. A text document (catalog type `txt`, an
+IETF RFC) is held as `original.txt` and extracted the same way, with
+`"kind": "text"`.
 Code Trees live beside `specs/`, under `code/<repo>/<commit>/`, each with
 a `.bmc-tree.json`.
 

@@ -79,6 +79,13 @@ def test_ac1_entry_is_the_last_document_after_dsp8013(shipped):
         "DSP0220",
         "DSP0244",
         "DSP0280",
+        # T78 (2026-11-17)
+        "ODATA-PROTOCOL",
+        "ODATA-URL",
+        "ODATA-CSDL",
+        "ODATA-JSON",
+        # T81.2 (2026-11-17)
+        *[f"RFC{n}" for n in (9846, 5246, 9110, 9112, 7617, 4251, 4252, 4253, 4254, 3414, 3416, 5424, 5905, 2131, 9915, 6455, 6143)],
     ]
     assert ids.count("DSP0251") == 1
 
@@ -222,8 +229,9 @@ def test_ac5_g103_sits_under_its_own_group_after_the_redfish_bundles():
     # ids stay gap-free and file order is kept; T61's G104-G108 follow G103
     numbers = sorted(int(qid[1:]) for qid, _, _ in rows)
     assert numbers == list(range(1, len(numbers) + 1))
-    # and T63's G109-G110 follow those, then T72's G111-G113
-    assert numbers[-1] == 113
+    # and T63's G109-G110 follow those, then T72's G111-G113 and
+    # T78's G114-G117, then T81.2's G118-G134
+    assert numbers[-1] == 134
     later = [qid for qid, _, _ in rows if int(qid[1:]) > 24]
     assert later[later.index("G103") + 1 :] == [
         "G104",
@@ -236,6 +244,11 @@ def test_ac5_g103_sits_under_its_own_group_after_the_redfish_bundles():
         "G111",
         "G112",
         "G113",
+        "G114",
+        "G115",
+        "G116",
+        "G117",
+        *[f"G{n}" for n in range(118, 135)],
     ]
     # the answer names a page and a section or table, and every command on
     # the document names DSP0251 (the AC-4 rules of M8)
@@ -320,9 +333,10 @@ def test_ac7_counts_grew_by_exactly_the_new_entry(shipped):
     docs = shipped.documents
     open_docs = [d for d in docs if d.access == "open"]
     # T61 added five open documents (119 and 99), T63 two more (121 and
-    # 101), T72 three more: 124 and 104
-    assert len(docs) == 124
-    assert len(open_docs) == 104
+    # 101), T72 three more: 124 and 104; T78 four in a new family: 128
+    # and 108; T81.2 seventeen in a new family: 145 and 125
+    assert len(docs) == 145
+    assert len(open_docs) == 125
     assert len(docs) - len(open_docs) == 20
-    assert len({d.family for d in docs}) == 35
+    assert len({d.family for d in docs}) == 37
     assert len({d.id.lower() for d in docs}) == len(docs)

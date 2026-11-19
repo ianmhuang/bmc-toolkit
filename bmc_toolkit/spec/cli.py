@@ -24,7 +24,9 @@ from bmc_toolkit.spec import freshness as fresh_mod
 from bmc_toolkit.spec import invocation as invocation_mod
 from bmc_toolkit.spec import listing as listing_mod
 from bmc_toolkit.spec import lock as lock_mod
+from bmc_toolkit.spec import markdown as md_mod
 from bmc_toolkit.spec import notes as notes_mod
+from bmc_toolkit.spec import plaintext as txt_mod
 from bmc_toolkit.spec import refresh as refresh_mod
 from bmc_toolkit.spec import registry as registry_mod
 from bmc_toolkit.spec import render as render_mod
@@ -33,6 +35,7 @@ from bmc_toolkit.spec import support as support_mod
 from bmc_toolkit.spec import tables as tables_mod
 from bmc_toolkit.spec.catalog import (
     DEFAULT_CATALOG,
+    FILE_TYPES,
     LISTING_SOURCES,
     Catalog,
     CatalogError,
@@ -73,6 +76,9 @@ ROW_CAP = 300  # a table longer than this is printed one page at a time
 MAX_HITS = 50  # find: hits printed per call unless --max says otherwise
 MAX_PAGES = 10  # page: pages printed per call unless --max-pages says otherwise
 OCP_NOTE_CHARS = 60  # check: how much of an OCP row's description is printed
+# refresh --skip-source: the listing sources, and the commit check of
+# pinned Markdown versions.
+REFRESH_SOURCES = (*LISTING_SOURCES, refresh_mod.PIN_SOURCE)
 
 # Tests replace this to keep the network out.
 CLIENT_FACTORY = fetch_mod.default_client
@@ -106,7 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("catalog", help="list documents in the Source Catalog")
     p.add_argument("document", nargs="?", help="show one document with its versions")
-    p.add_argument("--family", help="only documents of this family")
+    p.add_argument("--family", help="only documents of this family id (any case)")
     p.add_argument(
         "--table",
         action="store_true",
@@ -166,10 +172,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-source",
         action="append",
         default=[],
-        choices=LISTING_SOURCES,
+        choices=REFRESH_SOURCES,
         metavar="SOURCE",
-        help="leave out the documents listed by this publisher (repeatable): "
-        + ", ".join(LISTING_SOURCES),
+        help="leave out the documents listed by this publisher, or with "
+        "github the commit check of pinned Markdown versions (repeatable): "
+        + ", ".join(REFRESH_SOURCES),
     )
 
     p = sub.add_parser("extract", help="turn a PDF in the Library into text")
@@ -208,6 +215,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("page", nargs="?", type=int, help="physical page (1-based)")
     p.add_argument("--to", type=int, help="last page of a range")
     p.add_argument("--section", help="the pages of the first section matching this")
+    p.add_argument("--lines", help="lines A-B of a Markdown or text document")
     p.add_argument("--version", dest="doc_version", help="exact version string")
     p.add_argument("--max-pages", type=int, default=MAX_PAGES, help="pages per call")
 
@@ -346,13 +354,16 @@ def _doc_line(catalog: Catalog, doc: Document) -> str:
 def cmd_catalog(args: argparse.Namespace) -> int:
     catalog = _load(args)
     if args.table:
-        if args.document or args.family:
+        if args.document or args.family is not None:
             print("--table prints every document; drop the document id or --family")
             return EXIT_ACTION
         return _catalog_table(catalog, args.golden, args.by_family)
     if args.golden or args.by_family:
         flag = "--golden" if args.golden else "--by-family"
         print(f"{flag} goes with --table")
+        return EXIT_ACTION
+    if args.document and args.family is not None:
+        print("--family lists a family; drop the document id or --family")
         return EXIT_ACTION
     if args.document:
         doc = catalog.get(args.document)
@@ -372,6 +383,8 @@ def cmd_catalog(args: argparse.Namespace) -> int:
             print(f"notes: {doc.notes}")
         if doc.limits:
             print(f"limits: {doc.limits}")
+        if doc.obsoleted_by:
+            print(f"obsoleted_by: {', '.join(doc.obsoleted_by)}")
         if not doc.versions:
             print(
                 "versions: (none listed; add any version with: bmcspec add FILE "
@@ -391,10 +404,14 @@ def cmd_catalog(args: argparse.Namespace) -> int:
                 f"\t{v.access}"
             )
         return EXIT_OK
-    docs = catalog.by_family(args.family) if args.family else catalog.documents
-    if args.family and args.family not in catalog.families:
-        print(f"unknown family '{args.family}'")
-        return EXIT_ACTION
+    docs = catalog.documents
+    if args.family is not None:
+        fam = catalog.family(args.family)
+        if fam is None:
+            known = ", ".join(catalog.families)
+            print(f"unknown family '{args.family}'; families: {known}")
+            return EXIT_ACTION
+        docs = catalog.by_family(fam.id)
     for doc in docs:
         print(_doc_line(catalog, doc))
     return EXIT_OK
@@ -652,8 +669,8 @@ def cmd_add(args: argparse.Namespace) -> int:
         print(f"file not found: {source}")
         return EXIT_ACTION
     ext = source.suffix.lower().lstrip(".")
-    if ext not in ("pdf", "zip"):
-        print(f"unsupported file type '.{ext}': expected .pdf or .zip")
+    if ext not in FILE_TYPES:
+        print(f"unsupported file type '.{ext}': expected .pdf, .zip, .md or .txt")
         return EXIT_ACTION
     if not file_matches_type(source, ext):
         print(f"{source} is not a {ext} (wrong leading bytes); not added")
@@ -703,7 +720,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
         doc_dir = vdir.parent.name
         ext = original.suffix.lower().lstrip(".")
         doc = catalog.get(doc_dir)
-        if ext not in ("pdf", "zip"):
+        if ext not in FILE_TYPES:
             print(f"skipped {vdir}: unsupported file type '{original.name}'")
             problems += 1
             continue
@@ -786,6 +803,11 @@ def cmd_status(args: argparse.Namespace) -> int:
             elif em.get("kind") == registry_mod.KIND:
                 wanted = registry_mod.REGISTRY_VERSION
             current = em.get("extractor_version") == wanted
+            # A line-read original goes by its own reader, whatever kind
+            # extract.json names, so status agrees with Ready.
+            reader = _LINE_READERS.get(h.original.suffix.lower().lstrip("."))
+            if reader is not None:
+                current = reader.is_current(h.path)
             extracted = "extracted" if current else "stale"
         outline = em.get("outline_source", "-") if em else "-"
         size = h.meta.get("size", "?")
@@ -840,6 +862,26 @@ def _seen_line(doc: Document, seen: listing_mod.Seen) -> str:
     return f"{seen.version}{when} {seen.url}{note}"
 
 
+def _obsoleted_line(doc: Document, newer) -> str:
+    """The line naming the RFCs that obsolete an RFC the catalog lacks."""
+    listed = "; ".join(f"{s.version} ({s.url})" for s in newer)
+    return (
+        f"obsoleted {doc.id}: {fresh_mod.publisher_name(doc)} lists it as "
+        f"obsoleted by {listed}"
+    )
+
+
+def _newer_line(doc: Document, check) -> str:
+    """The ``newer`` (or, for an RFC, ``obsoleted``) line of a check."""
+    if doc.listing_source == "rfc":
+        return _obsoleted_line(doc, check.newer)
+    listed = "; ".join(_seen_line(doc, s) for s in check.newer)
+    return (
+        f"newer {doc.id}: catalog latest {check.catalog_latest}, "
+        f"{fresh_mod.publisher_name(doc)} lists {listed}"
+    )
+
+
 def cmd_check(args: argparse.Namespace) -> int:
     catalog = _load(args)
     library = Library(resolve_library())
@@ -849,6 +891,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     state = fresh_mod.Freshness(library.root)
     listings = listing_mod.Listings(CLIENT_FACTORY())
     counts = {"current": 0, "newer": 0, "unreachable": 0}
+    newer_sources = set()
     for doc in docs:
         check = fresh_mod.check_document(doc, listings)
         state.record(check)
@@ -858,11 +901,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         elif check.status == "unreachable":
             print(f"unreachable {doc.id}: {check.problem}")
         else:
-            listed = "; ".join(_seen_line(doc, s) for s in check.newer)
-            print(
-                f"newer {doc.id}: catalog latest {check.catalog_latest}, "
-                f"{fresh_mod.publisher_name(doc)} lists {listed}"
-            )
+            print(_newer_line(doc, check))
+            newer_sources.add(doc.listing_source)
     # A manual document with a listing was checked above like any other;
     # the manual line is for those nobody can check.
     unchecked = [
@@ -878,11 +918,17 @@ def cmd_check(args: argparse.Namespace) -> int:
     if not args.document:
         _check_release(catalog, library, state)
     state.save()
-    if counts["newer"]:
+    if newer_sources - {"rfc"}:
         print(
             "nothing was downloaded: a newer version enters the Library only "
             "after the catalog lists it (bmcspec refresh, or a pull request) "
             "or as a Drop-in"
+        )
+    if "rfc" in newer_sources:
+        print(
+            "an obsoleting RFC is a different document: the obsoleted one "
+            "stays readable and citable, and the catalog adds the new one "
+            "only by hand (docs/CATALOG.md)"
         )
     print(
         f"summary: current {counts['current']}, newer {counts['newer']}, "
@@ -927,27 +973,81 @@ def _check_release(catalog: Catalog, library: Library, state) -> None:
         print(f"{head} -> {config.release} is the newest")
 
 
+def _refreshable(catalog: Catalog, requested: str | None):
+    """(documents refresh looks at, exit code): those with a listing or a
+    Markdown version (its pin is checked), or the one requested; a message
+    and exit 2 when it has neither."""
+    if requested:
+        doc = catalog.get(requested)
+        if doc is not None and refresh_mod.markdown_version(doc) is not None:
+            return [doc], EXIT_OK
+        return _checkable(catalog, requested)
+    return [
+        d
+        for d in catalog.documents
+        if d.listing or refresh_mod.markdown_version(d) is not None
+    ], EXIT_OK
+
+
 def cmd_refresh(args: argparse.Namespace) -> int:
     catalog = _load(args)
     path = args.catalog or DEFAULT_CATALOG
-    docs, code = _checkable(catalog, args.document)
+    docs, code = _refreshable(catalog, args.document)
     if code != EXIT_OK:
         return code
     skipped = set(args.skip_source)
-    if args.document and docs[0].listing_source in skipped:
-        print(
-            f"{docs[0].id} is listed by {docs[0].listing_source}, which "
-            f"--skip-source leaves out"
+
+    def by_listing(d) -> bool:
+        return bool(d.listing) and d.listing_source not in skipped
+
+    def by_pin(d) -> bool:
+        return (
+            refresh_mod.PIN_SOURCE not in skipped
+            and refresh_mod.markdown_version(d) is not None
         )
+
+    if args.document and not (by_listing(docs[0]) or by_pin(docs[0])):
+        doc = docs[0]
+        if doc.listing_source == "rfc":
+            print(
+                f"{doc.id} is checked against {fresh_mod.publisher_name(doc)}, "
+                f"which --skip-source rfc leaves out"
+            )
+        elif doc.listing:
+            print(
+                f"{doc.id} is listed by {doc.listing_source}, which "
+                f"--skip-source leaves out"
+            )
+        else:
+            print(
+                f"{doc.id} is checked on {refresh_mod.PIN_SOURCE}, which "
+                f"--skip-source leaves out"
+            )
         return EXIT_ACTION
-    docs = [d for d in docs if d.listing_source not in skipped]
+    docs = [d for d in docs if by_listing(d) or by_pin(d)]
     # No client when every source is skipped: nothing will be read.
-    listings = listing_mod.Listings(CLIENT_FACTORY()) if docs else None
-    counts = {"add": 0, "confirm": 0, "changed": 0, "unreachable": 0}
+    client = CLIENT_FACTORY() if docs else None
+    listings = listing_mod.Listings(client) if docs else None
+    counts = {"add": 0, "confirm": 0, "changed": 0, "unreachable": 0, "obsoleted": 0}
+    # The obsoleted count is in the summary only when an RFC was checked.
+    any_rfc = any(by_listing(d) and d.listing_source == "rfc" for d in docs)
     written = 0
     for doc in docs:
+        if by_pin(doc):
+            pin = refresh_mod.check_pin(doc, client)
+            if pin is not None:
+                counts[pin.kind] += 1
+                print(pin.line())
+        if not by_listing(doc):
+            continue
         found = refresh_mod.proposals(doc, listings)
+        obsoleting = [p.seen for p in found if p.kind == "obsoleted"]
+        if obsoleting:
+            counts["obsoleted"] += 1
+            print(_obsoleted_line(doc, obsoleting))
         for prop in found:
+            if prop.kind == "obsoleted":
+                continue
             counts[prop.kind] += 1
             if prop.kind == "unreachable":
                 print(f"unreachable {doc.id}: {prop.problem}")
@@ -979,6 +1079,7 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     print(
         f"summary: add {counts['add']}, confirm {counts['confirm']}, "
         f"changed {counts['changed']}, unreachable {counts['unreachable']}"
+        + (f", obsoleted {counts['obsoleted']}" if any_rfc else "")
         + unlisted
         + (f", written {written}" if args.write else " (dry run; --write adds them)")
     )
@@ -1008,8 +1109,15 @@ def _extract_one(holding, force: bool) -> str:
         return "failed"
     if original.suffix.lower() == ".zip":
         return _unpack_one(holding, force, label)
+    if original.suffix.lower() == ".md":
+        return _extract_markdown(holding, force, label)
+    if original.suffix.lower() == ".txt":
+        return _extract_markdown(holding, force, label, txt_mod)
     if original.suffix.lower() != ".pdf":
-        print(f"skipped {label}: {original.name} is neither a PDF nor a ZIP")
+        print(
+            f"skipped {label}: {original.name} is not a PDF, a ZIP, a Markdown "
+            "or a text file"
+        )
         return "skipped"
     if not force and extract_mod.is_current(holding.path):
         print(f"skipped {label}: already extracted")
@@ -1034,6 +1142,24 @@ def _extract_one(holding, force: bool) -> str:
         f"extracted {label}: {meta['pages']} pages in {meta['seconds']}s, "
         f"outline {meta['outline_source']} ({meta['outline_entries']} entries)"
         f"{numbers}{figures}"
+    )
+    return "extracted"
+
+
+def _extract_markdown(holding, force: bool, label: str, reader=md_mod) -> str:
+    """Write the Outline of a Markdown original (or, with the ``plaintext``
+    reader, of a text original); returns extracted | skipped | failed."""
+    if not force and reader.is_current(holding.path):
+        print(f"skipped {label}: already extracted")
+        return "skipped"
+    try:
+        result = reader.extract(holding.original, holding.path)
+    except (md_mod.MarkdownError, OSError) as exc:
+        print(f"failed {label}: {exc}")
+        return "failed"
+    print(
+        f"extracted {label}: {result.lines} lines, outline "
+        f"{reader.OUTLINE_SOURCE} ({result.entries} entries)"
     )
     return "extracted"
 
@@ -1131,12 +1257,16 @@ def _extract_locked(args: argparse.Namespace, holding, force=None) -> str:
 
 
 def _is_ready(holding) -> bool:
-    """Ready: the Extract of a PDF, or the unpacked schemas or registries of
-    a bundle, are current."""
+    """Ready: the Extract of a PDF, the unpacked schemas or registries of a
+    bundle, or the Outline of a Markdown or text document, are current."""
     if holding.original.suffix.lower() == ".zip":
         return bundle_mod.is_current(holding.path) or registry_mod.is_current(
             holding.path
         )
+    if holding.original.suffix.lower() == ".md":
+        return md_mod.is_current(holding.path)
+    if holding.original.suffix.lower() == ".txt":
+        return txt_mod.is_current(holding.path)
     return extract_mod.is_current(holding.path)
 
 
@@ -1185,18 +1315,67 @@ def _extract_hint(name: str, version: str | None) -> str:
     return f"run: bmcspec extract {name}{flag}"
 
 
-def _wrong_kind(name: str, version: str, file_type: str, kind: str) -> str:
-    """A command met a catalog version of the other file type, before any
-    download: the command that reads it."""
-    if kind == "pdf":
+_TYPE_NAMES = {"pdf": "PDF", "md": "Markdown", "txt": "text"}
+_LINE_TYPES = ("md", "txt")  # read by line numbers, not pages
+_LINE_READERS = {"md": md_mod, "txt": txt_mod}
+
+
+def _type_name(file_type: str) -> str:
+    return _TYPE_NAMES.get(file_type, file_type.upper())
+
+
+def _page_pointer(name: str, file_type: str) -> str:
+    """How ``page`` reads a document of this type."""
+    return f"bmcspec page {name} " + (
+        "--section QUERY" if file_type in _LINE_TYPES else "N"
+    )
+
+
+def _markdown_pointer(
+    name: str, version: str, command: str | None, file_type: str = "md"
+) -> str:
+    """A command that needs pages met a Markdown or text version."""
+    what = (
+        "a Markdown document with no pages"
+        if file_type == "md"
+        else "a text document, read by its lines and not by pages"
+    )
+    text = (
+        f"{name} {version} is {what}; read it with: "
+        f"bmcspec page {name} --section QUERY, or: bmcspec page {name} --lines A-B"
+    )
+    if command == "table":
+        text += "; its tables are printed as text by page"
+    return text
+
+
+def _wrong_kind(
+    name: str,
+    version: str,
+    file_type: str,
+    kinds: tuple[str, ...],
+    command: str | None = None,
+) -> str:
+    """A command met a version of a type it does not read (before any
+    download, from the catalog type; or held, from the file): the command
+    that reads it."""
+    if file_type == "zip":
         return (
             f"{name} {version} is a {file_type} bundle; its schemas are read "
             f"with: bmcspec schema {name}, its registries with: bmcspec "
             f"registry {name}"
         )
+    if "zip" in kinds:
+        return (
+            f"{name} {version} is a {_type_name(file_type)} document, not a "
+            f"bundle; read it with: bmcspec find {name} PATTERN, or: "
+            + _page_pointer(name, file_type)
+        )
+    if file_type in _LINE_TYPES:
+        return _markdown_pointer(name, version, command, file_type)
     return (
-        f"{name} {version} is a {file_type.upper()} document, not a bundle; "
-        f"read it with: bmcspec find {name} PATTERN, or: bmcspec page {name} N"
+        f"--lines reads a Markdown or text document; {name} {version} is a "
+        f"{_type_name(file_type)}: give a page number or --section"
     )
 
 
@@ -1229,13 +1408,16 @@ def _unknown_version(name: str, requested: str, doc: Document | None, held) -> s
 
 
 def _ready_holding(
-    args: argparse.Namespace, doc_id: str, requested, kind: str | None = None
+    args: argparse.Namespace,
+    doc_id: str,
+    requested,
+    kinds: tuple[str, ...] | None = None,
 ):
     """(holding, document, exit code): the version a reading command answers
     from, downloaded when the Library lacks it: the version asked for, else
     the catalog's Latest, else (offline, or the download failed) the newest
-    held version with a note. ``kind`` (pdf or zip) is what the command
-    reads; a catalog version of the other type is refused before any
+    held version with a note. ``kinds`` (pdf, zip, md, txt) are the types the
+    command reads; a catalog version of another type is refused before any
     download. ``holding`` is None when a message was printed; the code is
     then 2 (the user must act) or 3 (busy). Whether the holding is
     extracted is ``_make_current``'s business."""
@@ -1272,8 +1454,12 @@ def _ready_holding(
         # A held WIP version answers only when nothing released is held.
         fallback = answering_holding(doc, held)
     # The version to read is not held.
-    if kind is not None and (ver.type == "zip") != (kind == "zip"):
-        print(_wrong_kind(name, ver.version, ver.type, kind))
+    if kinds is not None and ver.type not in kinds:
+        print(
+            _wrong_kind(
+                name, ver.version, ver.type, kinds, getattr(args, "command", None)
+            )
+        )
         return None, doc, EXIT_ACTION
     if offline:
         if fallback is not None:
@@ -1330,22 +1516,50 @@ def _bundle_pointer(holding) -> str:
     )
 
 
-def _open_version(args: argparse.Namespace):
-    """(Version, document, exit code): a loaded version or the code to return.
-    The version is brought to Ready first: downloaded when the Library lacks
-    it, extracted when its Extract is not current."""
-    holding, doc, code = _ready_holding(args, args.document, args.doc_version, "pdf")
+def _held_type(holding) -> str:
+    return holding.original.suffix.lower().lstrip(".")
+
+
+def _load_version(holding):
+    """A Ready holding loaded for reading: a ``markdown.MarkdownVersion``
+    for a Markdown original, a ``plaintext.TextVersion`` (one of those) for
+    a text original, else the PDF's ``search.Version``."""
+    if _held_type(holding) == "md":
+        return md_mod.load_version(holding, search_mod.origin_of(holding.meta))
+    if _held_type(holding) == "txt":
+        return txt_mod.load_version(holding, search_mod.origin_of(holding.meta))
+    return search_mod.load_version(holding)
+
+
+def _open_version(
+    args: argparse.Namespace, kinds: tuple[str, ...] = ("pdf", "md", "txt")
+):
+    """(Version, document, exit code): a loaded version (a PDF's
+    ``search.Version``, a ``markdown.MarkdownVersion`` or a
+    ``plaintext.TextVersion``) or the code to
+    return. ``kinds`` are the types the command reads. The version is
+    brought to Ready first: downloaded when the Library lacks it, extracted
+    when its Extract is not current."""
+    holding, doc, code = _ready_holding(args, args.document, args.doc_version, kinds)
     if holding is None:
         return None, doc, code
-    if holding.original.suffix.lower() != ".pdf":
-        print(_bundle_pointer(holding))
+    held_type = _held_type(holding)
+    if held_type not in kinds:
+        if held_type == "zip":
+            print(_bundle_pointer(holding))
+        else:
+            print(
+                _wrong_kind(
+                    holding.document, holding.version, held_type, kinds, args.command
+                )
+            )
         return None, doc, EXIT_ACTION
     state = _make_current(args, holding)
     if state != "ready":
         return None, doc, _not_ready(holding, state)
     try:
-        version = search_mod.load_version(holding)
-    except search_mod.SearchError as exc:
+        version = _load_version(holding)
+    except (search_mod.SearchError, md_mod.MarkdownError) as exc:
         print(f"cannot read {holding.document} {holding.version}: {exc}")
         return None, doc, EXIT_ERROR
     args.fresh_doc = doc  # main() runs the Freshness Check after the output
@@ -1353,7 +1567,10 @@ def _open_version(args: argparse.Namespace):
     return version, doc, EXIT_OK
 
 
-def _hit_line(hit: search_mod.Hit, document: str) -> str:
+def _hit_line(hit, document: str) -> str:
+    if isinstance(hit, md_mod.MarkdownHit):
+        section = hit.section.label if hit.section else "-"
+        return f"{document} l.{hit.line} | {section} | {hit.text.strip()}"
     where = f"{document} p.{hit.page}"
     if hit.number is not None:
         where += f" line {hit.number}"
@@ -1362,7 +1579,13 @@ def _hit_line(hit: search_mod.Hit, document: str) -> str:
     return f"{where} | {section} | {mark}{hit.text.strip()}"
 
 
-def _context_lines(version: search_mod.Version, hit: search_mod.Hit, n: int):
+def _context_lines(version, hit, n: int):
+    if isinstance(hit, md_mod.MarkdownHit):
+        lines = version.lines
+        for number in range(max(1, hit.line - n), min(len(lines), hit.line + n) + 1):
+            if number != hit.line and number not in version.hidden:
+                yield f"    line {number}: {lines[number - 1].rstrip()}"
+        return
     lines = version.lines(hit.page)
     for index in range(max(0, hit.index - n), min(len(lines), hit.index + n + 1)):
         if index == hit.index:
@@ -1376,7 +1599,7 @@ def cmd_find(args: argparse.Namespace) -> int:
     version, doc, code = _open_version(args)
     if version is None:
         return code
-    targets: list[search_mod.Version] = []
+    targets: list[search_mod.Version | md_mod.MarkdownVersion] = []
     if doc is not None and doc.searched_with and not args.only:
         companions = doc.companions_for(version.version)
         for other in doc.searched_with:
@@ -1391,8 +1614,11 @@ def cmd_find(args: argparse.Namespace) -> int:
             # and a companion that cannot be read is left out.
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
-                holding, _, _ = _ready_holding(args, other, None, "pdf")
-                if holding is not None and holding.original.suffix.lower() != ".pdf":
+                holding, _, _ = _ready_holding(args, other, None, ("pdf", *_LINE_TYPES))
+                if holding is not None and _held_type(holding) not in (
+                    "pdf",
+                    *_LINE_TYPES,
+                ):
                     print(_bundle_pointer(holding))
                     holding = None
                 elif holding is not None and _make_current(args, holding) != "ready":
@@ -1402,8 +1628,8 @@ def cmd_find(args: argparse.Namespace) -> int:
             if holding is None:
                 continue
             try:
-                targets.append(search_mod.load_version(holding))
-            except search_mod.SearchError as exc:
+                targets.append(_load_version(holding))
+            except (search_mod.SearchError, md_mod.MarkdownError) as exc:
                 print(f"note: cannot read {other}: {exc}")
     targets.append(version)
     args.answered = [version, *targets[:-1]]  # the Notes are served by them
@@ -1434,7 +1660,9 @@ def cmd_find(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def _section_line(level: int, sec: search_mod.Section, end: int) -> str:
+def _section_line(level: int, sec, end: int) -> str:
+    if isinstance(sec, md_mod.Heading):
+        return f"{level} | {sec.label} | lines {sec.line}-{end}"
     first = f"~{sec.page}" if sec.approximate else str(sec.page)
     return f"{level} | {sec.title} | pages {first}-{end}"
 
@@ -1453,15 +1681,27 @@ def cmd_section(args: argparse.Namespace) -> int:
 
 
 def cmd_page(args: argparse.Namespace) -> int:
-    if (args.page is None) == (args.section is None):
+    if args.lines is not None:
+        if args.page is not None or args.section is not None:
+            print("--lines goes alone, not with a page number or --section")
+            return EXIT_ACTION
+        if args.to is not None:
+            print("--to goes with a page number, not with --lines")
+            return EXIT_ACTION
+        kinds: tuple[str, ...] = _LINE_TYPES
+    elif (args.page is None) == (args.section is None):
         print("give a page number or --section (not both)")
         return EXIT_ACTION
-    if args.section is not None and args.to is not None:
+    elif args.section is not None and args.to is not None:
         print("--to goes with a page number, not with --section")
         return EXIT_ACTION
-    version, _, code = _open_version(args)
+    else:
+        kinds = ("pdf",) if args.page is not None else ("pdf", *_LINE_TYPES)
+    version, _, code = _open_version(args, kinds)
     if version is None:
         return code
+    if isinstance(version, md_mod.MarkdownVersion):
+        return _page_markdown(args, version)
     if args.section is not None:
         matches = version.match_sections(args.section)
         if not matches:
@@ -1496,8 +1736,53 @@ def cmd_page(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _page_markdown(args: argparse.Namespace, version) -> int:
+    """``page --lines`` or ``page --section`` on a Markdown or text version."""
+    limit = md_mod.MAX_LINES
+    if args.lines is not None:
+        m = re.match(r"^(\d+)-(\d+)$", args.lines.strip())
+        if not m or int(m.group(2)) < int(m.group(1)):
+            print("--lines takes A-B (line numbers, 1-based)")
+            return EXIT_ACTION
+        first, last = int(m.group(1)), int(m.group(2))
+        total = version.line_count
+        if first < 1 or first > total:
+            print(
+                f"{version.label} has {total} lines; --lines {args.lines} is outside it"
+            )
+            return EXIT_ACTION
+        last = min(last, total)
+        span = last - first + 1
+        if span > limit:
+            print(
+                f"lines {first}-{last} are {span} lines; the limit is {limit} per call"
+            )
+            return EXIT_ACTION
+        cite = version.cite(first, last)
+    else:
+        matches = version.match_sections(args.section)
+        if not matches:
+            print("no matching section")
+            return EXIT_ACTION
+        _, heading, last = matches[0]
+        first = heading.line
+        span = last - first + 1
+        if span > limit:
+            print(
+                f"section {heading.label} is lines {first}-{last} ({span} lines); "
+                f"the limit is {limit} per call: read it in parts with --lines, "
+                "or give a narrower section"
+            )
+            return EXIT_ACTION
+        cite = version.cite(first, last, section=heading.label)
+    print(cite)
+    for ln in version.format_lines(first, last):
+        print(ln)
+    return EXIT_OK
+
+
 def cmd_render(args: argparse.Namespace) -> int:
-    version, _, code = _open_version(args)
+    version, _, code = _open_version(args, ("pdf",))
     if version is None:
         return code
     n = args.page
@@ -1644,12 +1929,27 @@ def _openbmc_tree(args, catalog, library, release: str, force: bool) -> code_mod
             f"the catalog has no '{code_mod.OPENBMC_REPO}' repository to resolve "
             f"releases from"
         )
+    held = None
     if not force:
-        for t in library.trees(source.id):
-            if t.answers(("ref",), release) and not t.superseded:
-                return t
+        held = next(
+            (
+                t
+                for t in library.trees(source.id)
+                if t.answers(("ref",), release) and not t.superseded
+            ),
+            None,
+        )
+        if held is not None and code_mod.same_paths(held.sparse, source.sparse):
+            return held
     with _clone_lock(args, library, source.id, release):
-        tree, fetched = library.clone(
+        if held is not None:  # held, with other paths than the catalog's
+            held = library.read_tree(held.path) or held
+            note = library.ensure_sparse(held, source.sparse)
+            if note:
+                print(note)
+            return held
+        tree, fetched, note = _clone_tree(
+            library,
             source.id,
             source.url,
             code_mod.Provenance("ref", release),
@@ -1657,9 +1957,20 @@ def _openbmc_tree(args, catalog, library, release: str, force: bool) -> code_mod
             sparse=source.sparse,
             force=force,
         )
+    if note:
+        print(note)
     if fetched:
         print(f"cloned {tree.label} (release {release}) -> {tree.path}")
     return tree
+
+
+def _clone_tree(library, repo_id, url, provenance, *, sparse, **kwargs):
+    """``library.clone`` plus the catch-up of a tree it found held with
+    other paths than the catalog's: (tree, fetched, note or None). The
+    caller holds the clone lock."""
+    tree, fetched = library.clone(repo_id, url, provenance, sparse=sparse, **kwargs)
+    note = None if fetched else library.ensure_sparse(tree, sparse)
+    return tree, fetched, note
 
 
 def cmd_clone(args: argparse.Namespace) -> int:
@@ -1688,24 +1999,33 @@ def cmd_clone(args: argparse.Namespace) -> int:
     try:
         if release:
             source = _openbmc_tree(args, catalog, library, release, args.force)
-            pin, recipe = code_mod.find_pin_recipe(source.path, repo.id)
+            pin, recipe, tag = _release_pin(source, repo)
             prov = code_mod.Provenance("release", release, source.commit)
             with _clone_lock(args, library, repo.id, f"release {release}"):
                 current = _current_commits(library, repo.id)
-                tree, fetched = library.clone(
+                if tag is not None:
+                    # a tarball recipe: the tag its version names, held as a
+                    # --ref tree of that tag and named after the release
+                    tree, fetched, note = _clone_tag(library, repo, tag, args, known)
+                    pin = tree.commit
+                tree, landed, named = _clone_tree(
+                    library,
                     repo.id,
                     repo.url,
                     prov,
                     commit=pin,
                     sparse=repo.sparse,
-                    force=args.force,
+                    force=args.force and tag is None,
                     catalog_known=known,
                 )
+                if tag is None:
+                    fetched, note = landed, named
         elif args.ref:
             prov = code_mod.Provenance("ref", args.ref)
             with _clone_lock(args, library, repo.id, args.ref):
                 current = _current_commits(library, repo.id)
-                tree, fetched = library.clone(
+                tree, fetched, note = _clone_tree(
+                    library,
                     repo.id,
                     repo.url,
                     prov,
@@ -1720,7 +2040,8 @@ def cmd_clone(args: argparse.Namespace) -> int:
             prov = code_mod.Provenance("default", repo.ref)
             with _clone_lock(args, library, repo.id, "default branch"):
                 current = _current_commits(library, repo.id)
-                tree, fetched = library.clone(
+                tree, fetched, note = _clone_tree(
+                    library,
                     repo.id,
                     repo.url,
                     prov,
@@ -1729,12 +2050,17 @@ def cmd_clone(args: argparse.Namespace) -> int:
                     force=args.force,
                     catalog_known=known,
                 )
+    except code_mod.SparseError as exc:
+        print(str(exc))
+        return EXIT_ERROR
     except code_mod.CodeError as exc:
         print(str(exc))
         return EXIT_ACTION
     except lock_mod.Busy as exc:
         print(exc)
         return EXIT_BUSY
+    if note:
+        print(note)
     what = tree.provenance.label(tree.fetched_at)
     if fetched:
         print(f"cloned {tree.label} ({what}) -> {tree.path}")
@@ -1743,9 +2069,64 @@ def cmd_clone(args: argparse.Namespace) -> int:
     for old in library.trees(repo.id):
         if old.commit in current and old.superseded:
             print(f"superseded {old.label} ({old.provenance.label(old.fetched_at)})")
-    if release:
+    if release and tag is not None:
+        tag_name, version = tag
+        print(
+            f"pin: {tree.short} tag {tag_name} (version {version}) from {recipe} "
+            f"of openbmc {source.short}"
+        )
+    elif release:
         print(f"pin: {tree.short} from {recipe} of openbmc {source.short}")
     return EXIT_OK
+
+
+def _release_pin(source: code_mod.Tree, repo):
+    """(SRCREV, recipe, None) from the recipe that pins the repository, or,
+    for an entry with ``release_tag`` that no recipe pins, (None, recipe,
+    (tag, version)) from the version of the recipe named like it."""
+    try:
+        pin, recipe = code_mod.find_pin_recipe(
+            source.path, repo.id, repo.url, repo.moved_from
+        )
+        return pin, recipe, None
+    except code_mod.NoRecipe:
+        if not repo.release_tag:
+            raise
+    version, recipe = code_mod.find_recipe_version(source.path, repo.id)
+    return None, recipe, (code_mod.release_tag(repo.release_tag, version), version)
+
+
+def _clone_tag(library, repo, tag, args, known):
+    """The Code Tree at the tag a release's recipe version names, as
+    ``clone --ref TAG`` holds it: (tree, fetched, note)."""
+    tag_name, version = tag
+    try:
+        return _clone_tree(
+            library,
+            repo.id,
+            repo.url,
+            code_mod.Provenance("ref", tag_name),
+            ref=tag_name,
+            tag=True,  # refs/tags/<tag>: not a branch of that name, not a commit id
+            sparse=repo.sparse,
+            force=args.force,
+            catalog_known=known,
+        )
+    except code_mod.SparseError:
+        raise
+    except code_mod.CodeError as exc:
+        try:
+            missing = not code_mod.remote_has_tag(repo.url, tag_name)
+        except code_mod.CodeError:
+            # the remote cannot be asked either: the fetch's error says
+            # what was being fetched, the ls-remote one does not
+            missing = False
+        if not missing:
+            raise
+        raise code_mod.CodeError(
+            f"the release builds {repo.id} {version}, but {repo.url} has no tag "
+            f"{tag_name}"
+        ) from exc
 
 
 def _current_commits(library: code_mod.CodeLibrary, repo: str) -> set[str]:
@@ -2090,16 +2471,18 @@ def cmd_schema(args: argparse.Namespace) -> int:
         print("give --property or --definition, not both")
         return EXIT_ACTION
     holding, catalog_doc, code = _ready_holding(
-        args, args.document, args.doc_version, "zip"
+        args, args.document, args.doc_version, ("zip",)
     )
     if holding is None:
         return code
     label = f"{holding.document} {holding.version}"
     doc = holding.document
-    if holding.original.suffix.lower() != ".zip":
+    held_type = _held_type(holding)
+    if held_type != "zip":
         print(
-            f"{label} is a PDF document, not a schema bundle; read it with: "
-            f"bmcspec find {doc} PATTERN, or: bmcspec page {doc} N"
+            f"{label} is a {_type_name(held_type)} document, not a schema "
+            f"bundle; read it with: bmcspec find {doc} PATTERN, or: "
+            + _page_pointer(doc, held_type)
         )
         return EXIT_ACTION
     state = _make_current(args, holding)
@@ -2238,16 +2621,18 @@ def _section_lookup(version: search_mod.Version):
 
 def cmd_registry(args: argparse.Namespace) -> int:
     holding, catalog_doc, code = _ready_holding(
-        args, args.document, args.doc_version, "zip"
+        args, args.document, args.doc_version, ("zip",)
     )
     if holding is None:
         return code
     label = f"{holding.document} {holding.version}"
     doc = holding.document
-    if holding.original.suffix.lower() != ".zip":
+    held_type = _held_type(holding)
+    if held_type != "zip":
         print(
-            f"{label} is a PDF document, not a registries bundle; read it with: "
-            f"bmcspec find {doc} PATTERN, or: bmcspec page {doc} N"
+            f"{label} is a {_type_name(held_type)} document, not a registries "
+            f"bundle; read it with: bmcspec find {doc} PATTERN, or: "
+            + _page_pointer(doc, held_type)
         )
         return EXIT_ACTION
     state = _make_current(args, holding)
@@ -2329,7 +2714,7 @@ def _registry_cite(holding, reg: registry_mod.Registry, pointer: str) -> str:
 
 
 def cmd_table(args: argparse.Namespace) -> int:
-    version, _, code = _open_version(args)
+    version, _, code = _open_version(args, ("pdf",))
     if version is None:
         return code
     n = args.page
@@ -2486,11 +2871,7 @@ def _check_when_due(args: argparse.Namespace) -> None:
     except Exception as exc:  # noqa: BLE001 - a lost stamp is a note of its own
         print(f"note: could not record the check of {doc.id}: {exc}")
     if check.status == "newer":
-        listed = "; ".join(_seen_line(doc, s) for s in check.newer)
-        print(
-            f"note: newer {doc.id}: catalog latest {check.catalog_latest}, "
-            f"{fresh_mod.publisher_name(doc)} lists {listed}"
-        )
+        print(f"note: {_newer_line(doc, check)}")
     elif check.status == "unreachable":
         print(f"note: unreachable {doc.id}: {check.problem}")
 

@@ -285,7 +285,8 @@ def test_ac6_the_group_follows_the_previous_batch_and_ids_stay_gap_free():
     section = text.split(HEADING, 1)[1].split("\n## ", 1)[0]
     assert [cells[0] for cells in _rows(section)] == list(QUESTIONS.values())
     numbers = [int(cells[0][1:]) for cells in _rows(text)]
-    assert sorted(numbers) == list(range(1, 114))
+    # T78 (2026-11-17) added G114-G117, T81.2 (2026-11-17) G118-G134
+    assert sorted(numbers) == list(range(1, 135))
     assert len(numbers) == len(set(numbers))
     assert numbers[numbers.index(110) + 1 :][:3] == [111, 112, 113]
 
@@ -375,7 +376,9 @@ def test_ac7_readme_states_the_catalogs_own_counts(shipped):
     assert listed and opened, "the status line no longer states the counts"
     assert (int(listed.group(1)), int(listed.group(2))) == (len(docs), len(families))
     assert int(opened.group(1)) == len(open_docs)
-    assert (len(docs), len(families), len(open_docs)) == (124, 35, 104)
+    # T78 (2026-11-17) added four open documents in a new family
+    # T81.2 (2026-11-17) seventeen RFCs in a new family
+    assert (len(docs), len(families), len(open_docs)) == (145, 37, 125)
 
 
 # ------------------------------------------------------------------ AC-8
@@ -384,12 +387,15 @@ def test_ac7_readme_states_the_catalogs_own_counts(shipped):
 def test_ac8_counts_grew_by_exactly_the_three_open_entries(shipped):
     docs = shipped.documents
     open_docs = [d for d in docs if d.access == "open"]
-    assert len(docs) == 124
-    assert len(open_docs) == 104
-    # the gated, member and NDA documents and the families are untouched
+    # T78 (2026-11-17) added four open documents in a new family
+    # T81.2 (2026-11-17) seventeen RFCs in a new family
+    assert len(docs) == 145
+    assert len(open_docs) == 125
+    # the gated, member and NDA documents are untouched
     assert len(docs) - len(open_docs) == 20
-    assert len({d.family for d in docs}) == 35
+    assert len({d.family for d in docs}) == 37
     assert set(shipped.families) >= {BATCH[d][0] for d in BATCH}
     # the Golden rows grew by one per new document
     numbers = [int(c[0][1:]) for c in _rows(GOLDEN.read_text(encoding="utf-8"))]
-    assert max(numbers) == 113
+    # T78 (2026-11-17) added G114-G117, T81.2 (2026-11-17) G118-G134
+    assert max(numbers) == 134

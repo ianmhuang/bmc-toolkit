@@ -1,7 +1,7 @@
 ---
 name: bmc-spec
-description: "Looks up what a BMC specification or the OpenBMC, Aspeed or Nuvoton source says and answers with a citation: document, version, section and page, or repository, commit and line. Use it before answering any question about a BMC protocol, command, field, value or register, even when the answer seems known: an answer from memory carries no citation and may be wrong, so read the document first, and never answer from memory and offer the lookup afterwards. The Source Catalog holds over a hundred documents: IPMI and DCMI, the DMTF families (MCTP, PLDM, SPDM, NC-SI, SMBIOS, Redfish), NVMe and NVMe-MI, OCP DC-SCM and DC-MHS, I2C, SMBus, CMIS and many more that are not named here, so check the catalog before deciding a document is not covered. Code is read from bmcweb, phosphor-host-ipmid, pldm and ninety more OpenBMC repositories and from the Aspeed and Nuvoton kernels, U-Boot and SDK layers. It also writes the `ipmitool raw`, `mctp-client` or `pldmtool raw` line for a named command: the bytes come from the spec."
-when_to_use: "Use when the user (1) asks, in any language, what a specification or a named Command defines: a code, a field layout, the meaning of a value, a property, a register; (2) pastes output of `ipmitool`, `pldmtool` or `mctp-client` (response bytes, Tx and Rx lines, an error line) and wants it explained; (3) asks how OpenBMC or the Aspeed or Nuvoton source implements something. Not for general programming, system administration, or protocols the catalog does not hold."
+description: "Looks up what a BMC specification or the OpenBMC, Aspeed or Nuvoton source says and answers with a citation: document, version, section and page, or repository, commit and line. Use it before answering any question about a BMC protocol, command, field, value or register, even when the answer seems known: an answer from memory has no citation and may be wrong; never answer from memory and offer the lookup afterwards. The Source Catalog holds over a hundred documents: IPMI and DCMI, the DMTF families (MCTP, PLDM, SPDM, NC-SI, SMBIOS, Redfish), OData, NVMe and NVMe-MI, OCP DC-SCM and DC-MHS, I2C, SMBus, CMIS, RFCs a BMC serves (HTTP, TLS, SSH, SNMP, syslog, NTP) and many more that are not named here, so check the catalog before deciding a document is not covered. Code is read from bmcweb, phosphor-host-ipmid, pldm and ninety more OpenBMC repositories and the Aspeed and Nuvoton kernels, U-Boot and SDKs. It also writes the `ipmitool raw`, `mctp-client` or `pldmtool raw` line for a named command: the bytes come from the spec."
+when_to_use: "Use when the user (1) asks, in any language, what a specification, an RFC or a named Command defines: a code, a field layout, a value's meaning, a property, a register; (2) pastes output of `ipmitool`, `pldmtool` or `mctp-client` (response bytes, Tx/Rx lines, an error line) and wants it explained; (3) asks how OpenBMC or the Aspeed or Nuvoton source implements something. Not for general programming (web servers, HTTP frameworks), system administration, or protocols the catalog does not hold."
 allowed-tools: Bash(python *)
 ---
 
@@ -108,7 +108,9 @@ names (or the default branch), searched with `grep` and read with `code`.
   `superseded`, never deletes it.
 - **Ref**: a name on the component repository itself: a branch, a tag or
   a full commit id. Without one, the repository's default branch at fetch
-  time (`master` for most OpenBMC repositories, `main` for libpldm).
+  time (`master` for most OpenBMC repositories, `main` for libpldm). A
+  library from another project has its own project's default (`main` for
+  libspdm).
 - **Release**: a tag (`2.18.0`) or a Yocto-named branch (`scarthgap`) of
   `openbmc/openbmc`, whose recipes fix which commit of every component
   ships together. `config.toml` at the Library root may set a default
@@ -120,26 +122,31 @@ names (or the default branch), searched with `grep` and read with `code`.
   (`[code.checkouts] bmcweb = "/path"`); it wins over every Library Code
   Tree of that repository, whatever it has checked out.
 - **Freshness Check**: `check` asks the publisher (DMTF, nvmexpress.org,
-  the OCP project pages) what versions it lists and reports one the catalog lacks
-  (`newer DOC: ...`). It never downloads or switches versions; the catalog
-  stays the authority for Latest until a maintainer updates it. The
-  outcome and the time go to `freshness.json` at the Library root. A
-  reading command runs the check itself, after its output, when the
-  document has not been checked within `freshness_days` (`[library]` in
-  `config.toml`, default 30), and prints the outcome as `note: newer DOC:
-  ...` (nothing when current, `note: unreachable DOC: ...` when the
+  the OCP project pages) what versions it lists and reports one the
+  catalog lacks (`newer DOC: ...`); for an RFC it asks the RFC Editor
+  which RFCs obsolete it and reports one the catalog does not record
+  (`obsoleted RFCnnnn: ...`). It never downloads or switches versions;
+  the catalog stays the authority for Latest until a maintainer updates
+  it. The outcome and the time go to `freshness.json` at the Library
+  root. A reading command runs the check itself, after its output, when
+  the document has not been checked within `freshness_days` (`[library]`
+  in `config.toml`, default 30), and prints the outcome as `note: newer
+  DOC: ...` (nothing when current, `note: unreachable DOC: ...` when the
   publisher could not be read); the outcome is recorded, so the next
   question within that age does not check again. `fetch` and `status`
   print a `note:` reminder to run `check` instead, once per document.
-  `[library] offline = true` in `config.toml` turns the reading commands'
-  downloads and checks off (a held version is still extracted); `fetch`,
-  `check` and `clone` ignore it.
+  `[library] offline = true` in `config.toml` turns the reading
+  commands' downloads and checks off (a held version is still
+  extracted); `fetch`, `check` and `clone` ignore it.
 - **Citation**: a `cite:` line printed by `page`, `render` or `table`. Its
   fields, separated by ` | `: family, document and version, the sections
   the page spans (joined by `; `; the section the table starts in for
   `table`), `PDF page N` (or `PDF pages A-B` for a Logical Table), `lines A-B` (or
   `lines -`, `lines rendered page`, or `lines table K` for the K-th table on
-  the first page), origin (download URL or `user-provided`), Library path. A `schema`
+  the first page), origin (download URL or `user-provided`), Library path. A
+  Markdown document's line has `Markdown` in the page position, a text
+  document's (an IETF RFC, catalog type `txt`) `Text`, and both the
+  file's own line numbers as `lines A-B`. A `schema`
   Citation has, in the section, page and lines positions: `<Resource>
   vX.Y.Z` (or the index name), `file <name>.json`, and the JSON pointer of
   what was printed. A `code` Citation reads `cite: code | <repo>
@@ -158,20 +165,21 @@ python "${CLAUDE_SKILL_DIR}/scripts/bmcspec.py" <command> ...
 | Command | What it does |
 |---|---|
 | `library` | print the Library path |
-| `catalog [DOC] [--family F]` | list documents (one per line, tab-separated: family, id, access, fetch, latest, title, known versions joined by `;`) or show one document with every version, newest first (version, date, type, published/wip, URL or `-`, access), its `notes:` and `limits:` (Known Limits of the document itself); a manual document without versions prints the `add` command to use |
+| `catalog [DOC] [--family F]` | list documents (one per line, tab-separated: family, id, access, fetch, latest, title, known versions joined by `;`; `--family` takes a family id in any case, and an unknown one exits 2 listing the ids; not with DOC) or show one document with every version, newest first (version, date, type, published/wip, URL or `-`, access), its `notes:` and `limits:` (Known Limits of the document itself); a manual document without versions prints the `add` command to use |
 | `catalog --table [--golden FILE] [--by-family]` | the Support Level table (Markdown): family, document, access (`open (latest gated)` when the newest version differs), latest, fetch, Verified (the question ids from the Golden Questions file's `Document` column, grouped by the version they were checked on: `G13, G15 (<version>)`; `-` without `--golden`), known limit; `--by-family` prints the reader's form kept in `docs/SUPPORT.md` instead: one heading and table per family, no fetch column, Verified as `PASS` or `-`, documents with `unlisted = true` in the catalog left out. For README and support questions, not for answering a specification question |
 | `fetch DOC [--version V] [--wip] [--force] [--no-extract]` | download one version into the Library and leave it Ready: latest by default; prints a `skipped` line and stays off the network if already present, then the `extracted` line (or `skipped ...: already extracted`); `--no-extract` stops after the download. A failed extraction after a good download prints `failed DOC V: ...` and exit stays 0 (the download landed). A gated, member or confidential version is not downloaded: exit 2 with the Drop-in instruction and `newest open version: X; fetch it with --version X` (or `no open version is listed`), unless the user already registered it with `add` or `scan`, which gives the usual `skipped` line and exit 0. Not needed before a reading command; for prefetching a document the user names |
 | `fetch --all [--wip] [--force]` | latest open version of every downloadable document (a `note:` per document whose latest is gated); ends with a `summary:` line |
-| `add FILE --document DOC --version V [--force]` | register a file the user obtained themselves (Drop-in); refuses to replace a version already present unless `--force`; the file must really be a PDF or ZIP |
-| `scan` | register files placed by hand under `specs/<family>/<document>/<version>/original.pdf` |
+| `add FILE --document DOC --version V [--force]` | register a file the user obtained themselves (Drop-in); refuses to replace a version already present unless `--force`; the file must really be a PDF, ZIP, Markdown (`.md`) or text (`.txt`) file |
+| `scan` | register files placed by hand under `specs/<family>/<document>/<version>/original.pdf` (or `original.zip`, `original.md`, `original.txt`) |
 | `status` | what the Library holds; columns: family, id, version, origin, size, `extracted` / `stale` (extracted by an older extractor: run `extract` again) / `-`, outline source; then one `lock:` line per lock another Session holds (path, pid, host, command, since when, `live` or `stale`); a final `note:` when held documents are due for a Freshness Check |
-| `check [DOC]` | ask the publisher whether the catalog is behind: `current DOC V`, `newer DOC: catalog latest V, <publisher> lists W (date) URL` (OCP: `(URL to confirm by hand)`), or `unreachable DOC: reason`; without DOC every document with a listing, an `unchecked:` line for the hand-maintained ones, an `unchecked (manual):` line naming each manual document with its access tier, a `release:` line comparing `config.toml`'s release with the newest `openbmc/openbmc` tag (`-> newer` or `-> L is the newest`), and a `summary:`. Nothing is downloaded. Exit 2 for an unknown document or one without a listing |
-| `refresh [DOC] [--write] [--skip-source SOURCE]` | maintainer command: what `check` found, per version (`add`, `changed`, `confirm` with the reason: an OCP URL to find, a DMTF Work-in-Progress row); `--write` inserts the `add` entries into the catalog file at their place in publication order (a document whose version blocks the text scan cannot read is reported and left alone); `--skip-source dmtf|nvme|ocp` (repeatable) leaves that publisher's documents out. Without DOC it also prints `unlisted DSP.. V "Title" URL` for a DMTF document the catalog neither lists nor names in `[listings.dmtf] not_taken` (never written). Not for answering questions |
+| `check [DOC]` | ask the publisher whether the catalog is behind: `current DOC V`, `newer DOC: catalog latest V, <publisher> lists W (date) URL` (OCP: `(URL to confirm by hand)`), `obsoleted RFCnnnn: the RFC Editor lists it as obsoleted by RFCxxxx (URL)` for an RFC obsoleted by one the catalog does not record in `obsoleted_by`, or `unreachable DOC: reason`; without DOC every document with a listing, an `unchecked:` line for the hand-maintained ones, an `unchecked (manual):` line naming each manual document with its access tier, a `release:` line comparing `config.toml`'s release with the newest `openbmc/openbmc` tag (`-> newer` or `-> L is the newest`), and a `summary:`. Nothing is downloaded. Exit 2 for an unknown document or one without a listing |
+| `refresh [DOC] [--write] [--skip-source SOURCE]` | maintainer command: what `check` found, per version (`add`, `changed`, `confirm` with the reason: an OCP URL to find, a DMTF Work-in-Progress row); `--write` inserts the `add` entries into the catalog file at their place in publication order (a document whose version blocks the text scan cannot read is reported and left alone); `--skip-source dmtf|nvme|ocp|rfc` (repeatable) leaves that publisher's documents out (`rfc`: the RFC Editor's check of the IETF RFCs). An RFC obsoleted by one the catalog does not record prints the same `obsoleted RFCnnnn: ...` line as `check`, counted as `obsoleted N` in the summary and never written: the maintainer adds the new RFC and extends `obsoleted_by` by hand. A document's newest Markdown version is compared with the newest commit touching its file on GitHub: `changed DOC V: ... (not written; re-pin by hand)`; `--skip-source github` leaves that out. Without DOC it also prints `unlisted DSP.. V "Title" URL` for a DMTF document the catalog neither lists nor names in `[listings.dmtf] not_taken` (never written). Not for answering questions |
 | `extract DOC [--version V] [--force]` | write the Extract, Outline, Line Map and figure regions for a PDF version already in the Library (latest held version by default), or unpack a bundle: a schema bundle's JSON Schema into `schemas/` (DSP8010, and DSP8013's profile schema), a registries bundle's newest registry files into `registries/` (DSP8011); skips if current. A ZIP with neither is skipped with a message |
 | `extract --all [--force]` | every PDF and bundle in the Library; ends with a `summary:` line |
-| `section DOC QUERY [--version V]` | Outline entries matching a section number prefix (`20.1` also matches `20.1.2`) or every word of QUERY; one per line: `LEVEL \| title \| pages FIRST-LAST` (LEVEL 0 is a top-level heading), where LAST is where the next entry of the same or a higher level begins, or the page before it when that heading opens the page (`~` in front of an approximate page). `no matching section` when nothing matches. Like every reading command it first brings the version to Ready (Latest, or `--version V`): `fetched DOC V via ...` and `extracted DOC V: ...` lines come before the answer when the Library lacked it; a download that fails with an older version held prints `note: could not fetch DOC V: ...; answering from held W` and answers from W; with nothing held, exit 2 with the browser URL and the save path; a gated version, exit 2 with the Drop-in instruction; an unknown `--version`, exit 2 listing the known ones (exact match); another Session downloading or extracting the same version, exit 3 (`busy:`). After the answer, a due Freshness Check may add `note: newer DOC: ...` or `note: unreachable DOC: ...` |
+| `section DOC QUERY [--version V]` | Outline entries matching a section number prefix (`20.1` also matches `20.1.2`) or every word of QUERY; one per line: `LEVEL \| title \| pages FIRST-LAST` (LEVEL 0 is a top-level heading), where LAST is where the next entry of the same or a higher level begins, or the page before it when that heading opens the page (`~` in front of an approximate page). `no matching section` when nothing matches. Like every reading command it first brings the version to Ready (Latest, or `--version V`): `fetched DOC V via ...` and `extracted DOC V: ...` lines come before the answer when the Library lacked it; a download that fails with an older version held prints `note: could not fetch DOC V: ...; answering from held W` and answers from W; with nothing held, exit 2 with the browser URL and the save path; a gated version, exit 2 with the Drop-in instruction; an unknown `--version`, exit 2 listing the known ones (exact match); another Session downloading or extracting the same version, exit 3 (`busy:`). After the answer, a due Freshness Check may add `note: newer DOC: ...`, `note: obsoleted RFCnnnn: ...` or `note: unreachable DOC: ...` |
 | `find DOC PATTERN [--version V] [--regex] [--case] [--context N] [--max N] [--only]` | search the Extract (the version is brought to Ready first, as `section` says); one line per hit: `DOC p.N [line L] \| section \| [figure] text`. Case-insensitive literal unless `--regex` / `--case`; `--context N` adds the surrounding lines (`line L:` or `row I:`) and a `--` separator; at most 50 hits unless `--max N` (`--max 0` prints all), then a `... more hits` line. Documents the catalog lists in `searched_with` (IPMI-UPDATE for IPMI; DSP0251 for DSP0248 from 1.4.0, an earlier version gets a `note:` instead) are searched too, their hits first; they are brought to Ready the same way, with every line about that as a `note:` (`note: fetched IPMI-UPDATE ...`, or why it could not be), and one that cannot be read is left out; `--only` skips them. `no hits` when nothing matches |
 | `page DOC N [--to M]` or `page DOC --section QUERY [--version V] [--max-pages K]` | print pages of the Extract (the version is brought to Ready first, as `section` says), each starting with a `cite:` line, every line behind its printed line number when there is one, `[figure]` appended to lines inside a figure. Refuses more than 10 pages per call unless `--max-pages` |
+| `page DOC --lines A-B` or `page DOC --section QUERY` on a Markdown or text document (catalog type `md` or `txt`) | a `cite:` line, then the lines behind the file's own line numbers, at most 200 per call (an RFC's page footer, form feed and header are left out; the other lines keep their numbers). Neither is read by pages: `section` prints `lines A-B` where a PDF prints pages, `find` prints `DOC l.N` (the file's line N), and `page DOC N`, `render` and `table` refuse it with this command |
 | `render DOC --page N [--version V] [--scale S] [--force]` | write `renders/page-N.png` (S times 72 dpi, default 2) under the version directory (the version is brought to Ready first, as `section` says); prints `rendered <path>` and a `cite:` line with `lines rendered page`. Reuses an existing file unless `--force` |
 | `schema DOC [RESOURCE] [--property P \| --definition D] [--version V]` | read a schema bundle (downloaded and unpacked first when the Library lacks it, as `section` says). No RESOURCE: every resource, one per line, `Name\tvX.Y.Z` (`-` for an index-only name such as a collection). RESOURCE: a `cite:` line, a `schema:` line (name, version, property count, the file's definitions), then one property per line: `name \| type \| readonly or writable \| added vX.Y.Z or - \| description`; types read `string`, `enum Def`, `object Def`, `array of T`, `odata name`, or the raw `$ref` when its file is not in `schemas/`. `--property P`: its description, longDescription, deprecation and other notes, and when it is an enum, a second `cite:` for the file that defines it (for instance `Resource.json`) followed by `values:` with every value, its description and when it was added. `--definition D`: the same for a named definition (an enum, or an action with its `parameters:`, then `parameter <Name>:`, a `cite:` and `values:` for each enum parameter), looked up in the newest versioned file, then the unversioned `RESOURCE.json`, then the files it `$ref`s (so `ComputerSystem --definition ResetType` reads `Resource.json`; two such files are listed, exit 2). Names are case-insensitive; an unknown resource lists the names containing the query (exit 2). A schema whose object is defined at the file's root (the profile schema) is read from the root, pointer `#` |
 | `registry DOC [REGISTRY] [MESSAGE] [--version V]` | read a registries bundle (downloaded and unpacked first when the Library lacks it, as `section` says). No REGISTRY: every registry, one per line, `Prefix\tversion\tN messages`. REGISTRY: a `cite:` line (`#/Messages`), a `registry:` line (prefix, version, count, the MessageId form `Base.1.23.*`), then one message per line: `Key \| severity \| text`. MESSAGE (a key such as `PropertyMissing`, or a full MessageId): a `cite:` line with `#/Messages/<Key>`, a `message:` line (MessageId, severity, argument count), `text:` (the message verbatim, `%1` and so on for the arguments), `description:`, `longDescription:`, `resolution:`, `args:` (`%n \| type \| what it is`), `added vX.Y.Z` and `deprecated (since vX.Y.Z): ...` when the registry says so. Names are case-insensitive; an unknown registry or key lists the names containing the query (exit 2); a schema bundle is refused with the `schema` command to use |
@@ -241,7 +249,10 @@ once): how long to wait for that Session before giving up with 3.
    tell the user in one sentence that the publisher lists W and that the
    answer comes from V; never fetch or add W unless the user asks, and
    never edit the catalog during a question (`refresh` is for
-   maintainers). `note: unreachable DOC: ...`: say nothing about it.
+   maintainers). `note: obsoleted RFCnnnn: the RFC Editor lists it as
+   obsoleted by RFCxxxx (URL)`: the answer and its Citation stay on
+   RFCnnnn; tell the user in one sentence that RFCxxxx obsoletes it and may
+   change what was cited. `note: unreachable DOC: ...`: say nothing about it.
    `check` is run only when the user asks whether a newer version exists,
    never during a question.
 5. When the answer sits in a table (a `Table` caption near the hit, or
@@ -275,6 +286,13 @@ once): how long to wait for that Session before giving up with 3.
    `hwmon`, `ipmi`, `mctp`, ...), which holds `Documentation/` and the
    BMC-facing driver directories only; PECI in particular has no open
    specification, the driver and `Documentation/` are the reference.
+   Libraries OpenBMC fetches from other projects are catalog trees too,
+   pinned by `--release` like the rest: `libspdm`, `spdm-emu` (SPDM),
+   `mctp` (the mctp tool and mctpd), `nvme-cli`, `libnvme`, the IPMI
+   command line tool (`repos --topic ipmi`), `i2c-tools`, `ethtool`,
+   `tpm2-tss` and `tpm2-tools`. The last four are built from release
+   tarballs: `--release` checks out the tag the recipe's version names
+   (the `pin:` line says which), the tag's source, not the tarball.
    A question that names a SoC vendor (Aspeed, Nuvoton), a SoC (AST2600,
    AST2700, NPCM7XX, NPCM8XX) or a vendor SDK version goes to that
    vendor's tree first (`repos --topic aspeed`, `--topic ast2600`, ...:
@@ -291,8 +309,11 @@ once): how long to wait for that Session before giving up with 3.
    `clone` and the reading commands then use and announce. A vendor tree
    has no Release: it is held at the vendor's default branch (its newest
    SDK branch), another SDK branch is `--ref`, `--release` exits 2 and the
-   configured Release is skipped with a `note:`. Name the tree's branch
-   and date in the answer, as the `cite:` line gives them. Never edit
+   configured Release is skipped with a `note:`. A library the Release
+   does not ship (`no recipe in this release names spdm-emu`) is read at
+   `--ref` (its default branch or a tag), and the answer says the Release
+   does not carry it. Name the tree's branch and date in the answer, as
+   the `cite:` line gives them. Never edit
    `config.toml` yourself; a newer release is the user's move. `check`
    (no document) says when `openbmc/openbmc` has a tag newer than the
    configured release; mention it, do not act on it.
@@ -405,6 +426,10 @@ even hedged or as a search term.
   change its number, or put a heading read in the page text in its place.
 - A `~` page comes from a contents page whose offset could not be
   confirmed: open the page and check the heading before citing it.
+- A Markdown or text document is cited with the `cite:` line `page
+  --lines` or `page --section` printed (`Markdown` or `Text`, then the
+  file's lines), never by a printed page number of an RFC; a `find`
+  hit `DOC l.N` is a line to open, not a Citation.
 - An answer read from a rendered PNG cites the `cite:` line `render`
   printed; `lines rendered page` stays as it is.
 - A schema answer cites the `cite:` line(s) `schema` printed: the resource
@@ -460,8 +485,8 @@ even hedged or as a search term.
   who holds the lock (copy the `busy:` line) and stop. Never read
   `extract.txt`, `tables.json` or a Code Tree directly to get around it:
   the files may be half-written.
-- `clone` is one repository at a time (2 to 32 MB each); a Release needs the
-  the `openbmc` repository too (the recipe files of every layer, about 20
+- `clone` is one repository at a time (2 to 32 MB each); a Release needs
+  the `openbmc` repository too (the recipe files of every layer, about 28
   MB), so `--release` resolves any repository a layer's recipe pins; a
   repository no layer builds has no Pin and `clone` says so. For the
   `openbmc` repository itself a release is its tag or branch: `clone openbmc

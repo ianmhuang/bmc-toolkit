@@ -83,6 +83,13 @@ def test_ac1_the_two_follow_nvme_nvm(shipped):
         "DSP0220",
         "DSP0244",
         "DSP0280",
+        # T78 (2026-11-17)
+        "ODATA-PROTOCOL",
+        "ODATA-URL",
+        "ODATA-CSDL",
+        "ODATA-JSON",
+        # T81.2 (2026-11-17)
+        *[f"RFC{n}" for n in (9846, 5246, 9110, 9112, 7617, 4251, 4252, 4253, 4254, 3414, 3416, 5424, 5905, 2131, 9915, 6455, 6143)],
     ]
     assert len(ids) == len({i.lower() for i in ids})
 
@@ -203,8 +210,9 @@ def test_ac5_the_group_follows_the_previous_batch_and_ids_stay_gap_free():
     section = text.split(HEADING, 1)[1].split("\n## ", 1)[0]
     assert [cells[0] for cells in _rows(section)] == list(QUESTIONS.values())
     numbers = [int(cells[0][1:]) for cells in _rows(text)]
-    # T72 (2026-11-09) added G111-G113
-    assert sorted(numbers) == list(range(1, 114))
+    # T72 (2026-11-09) added G111-G113, T78 (2026-11-17) G114-G117,
+    # T81.2 (2026-11-17) G118-G134
+    assert sorted(numbers) == list(range(1, 135))
     assert numbers[numbers.index(108) + 1 :][:2] == [109, 110]
 
 
@@ -285,12 +293,14 @@ def test_ac6_each_row_sits_under_its_family_heading(shipped, generated):
 def test_ac7_counts_grew_by_exactly_the_two_open_entries(shipped):
     docs = shipped.documents
     open_docs = [d for d in docs if d.access == "open"]
-    # T72 (2026-11-09) added three open documents
-    assert len(docs) == 124
-    assert len(open_docs) == 104
+    # T72 (2026-11-09) added three open documents, T78 (2026-11-17)
+    # four in a new family
+    # T81.2 (2026-11-17) seventeen RFCs in a new family
+    assert len(docs) == 145
+    assert len(open_docs) == 125
     assert len(docs) - len(open_docs) == 20
     families = len({d.family for d in docs})
-    assert families == 35
+    assert families == 37
     # the README status line states the catalog's own numbers
     readme = " ".join(README.read_text(encoding="utf-8").split())
     assert f"lists {len(docs)} documents in {families} families" in readme

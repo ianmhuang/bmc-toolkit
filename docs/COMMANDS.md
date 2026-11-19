@@ -15,6 +15,7 @@ alias bmcspec='python skills/bmc-spec/scripts/bmcspec.py'
 
 bmcspec catalog              # every document, one per line
 bmcspec catalog DSP0236      # one document, all versions
+bmcspec catalog --family pldm   # one family's documents (any case; a miss lists the family ids)
 bmcspec catalog --table --golden docs/golden-questions.md   # Support Level table, one flat table
 bmcspec catalog --table --by-family --golden docs/golden-questions.md   # the same per family (docs/SUPPORT.md)
 bmcspec fetch DSP0236        # latest published version
@@ -112,6 +113,58 @@ page it reads as `page N` would), PDF page, the printed line range as
 origin URL or `user-provided`, and the
 Library path. The Skill copies Citations from those lines and never
 composes them.
+
+A Markdown version (catalog type `md`, held as `original.md`) has no
+pages and is read by the line numbers of the file as stored, which are
+the numbers the publisher's repository shows at the commit its URL pins.
+`extract` writes its Outline from the ATX headings (`#` to `######` and
+a space, outside fenced code blocks; level is the count of `#` minus one)
+and prints `extracted DOC V: N lines, outline headings (K entries)`.
+`section` prints `LEVEL | title | lines A-B`, the section ending before
+the next heading of the same or a higher level. A title that two or more
+headings share is shown and cited as its heading path, `Fuses > Goals`.
+Words match a title as they do for a PDF; a repeated title also matches
+when every word is in its path and one is in the title itself, so
+`section DOC "fuses goals"` picks one of them and `fuses` alone lists
+only `Fuses`. `find` prints
+`DOC l.N | section | text`, N the file's line, and `--context` lines as
+`line n: text`. `page DOC --lines A-B` prints lines A to B behind their
+numbers (B past the end is cut to it; more than 200 lines, A outside the
+file or a malformed range is exit 2), `page DOC --section X` the first
+matching section the same way (one over 200 lines is exit 2: read it in
+parts with `--lines`). The `cite:` line has `Markdown` where a PDF's has
+`PDF page N` and the file's lines as `lines A-B`; its sections are the
+one owning line A, then every heading on the lines after it. `page DOC
+N`, `render` and `table` on a Markdown version, and `--lines` on a PDF,
+are exit 2 with the command that reads it, before any download. Pipe
+tables are printed as text; images are not fetched (their `![alt](path)`
+line stays). Notes do not record a Citation of a Markdown version.
+
+A text version (catalog type `txt`, held as `original.txt`: an IETF RFC
+in its plain-text form) is read the same way, by the line numbers of the
+file as stored, with `Text` in the `cite:` line where Markdown has
+`Markdown`; an RFC is cited by section and line even where its text is
+printed in pages. Page furniture keeps its line numbers but is never a
+heading, a `find` hit, a `--context` line or a printed line: the footer
+ending in `[Page N]`, the form-feed line (which may carry the header),
+the running header starting `RFC <number> ` and the blank lines padding
+them; in a file with a page break, a footer that ends the file is
+furniture too. The Outline holds lines starting in column 0: numbered
+headings (`4.1.2.  Title`, `1.1 Title`, `Appendix A.  Title`,
+`A.1. Title`; level is the count of number parts minus one; the older
+`APPENDIX A - Title`, `Appendix A - Title` and `Appendix A: Title` are
+read as `Appendix A.  Title`), a title wrapped onto an indented next
+line joined to it; and, after the file's first block (the authors),
+unnumbered headings (`Abstract`, `Authors' Addresses`), a line with
+blank lines around it and indented text next that neither starts with a
+lowercase letter nor ends with a colon (so a MIB line at a page's foot
+or a legend such as `Key:` is not one), at level 0. Titles are shown as
+`4.1.2 Client Hello` and `Appendix A State Machine`; `section DOC A`
+finds that appendix as `section DOC 4` finds section 4. A text file
+without that layout has an empty Outline: `section` finds nothing,
+`find` and `page --lines` read it. `page DOC N`, `render` and `table`
+refuse it as they refuse Markdown, and Notes do not record its
+Citations.
 
 `invocation PROTOCOL 'NAME:SIZE=VALUE' ...` arranges the bytes of a
 request from its fields and prints them in the syntax of the sending
@@ -418,23 +471,57 @@ an older registry version is read from an older bundle with `--version`.
 entry, or any `openbmc/<name>` when the catalog does not list it), a
 shallow checkout at one commit under `code/<repo>/<commit>/` with a
 `.bmc-tree.json` recording the URL, the commit, how it was reached (the
-default branch, a `--ref` branch/tag/commit, or a `--release`) and when.
+default branch, a `--ref` branch/tag/commit, or a `--release`), the paths
+checked out (`sparse`, `[]` for the whole repository) and when. The
+catalog also lists libraries OpenBMC recipes fetch from other projects
+(`libspdm`, `ipmitool`, ...); `--release` pins them like the rest.
 `--release L` resolves an OpenBMC release: `openbmc/openbmc` is fetched at
-tag or branch L (only the `.bb` and `.inc` recipe files of every `meta-*`
-layer, about 20 MB) and the component's `SRCREV` there is the commit
-checked out; a repository no layer's recipe pins has no release commit,
-and `clone` says so. For the `openbmc` repository itself `--release L` is
-the same as `--ref L`. A vendor tree (a catalog entry with an `owner`,
-see [CATALOG.md](CATALOG.md#code-trees)) is never guessed: an unlisted
-id starting with a vendor owner (`aspeed-`, `nuvoton-`) exits 2. It has
-no Release: `--release` on
-`clone`, `grep` or `code` prints `<repo> has no Release; use --ref with an
-SDK branch or tag` and exits 2, and the `config.toml` default Release is
-not used for it (`note: <repo> has no Release; config.toml release L not
-used`). A catalog entry's `ref` stands in for the remote's default branch
-when no flag is given (`nuvoton-linux`); a tree held from `--ref` at that
-branch and a default-branch tree of it are one branch: either answers the
-other without the network. Several
+tag or branch L (only the `.bb` and `.inc` recipe files of every layer:
+the top-level `meta-*` ones and the Yocto layers under `upstream-layers/`
+or, up to 2.18.0, `poky/`; about 25 MB at 2.18.0 and 28 MB at `master` in
+2026-11) and the component's `SRCREV` there is the commit checked out. A
+recipe is read with the `.inc` files it `require`s; an entry with
+`name=X` takes `SRCREV_X`. A catalog entry with a hosted URL
+(`https://github.com/openbmc/bmcweb.git`) is pinned only by a recipe that
+fetches that host and path, not by another project of the same name. A
+repository no layer's recipe pins has no release commit, and `clone`
+says so; layers that pin it at different commits are listed. An entry's
+`moved_from` lists the repository's earlier URLs: a recipe that still
+fetches one (`ipmitool` from GitHub up to 2.14.0) pins it too, and the
+commit is fetched from the entry's `url`. A component OpenBMC builds
+from a release tarball has no `SRCREV`; its entry's `release_tag`
+(`v{version}`) turns the version of the recipe named like the entry
+(`i2c-tools_4.4.bb`, or the recipe's `PV`) into a tag (`v4.4`), and that
+tag is checked out as `--ref v4.4` would, then named after the release:
+`pin: <commit7> tag v4.4 (version 4.4) from <recipe> of openbmc
+<commit7>`. The tree is the tag's source, not the tarball: files the
+tarball generates and the recipe's patches are not in it. A recipe that
+pins the entry by `SRCREV` still wins. Recipes of that name at
+different versions are listed; a recipe named like the entry with no
+usable version (`<id>_git.bb`, a `PV` holding `${...}`) exits 2 with
+`no version for <repo> in this release: <recipe> gives no version
+(...)`; a version whose tag the remote does not have exits 2 with
+`the release builds <repo> <version>, but <url> has no tag <tag>`; when
+the remote cannot be asked, the fetch's error is printed instead. The
+tag is fetched as `refs/tags/<tag>`, never a branch of that name. A
+tree held with other paths than the catalog's (one fetched by an older
+version, or before trees recorded them) is brought to the catalog's
+paths in place by the next `clone` that reaches it, commit unchanged,
+with `note: <repo> <commit> now holds the catalog's paths (...) instead
+of (...)`; when git cannot (the new paths are fetched from the tree's
+origin), `clone` exits 1, the old paths are put back (the message says
+so when that fails too) and the next `clone` tries again. For the
+`openbmc` repository itself `--release L` is the same as `--ref L`. A
+vendor tree (a catalog entry with an `owner`, see
+[CATALOG.md](CATALOG.md#code-trees)) is never guessed: an unlisted id
+starting with a vendor owner (`aspeed-`, `nuvoton-`) exits 2. It has no
+Release: `--release` on `clone`, `grep` or `code` prints `<repo> has no
+Release; use --ref with an SDK branch or tag` and exits 2, and the
+`config.toml` default Release is not used for it (`note: <repo> has no
+Release; config.toml release L not used`). A catalog entry's `ref` stands
+in for the remote's default branch when no flag is given (`nuvoton-linux`);
+a tree held from `--ref` at that branch and a default-branch tree of it are
+one branch: either answers the other without the network. Several
 commits of one repository coexist; `--force` on a moving name fetches again
 and marks the older tree of that branch superseded (whether it was held
 under `--ref` or as the default branch) rather than deleting it. A plain
@@ -527,9 +614,10 @@ asks the publisher what it lists now and compares with the catalog:
 `current DOC V`, or `newer DOC: catalog latest V, <publisher> lists W
 (date) URL`. `check` alone does every document that has a listing (the
 DMTF published-documents page, the nvmexpress.org specifications API, the
-OCP project pages' specification tables; Intel, NXP, SMBus and OIF have no
-parseable index and are printed as `unchecked`), then, when `config.toml`
-pins a release, compares it with the newest `X.Y.Z` tag of
+OCP project pages' specification tables, the RFC Editor's metadata for an
+RFC; publishers with no parseable index, such as Intel, NXP, SMBus, OIF,
+NIST and OASIS, are printed as `unchecked`), then, when `config.toml` pins
+a release, compares it with the newest `X.Y.Z` tag of
 `openbmc/openbmc` (`release: 2.18.0 (config.toml); newest openbmc tag
 3.0.0 -> newer`). Nothing is downloaded and no version is switched: a
 newer version enters the Library only after the catalog lists it (see
@@ -547,8 +635,9 @@ reminder never touches the network. `[library] offline = true` turns the
 reading commands' check off.
 OCP versions are mostly Google Drive links on the OCP pages, so `check`
 reports them with `(URL to confirm by hand)`. `refresh --skip-source
-SOURCE` (repeatable; `dmtf`, `nvme` or `ocp`) leaves that publisher's
-documents out, neither read nor reported; the catalog workflow runs
+SOURCE` (repeatable; `dmtf`, `nvme`, `ocp` or `rfc`) leaves that
+publisher's documents out, neither read nor reported (`github` leaves
+out the commit check below); the catalog workflow runs
 `refresh --skip-source ocp` because opencompute.org refuses GitHub's
 runners ([CATALOG.md](CATALOG.md)). Naming a document whose publisher is
 skipped exits 2.
@@ -560,6 +649,40 @@ not_taken` does not cover; the summary then ends its counts with
 `unlisted N`. A page that cannot be read prints `unreachable unlisted:
 <reason>` and counts as one `unreachable`. `unlisted` ids are never
 written, `--write` or not. `check` does not read the page for this.
+
+A Markdown version pins a commit in its raw.githubusercontent.com URL.
+`refresh` takes each document's newest Markdown version (a document with
+one and no listing included, so `refresh CALIPTRA` works) and asks the
+GitHub API for the newest commit touching that file on the repository's
+default branch. The pinned commit prints nothing; another one prints
+`changed DOC V: <path> has commit <sha7> (<date>), the catalog pins
+<sha7>; <raw URL at the new commit> (not written; re-pin by hand)`. It is
+never written, `--write` or not: a newer commit may be a new revision of
+the document, whose version string the maintainer decides. A Markdown URL
+on another host or without a full 40-hex commit id prints `confirm DOC V:
+<url> (cannot check: not a pinned raw.githubusercontent.com URL)` and is
+not requested. A request that fails prints `unreachable DOC V: <reason>`
+(HTTP 403 or 429 is GitHub's limit of 60 requests an hour without a
+token). The summary counts these with the listing lines, so the catalog
+workflow reports a moved pin like any other proposal.
+
+An RFC (an `RFCnnnn` document of a family whose publisher is IETF; its
+listing is `rfc:nnnn`) is checked against the RFC Editor's metadata,
+`https://www.rfc-editor.org/rfc/rfcnnnn.json`. For an RFC, newer means
+an RFC that obsoletes it, which is a different document: `check`,
+`refresh` and the reading commands' note print `obsoleted RFCnnnn: the
+RFC Editor lists it as obsoleted by RFCxxxx (<URL of its text>)`,
+several joined by `; `, for each obsoleting RFC that the document's
+`obsoleted_by` in the catalog does not already record. `check` prints
+`current RFCnnnn V` when there is none and `refresh` prints nothing.
+`check` counts an obsoleted RFC among `newer` and adds a line saying the
+obsoleted RFC stays readable and citable. Whenever it checked an RFC,
+`refresh`'s summary adds `obsoleted N` (the RFCs reported) after
+`unreachable`, before `unlisted`, so the catalog workflow reports it
+like any other proposal; `--write` writes nothing for it: the maintainer
+adds the newer RFC as a document and extends `obsoleted_by` by hand.
+`--skip-source rfc` leaves the RFCs out. RFCs that only update an RFC,
+and errata, are not followed.
 
 ## Sessions sharing a Library
 
@@ -625,8 +748,10 @@ temporary files (see above).
   "rate limited by archive.org (HTTP 429)" rather than "no Wayback
   snapshot", and does not retry on its own. Run the command again later.
 - A response that is not the expected PDF or ZIP (an HTML block page, a
-  cut-off download) is discarded and never written to the Library. The same
-  leading-bytes check applies to files given to `add` or found by `scan`.
+  cut-off download) is discarded and never written to the Library. A
+  Markdown or text version, which has no leading bytes to check, must be UTF-8
+  text that does not start as an HTML page. The same check applies to
+  files given to `add` or found by `scan`.
 - Writes only under the Library. Files placed there by hand are registered
   as Drop-ins and their origin is recorded as user-provided, never as a URL;
   `scan` also records whether the document id is in the catalog
@@ -652,7 +777,7 @@ temporary files (see above).
   message registry leaves the archive (22 files, about 0.8 MB, out of
   DSP8011 2026.1's 264 members); the privilege registries, the HTML and
   the PDF stay in the ZIP.
-- `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/projects/<page>/` for the pages named in the catalog's `listing` keys. They download no document. A reading command reads the one listing page of the document it answered from when that document's Freshness Check is due (at most once per document per `freshness_days`), never with `[library] offline = true`.
-- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed. The vendor kernels `aspeed-linux` and `nuvoton-linux` are cloned sparse like `linux` (its directories plus the vendor's arch, dts and soc ones), and the vendor SDK layers `aspeed-openbmc` and `nuvoton-openbmc` hold only `meta-<vendor>*` and `meta-evb`. `nuvoton-igps` holds only its text files (scripts, XML layouts, notes), not the prebuilt images beside them.
+- `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/projects/<page>/` for the pages named in the catalog's `listing` keys. They download no document. For each RFC they read `https://www.rfc-editor.org/rfc/rfc<N>.json`, the RFC Editor's record of it, not the RFC itself. The one exception is `refresh`, which also makes one unauthenticated request to `https://api.github.com/repos/<owner>/<repo>/commits?path=<path>&per_page=1` per document whose newest Markdown version is pinned in a raw.githubusercontent.com URL; `check` and the reading commands never do. A reading command reads the one listing page of the document it answered from when that document's Freshness Check is due (at most once per document per `freshness_days`), never with `[library] offline = true`.
+- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed. `repos --search` searches the openbmc organisation only, not the external libraries the catalog lists (`libspdm`, `ipmitool`, ...). `clone` fetches from the URL of the catalog entry: GitHub, but Codeberg for `ipmitool` and git.kernel.org for `i2c-tools` and `ethtool`. For an entry with `release_tag`, `clone --release` also runs `git ls-remote --tags` on that URL when fetching the tag fails, to say whether the tag is missing. The vendor kernels `aspeed-linux` and `nuvoton-linux` are cloned sparse like `linux` (its directories plus the vendor's arch, dts and soc ones), and the vendor SDK layers `aspeed-openbmc` and `nuvoton-openbmc` hold only `meta-<vendor>*` and `meta-evb`. `nuvoton-igps` holds only its text files (scripts, XML layouts, notes), not the prebuilt images beside them. `libspdm` holds `include/`, `library/`, `os_stub/` and `doc/`, not `unit_test/` (about 7.5 MB instead of 60 MB at `main` in 2026-11).
 - `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory that is removed on failure, and `code/<repo>/.lock` while it runs. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees, `.tmp-*` and `.part` leftovers and stale `.lock` files under `code/` and `specs/` and at the Library root, nothing else.
 - `check` writes `freshness.json` at the Library root, and so does a reading command that ran the due check; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it inserts version entries into the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).

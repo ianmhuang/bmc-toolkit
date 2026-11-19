@@ -34,6 +34,36 @@ checked on (`G13, G15 (<version>)`); `--by-family` prints the reader's form
 kept in `docs/SUPPORT.md`: a heading and a table per family, without the
 Fetch column, Verified reduced to `PASS` or `-`, and documents marked
 `unlisted = true` in the catalog left out (the BMC SoC datasheets are).
+A version's `type` is `pdf`, `zip` (a Redfish bundle), `md` or `txt`.
+`txt` is a plain-text document in the IETF layout, read by its line
+numbers like `md` but with no pin. Each RFC is one document with id
+`RFCnnnn` and one version: the month and year the RFC prints (`June
+2022`), `published` the first day of that month (an RFC gives no day),
+the URL the `.txt` on rfc-editor.org. An RFC that a later one obsoletes
+is listed only while it alone defines a version still deployed (RFC 5246,
+TLS 1.2); errata and updating RFCs are not merged into a document.
+An RFC's `obsoleted_by` lists the RFCs that the RFC Editor already names
+as obsoleting it and that are accounted for (RFC 5246: RFC8446 and
+RFC9846). It is copied from `obsoleted_by` in rfc-editor.org's
+`rfcNNNN.json`, never from the document's notes; `refresh` reports any
+other obsoleting RFC (`obsoleted`, see [COMMANDS.md](COMMANDS.md)), and
+the maintainer adds that RFC as a document when it is wanted, then
+extends the list. RFC ids, as document ids of an IETF family and in
+`obsoleted_by`, are written `RFC` and digits in upper case with no
+leading zero (`RFC793`). An id in another case (`rfc793`), with a
+space, hyphen or underscore before the number (`RFC 793`, `RFC-793`,
+`rfc_793`) or with a leading zero (`RFC0793`) stops the catalog from
+loading.
+Before an RFC is added, its Outline is compared with the RFC's own table
+of contents (a maintainer check outside the repository), so a heading
+form the text reader does not know, or a false heading, shows up before
+it ships. `md` is a
+Markdown document that exists only in a repository, read by its line
+numbers (see [COMMANDS.md](COMMANDS.md#reading-commands)); its URL is the
+raw file at a pinned commit, so the lines a Citation names do not move.
+`refresh` reports when a newer commit touches that file (`changed`, with
+the URL to re-pin to); re-pinning, and a new version string when the file
+is a new revision, are done by hand.
 The latest version is the one with the newest publication date; same-day
 versions are told apart by the numbers in their version strings (`2.0.0`
 over `1.3.0`). A document
@@ -41,19 +71,21 @@ may name companions in `searched_with` (errata, specification updates)
 that `find` searches together with it; `searched_with_from` names the first
 of its versions they go with (DSP0248: `1.4.0`, the version that moved the
 PDR definitions to DSP0251), so reading an earlier version searches it
-alone. It also takes a `listing`
-(`dmtf:<DSP>`, implied for DMTF documents; `nvme:<slug>` of the
-nvmexpress.org API; `ocp:<project page>|<description prefix>`) that `check`
-and `refresh` consult. `refresh` prints the versions the publishers list
-that the catalog lacks (`add`), catalog URLs that moved (`changed`, for
-DMTF and NVMe; a URL has not moved while any row the publisher lists for
-that version names it, `http://` and `https://` alike, since DMTF lists
-some versions twice and some links as `http://`) and versions a human has
-to handle (`confirm`: OCP rows, whose download URL has to be found, and
-DMTF Work-in-Progress rows, which the catalog lists only by hand with
-`wip = true`). An OCP row's Google Drive viewer link usually has a direct
-download, `https://drive.google.com/uc?export=download&id=<file id>`,
-which `fetch` can use (M-CRPS 1.06 is listed so). `refresh --write`
+alone. It also takes a `listing` (`dmtf:<DSP>`, implied for DMTF
+documents; `nvme:<slug>` of the nvmexpress.org API;
+`ocp:<project page>|<description prefix>`; `rfc:<number>`, the number
+without a leading zero, implied for an `RFCnnnn` document of a family
+whose publisher is IETF) that `check` and `refresh` consult. `refresh` prints
+the versions the publishers list that the catalog lacks (`add`), catalog
+URLs that moved (`changed`, for DMTF and NVMe; a URL has not moved while
+any row the publisher lists for that version names it, `http://` and
+`https://` alike, since DMTF lists some versions twice and some links as
+`http://`) and versions a human has to handle (`confirm`: OCP rows, whose
+download URL has to be found, and DMTF Work-in-Progress rows, which the
+catalog lists only by hand with `wip = true`). An OCP row's Google Drive
+viewer link usually has a direct download,
+`https://drive.google.com/uc?export=download&id=<file id>`, which `fetch`
+can use (M-CRPS 1.06 is listed so). `refresh --write`
 inserts the `add` entries as `[[documents.versions]]` blocks at their
 place in the document's block (publication order, same-day versions by
 their numbers), leaving every other line and comment as it was, and
@@ -76,8 +108,8 @@ Once a month, and on demand from the Actions tab (`catalog`, Run
 workflow), `.github/workflows/catalog.yml` runs `refresh --skip-source
 ocp` without `--write` on a GitHub runner and puts the output in the
 run's summary, whether or not `refresh` succeeded. When it reports
-anything to add, confirm or change, or an `unlisted` DMTF document, it
-opens an issue labelled `catalog`
+anything to add, confirm or change, an `obsoleted` RFC, or an `unlisted`
+DMTF document, it opens an issue labelled `catalog`
 and assigned to the repository owner with that output, or comments on the
 open one; a run that finds nothing,
 or only unreachable listings, opens nothing. OCP is left out because
@@ -87,16 +119,29 @@ gets the pages from a developer machine), so OCP versions come from
 request: run `refresh --write` locally, confirm any OCP URL by hand,
 verify each new version against `docs/golden-questions.md`, and open the
 pull request into `develop` without touching the version, as CONVENTIONS.md
-says. If `check` reports a newer version
+says. `refresh --write` writes nothing for an `obsoleted` RFC: add the
+new RFC as a document when it is wanted, with its Golden Question, and
+extend the old one's `obsoleted_by`. If `check` reports a newer version
 before the workflow does, please open that pull request yourself.
 
 ## Code Trees
 
 The `[[repos]]` table lists the code repositories `clone` brings into the
 Library as Code Trees: the ones a BMC developer asks about, not every
-repository a publisher has. Upstream OpenBMC repositories carry no
-`owner`; an unlisted `openbmc/<name>` can still be cloned by name. The
-SoC vendors' forks and SDK repositories (Aspeed's `AspeedTech-BMC`,
+repository a publisher has. An entry without `owner` is one an OpenBMC
+Release pins: an upstream OpenBMC repository, or a library from another
+project that an OpenBMC recipe fetches by git commit (`libspdm`,
+`spdm-emu`, `mctp`, `nvme-cli`, `libnvme`, `ipmitool`, at their own
+projects' URLs), or one OpenBMC builds from a release tarball
+(`i2c-tools`, `ethtool`, `tpm2-tss`, `tpm2-tools`). A tarball recipe has
+no `SRCREV`, so such an entry carries `release_tag`, the project's tag
+form with `{version}` (`"v{version}"`, `"{version}"`): `--release` takes
+the version of the recipe named like the entry and checks out that tag.
+`moved_from` lists a repository's earlier URLs, which older releases'
+recipes may still fetch (`ipmitool`, on GitHub up to openbmc 2.14.0);
+the commit is cloned from `url`. Neither key goes with `owner`. An
+unlisted `openbmc/<name>` can still be cloned by name. The SoC vendors'
+forks and SDK repositories (Aspeed's `AspeedTech-BMC`,
 Nuvoton's `Nuvoton-Israel`) carry `owner = "aspeed"` or `"nuvoton"`, and
 their ids start with the owner (`aspeed-linux`, `nuvoton-u-boot`); an
 unlisted id with a vendor prefix is refused rather than guessed. A

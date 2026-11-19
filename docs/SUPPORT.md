@@ -134,6 +134,37 @@ python skills/bmc-spec/scripts/bmcspec.py catalog --table --by-family --golden d
 | `DSP0288` CXL to Redfish Mapping Specification | open | 1.4.0 | PASS | - |
 | `DSP0285` RedPath Specification | open | 1.1.0 | PASS | - |
 
+## Open Data Protocol (OData 4.0)
+
+| Document | Access | Latest | Verified | Known limit |
+|---|---|---|---|---|
+| `ODATA-PROTOCOL` OData Version 4.0 Part 1: Protocol | open | 4.0 Errata 03 | PASS | The 4.0 Errata 03 edition's contents list stops at the third heading level, so deeper sections (such as 8.2.8.1) are not outline entries and section does not list them; find reaches them under their enclosing section, and the 4.0 edition lists them. |
+| `ODATA-URL` OData Version 4.0 Part 2: URL Conventions | open | 4.0 Errata 03 | PASS | The 4.0 Errata 03 edition's contents list stops at the third heading level, so deeper sections (such as 5.1.1.1) are not outline entries and section does not list them; find reaches them under their enclosing section, and the 4.0 edition lists them. |
+| `ODATA-CSDL` OData Version 4.0 Part 3: Common Schema Definition Language (CSDL) | open | 4.0 Errata 03 | PASS | The 4.0 Errata 03 edition's contents list stops at the third heading level, so deeper sections (such as 12.1.1.1) are not outline entries and section does not list them; find reaches them under their enclosing section, and the 4.0 edition lists them. |
+| `ODATA-JSON` OData JSON Format Version 4.0 | open | 4.0 Errata 03 | PASS | - |
+
+## IETF Requests for Comments
+
+| Document | Access | Latest | Verified | Known limit |
+|---|---|---|---|---|
+| `RFC9846` The Transport Layer Security (TLS) Protocol Version 1.3 | open | July 2026 | PASS | - |
+| `RFC5246` The Transport Layer Security (TLS) Protocol Version 1.2 | open | August 2008 | PASS | - |
+| `RFC9110` HTTP Semantics | open | June 2022 | PASS | - |
+| `RFC9112` HTTP/1.1 | open | June 2022 | PASS | - |
+| `RFC7617` The 'Basic' HTTP Authentication Scheme | open | September 2015 | PASS | - |
+| `RFC4251` The Secure Shell (SSH) Protocol Architecture | open | January 2006 | PASS | - |
+| `RFC4252` The Secure Shell (SSH) Authentication Protocol | open | January 2006 | PASS | - |
+| `RFC4253` The Secure Shell (SSH) Transport Layer Protocol | open | January 2006 | PASS | - |
+| `RFC4254` The Secure Shell (SSH) Connection Protocol | open | January 2006 | PASS | - |
+| `RFC3414` User-based Security Model (USM) for version 3 of the Simple Network Management Protocol (SNMPv3) | open | December 2002 | PASS | Section 12.1 is numbered twice in the RFC (Normative References and Informative References); section RFC3414 12.1 lists both. |
+| `RFC3416` Version 2 of the Protocol Operations for the Simple Network Management Protocol (SNMP) | open | December 2002 | PASS | - |
+| `RFC5424` The Syslog Protocol | open | March 2009 | PASS | - |
+| `RFC5905` Network Time Protocol Version 4: Protocol and Algorithms Specification | open | June 2010 | PASS | - |
+| `RFC2131` Dynamic Host Configuration Protocol | open | March 1997 | PASS | - |
+| `RFC9915` Dynamic Host Configuration Protocol for IPv6 (DHCPv6) | open | January 2026 | PASS | - |
+| `RFC6455` The WebSocket Protocol | open | December 2011 | PASS | - |
+| `RFC6143` The Remote Framebuffer Protocol | open | March 2011 | PASS | - |
+
 ## NVM Express
 
 | Document | Access | Latest | Verified | Known limit |

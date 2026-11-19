@@ -107,7 +107,8 @@ def test_shipped_catalog_covers_openbmc_components_and_excludes_tooling():
         assert excluded not in ids, f"{excluded} should not be in the catalog"
     openbmc = catalog.get_repo("openbmc")
     assert openbmc is not None
-    assert openbmc.sparse == ("/meta-*/**/*.bb", "/meta-*/**/*.inc")
+    # T76.1: the recipe files of every layer, upstream-layers/ and poky/ too
+    assert openbmc.sparse == ("/**/*.bb", "/**/*.inc")
 
 
 # ------------------------------------------------- AC-11: unlisted repos
