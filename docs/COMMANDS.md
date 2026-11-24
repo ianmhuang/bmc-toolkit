@@ -569,7 +569,9 @@ tree: a user checkout named in `config.toml` first, then the `--ref` or
 `--release` asked for (a tree's own provenance or an `also` name), then the
 `config.toml` default Release, then a
 held tree of the branch the catalog `ref` names (a superseded one still
-counts until `prune` removes it), then the default-branch tree. Every `code` output starts with a `cite:` line naming
+counts until `prune` removes it), then the default-branch tree. Like
+`find`, `grep` matches a fixed string unless `--regex`; unlike `find`, it
+is case-sensitive unless `-i` (`--ignore-case`). Every `code` output starts with a `cite:` line naming
 repository, commit, provenance, path and lines; a tree found by an `also`
 name is cited under that name (`release L`, `<ref> <date>`).
 
