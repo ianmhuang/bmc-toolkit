@@ -166,7 +166,7 @@ Write this path out in full in every call. Claude Code cannot check a
 command that keeps the path or a repository name in a shell variable, loops
 over them with `for`, or starts with `cd`, so it asks the user or refuses
 the call. For several calls, write each one in full, one per line or joined
-with `;`.
+with `;`, except `invocation`, which runs as a Bash call of its own.
 
 | Command | What it does |
 |---|---|
