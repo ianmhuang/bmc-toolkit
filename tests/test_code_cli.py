@@ -283,6 +283,21 @@ def test_grep_output_limits_and_selection(library, catalog_file, remotes, capsys
     )
 
 
+def test_grep_ignore_case_flag(library, catalog_file, remotes, capsys):
+    work, url, first, second = remotes["thing"]
+    run(capsys, "clone", "thing", catalog_file=catalog_file)
+    code, out = run(capsys, "grep", "thing", "POWERSTATE", catalog_file=catalog_file)
+    assert code == 0 and out.strip() == "no hits"
+    for flag in ("-i", "--ignore-case"):
+        argv = ["grep", "thing", "POWERSTATE", flag]
+        code, out = run(capsys, *argv, catalog_file=catalog_file)
+        assert code == 0
+        assert out.splitlines() == [
+            f"thing@{second[:7]} src/state.hpp:1 | // CurrentPowerState",
+            f"thing@{second[:7]} src/state.hpp:2 | int powerState();",
+        ]
+
+
 def test_code_prints_cite_and_numbered_lines(library, catalog_file, remotes, capsys):
     work, url, first, second = remotes["thing"]
     run(capsys, "clone", "thing", catalog_file=catalog_file)

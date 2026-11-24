@@ -704,6 +704,32 @@ def test_grep_hits_context_regex_and_glob(thing, library):
     assert C.grep(tree, "int main() {") == [C.Hit("src/main.cpp", 1, "int main() {")]
 
 
+def test_grep_ignore_case(thing, library):
+    work, bare, url = thing
+    tree, _ = library.clone("thing", url, C.Provenance("default", ""))
+    # case-sensitive by default
+    assert C.grep(tree, "powerstate") == []
+    # ignore_case also finds the "// CurrentPowerState" comment
+    hits = C.grep(tree, "powerstate", ignore_case=True)
+    assert [(h.path, h.line, h.context) for h in hits] == [
+        ("src/main.cpp", 2, False),
+        ("src/state.hpp", 1, False),
+        ("src/state.hpp", 2, False),
+    ]
+    # with context, the match marks come from the case-insensitive pass too
+    hits = C.grep(tree, "POWERSTATE", ignore_case=True, context=1)
+    assert [(h.path, h.line, h.context) for h in hits] == [
+        ("src/main.cpp", 1, True),
+        ("src/main.cpp", 2, False),
+        ("src/main.cpp", 3, True),
+        ("", 0, False),
+        ("src/state.hpp", 1, False),
+        ("src/state.hpp", 2, False),
+    ]
+    hits = C.grep(tree, "^INT .*\\(\\)", regex=True, ignore_case=True)
+    assert [h.line for h in hits] == [1, 2]
+
+
 def test_read_lines_and_cite(thing, library):
     work, bare, url = thing
     tree, _ = library.clone("thing", url, C.Provenance("default", ""))
