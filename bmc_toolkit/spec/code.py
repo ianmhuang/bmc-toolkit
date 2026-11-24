@@ -1075,15 +1075,20 @@ def grep(
     regex: bool = False,
     glob: str | None = None,
     context: int = 0,
+    ignore_case: bool = False,
 ) -> list[Hit]:
     """``git grep -n`` over the tree; hits and, with ``context``, the lines
     around them (a ``--`` separator becomes a Hit with line 0).
+    Case-sensitive unless ``ignore_case``.
 
     Two passes: the matches alone, then with context; ``-z`` puts NUL after
     the path and the line number, which is unambiguous, but loses the
     match/context mark, so the first pass supplies it.
     """
-    base = ["grep", "-n", "-I", "-z", "-E" if regex else "-F", "-e", pattern]
+    base = ["grep", "-n", "-I", "-z", "-E" if regex else "-F"]
+    if ignore_case:
+        base.append("-i")
+    base += ["-e", pattern]
     if glob:
         base += ["--", glob]
     matches = {(h.path, h.line) for h in _grep_pass(tree, base)}

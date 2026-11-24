@@ -253,6 +253,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ref", help="the Code Tree reached by this ref")
     p.add_argument("--release", help="the Code Tree pinned by this release")
     p.add_argument("--regex", action="store_true", help="pattern is an extended regex")
+    p.add_argument(
+        "-i", "--ignore-case", action="store_true", help="match regardless of case"
+    )
     p.add_argument("--glob", help="only paths matching this git pathspec")
     p.add_argument("--context", type=int, default=0, help="lines around each hit")
     p.add_argument(
@@ -2372,6 +2375,7 @@ def cmd_grep(args: argparse.Namespace) -> int:
             regex=args.regex,
             glob=args.glob,
             context=max(0, args.context),
+            ignore_case=args.ignore_case,
         )
     except code_mod.CodeError as exc:
         print(str(exc))
