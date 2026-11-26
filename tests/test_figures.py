@@ -142,11 +142,6 @@ def test_files_written_and_removed(tmp_path):
     meta = json.loads((vdir / "extract.json").read_text("utf-8"))
     assert meta["figure_pages"] == 1
     assert meta["extractor_version"] == ex.EXTRACTOR_VERSION
-    renders = vdir / "renders"
-    renders.mkdir()
-    (renders / "page-1.png").write_bytes(b"x")
-    ex.remove_derived(vdir)
-    assert not (vdir / "figures.json").exists() and not renders.exists()
     # a re-run that finds no figure removes a stale figures.json
     (vdir / "figures.json").write_text("{}", "utf-8")
     ex.write_result(

@@ -26,7 +26,11 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from bmc_toolkit.spec.library import REGISTRIES_DIRNAME, SCHEMAS_DIRNAME
+from bmc_toolkit.spec.library import (
+    REGISTRIES_DIRNAME,
+    SCHEMAS_DIRNAME,
+    atomic_write_json,
+)
 
 REGISTRY_VERSION = 1
 META_NAME = "extract.json"  # shared with the other extractors; "kind" tells them apart
@@ -155,9 +159,7 @@ def unpack(zip_path: Path, vdir: Path) -> RegistryResult:
         refused=refused,
         duplicates=duplicates,
     )
-    with open(vdir / META_NAME, "w", encoding="utf-8", newline="") as fh:
-        json.dump(result.to_meta(), fh, indent=1)
-        fh.write("\n")
+    atomic_write_json(vdir / META_NAME, result.to_meta(), indent=1)
     return result
 
 

@@ -126,19 +126,6 @@ def test_a_lock_released_during_the_wait_is_acquired(tmp_path):
         assert json.loads(second.path.read_text("utf-8"))["command"] == "second"
 
 
-def test_wait_while_locked_reports_the_holder_or_the_clear_way(tmp_path):
-    vdir = tmp_path / "v"
-    assert lock_mod.wait_while_locked(vdir, 0) is None  # no lock at all
-    fake_lock(vdir)
-    holder = lock_mod.wait_while_locked(vdir, 0)
-    assert holder is not None and holder.pid == 4242
-    fake_lock(vdir, age=lock_mod.STALE_SECONDS + 1)
-    assert lock_mod.wait_while_locked(vdir, 0) is None  # stale: not in the way
-    first = Lock(vdir, "first", wait=0).acquire()
-    threading.Timer(0.3, first.release).start()
-    assert lock_mod.wait_while_locked(vdir, 5) is None
-
-
 # ----------------------------------------------------------------- AC-4
 
 

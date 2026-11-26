@@ -8,6 +8,7 @@ import zipfile
 import pytest
 
 from bmc_toolkit.spec import bundle as B
+from bmc_toolkit.spec import library as library_mod
 
 FOLDER = "DSP8010_1.0.0/json-schema"
 URL = "http://redfish.dmtf.org/schemas/v1/"
@@ -225,6 +226,36 @@ def test_unpack_writes_only_the_selected_files_and_the_meta(tmp_path):
     (tmp_path / "schemas" / "stale.json").write_text("{}", encoding="utf-8")
     B.unpack(tmp_path / "original.zip", tmp_path)  # replaces the directory
     assert not (tmp_path / "schemas" / "stale.json").exists()
+
+
+def test_the_meta_is_written_beside_and_renamed_into_place(tmp_path, monkeypatch):
+    """T91 AC-3: extract.json goes through the Library's atomic writer, so
+    a write that fails leaves no extract.json (unpack removed the earlier
+    one before rewriting the files) and no .part, and the next unpack
+    writes it again; the bytes are the same as before (indent 1, LF,
+    trailing newline)."""
+    unpacked(tmp_path)
+    raw = (tmp_path / "extract.json").read_bytes()
+    assert raw == (json.dumps(json.loads(raw), indent=1) + "\n").encode("utf-8")
+    assert b"\r" not in raw
+
+    def refuse(tmp, target):
+        raise OSError("disk full")
+
+    with monkeypatch.context() as patched:
+        patched.setattr(library_mod, "_replace", refuse)
+        with pytest.raises(OSError, match="disk full"):
+            B.unpack(tmp_path / "original.zip", tmp_path)
+    assert not (tmp_path / "extract.json").exists()
+    assert not list(tmp_path.glob("*.part"))
+    B.unpack(tmp_path / "original.zip", tmp_path)
+    again = (tmp_path / "extract.json").read_bytes()
+    assert again == (json.dumps(json.loads(again), indent=1) + "\n").encode()
+
+    def untimed(data):  # "seconds" is how long this unpack took
+        return {k: v for k, v in json.loads(data).items() if k != "seconds"}
+
+    assert untimed(again) == untimed(raw)
 
 
 def test_unpack_refuses_a_corrupt_archive_and_reports_no_schemas(tmp_path):
