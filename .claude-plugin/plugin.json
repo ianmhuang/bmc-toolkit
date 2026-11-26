@@ -1,7 +1,7 @@
 {
     "name": "bmc-toolkit",
     "version": "1.8.0",
-    "description": "Skills for BMC firmware developers: answer questions from the BMC specification corpus (IPMI, DMTF MCTP/PLDM/SPDM, Redfish, NVMe-MI, OCP, ...) and from OpenBMC source, with citations.",
+    "description": "Skills for BMC firmware developers: answer questions from the BMC specification corpus (IPMI, DMTF MCTP/PLDM/SPDM, Redfish, NVMe-MI, OCP, ...) and from OpenBMC, Aspeed and Nuvoton source, with citations; write ipmitool raw, pldmtool and mctp-client lines for a named command and explain pasted responses.",
     "author": {
         "name": "Muwen Huang (Ian Huang)"
     },

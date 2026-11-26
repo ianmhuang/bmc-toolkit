@@ -1,6 +1,6 @@
 {
     "name": "bmc-toolkit",
-    "description": "Claude Code skills for BMC firmware developers: BMC specifications and OpenBMC source, with citations.",
+    "description": "Claude Code skills for BMC firmware developers: BMC specifications and OpenBMC source, with citations; command lines and pasted responses explained.",
     "owner": {
         "name": "Muwen Huang (Ian Huang)"
     },
@@ -8,7 +8,7 @@
         {
             "name": "bmc-toolkit",
             "source": "./",
-            "description": "BMC specification and OpenBMC source assistant for Claude Code."
+            "description": "BMC specification and OpenBMC source assistant for Claude Code: cited answers, ipmitool raw / pldmtool / mctp-client lines, pasted output explained."
         }
     ]
 }

@@ -6,7 +6,9 @@ The commands that produce them are in [COMMANDS.md](COMMANDS.md).
 
 Each document version sits at
 `specs/<family>/<document>/<version>/original.<pdf|zip>` next to a
-`meta.json` that records where it came from and its SHA-256. After
+`meta.json` that records where it came from and its SHA-256. `<version>`
+is the version string made safe for a path (`2.0 rev 1.1` is
+`2.0_rev_1.1`); `meta.json` keeps it as the catalog spells it. After
 `extract` the same directory holds `extract.txt` (one `=== page N ===`
 marker per physical page, layout preserved), `outline.json` (section
 titles with pages, from PDF bookmarks or from the contents pages; Word
@@ -46,9 +48,16 @@ a `.bmc-tree.json`.
 true` in `config.toml`: one JSON object per line for each answer the Stop
 hook remembered (`id`, `question`, `context`, `answer`, `partial`,
 `cites`, `documents` as `[document, version]` pairs, `time` in UTC).
-`find`, `section`, `recall` and `notes` read it; nothing else does, and
+`find`, `section`, `recall`, `notes` and `status` read it; nothing else does, and
 deleting the file only forgets the answers. A line that is not a complete
 JSON object is skipped.
+
+`freshness.json` at the Library root records, under `documents`, each
+document's last Freshness Check (outcome and time) and when `fetch` or
+`status` last reminded you to run `check` (`reminded_at`), and under
+`release` the last comparison of the `config.toml` release with
+openbmc's tags; see
+[COMMANDS.md](COMMANDS.md#freshness-check).
 
 While a command writes several files it holds `.lock` in the version
 directory (`code/<repo>/.lock` for a clone): a small JSON file with the
@@ -57,7 +66,9 @@ seconds while the holder is alive; one untouched for 5 minutes is stale
 and the next command takes it over (`.lock.takeover` exists beside it for
 the moment of the take-over). `notes record` holds the same kind of `.lock`
 at the Library root while it writes `notes.jsonl`. Single files are written as
-`<name>.<pid>-<token>.part` beside their target and renamed into place, and
+`<name>.<pid>-<token>.part` beside their target and renamed into place
+(except the files unpacked from a bundle, written under the lock, and a
+new Note, appended to `notes.jsonl` in one write), and
 a clone is built in `code/<repo>/.tmp-<pid>-<token>/` before it is renamed
 to its commit. A `.part`, `.tmp-*` or lingering `.lock.takeover` entry you
 find is a leftover of a failed run; `prune` lists and removes them along

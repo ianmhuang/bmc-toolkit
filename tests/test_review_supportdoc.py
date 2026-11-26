@@ -212,10 +212,11 @@ def test_ac8_g102_still_targets_dsp8013_2026_1_and_its_commands():
 
 
 def test_ac9_readme_and_skill_document_the_flag(capsys):
-    readme = README.read_text(encoding="utf-8")
+    # since T89 the README keeps a few examples; docs/COMMANDS.md holds them all
+    commands = (README.parent / "docs" / "COMMANDS.md").read_text(encoding="utf-8")
     skill = SKILL.read_text(encoding="utf-8")
-    assert "--by-family" in readme
-    assert "catalog --table --by-family --golden docs/golden-questions.md" in readme
+    assert "--by-family" in commands
+    assert "catalog --table --by-family --golden docs/golden-questions.md" in commands
     table_rows = [ln for ln in skill.splitlines() if ln.startswith("| `catalog --table")]
     assert len(table_rows) == 1
     assert "--by-family" in table_rows[0]
