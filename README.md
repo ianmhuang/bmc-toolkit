@@ -18,7 +18,7 @@ asked about (the latest published version unless you name another). What you can
 - How OpenBMC, Aspeed or Nuvoton source implements something, cited to
   repository, commit and line: "Where does bmcweb set PowerState?"
 
-**Status: 1.8.0.** The Source Catalog lists 145 documents in
+**Status: 1.9.0.** The Source Catalog lists 145 documents in
 37 families. The 125 open ones are downloaded by the tool and every one of
 them has been checked against the acceptance questions in
 `docs/golden-questions.md`; the 20 gated, member and NDA documents are
