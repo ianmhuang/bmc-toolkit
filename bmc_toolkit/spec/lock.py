@@ -10,8 +10,9 @@ file every ``HEARTBEAT_SECONDS`` while the lock is held, and a lock untouched
 for ``STALE_SECONDS`` is stale and may be taken over. Pids mean nothing
 across Windows and WSL and are reused after a reboot.
 
-Readers take no lock; when a version is not current they call
-:func:`wait_while_locked` and try again. Standard library only.
+A reading command takes no lock on a Ready version; one that is not Ready
+it fetches or extracts under the version's lock, as ``fetch`` and
+``extract`` do. Standard library only.
 
 Windows refuses to remove, rename or exclusively create a file another
 process has open, even for a moment (a waiter reading the holder), with a
@@ -120,20 +121,6 @@ def live_holder(directory: Path) -> Holder | None:
     if holder is None or holder.stale:
         return None
     return holder
-
-
-def wait_while_locked(directory: Path, wait: float) -> Holder | None:
-    """Wait up to ``wait`` seconds for a live lock on ``directory`` to go
-    away; returns the holder still in the way, or None when the way is clear."""
-    deadline = time.monotonic() + max(0.0, wait)
-    while True:
-        holder = live_holder(directory)
-        if holder is None:
-            return None
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            return holder
-        time.sleep(min(POLL_SECONDS, remaining))
 
 
 def _unlink_retrying(path: Path) -> str:

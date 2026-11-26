@@ -41,7 +41,6 @@ Requires pypdfium2 5.x (its bookmark API: ``get_toc`` items with
 import bisect
 import json
 import re
-import shutil
 import statistics
 import time
 from collections import Counter
@@ -49,7 +48,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from bmc_toolkit.spec.library import (
-    SCHEMAS_DIRNAME,
     atomic_write_json,
     atomic_write_text,
 )
@@ -1108,15 +1106,3 @@ def is_current(vdir: Path) -> bool:
         and meta.get("extractor_version") == EXTRACTOR_VERSION
         and (vdir / EXTRACT_NAME).is_file()
     )
-
-
-def remove_derived(vdir: Path) -> None:
-    for name in (EXTRACT_NAME, OUTLINE_NAME, LINEMAP_NAME, FIGURES_NAME, META_NAME):
-        p = vdir / name
-        if p.exists():
-            p.unlink()
-    remove_store(vdir)
-    for dirname in (RENDERS_DIRNAME, SCHEMAS_DIRNAME):
-        tree = vdir / dirname
-        if tree.is_dir():
-            shutil.rmtree(tree)

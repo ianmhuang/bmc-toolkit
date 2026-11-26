@@ -312,8 +312,6 @@ def test_write_result_and_is_current(tmp_path):
         json.dumps({**meta, "extractor_version": ex.EXTRACTOR_VERSION - 1}), "utf-8"
     )
     assert not ex.is_current(vdir)
-    ex.remove_derived(vdir)
-    assert not (vdir / "extract.txt").exists() and (vdir / "original.pdf").exists()
 
 
 def test_linemap_file_removed_when_rerun_finds_no_numbers(tmp_path):

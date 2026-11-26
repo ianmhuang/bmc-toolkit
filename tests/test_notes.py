@@ -469,6 +469,47 @@ def test_recall_and_notes_refuse_a_bad_config_like_offline_does(
     assert code == 0 and out.splitlines()[0].startswith("note: notes: ")
 
 
+def test_recall_and_notes_refuse_a_notes_limit_that_is_not_a_size(
+    held, library, capsys, catalog_file
+):
+    """T91 AC-1: the managing commands refuse a bad notes_limit as they
+    refuse a bad switch (docs/COMMANDS.md, Notes): the message, exit 2,
+    notes.jsonl neither read for output nor written."""
+    kept = note("packet")
+    path = write_notes(library, kept)
+    before = path.read_bytes()
+    on(library, 'notes_limit = "five"\n')
+    message = (
+        f"{library.root / 'config.toml'}: library.notes_limit must be a size "
+        'such as "5MB", "512KB" or "0"\n'
+    )
+    for argv in (
+        ["recall", kept.id],
+        ["notes", "list"],
+        ["notes", "list", "DSP0236"],
+        ["notes", "forget", kept.id],
+        ["notes", "prune"],
+        ["notes", "prune", "--all"],
+    ):
+        code, out = run(capsys, *argv, catalog_file=catalog_file)
+        assert (code, out) == (2, message), argv
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("limit", ['"0"', "0", '"512KB"', '"5MB"'])
+def test_recall_and_notes_take_a_notes_limit_that_is_a_size(
+    held, library, capsys, catalog_file, limit
+):
+    """T91 AC-2: a valid notes_limit changes nothing for recall and notes."""
+    kept = note("packet")
+    write_notes(library, kept)
+    on(library, f"notes_limit = {limit}\n")
+    code, out = run(capsys, "recall", kept.id, catalog_file=catalog_file)
+    assert code == 0 and "packet" in out
+    code, out = run(capsys, "notes", "list", catalog_file=catalog_file)
+    assert code == 0 and out.splitlines()[0].split(" | ")[1] == "packet"
+
+
 def test_record_takes_a_prompt_starting_with_a_bracket_and_skips_injected_ones(
     library, tmp_path
 ):

@@ -8,6 +8,7 @@ import zipfile
 
 import pytest
 
+from bmc_toolkit.spec import library as library_mod
 from bmc_toolkit.spec import registry as R
 
 BASE = {
@@ -163,6 +164,30 @@ def test_unpack_replaces_an_earlier_directory(tmp_path):
     assert not (tmp_path / "registries" / "Stale.1.0.0.json").exists()
     shutil.rmtree(tmp_path / "registries")
     assert not R.is_current(tmp_path)
+
+
+def test_the_meta_is_written_beside_and_renamed_into_place(tmp_path, monkeypatch):
+    """T91 AC-3: extract.json goes through the Library's atomic writer, so
+    a write that fails leaves no extract.json (unpack removed the earlier
+    one before rewriting the files) and no .part, and the next unpack
+    writes it again; the bytes are the same as before (indent 1, LF,
+    trailing newline)."""
+    unpacked(tmp_path)
+    raw = (tmp_path / "extract.json").read_bytes()
+    assert raw == (json.dumps(json.loads(raw), indent=1) + "\n").encode("utf-8")
+    assert b"\r" not in raw
+
+    def refuse(tmp, target):
+        raise OSError("disk full")
+
+    with monkeypatch.context() as patched:
+        patched.setattr(library_mod, "_replace", refuse)
+        with pytest.raises(OSError, match="disk full"):
+            R.unpack(tmp_path / "original.zip", tmp_path)
+    assert not (tmp_path / "extract.json").exists()
+    assert not list(tmp_path.glob("*.part"))
+    R.unpack(tmp_path / "original.zip", tmp_path)
+    assert (tmp_path / "extract.json").read_bytes() == raw
 
 
 def test_unpack_refuses_a_broken_archive(tmp_path):
