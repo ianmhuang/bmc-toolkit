@@ -249,7 +249,13 @@ def test_the_meta_is_written_beside_and_renamed_into_place(tmp_path, monkeypatch
     assert not (tmp_path / "extract.json").exists()
     assert not list(tmp_path.glob("*.part"))
     B.unpack(tmp_path / "original.zip", tmp_path)
-    assert (tmp_path / "extract.json").read_bytes() == raw
+    again = (tmp_path / "extract.json").read_bytes()
+    assert again == (json.dumps(json.loads(again), indent=1) + "\n").encode()
+
+    def untimed(data):  # "seconds" is how long this unpack took
+        return {k: v for k, v in json.loads(data).items() if k != "seconds"}
+
+    assert untimed(again) == untimed(raw)
 
 
 def test_unpack_refuses_a_corrupt_archive_and_reports_no_schemas(tmp_path):
