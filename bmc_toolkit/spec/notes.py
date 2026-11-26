@@ -542,9 +542,11 @@ def _off_message(root: Path) -> str:
 def _switch(root: Path) -> bool | None:
     """``enabled`` for a command: prints the refusal (a bad value, or a
     config.toml that does not parse) or the off message and returns None
-    when the command must stop with exit 2."""
+    when the command must stop with exit 2. A notes_limit that is not a
+    size is refused here too, as find, section and status refuse it."""
     try:
         if enabled(root):
+            limit_bytes(root)
             return True
     except NotesError as exc:
         print(exc)

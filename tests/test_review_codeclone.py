@@ -426,16 +426,17 @@ def test_readme_lists_git_and_gh_as_subprocesses():
 
 
 def test_readme_documents_commands_layout_and_config():
-    # since 1.0.0 the README keeps the command examples; the Library layout
-    # is in docs/LIBRARY.md and config.toml in docs/COMMANDS.md
+    # since 1.0.0 the Library layout is in docs/LIBRARY.md and config.toml in
+    # docs/COMMANDS.md; since T89 COMMANDS.md also holds every command's
+    # example and the README a few of them
     readme = (ROOT / "README.md").read_text("utf-8")
+    commands = (ROOT / "docs" / "COMMANDS.md").read_text("utf-8")
     for cmd in ("bmcspec repos", "bmcspec clone", "bmcspec grep", "bmcspec code"):
-        assert cmd in readme, cmd
+        assert cmd in commands, cmd
     assert "code/<repo>/<commit>/" in readme
     layout = (ROOT / "docs" / "LIBRARY.md").read_text("utf-8")
     assert "code/<repo>/<commit>/" in layout
     assert ".bmc-tree.json" in layout
-    commands = (ROOT / "docs" / "COMMANDS.md").read_text("utf-8")
     assert "[code]" in commands and "release =" in commands
     assert "[code.checkouts]" in commands
     assert "--release" in commands and "--ref" in commands and "--force" in commands

@@ -1,16 +1,24 @@
 # bmc-toolkit
 
-Claude Code plugin for BMC firmware developers.
+Claude Code plugin for BMC firmware developers. Its first skill, `bmc-spec`,
+works from BMC specifications (IPMI, DMTF MCTP / PLDM / SPDM / NC-SI /
+SMBIOS, Redfish, OData, NVMe, OCP DC-SCM and DC-MHS, I2C, SMBus, PMBus,
+eSPI, LPC, SFF, CMIS, TCG, UEFI, ACPI, Arm server standards, NIST firmware
+resiliency, IETF RFCs and more) and from OpenBMC, Aspeed and Nuvoton
+source, kept in a local library of the documents and repositories you
+asked about (the latest published version unless you name another). What you can ask:
 
-The first skill, `bmc-spec`, answers questions about BMC specifications (IPMI,
-DMTF MCTP / PLDM / SPDM / NC-SI / SMBIOS, Redfish, OData, NVMe, OCP DC-SCM and
-DC-MHS, I2C, SMBus, PMBus, eSPI, LPC, SFF, CMIS, TCG, UEFI, ACPI, Arm server
-standards, NIST firmware resiliency, IETF RFCs and more) and about OpenBMC
-source code. It keeps a local library of the documents and repositories you
-asked about, defaults to the latest published version, serves any other on
-request, and cites document, version, section and page or line in every answer.
+- What a spec says, cited to document, version, section and page: "What
+  does DSP0236 say about message tags?"
+- The command line for a named Command, bytes from the spec: "Give me the
+  `ipmitool raw` line for Get Device ID."
+- What pasted `ipmitool`, `pldmtool` or `mctp-client` output means, the
+  completion code and each field: "`ipmitool raw 0x06 0x01` printed
+  `20 81 06 02 02 bf 00 00 00 00 00`; what does it say?"
+- How OpenBMC, Aspeed or Nuvoton source implements something, cited to
+  repository, commit and line: "Where does bmcweb set PowerState?"
 
-**Status: 1.8.0.** The Source Catalog lists 145 documents in
+**Status: 1.9.0.** The Source Catalog lists 145 documents in
 37 families. The 125 open ones are downloaded by the tool and every one of
 them has been checked against the acceptance questions in
 `docs/golden-questions.md`; the 20 gated, member and NDA documents are
@@ -52,9 +60,8 @@ The same two steps from a terminal: `claude plugin marketplace add
 ianmhuang/bmc-toolkit`, then `claude plugin install bmc-toolkit@bmc-toolkit`.
 
 Requirements: Python 3.11 or newer on `PATH` as `python` or `python3`, and
-`git`. A `SessionStart` hook installs the packages in `requirements.txt`
-once, into the plugin's data directory; in a development checkout run
-`pip install -r requirements.txt` yourself.
+`git`. A `SessionStart` hook installs the packages in `requirements.txt` into the
+plugin's data directory, again only when that file changes; in a development checkout run `pip install -r requirements.txt` yourself.
 
 - `curl_cffi` (MIT): HTTP client with a browser TLS fingerprint; without it
   Intel documents come from the Internet Archive instead of the publisher,
@@ -66,12 +73,11 @@ once, into the plugin's data directory; in a development checkout run
 
 ### Updating
 
-Claude Code offers an update when the version in `plugin.json` rises but
-does not update third-party marketplaces on its own: enable auto-update for
-`bmc-toolkit` in `/plugin` (Marketplaces tab), or run `claude plugin update
-bmc-toolkit@bmc-toolkit`. The Library and the installed packages stay; after
-an update that changes the extractor, `status` marks documents `stale` and
-`extract --all` re-extracts them, downloading nothing.
+Claude Code offers an update when the version in `plugin.json` rises but does not update
+third-party marketplaces on its own: enable auto-update for `bmc-toolkit` in `/plugin`
+(Marketplaces tab), or run `claude plugin update bmc-toolkit@bmc-toolkit`. The Library
+stays, and so do the installed packages unless `requirements.txt` changed; after an update
+that changes the extractor, `status` marks documents `stale` and `extract --all` re-extracts them, downloading nothing.
 
 ## How a question is answered
 
@@ -86,15 +92,15 @@ sequenceDiagram
     Claude->>CLI: locate: section or find DSP0236 "Msg tag" (latest, or --version 1.2.0)
     CLI->>Lib: that version Ready?
     alt not held
-        CLI->>Pub: fetch DSP0236 1.3.1: GET the version's PDF
+        CLI->>Pub: fetch DSP0236 1.4.0: GET the version's PDF
         Pub-->>CLI: PDF
         CLI->>Lib: original.pdf, meta.json (URL, SHA-256)
     end
-    CLI->>Lib: extract DSP0236 when not extracted: extract.txt, outline.json, linemap.json, figures.json
+    CLI->>Lib: extract DSP0236 when not extracted: extract.txt, outline.json, linemap.json, figures.json, extract.json
     CLI->>Lib: find DSP0236 "Msg tag" in extract.txt
     CLI-->>Claude: fetched / extracted lines, then hits: page, line, section
     opt Notes on
-        CLI-->>Claude: notes DSP0236 1.3.1: N title lines, then the matching Note whole (unverified, marked)
+        CLI-->>Claude: notes DSP0236 1.4.0: N title lines, then the matching Note whole (unverified, marked)
     end
     Claude->>CLI: page DSP0236 24 (or table, render)
     CLI->>Lib: read the pages
@@ -106,13 +112,12 @@ sequenceDiagram
     Note over Claude,Lib: OpenBMC questions have the same shape:<br/>repos, clone (git hosts), grep, code, cite:
 ```
 
-Solid arrows are commands and Library access, dashed arrows what comes back.
-A reading command brings the version it needs to Ready (held and extracted)
-by itself: the catalog's latest, or the one `--version` names. The publisher
-is contacted only when the Library lacks the version, and once per document
-per 30 days to ask whether it lists a newer one (reported, never downloaded).
-The skill copies its Citation from the `cite:` line of every printed page (a
-Markdown or plain-text document is cited by its file's line numbers).
+Solid arrows are commands and Library access, dashed arrows what comes back. A reading
+command brings the version it needs to Ready (held and extracted) by itself: the catalog's
+latest, or the one `--version` names. The publisher is contacted only when the Library
+lacks the version, and once per document per 30 days to ask whether it lists a newer one
+(reported, never downloaded). The skill copies its Citation from the `cite:` line of every
+printed page (a Markdown or plain-text document is cited by its file's line numbers).
 What each command does: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 A named Command gets an Invocation: IPMI as `ipmitool raw`; MCTP control, PLDM
@@ -136,22 +141,14 @@ The skill drives `skills/bmc-spec/scripts/bmcspec.py`; you can too, here through
 alias bmcspec='python skills/bmc-spec/scripts/bmcspec.py'
 
 bmcspec catalog              # every document, one per line
-bmcspec catalog --table --by-family --golden docs/golden-questions.md   # Support Level table per family (docs/SUPPORT.md)
 bmcspec fetch DSP0236 --version 1.2.0   # without --version: the latest published version
-bmcspec add vendor.pdf --document DSP0236 --version 1.1.0   # a gated or NDA document, from your copy
-bmcspec check DSP0236        # is the catalog behind DMTF? (no download)
 bmcspec find DSP0236 "Msg tag" --context 1   # hits with page, line, section
-bmcspec page DSP0236 24 --to 25              # the pages, with a cite: line each
 bmcspec table DSP0236 --page 122             # the table(s) on the page, whole
-bmcspec schema DSP8010 Chassis --property PowerState   # the Redfish JSON Schema bundle (DSP8013 profiles alike)
-bmcspec registry DSP8011 Base PropertyValueTypeError   # the message registries bundle
-bmcspec repos --topic redfish                # repositories and held Code Trees
-bmcspec clone pldm --release 2.18.0          # the commit OpenBMC 2.18.0 ships
+bmcspec invocation ipmi 'NetFn:1=0x06' 'Cmd:1=0x01'   # Get Device ID as ipmitool raw
 bmcspec grep bmcweb CurrentPowerState --context 2
-bmcspec code bmcweb redfish-core/lib/chassis.hpp --lines 160-175
 ```
 
-Exit codes, `--wait` (several conversations can share one Library), flags, output formats and `config.toml`: [docs/COMMANDS.md](docs/COMMANDS.md).
+Exit codes, `--wait` (several conversations can share one Library), flags, output formats, `config.toml` and every command with an example: [docs/COMMANDS.md](docs/COMMANDS.md#examples).
 
 ## What the tool does on the network and on disk
 
@@ -159,7 +156,7 @@ Exit codes, `--wait` (several conversations can share one Library), flags, outpu
   and then the Internet Archive's snapshot of it; a manual document is
   never requested, and a response that is not the expected PDF, ZIP,
   Markdown or plain text is discarded. A reading command downloads the version it
-  answers from when the Library lacks it (`offline = true` in `config.toml` stops that).
+  answers from when the Library lacks it (`[library] offline = true` in `config.toml` stops that).
 - Writes only under the Library, replacing nothing without `--force`; from a
   Redfish ZIP bundle only the files an answer needs are unpacked.
 - `check`, `refresh` and a reading command due for its Freshness Check
@@ -167,13 +164,16 @@ Exit codes, `--wait` (several conversations can share one Library), flags, outpu
   GitHub's newest commit of a pinned Markdown file; none downloads.
   `refresh --write` alone writes outside the Library, into the catalog.
 - Runs `notes record` from a Stop hook at the end of every turn; it exits
-  unless `config.toml` says `notes = true`, then keeps the answer in
+  unless `config.toml` says `[library] notes = true`, then keeps the answer in
   `notes.jsonl` and serves it again, unverified and marked as such
   ([docs/COMMANDS.md](docs/COMMANDS.md#notes)).
-- Runs `git` as a subprocess for `clone`, `grep`, `code` and, with a user
-  checkout, `invocation --subcommand`; `gh search code` for `repos --search`;
-  `clone` writes only under the Library's `code/` directory. Nothing else is
-  executed, nothing is re-uploaded or redistributed. Full list: [docs/COMMANDS.md](docs/COMMANDS.md).
+- Runs `git` as a subprocess for `clone`, `grep`, and with a user checkout
+  `code` and `invocation --subcommand` (reading its `HEAD`); for `check`,
+  `git ls-remote --tags` on openbmc when `config.toml` pins a `release`;
+  `gh search code` for `repos --search`; `clone` writes only under the Library's
+  `code/` directory. The `SessionStart` hook runs `pip install` of `requirements.txt`
+  (PyPI, into the plugin's data directory). Nothing else is executed, nothing is
+  re-uploaded or redistributed. Full list: [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Further reading
 
