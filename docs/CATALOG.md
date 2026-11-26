@@ -2,8 +2,11 @@
 
 `bmc_toolkit/spec/catalog.toml` lists every family, document, version and
 URL; comments in the file record when a URL was last confirmed. How far
-back the versions go depends on the publisher. DMTF and NVM Express
-documents carry their full version history, kept current by `refresh`.
+back the versions go depends on the publisher. DMTF documents carry
+their full version history, kept current by `refresh`; NVM Express
+documents carry the versions the nvmexpress.org API lists (the current
+ones, also kept current by `refresh`) and older ones added by hand, not
+the full history.
 Intel, OCP, SNIA SFF, TCG, NIST, Arm and the other publishers carry the
 current version, plus older ones only where the catalog records them by
 hand. UEFI Forum documents (UEFI, ACPI, PI) and TCG documents come from
@@ -11,7 +14,7 @@ the Internet Archive's copy of the publisher's file, since both sites
 refuse scripted downloads, so the versions listed are the ones the
 Archive holds: the newest release and the one before it for the UEFI
 Forum, the current one for TCG. Gated, member and NDA documents (JEDEC,
-MIPI, PCI-SIG, PICMG, CXL, the BMC SoC datasheets, Intel's and AMD's NDA
+MIPI, PCI-SIG, PICMG, CXL, IEEE, T10, the BMC SoC datasheets, Intel's and AMD's NDA
 interfaces) are listed with their tier and the reason, never downloaded,
 and registered with `add` when the user has a copy. Every
 document has an access tier (`open`, `gated`: free registration or a
@@ -81,8 +84,10 @@ URLs that moved (`changed`, for DMTF and NVMe; a URL has not moved while
 any row the publisher lists for that version names it, `http://` and
 `https://` alike, since DMTF lists some versions twice and some links as
 `http://`) and versions a human has to handle (`confirm`: OCP rows, whose
-download URL has to be found, and DMTF Work-in-Progress rows, which the
-catalog lists only by hand with `wip = true`). An OCP row's Google Drive
+download URL has to be found; Work-in-Progress rows from any listing,
+which the catalog lists only by hand with `wip = true`; a DMTF or NVMe row
+whose URL is not a PDF or ZIP; and a Markdown version whose URL is not a
+pinned raw.githubusercontent.com URL). An OCP row's Google Drive
 viewer link usually has a direct download,
 `https://drive.google.com/uc?export=download&id=<file id>`, which `fetch`
 can use (M-CRPS 1.06 is listed so). `refresh --write`
@@ -159,6 +164,6 @@ vendor tree has no Release: `--release` on one exits 2, and a
 Nuvoton's `u-boot` defaults to `npcm-v2023.10` while `npcm-v2025.07`
 exists; ask for it with `--ref npcm-v2025.07`. The two vendor kernels are
 held sparse, like `linux`: its directories plus the vendor's own arch,
-dts and soc directories. Prebuilt toolchains and binaries, Zephyr,
+dts and soc directories (and `drivers/jtag` for `aspeed-linux`). Prebuilt toolchains and binaries, Zephyr,
 MCUboot and OpenBIC, QEMU, OP-TEE and ATF, and vendor forks of OpenBMC
 daemons are left out until someone asks for them.

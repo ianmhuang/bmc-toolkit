@@ -13,6 +13,7 @@ Every command once, through a shell alias for the launcher:
 ```
 alias bmcspec='python skills/bmc-spec/scripts/bmcspec.py'
 
+bmcspec library              # the Library path
 bmcspec catalog              # every document, one per line
 bmcspec catalog DSP0236      # one document, all versions
 bmcspec catalog --family pldm   # one family's documents (any case; a miss lists the family ids)
@@ -48,6 +49,9 @@ bmcspec clone pldm --release 2.18.0          # the commit OpenBMC 2.18.0 ships
 bmcspec grep bmcweb CurrentPowerState --context 2
 bmcspec code bmcweb redfish-core/lib/chassis.hpp --lines 160-175
 bmcspec prune                # list superseded Code Trees; --yes removes them
+bmcspec invocation ipmi 'NetFn:1=0x06' 'Cmd:1=0x01'   # Get Device ID as ipmitool raw
+bmcspec recall 1a2b3c4d      # one Note whole (Notes on)
+bmcspec notes list DSP0236   # the Notes citing a document
 ```
 
 ## Reading commands
@@ -64,24 +68,26 @@ Library, with its Extract (or unpacked bundle) current. The version is the
 catalog's latest, or the one `--version` names (exact match; an unknown
 one is exit 2 listing the known versions). When the Library lacks it the
 command downloads it exactly as `fetch` would (same client, same lock,
-`fetched DOC V via ...` as the first output line), extracts it
+`fetched DOC V via ...` first, after `Library created at ...` on first
+use and one line per failed attempt), extracts it
 (`extracted ...` next) and then answers; a held version whose Extract is
 stale is extracted again first; a Ready version answers at once, with no
 extra lines. A text command on a document the catalog lists as a bundle,
 or `schema` / `registry` on a PDF, is refused before any download with
-the command that reads it. A download that fails while an older version
-of the document is held prints `note: could not fetch DOC V: <reason>;
-answering from held W` and answers from W (exit 0, the Citation names W;
-a held WIP version is used only when no released one is held); with
-nothing held it is exit 2 with the browser URL and the save path, as
-`fetch` prints. A
+the command that reads it. Without `--version`, a download that fails
+while an older version of the document is held prints `note: could not
+fetch DOC V: <reason>; answering from held W` and answers from W (exit 0,
+the Citation names W; a held WIP version is used only when no released one
+is held); with `--version`, or with nothing held, it is exit 2 with the
+browser URL and the save path, as `fetch` prints. A
 gated, member or confidential version is exit 2 with the Drop-in
 instruction, a manual document without versions exit 2 with the `add`
 instruction, and another Session downloading or extracting the same
 version exit 3 (`--wait` applies). `[library] offline = true` in
 `config.toml` keeps the reading commands off the network: a missing
-version is then exit 2 with the `fetch` command to run (or, when an older
-version is held, a note and the answer from that one); extraction still
+version is then exit 2 with the `fetch` command to run (or, without
+`--version` and with an older version held, a note and the answer from
+that one); extraction still
 happens, it is local work. After its output a reading command runs the
 Freshness Check when it is due, see below.
 
@@ -91,7 +97,10 @@ the bundle and prints the `extracted` line (`skipped ...: already
 extracted` when current); `--no-extract` stops after the download. A
 failed extraction, or a missing dependency, is printed as `failed DOC V:
 ...` followed by `run: bmcspec extract DOC`, and the exit code stays 0
-because the download landed. `fetch --all` downloads only, as before. Nothing in the answering workflow needs
+because the download landed. Without `--version`, `--wip` counts WIP
+versions when picking the newest by publication date, so a WIP version
+newer than every released one is the one fetched; a document with WIP
+versions only needs it. `fetch --all` downloads only, as before. Nothing in the answering workflow needs
 `fetch`; it is for prefetching a document you name, and for `--all`.
 
 `find` searches the catalog's latest version (or `--version`),
@@ -112,7 +121,9 @@ page it reads as `page N` would), PDF page, the printed line range as
 `lines A-B` (or `lines -` without line numbers, `lines rendered page`),
 origin URL or `user-provided`, and the
 Library path. The Skill copies Citations from those lines and never
-composes them.
+composes them. `render --page N` writes `renders/page-N.png` at `--scale
+S` times 72 dpi (default 2.0); a page rendered already is reused unless
+`--force`.
 
 A Markdown version (catalog type `md`, held as `original.md`) has no
 pages and is read by the line numbers of the file as stored, which are
@@ -133,8 +144,9 @@ numbers (B past the end is cut to it; more than 200 lines, A outside the
 file or a malformed range is exit 2), `page DOC --section X` the first
 matching section the same way (one over 200 lines is exit 2: read it in
 parts with `--lines`). The `cite:` line has `Markdown` where a PDF's has
-`PDF page N` and the file's lines as `lines A-B`; its sections are the
-one owning line A, then every heading on the lines after it. `page DOC
+`PDF page N` and the file's lines as `lines A-B`; its sections are, for
+`--lines`, the one owning line A, then every heading on the lines after
+it, and for `--section X` the matched section. `page DOC
 N`, `render` and `table` on a Markdown version, and `--lines` on a PDF,
 are exit 2 with the command that reads it, before any download. Pipe
 tables are printed as text; images are not fetched (their `![alt](path)`
@@ -168,13 +180,14 @@ Citations.
 
 `invocation PROTOCOL 'NAME:SIZE=VALUE' ...` arranges the bytes of a
 request from its fields and prints them in the syntax of the sending
-tools. It reads no Document, no catalog and no network, takes no lock and
-writes nothing; its one Library read is `--subcommand` (below). PROTOCOL
+tools. It reads no Document and no network, takes no lock and writes
+nothing; only `--subcommand` (below) reads the Source Catalog,
+`config.toml` and the pldm Code Tree. PROTOCOL
 is `ipmi` (prints `ipmitool raw 0x.. ...`; the first two fields are NetFn
 and Cmd, one byte each), `mctp-control` or `spdm` (`mctp-client eid <eid>
 type control data .. ..`, `type spdm`), or `pldm` (the `mctp-client` line
-with `type pldm` and `pldmtool raw -m <eid> -d 0x.. ...`), or `nc-si`
-(below). A field is
+with `type pldm` and `pldmtool raw -m <eid> -d 0x.. ...`), or `nc-si` or
+`nvme-mi` (below). A field is
 `NAME:SIZE=VALUE`, SIZE in bytes. SIZE and every number take ASCII digits
 only (`0`-`9`, and `a`-`f` or `A`-`F` after `0x`); digits of another
 script are refused. In a VALUE, `0X` is read as `0x` wherever this page
@@ -230,7 +243,8 @@ Channel ID is `<channel id>` where unknown and the checksum is printed
 ncsi-cmd reads `-i`, `-p`, `-c`, TYPE and the payload as hex (an ifindex
 written in decimal reaches another interface) and `-m` in decimal, that
 the IID must change between sends or the controller takes a retry
-(DSP0222 6.2.2.2), and why the checksum is zero when it is. The table has
+(DSP0222 6.2.2.2), how the Channel ID is laid out when the package or
+channel is a placeholder, and why the checksum is zero when it is. The table has
 one row per header field, payload field, padding and checksum, offsets
 from MC ID. Refused with exit 2 and one line, besides the field refusals
 above: `--type` missing, not a number or above `0x7f` (bit 7 marks a
@@ -285,7 +299,8 @@ the openbmc/pldm Code Tree that `grep pldm` would read (a user checkout,
 the config Release, else the held default branch): the `add_subcommand`
 registration line (`pldm <commit7> pldmtool/pldm_base_cmd.cpp:597 | ...`),
 a `cite: code` line and the numbered constructor lines of the subcommand's
-class (at most 60), the lines of a name map an option is checked against
+class (at most 60; a longer one ends with `(N more lines of the
+constructor, to line L)`), the lines of a name map an option is checked against
 (`-t,--type` and its `pldmTypes`) under their own cite, and
 `subcommand: pldmtool <type> <Name> -m <eid> -i <sensor_id> -r <rearm>`:
 one item per `add_option` / `add_flag` in source order, the option as the
@@ -298,7 +313,7 @@ user checkout>); the target's pldmtool may differ: check with pldmtool
 <type> <Name> --help`: the subcommand names and option spellings are
 those of the tree read, and the BMC's pldmtool may be another version;
 the raw line above it runs on any. NAME is matched
-case-insensitively. Three other outcomes, all exit 0 with the byte lines
+case-insensitively. Four other outcomes, all exit 0 with the byte lines
 printed first: `subcommand: none in pldmtool/` when no `add_subcommand`
 carries the name (a name in the table GetPLDMCommands labels its output
 with is not one; a type such as `base` or `oem-ibm`, and `raw`, are not
@@ -307,7 +322,8 @@ when the Library holds no pldm tree (nothing is cloned); and, when the
 subcommand is registered but no option call could be read (the options are
 added outside the constructor, or the class or constructor was not found),
 a template of `-m <eid>` only and `subcommand: options not read; see the
-lines above` (`no constructor found` when there were no lines to print).
+lines above` (`no constructor found` when there were no lines to print);
+and `subcommand: <message>` when reading the tree fails any other way.
 `--subcommand` with another PROTOCOL is refused with
 exit 2. The parse of the C++ is best effort: the source lines are always
 printed and are what to trust. With a user checkout of pldm in
@@ -326,7 +342,7 @@ the turn ran a `bmcspec.py` command and the answer carries a Citation
 the prompt before it, the answer (the first paragraph only and `partial`
 when longer than 4096 characters), the Citations and the document
 versions they name go to `notes.jsonl` at the Library root as one Note,
-with an eight-digit id; the same question about the same versions
+with an id of eight hex characters; the same question about the same versions
 replaces the earlier Note.
 
 `find` and `section` then print, after their `note:` / `fetched` /
@@ -350,7 +366,9 @@ again` first, `which the Library no longer holds` when it holds no
 version of DOC). `notes list [DOC]` prints the title lines, `notes
 forget ID` removes one, `notes prune` removes the superseded ones
 (`--days N` also those older than N days, `--all` every one); `status`
-adds `notes: N (size)` after the holdings. `notes record` writes the
+adds `notes: N (size)` after the holdings. The hook passes `notes record`
+the transcript on stdin; `notes record --transcript FILE` records the last
+turn of a transcript file by hand. `notes record` writes the
 Note under the Library root's `.lock` (two Sessions ending a turn
 together: the one replacing a Note rewrites the file), waiting up to
 five seconds; held longer, it prints `note: notes: busy: ...; not
@@ -434,7 +452,8 @@ is not the line taken. A `Figure ...` line there is not taken, since
 SMBus puts a figure's caption under its drawing. Check a value read from such a grid with
 `render`. A table longer than 300 rows (DSP2053's property guide is one
 table over the whole document) prints a `note:` line and only the rows
-that start on the page asked for; `--all-rows` prints every row. Tables
+that start on the page asked for; `--all-rows` prints every row.
+`--index K` prints only the K-th table on the page (1-based). Tables
 are read on demand and kept in `tables.json` next to the Extract, so a
 page is read from the PDF once; `--force` reads it again.
 
@@ -571,7 +590,8 @@ tree: a user checkout named in `config.toml` first, then the `--ref` or
 held tree of the branch the catalog `ref` names (a superseded one still
 counts until `prune` removes it), then the default-branch tree. Like
 `find`, `grep` matches a fixed string unless `--regex`; unlike `find`, it
-is case-sensitive unless `-i` (`--ignore-case`). Every `code` output starts with a `cite:` line naming
+is case-sensitive unless `-i` (`--ignore-case`); `--glob G` limits it to
+the paths matching the git pathspec G (`'*.hpp'`). Every `code` output starts with a `cite:` line naming
 repository, commit, provenance, path and lines; a tree found by an `also`
 name is cited under that name (`release L`, `<ref> <date>`).
 
@@ -719,9 +739,12 @@ A command that meets a live lock waits up to `--wait` seconds (default
 60), then prints one line, `busy: <path> is held by pid P on host H
 (COMMAND, since T); retry with --wait`, writes nothing and exits 3. The
 reading commands (`find`, `section`, `page`, `render`, `table`, `schema`,
-`registry`) take no lock; they consult one only when the version is not
-extracted, wait the same way for the Session that is extracting it, and
-then answer from the finished Extract, or exit 3 if it is still busy. In
+`registry`) take no lock on a Ready version. One that is not Ready they
+fetch or extract themselves under the version's lock, as `fetch` and
+`extract` do: a Session already doing it is waited for the same way, and
+the command then answers from the finished Extract, or exits 3 if it is
+still busy. `table` also takes the lock to merge what it read into
+`tables.json`. In
 `--all` runs a busy document is counted (`busy N` in the summary) and the
 run exits 3 unless something failed, which exits 2 as before.
 
@@ -729,7 +752,12 @@ Single files (`meta.json`, `extract.json`, `tables.json`, `.bmc-tree.json`,
 `freshness.json`, originals and rendered pages) are written to a temporary
 name beside the target, `<name>.<pid>-<token>.part`, and renamed into
 place, so a reader never sees a half-written file and two Sessions writing
-the same file do not collide. `status` lists every lock with its holder and
+the same file do not collide. Two kinds of file are not: the schema and
+registry files unpacked from a bundle are written in place under the
+version's lock (`extract.json`, written last through a `.part`, is what
+marks them complete), and a new Note is appended to `notes.jsonl` in one
+write; replacing, forgetting and pruning Notes rewrite the file through a
+`.part`. `status` lists every lock with its holder and
 whether it is live or stale; `prune` removes stale locks and abandoned
 temporary files (see above).
 
@@ -754,7 +782,8 @@ temporary files (see above).
   Markdown or text version, which has no leading bytes to check, must be UTF-8
   text that does not start as an HTML page. The same check applies to
   files given to `add` or found by `scan`.
-- Writes only under the Library. Files placed there by hand are registered
+- Writes only under the Library, besides the plugin's own data directory
+  (the `SessionStart` hook, below). Files placed there by hand are registered
   as Drop-ins and their origin is recorded as user-provided, never as a URL;
   `scan` also records whether the document id is in the catalog
   (`catalog_known`). Nothing already in the Library is replaced without
@@ -763,10 +792,13 @@ temporary files (see above).
   they write (see above), `notes record` holds `.lock` at the Library
   root while it writes `notes.jsonl`, and every single-file
   write goes through a `<name>.<pid>-<token>.part` temporary beside the
-  target; nothing else is created.
+  target, except a bundle's unpacked files and a new Note appended to
+  `notes.jsonl` (see above); nothing else is created.
 - Replacing an original (`add --force`, `fetch --force`) removes the
   previous original and everything extracted from it, `tables.json`,
-  `schemas/` and rendered pages included; so does `extract --force`.
+  `schemas/` and rendered pages included. `extract --force` replaces the
+  Extract files and removes `tables.json`; rendered pages stay, since the
+  original they come from is unchanged.
 - From a schema bundle only the JSON Schema files an answer needs leave the
   archive: every unversioned `<Name>.json` and the newest
   `<Name>.vX_Y_Z.json` per resource (452 files, 7.4 MB on disk, out of
@@ -780,6 +812,6 @@ temporary files (see above).
   DSP8011 2026.1's 264 members); the privilege registries, the HTML and
   the PDF stay in the ZIP.
 - `check` and `refresh` read listing pages only: `https://www.dmtf.org/standards/published_documents` and `https://www.dmtf.org/dsp/<DSP>`, `https://nvmexpress.org/wp-json/vtm/v1/specifications`, and `https://www.opencompute.org/projects/<page>/` for the pages named in the catalog's `listing` keys. They download no document. For each RFC they read `https://www.rfc-editor.org/rfc/rfc<N>.json`, the RFC Editor's record of it, not the RFC itself. The one exception is `refresh`, which also makes one unauthenticated request to `https://api.github.com/repos/<owner>/<repo>/commits?path=<path>&per_page=1` per document whose newest Markdown version is pinned in a raw.githubusercontent.com URL; `check` and the reading commands never do. A reading command reads the one listing page of the document it answered from when that document's Freshness Check is due (at most once per document per `freshness_days`), never with `[library] offline = true`.
-- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` and `code` (reading `HEAD` of a user checkout), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. Nothing else is executed, and nothing is re-uploaded or redistributed. `repos --search` searches the openbmc organisation only, not the external libraries the catalog lists (`libspdm`, `ipmitool`, ...). `clone` fetches from the URL of the catalog entry: GitHub, but Codeberg for `ipmitool` and git.kernel.org for `i2c-tools` and `ethtool`. For an entry with `release_tag`, `clone --release` also runs `git ls-remote --tags` on that URL when fetching the tag fails, to say whether the tag is missing. The vendor kernels `aspeed-linux` and `nuvoton-linux` are cloned sparse like `linux` (its directories plus the vendor's arch, dts and soc ones), and the vendor SDK layers `aspeed-openbmc` and `nuvoton-openbmc` hold only `meta-<vendor>*` and `meta-evb`. `nuvoton-igps` holds only its text files (scripts, XML layouts, notes), not the prebuilt images beside them. `libspdm` holds `include/`, `library/`, `os_stub/` and `doc/`, not `unit_test/` (about 7.5 MB instead of 60 MB at `main` in 2026-11).
-- `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory that is removed on failure, and `code/<repo>/.lock` while it runs. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees, `.tmp-*` and `.part` leftovers and stale `.lock` files under `code/` and `specs/` and at the Library root, nothing else.
+- Runs `git` as a subprocess for `clone` (shallow, one commit; `--filter=blob:none --sparse` for the `openbmc` repository and for `linux`, which is held only for `Documentation/` and the BMC-facing driver directories), `grep` (`git grep`), `git rev-parse HEAD` in a user checkout for `grep`, `code` and `invocation --subcommand` (the commit their cite names; on a Library tree `code` reads the files only), and `git ls-remote --tags` on the `openbmc` repository for `check`; `gh search code` for `repos --search`. The plugin's `SessionStart` hook runs `pip install` of `requirements.txt` from PyPI into the plugin's data directory, once, and again only when the content of `requirements.txt` changes. Nothing else is executed, and nothing is re-uploaded or redistributed. `repos --search` searches the openbmc organisation only, not the external libraries the catalog lists (`libspdm`, `ipmitool`, ...). `clone` fetches from the URL of the catalog entry: GitHub, but Codeberg for `ipmitool` and git.kernel.org for `i2c-tools` and `ethtool`. For an entry with `release_tag`, `clone --release` also runs `git ls-remote --tags` on that URL when fetching the tag fails, to say whether the tag is missing. The vendor kernels `aspeed-linux` and `nuvoton-linux` are cloned sparse like `linux` (its directories plus the vendor's arch, dts and soc ones), and the vendor SDK layers `aspeed-openbmc` and `nuvoton-openbmc` hold only `meta-<vendor>*` and `meta-evb`. `nuvoton-igps` holds only its text files (scripts, XML layouts, notes), not the prebuilt images beside them. `libspdm` holds `include/`, `library/`, `os_stub/` and `doc/`, not `unit_test/` (about 7.5 MB instead of 60 MB at `main` in 2026-11).
+- `clone` writes only under the Library's `code/` directory: `code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory that is removed on failure, and `code/<repo>/.lock` while it runs. A user checkout named in `config.toml` is only read. `prune --yes` removes superseded trees, `.tmp-*` and `.part` leftovers, `.lock.takeover` files older than five minutes (a take-over creates one) and stale `.lock` files under `code/` and `specs/` and at the Library root, nothing else.
 - `check` writes `freshness.json` at the Library root, and so does a reading command that ran the due check; `fetch` and `status` stamp the reminder there (`reminded_at`) when they print the note. `refresh --write` is the one command that writes outside the Library: it inserts version entries into the catalog file it was given (`--catalog`, or the shipped `bmc_toolkit/spec/catalog.toml`).

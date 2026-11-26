@@ -182,11 +182,12 @@ def test_ac12_registry_command_and_layout_are_documented():
     layout = (ROOT / "docs" / "LIBRARY.md").read_text("utf-8")
     assert "`registry` reads the Redfish message registries bundle" in commands
     assert "`registries/`" in layout
-    assert "DSP8013" in readme
+    # since T89 the README keeps a few examples; COMMANDS.md holds them all
+    assert "DSP8013" in commands
     network = commands[commands.index("From the registries bundle (DSP8011)") :]
     network = network[: network.index("\n- ")]
     assert "privilege registries" in network and "stay in the ZIP" in network
-    assert "registry DSP8011 Base" in readme
+    assert "registry DSP8011 Base" in commands
 
 
 # ----------------------------------------------------------------- AC-13

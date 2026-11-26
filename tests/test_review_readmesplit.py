@@ -165,11 +165,17 @@ NETWORK_VERBATIM = [
     "  `curl_cffi`, which Intel's and OCP's CDNs require),",
     "- A response that is not the expected PDF or ZIP (an HTML block page, a\n"
     "  cut-off download) is discarded and never written to the Library.",
-    "- Writes only under the Library. Files placed there by hand are registered\n"
+    # T89 (docs audit C5) named the SessionStart hook's directory here; the
+    # pinned text follows it.
+    "- Writes only under the Library, besides the plugin's own data directory\n"
+    "  (the `SessionStart` hook, below). Files placed there by hand are registered\n"
     "  as Drop-ins and their origin is recorded as user-provided, never as a URL;",
+    # T89 (docs audit C7) split `extract --force` off this bullet: it leaves
+    # rendered pages; the pinned text follows it.
     "- Replacing an original (`add --force`, `fetch --force`) removes the\n"
     "  previous original and everything extracted from it, `tables.json`,\n"
-    "  `schemas/` and rendered pages included; so does `extract --force`.",
+    "  `schemas/` and rendered pages included. `extract --force` replaces the\n"
+    "  Extract files and removes `tables.json`; rendered pages stay,",
     "- From a schema bundle only the JSON Schema files an answer needs leave the\n"
     "  archive: every unversioned `<Name>.json` and the newest\n"
     "  `<Name>.vX_Y_Z.json` per resource (452 files, 7.4 MB on disk, out of\n"
@@ -180,13 +186,20 @@ NETWORK_VERBATIM = [
     "`https://nvmexpress.org/wp-json/vtm/v1/specifications`, and "
     "`https://www.opencompute.org/projects/<page>/` for the pages "
     "named in the catalog's `listing` keys. They download no document.",
+    # T89 (docs audit C5, C6) added `invocation --subcommand` and the
+    # SessionStart hook's pip install; the pinned text follows it.
     "- Runs `git` as a subprocess for `clone` (shallow, one commit; "
     "`--filter=blob:none --sparse` for the `openbmc` repository and for "
     "`linux`, which is held only for `Documentation/` and the BMC-facing "
-    "driver directories), `grep` and `code` (reading `HEAD` of a user "
-    "checkout), and `git ls-remote --tags` on the `openbmc` repository for "
-    "`check`; `gh search code` for `repos --search`. Nothing else is "
-    "executed, and nothing is re-uploaded or redistributed.",
+    "driver directories), `grep` (`git grep`), `git rev-parse HEAD` in a "
+    "user checkout for `grep`, `code` and `invocation --subcommand` (the "
+    "commit their cite names; on a Library tree `code` reads the files "
+    "only), and `git ls-remote --tags` on the `openbmc` repository for "
+    "`check`; `gh search code` for `repos --search`. The plugin's "
+    "`SessionStart` hook runs `pip install` of `requirements.txt` from PyPI "
+    "into the plugin's data directory, once, and again only when the content "
+    "of `requirements.txt` changes. Nothing else is executed, and nothing is "
+    "re-uploaded or redistributed.",
     # M13 (locks) reworded this bullet; the pinned text follows it.
     "- `clone` writes only under the Library's `code/` directory: "
     "`code/<repo>/<commit>/` plus a temporary `.tmp-<pid>-<token>` directory "
@@ -204,8 +217,13 @@ NETWORK_VERBATIM = [
 CATALOG_VERBATIM = [
     "`bmc_toolkit/spec/catalog.toml` lists every family, document, version and\n"
     "URL; comments in the file record when a URL was last confirmed. How far\n"
-    "back the versions go depends on the publisher. DMTF and NVM Express\n"
-    "documents carry their full version history, kept current by `refresh`.",
+    # T89 (docs audit L5): NVM Express carries the versions its API lists,
+    # not the full history; the pinned text follows it.
+    "back the versions go depends on the publisher. DMTF documents carry\n"
+    "their full version history, kept current by `refresh`; NVM Express\n"
+    "documents carry the versions the nvmexpress.org API lists (the current\n"
+    "ones, also kept current by `refresh`) and older ones added by hand, not\n"
+    "the full history.",
     "A version may carry its own `access` when\n"
     "the publisher keeps the newest revisions behind a registration (PMBus 1.4\n"
     "and 1.5 are listed that way, with no URL): `fetch` refuses such a version,",
