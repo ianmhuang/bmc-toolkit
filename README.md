@@ -14,7 +14,7 @@ asked about (the latest published version unless you name another). What you can
   `ipmitool raw` line for Get Device ID."
 - What pasted `ipmitool`, `pldmtool` or `mctp-client` output means, the
   completion code and each field: "`ipmitool raw 0x06 0x01` printed
-  `20 81 06 02 02`; what does it say?"
+  `20 81 06 02 02 bf 00 00 00 00 00`; what does it say?"
 - How OpenBMC, Aspeed or Nuvoton source implements something, cited to
   repository, commit and line: "Where does bmcweb set PowerState?"
 

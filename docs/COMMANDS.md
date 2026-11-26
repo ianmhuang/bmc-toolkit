@@ -366,8 +366,9 @@ again` first, `which the Library no longer holds` when it holds no
 version of DOC). `notes list [DOC]` prints the title lines, `notes
 forget ID` removes one, `notes prune` removes the superseded ones
 (`--days N` also those older than N days, `--all` every one); `status`
-adds `notes: N (size)` after the holdings. The hook passes `notes record`
-the transcript on stdin; `notes record --transcript FILE` records the last
+adds `notes: N (size)` after the holdings. The Stop hook gives `notes record`
+its JSON on stdin, which names the transcript file (`transcript_path`) and
+holds the last answer; `notes record --transcript FILE` records the last
 turn of a transcript file by hand. `notes record` writes the
 Note under the Library root's `.lock` (two Sessions ending a turn
 together: the one replacing a Note rewrites the file), waiting up to
